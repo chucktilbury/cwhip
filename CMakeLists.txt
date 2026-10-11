@@ -49,6 +49,14 @@ if(DOXYGEN_FOUND)
     )
 endif()
 
+add_custom_target(site
+    COMMAND "/usr/bin/python3" "build.py"
+    WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/doc/website"
+    COMMENT "Generating web site"
+    DEPENDS docs
+    VERBATIM
+)
+
 install(FILES README.md doc/CWHIP-LANGUAGE-NOTES.md DESTINATION "${CMAKE_INSTALL_DOCDIR}")
 install(DIRECTORY doc/ DESTINATION "${CMAKE_INSTALL_DOCDIR}/doc"
     FILES_MATCHING PATTERN "*.md")
