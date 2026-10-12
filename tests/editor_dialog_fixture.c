@@ -178,13 +178,6 @@ static gboolean answer_chooser(gpointer unused) {
             g_object_unref(window);
             continue;
         }
-        // GTK's folder-info query precedes the visible enumeration spinner.
-        GFile *current_folder = gtk_file_chooser_get_current_folder(GTK_FILE_CHOOSER(window));
-        if (!current_folder) {
-            g_object_unref(window);
-            continue;
-        }
-        g_object_unref(current_folder);
         if (chosen_response == GTK_RESPONSE_CANCEL) {
             gtk_dialog_response(GTK_DIALOG(window), GTK_RESPONSE_CANCEL);
         } else if (many_folder) {

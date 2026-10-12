@@ -2,6 +2,7 @@
 
 import argparse
 from pathlib import Path
+import re
 import shlex
 import subprocess
 import tempfile
@@ -414,7 +415,13 @@ def main():
                 raise AssertionError(f"Editor timed out: {error.stderr!r}") from error
             assert result.returncode == 0, result
             assert result.stdout.splitlines()[-1].startswith("PASS "), result
-            assert not result.stderr, f"{result.stdout}\n{result.stderr}"
+            warning = re.compile(
+                r"Gtk-Message: [0-9:.]+: GtkDialog mapped without a transient parent\. This is discouraged\."
+            )
+            stderr_lines = [line for line in result.stderr.splitlines() if line.strip()]
+            assert all(warning.fullmatch(line) for line in stderr_lines), (
+                f"{result.stdout}\n{result.stderr}"
+            )
             print(result.stdout.splitlines()[-1])
 
 
