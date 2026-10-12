@@ -81,6 +81,38 @@ bool explorer_activate(void *self, int64_t id) {
     g_signal_emit_by_name(list, "activate", (guint)id);
     return true;
 }
+
+bool explorer_single_click(void *self) {
+    (void)self;
+    return gtk_list_view_get_single_click_activate(GTK_LIST_VIEW(explorer_list()));
+}
+
+bool explorer_context(void *self, bool toggle_hidden) {
+    (void)self;
+    GtkWidget *list = explorer_list();
+    GListModel *controllers = gtk_widget_observe_controllers(list);
+    bool opened = false;
+    for (guint i = 0; i < g_list_model_get_n_items(controllers); ++i) {
+        GtkEventController *controller = g_list_model_get_item(controllers, i);
+        if (GTK_IS_GESTURE_CLICK(controller) &&
+            gtk_gesture_single_get_button(GTK_GESTURE_SINGLE(controller)) == GDK_BUTTON_SECONDARY) {
+            g_signal_emit_by_name(controller, "pressed", 1, 12.0, 12.0);
+            opened = true;
+        }
+        g_object_unref(controller);
+    }
+    g_object_unref(controllers);
+    GtkWidget *menu = find_type(list, GTK_TYPE_POPOVER);
+    GtkWidget *hidden = menu ? find_type(menu, GTK_TYPE_CHECK_BUTTON) : NULL;
+    GtkWidget *refresh = menu ? find_button(menu, "Refresh") : NULL;
+    if (!opened || !menu || !gtk_widget_get_visible(menu) || !hidden || !refresh) return false;
+    if (toggle_hidden)
+        gtk_check_button_set_active(GTK_CHECK_BUTTON(hidden),
+            !gtk_check_button_get_active(GTK_CHECK_BUTTON(hidden)));
+    else g_signal_emit_by_name(refresh, "clicked");
+    gtk_popover_popdown(GTK_POPOVER(menu));
+    return true;
+}
 bool explorer_chooser(void *self) {
     (void)self;
     GListModel *windows = gtk_window_get_toplevels();

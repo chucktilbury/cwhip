@@ -414,7 +414,7 @@ def main():
                 raise AssertionError(f"Editor timed out: {error.stderr!r}") from error
             assert result.returncode == 0, result
             assert result.stdout.splitlines()[-1].startswith("PASS "), result
-            assert not result.stderr, result.stderr
+            assert not result.stderr, f"{result.stdout}\n{result.stderr}"
             print(result.stdout.splitlines()[-1])
 
 

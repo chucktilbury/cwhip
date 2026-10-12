@@ -50,6 +50,7 @@ namespace Gtk {
         void run()
         void quit()
         void shutdown()
+        void ready()
         int post(callback<void()> action)
         bool cancel(int token)
     }
@@ -64,6 +65,7 @@ namespace Gtk {
         int _close(TransientWindow source, callback<bool()> action)
         int _toggled(CheckButton source, callback<void(bool)> action)
         int _pageChanged(Notebook source, callback<void()> action)
+        int _focusChanged(Window source, callback<void(bool)> action)
         bool _disconnect(int token)
         bool _connected(int token)
         public:
@@ -87,6 +89,9 @@ namespace Gtk {
         }
         SignalConnection(Notebook source, callback<void()> action) {
             _token = _pageChanged(source, action)
+        }
+        SignalConnection(Window source, callback<void(bool)> action) {
+            _token = _focusChanged(source, action)
         }
         bool disconnect() { return _disconnect(_token) }
         bool connected() { return _connected(_token) }
@@ -169,6 +174,9 @@ namespace Gtk {
         SignalConnection onCloseRequest(callback<bool()> action) {
             return SignalConnection(_windowSelf(), action)
         }
+        SignalConnection onFocusChanged(callback<void(bool)> action) {
+            return SignalConnection(_windowSelf(), action)
+        }
     }
 
     class TransientWindow : Widget {
@@ -207,6 +215,27 @@ namespace Gtk {
         String text() { return _getText() }
     }
 
+    class Grid : Widget {
+        private:
+        void _attachAt(int token, int child, int column, int row, int width, int height)
+        public:
+        Grid(int spacing) { super Widget(14, "", 0, spacing) }
+        void attach(Widget child, int column, int row, int width, int height) {
+            _attachAt(_widgetToken(), child._widgetToken(), column, row, width, height)
+        }
+    }
+
+    class ContextMenu : Widget {
+        private:
+        void _bind(int token, int owner)
+        public:
+        ContextMenu(Widget owner) {
+            super Widget(15, "", 0, 0)
+            _bind(_widgetToken(), owner._widgetToken())
+        }
+        void setChild(Widget child) { _attachChild(child) }
+    }
+
     class Button : Widget {
         private:
         Button _buttonSelf()
@@ -222,6 +251,7 @@ namespace Gtk {
     class Entry : Widget {
         private:
         Entry _entrySelf()
+        void _editable(int token, bool editable)
         public:
         Entry(String text) { super Widget(5, text, 0, 0) }
         void setText(String text) { _setText(text) }
@@ -230,6 +260,7 @@ namespace Gtk {
             return SignalConnection(_entrySelf(), action)
         }
         void focus() { _grabFocus() }
+        void setEditable(bool editable) { _editable(_widgetToken(), editable) }
     }
 
     class MenuBar : Widget {
@@ -326,10 +357,14 @@ namespace Gtk {
     class Notebook : Widget {
         private:
         Notebook _notebookSelf()
+        void _closable(int token, int child, String title, callback<void()> close)
         public:
         Notebook() { super Widget(9, "", 0, 0) }
         void appendPage(Widget child, String title) {
             _notebookAppend(_widgetToken(), child._widgetToken(), title)
+        }
+        void appendClosablePage(Widget child, String title, callback<void()> close) {
+            _closable(_widgetToken(), child._widgetToken(), title, close)
         }
         int currentPage() { return _notebookCurrent(_widgetToken()) }
         void setCurrentPage(int page) { _notebookSetCurrent(_widgetToken(), page) }
@@ -356,6 +391,7 @@ namespace Gtk {
 
     class Tree : Widget {
         private:
+        void _singleClick(int token, bool enabled)
         void _setup(int token, callback<void(int)> request, callback<void(int)> activate)
         void _add(int token, int parent, int id, String label, String icon, bool expandable, String value, int data)
         void _clear(int token, int parent)
@@ -370,6 +406,7 @@ namespace Gtk {
             super Widget(13, "", 0, 0)
             _setup(_widgetToken(), request, activate)
         }
+        void setSingleClickActivate(bool enabled) { _singleClick(_widgetToken(), enabled) }
         void add(int parent, int id, String label, String icon, bool expandable, String value, int data) {
             _add(_widgetToken(), parent, id, label, icon, expandable, value, data)
         }
@@ -424,6 +461,7 @@ namespace Gtk {
     void Application.run() from "cwhip_gtk_run"
     void Application.quit() from "cwhip_gtk_quit"
     void Application.shutdown() from "cwhip_gtk_shutdown"
+    void Application.ready() from "cwhip_gtk_ready"
     int Application.post(callback<void()> action) from "cwhip_gtk_post"
     bool Application.cancel(int token) from "cwhip_gtk_cancel"
     int SignalConnection._activate(Application source, callback<void()> action)
@@ -436,6 +474,14 @@ namespace Gtk {
     int SignalConnection._toggled(CheckButton source, callback<void(bool)> action) from "cwhip_gtk_checkbox_signal"
     int SignalConnection._pageChanged(Notebook source, callback<void()> action)
         from "cwhip_gtk_notebook_signal"
+    int SignalConnection._focusChanged(Window source, callback<void(bool)> action)
+        from "cwhip_gtk_window_focus_signal"
+    void Grid._attachAt(int token, int child, int column, int row, int width, int height)
+        from "cwhip_gtk_grid_attach"
+    void ContextMenu._bind(int token, int owner) from "cwhip_gtk_context_menu_bind"
+    void Entry._editable(int token, bool editable) from "cwhip_gtk_entry_editable"
+    void Notebook._closable(int token, int child, String title, callback<void()> close)
+        from "cwhip_gtk_notebook_closable"
     bool SignalConnection._disconnect(int token) from "cwhip_gtk_connection_disconnect"
     bool SignalConnection._connected(int token) from "cwhip_gtk_connected"
     int Widget._create(int kind, String text, int orientation, int spacing, callback<void()> root)
@@ -464,6 +510,7 @@ namespace Gtk {
         String excludes, callback<void(int, String)> result) from "cwhip_gtk_directory_start_filtered"
     void Tree._setup(int token, callback<void(int)> request, callback<void(int)> activate)
         from "cwhip_gtk_tree_setup"
+    void Tree._singleClick(int token, bool enabled) from "cwhip_gtk_tree_single_click"
     void Tree._add(int token, int parent, int id, String label, String icon, bool expandable, String value, int data)
         from "cwhip_gtk_tree_add"
     String Tree._value(int token, int id) from "cwhip_gtk_tree_value"

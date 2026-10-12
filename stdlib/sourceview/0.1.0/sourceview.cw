@@ -38,6 +38,7 @@ namespace GtkSource {
         bool _hasContext(int token, String context, int offset)
         bool _language(int token, String language)
         void _monospace(int token, bool monospace)
+        void _emojiMenu(int token, bool enabled)
         bool _bindShortcut(int token, String trigger, callback<void()> action)
         bool _hasShortcut(int token, String trigger)
         void _clearShortcuts(int token)
@@ -71,6 +72,7 @@ namespace GtkSource {
         void setMonospace(bool monospace) {
             _monospace(_widgetToken(), monospace)
         }
+        void setEmojiMenu(bool enabled) { _emojiMenu(_widgetToken(), enabled) }
         bool find(String query) { return _find(_widgetToken(), query) }
         bool replaceNext(String query, String replacement) {
             return _replaceNext(_widgetToken(), query, replacement)
@@ -134,6 +136,7 @@ namespace GtkSource {
     bool View._language(int token, String language) from "cwhip_gtk_source_view_language"
     void View._monospace(int token, bool monospace)
         from "cwhip_gtk_source_view_monospace"
+    void View._emojiMenu(int token, bool enabled) from "cwhip_gtk_source_view_emoji_menu"
     String View._languageId(int token) from "cwhip_gtk_source_view_language_id"
     bool View._search(int token, String query, int options) from "cwhip_gtk_source_view_search"
     bool View._replace(int token, String query, String replacement, int options)

@@ -37,6 +37,9 @@ static GtkWidget *find_view(GtkWidget *widget) {
 }
 
 static bool loading(GtkWidget *widget) {
+    GdkCursor *cursor = gtk_widget_get_cursor(widget);
+    if (cursor && g_strcmp0(gdk_cursor_get_name(cursor), "progress") == 0)
+        return true;
     if (GTK_IS_SPINNER(widget) && gtk_widget_get_mapped(widget) &&
         gtk_spinner_get_spinning(GTK_SPINNER(widget)))
         return true;
@@ -175,6 +178,13 @@ static gboolean answer_chooser(gpointer unused) {
             g_object_unref(window);
             continue;
         }
+        // GTK's folder-info query precedes the visible enumeration spinner.
+        GFile *current_folder = gtk_file_chooser_get_current_folder(GTK_FILE_CHOOSER(window));
+        if (!current_folder) {
+            g_object_unref(window);
+            continue;
+        }
+        g_object_unref(current_folder);
         if (chosen_response == GTK_RESPONSE_CANCEL) {
             gtk_dialog_response(GTK_DIALOG(window), GTK_RESPONSE_CANCEL);
         } else if (many_folder) {
@@ -388,7 +398,7 @@ bool fixture_preferences_click(void *self, void *label) {
 
 static GtkWidget *preference_command(GtkWidget *widget, const char *name) {
     if (GTK_IS_LABEL(widget) && g_strcmp0(gtk_label_get_text(GTK_LABEL(widget)), name) == 0)
-        return gtk_widget_get_parent(gtk_widget_get_parent(widget));
+        return widget;
     for (GtkWidget *child = gtk_widget_get_first_child(widget); child;
          child = gtk_widget_get_next_sibling(child)) {
         GtkWidget *row = preference_command(child, name);
@@ -421,7 +431,20 @@ bool fixture_preferences_command_click(void *self, void *name_text, void *label_
     char *label = g_strndup(bytes, length);
     GtkWindow *window = preferences_window();
     GtkWidget *row = window ? preference_command(GTK_WIDGET(window), name) : NULL;
-    GtkWidget *button = row ? find_button(row, label) : NULL;
+    GtkWidget *button = NULL;
+    if (row && GTK_IS_GRID(gtk_widget_get_parent(row))) {
+        GtkGrid *grid = GTK_GRID(gtk_widget_get_parent(row));
+        int column, position, width, height;
+        gtk_grid_query_child(grid, row, &column, &position, &width, &height);
+        for (int i = 2; i <= 4; ++i) {
+            GtkWidget *candidate = gtk_grid_get_child_at(grid, i, position);
+            if (GTK_IS_BUTTON(candidate) &&
+                g_strcmp0(gtk_button_get_label(GTK_BUTTON(candidate)), label) == 0) {
+                button = candidate;
+                break;
+            }
+        }
+    }
     if (button) g_signal_emit_by_name(button, "clicked");
     g_free(name);
     g_free(label);
@@ -436,6 +459,83 @@ bool fixture_preferences_close(void *self) {
     gtk_window_close(window);
     g_object_unref(window);
     return true;
+}
+
+bool fixture_preferences_grid_readonly(void *self) {
+    (void)self;
+    GtkWindow *window = preferences_window();
+    GtkWidget *label = window ? preference_command(GTK_WIDGET(window), "Save") : NULL;
+    GtkWidget *parent = label ? gtk_widget_get_parent(label) : NULL;
+    bool valid = GTK_IS_GRID(parent);
+    unsigned entries = 0;
+    if (valid) {
+        for (GtkWidget *child = gtk_widget_get_first_child(parent); child;
+             child = gtk_widget_get_next_sibling(child)) {
+            if (!GTK_IS_ENTRY(child)) continue;
+            int column, row, width, height;
+            gtk_grid_query_child(GTK_GRID(parent), child, &column, &row, &width, &height);
+            valid = valid && column == 1 && row % 2 == 0 &&
+                !gtk_editable_get_editable(GTK_EDITABLE(child)) &&
+                gtk_widget_get_sensitive(child);
+            ++entries;
+        }
+    }
+    g_clear_object(&window);
+    return valid && entries == 22;
+}
+
+bool fixture_editor_tabs(void *self) {
+    (void)self;
+    GtkWidget *notebook = find_type(GTK_WIDGET(editor_window()), GTK_TYPE_NOTEBOOK);
+    if (!notebook || !gtk_widget_has_css_class(notebook, "cwhip-file-tabs")) return false;
+    int count = gtk_notebook_get_n_pages(GTK_NOTEBOOK(notebook));
+    for (int i = 0; i < count; ++i) {
+        GtkWidget *page = gtk_notebook_get_nth_page(GTK_NOTEBOOK(notebook), i);
+        GtkWidget *tab = gtk_notebook_get_tab_label(GTK_NOTEBOOK(notebook), page);
+        if (!GTK_IS_BOX(tab)) return false;
+        GtkWidget *label = gtk_widget_get_first_child(tab);
+        GtkWidget *button = label ? gtk_widget_get_next_sibling(label) : NULL;
+        if (!GTK_IS_LABEL(label) || !GTK_IS_BUTTON(button) ||
+            g_strcmp0(gtk_button_get_icon_name(GTK_BUTTON(button)), "window-close-symbolic") != 0)
+            return false;
+    }
+    return count > 0;
+}
+
+bool fixture_editor_close_tab(void *self, int64_t index) {
+    (void)self;
+    GtkWidget *notebook = find_type(GTK_WIDGET(editor_window()), GTK_TYPE_NOTEBOOK);
+    if (!notebook || index < 0 || index >= gtk_notebook_get_n_pages(GTK_NOTEBOOK(notebook)))
+        return false;
+    GtkWidget *page = gtk_notebook_get_nth_page(GTK_NOTEBOOK(notebook), (int)index);
+    GtkWidget *tab = gtk_notebook_get_tab_label(GTK_NOTEBOOK(notebook), page);
+    GtkWidget *button = tab ? find_type(tab, GTK_TYPE_BUTTON) : NULL;
+    if (!button) return false;
+    g_signal_emit_by_name(button, "clicked");
+    return true;
+}
+
+static bool menu_label(GtkWidget *widget, const char *text) {
+    if (GTK_IS_LABEL(widget) && gtk_widget_is_visible(widget) &&
+        strstr(gtk_label_get_text(GTK_LABEL(widget)), text)) return true;
+    for (GtkWidget *child = gtk_widget_get_first_child(widget); child;
+         child = gtk_widget_get_next_sibling(child)) {
+        if (menu_label(child, text)) return true;
+    }
+    return false;
+}
+
+bool fixture_editor_no_emoji(void *self) {
+    (void)self;
+    GtkWidget *view = find_view(GTK_WIDGET(editor_window()));
+    if (!view || !(gtk_text_view_get_input_hints(GTK_TEXT_VIEW(view)) & GTK_INPUT_HINT_NO_EMOJI))
+        return false;
+    if (!gtk_widget_activate_action(view, "menu.popup", NULL)) return false;
+    GtkWidget *menu = find_type(view, GTK_TYPE_POPOVER_MENU);
+    bool valid = menu && !menu_label(menu, "Emoji") &&
+        menu_label(menu, "Copy") && menu_label(menu, "Paste") && menu_label(menu, "Cut");
+    if (menu) gtk_popover_popdown(GTK_POPOVER(menu));
+    return valid;
 }
 
 static bool preference_views(GtkWidget *widget, int size, int tabs, bool spaces,

@@ -23,6 +23,10 @@ class PreferenceFixture {
     bool commandClick(String name, String label)
     bool views(int size, int tabs, bool spaces, bool numbers, bool wrap, bool highlight)
     bool record(String trigger)
+    bool grid()
+    bool tabs()
+    bool closeTab(int index)
+    bool noEmoji()
     void tick()
 }
 void PreferenceFixture.collect() from "fixture_editor_collect"
@@ -35,6 +39,10 @@ bool PreferenceFixture.commandClick(String name, String label) from "fixture_pre
 bool PreferenceFixture.views(int size, int tabs, bool spaces, bool numbers, bool wrap, bool highlight)
     from "fixture_preferences_views"
 bool PreferenceFixture.record(String trigger) from "fixture_preferences_record"
+bool PreferenceFixture.grid() from "fixture_preferences_grid_readonly"
+bool PreferenceFixture.tabs() from "fixture_editor_tabs"
+bool PreferenceFixture.closeTab(int index) from "fixture_editor_close_tab"
+bool PreferenceFixture.noEmoji() from "fixture_editor_no_emoji"
 void PreferenceFixture.tick() from "fixture_preferences_tick"
 
 class PreferencesChecks {
@@ -122,6 +130,97 @@ class PreferencesChecks {
             require(PreferenceFixture().views(18, 3, false, false, true, true), "new view reload")
             editor.quitAction()
             print(format("PASS reload {}", checks))
+            return
+        }
+        if (mode.equals("usability")) {
+            if (stage == 0) {
+                require(!editor.settings.saveOnTabLoss && !editor.settings.saveOnWindowLoss,
+                    "focus saving defaults off")
+                editor.openFile("example.cw")
+                EditorDocument file = editor.currentDocument()
+                file.view.setText("tab autosave\n")
+                editor.newDocument()
+                require(file.view.modified(), "disabled tab saving preserves dirty buffer")
+                require(PreferenceFixture().tabs(), "bordered tabs have native close icons")
+                require(PreferenceFixture().noEmoji(), "text menu preserves editing and hides emoji")
+                editor.showPreferences()
+                require(PreferenceFixture().click("Startup"), "Startup category button")
+                require(!editor.editorPreferences.disposed(), "Startup shares preferences window")
+                editor.reopenCheck.setActive(true)
+                require(editor.settings.reopenLast, "startup option persists")
+                require(PreferenceFixture().click("Editor"), "return to editor category")
+                editor.saveTabCheck.setActive(true)
+                editor.windowFocusChanged(false)
+                require(!editor.settings.saveOnWindowLoss && file.view.modified(),
+                    "tab option does not enable window-loss saving")
+                editor.saveWindowCheck.setActive(true)
+                require(PreferenceFixture().click("Keyboard") && PreferenceFixture().grid(),
+                    "aligned grid of read-only selectable shortcut entries")
+                editor.hidePreferences()
+                editor.activateDocument(file)
+                editor.newDocument()
+                require(!file.view.modified(), "leaving tab automatically saves named buffer")
+                System.File saved = System.File(file.path, "r")
+                require(saved.readAll().equals("tab autosave\n"), "tab autosave contents")
+                saved.close()
+                EditorDocument untitled = editor.currentDocument()
+                untitled.view.setText("unsaved untitled\n")
+                editor.activateDocument(file)
+                require(untitled.view.modified() && editor.fileDialog == null,
+                    "focus saving never prompts for untitled paths")
+                file.view.setText("window autosave\n")
+                editor.windowFocusChanged(false)
+                require(!file.view.modified(), "window focus loss saves named buffers")
+                saved = System.File(file.path, "r")
+                require(saved.readAll().equals("window autosave\n"), "window autosave contents")
+                saved.close()
+                require(untitled.view.modified(), "window loss preserves untitled buffer")
+                file.path = "/dev/null/blocked.cw"
+                file.view.setText("failed autosave\n")
+                editor.newDocument()
+                require(file.view.modified() && editor.status.text().contains("Automatic Save failed"),
+                    "failed tab autosave visibly retains dirty buffer")
+                editor.windowFocusChanged(false)
+                require(file.view.modified() && editor.fileDialog == null &&
+                    editor.status.text().contains("Automatic Save failed"),
+                    "repeated focus losses produce no dialog loop")
+                editor.openFile("example.cw")
+                EditorDocument good = editor.currentDocument()
+                good.view.setText("another successful autosave\n")
+                editor.windowFocusChanged(false)
+                require(file.view.modified() && !good.view.modified() &&
+                    editor.status.text().contains("Automatic Save failed"),
+                    "another buffer's successful autosave does not hide earlier failure")
+                require(PreferenceFixture().closeTab(1), "inactive dirty tab close icon")
+                require(editor.pendingCloseDocument == file && editor.closeChoices != null,
+                    "inactive close uses dirty document protection")
+                editor.cancelPendingClose()
+                require(editor.pendingCloseDocument == null && file.view.modified(),
+                    "cancel close retains inactive buffer")
+                require(PreferenceFixture().closeTab(1), "dirty close icon again")
+                editor.discardPendingClose()
+                require(editor.documents.length == 5, "discard removes only requested tab")
+                editor.activateDocument(untitled)
+                untitled.view.markSaved()
+                editor.closeAllDocuments()
+                editor.newDocument()
+                require(PreferenceFixture().closeTab(0) && editor.documents.length == 1 &&
+                    editor.currentDocument().path.equals(""), "last close icon keeps fresh untitled")
+                stage = 1
+                Gtk.Application().post(nextAction)
+                return
+            }
+            require(editor.settings.saveOnTabLoss && editor.settings.saveOnWindowLoss,
+                "focus options independent of view settings")
+            editor.quitAction()
+            print(format("PASS usability {}", checks))
+            return
+        }
+        if (mode.equals("focus-reload")) {
+            require(editor.settings.saveOnTabLoss && editor.settings.saveOnWindowLoss &&
+                editor.settings.reopenLast, "reload focus options and Startup preference")
+            editor.quitAction()
+            print(format("PASS focus-reload {}", checks))
             return
         }
         if (mode.equals("legacy")) {
@@ -437,6 +536,12 @@ def main():
         assert data["editor"]["font_size"] == 18 and data["editor"]["tab_width"] == 3
         assert data["keyboard"]["save"] == "<Control><Alt>s"
         run("reload", saved.read_text())
+        usability = run("usability")
+        focus = tomllib.loads(usability.read_text())
+        assert focus["editor"]["save_on_tab_loss"] is True
+        assert focus["editor"]["save_on_window_loss"] is True
+        assert focus["project"]["reopen_last"] is True
+        run("focus-reload", usability.read_text())
         legacy = run("legacy", legacy="<Control><Alt>s=save\n")
         migrated = tomllib.loads(legacy.read_text())
         assert migrated["keyboard"]["save"] == "<Control><Alt>s"
@@ -467,6 +572,7 @@ def main():
             ("version", "version = 99\n", "version"),
             ("type", 'version = 1\n[editor]\nfont_size = "large"\n', "integer"),
             ("range", "version = 1\n[editor]\ntab_width = 17\n", "1 to 16"),
+            ("focus-type", 'version = 1\n[editor]\nsave_on_tab_loss = "yes"\n', "boolean"),
             ("table", "version = 1\neditor = []\n", "table"),
             ("trigger", 'version = 1\n[keyboard]\nsave = "invalid syntax"\n', "Invalid"),
             ("conflict", 'version = 1\n[keyboard]\nsave = "<Control>q"\n', "conflicts"),

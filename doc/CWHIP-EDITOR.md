@@ -7,7 +7,8 @@ File, Edit, Project and Help menus, native open/save-as file choosers, multiple 
 duplicate-path focusing, open/save/save-as, session
 recent files, dirty tab titles, close protection, undo/redo, find/replace,
 line/column status, a non-modal Preferences window, and configurable GTK keyboard shortcuts. GTK's text view
-provides ordinary selection, cursor navigation, and clipboard bindings.
+provides ordinary selection, cursor navigation, and clipboard bindings. Its
+context menu retains native editing commands but omits Insert Emoji.
 
 The editor's source adapter is `GtkSource.View`. It exposes managed multiline
 text buffers, undo/redo, modified state, cursor coordinates, search/replace,
@@ -59,6 +60,16 @@ not compile the editor. The executable is `<source>/bin/cwhip-editor` by default
 with `-DCWHIP_STAGE_PREFIX=/absolute/prefix` it is `/absolute/prefix/bin/cwhip-editor`.
 No manual compiler invocation or package activation is needed. Cwhip is not
 currently an install target.
+
+`cwhip-editor` starts the GUI in the background and returns the shell prompt
+only after initialization and window presentation. Startup failures remain
+visible on stderr and return a nonzero exit status; startup has a 30-second
+readiness deadline. The window appears normally, not minimized or hidden.
+Use `cwhip-editor --foreground ...` when a debugger, script, or test needs to
+own the GUI process and wait for its exit. `--test` also stays in the foreground.
+The launcher and sibling `cwhip-editor.bin` must stay together; directly running
+the compiled `.bin` (or compiling the Cwhip source yourself) stays foreground.
+GUI diagnostics continue to use the launching terminal's stdout/stderr.
 
 Headless tests require Xvfb and `dbus-daemon`; they default to enabled when
 those tools are present, otherwise configuration explicitly reports them
@@ -113,7 +124,9 @@ track the active buffer's undo/redo and selection state. File dialogs are modal,
 asynchronous, parented to the editor window, and cancelled on parent teardown;
 they do not run nested event loops.
 
-A modified tab is marked with `*`. **File > Close** (`<Control>w`) closes only
+A modified tab is marked with `*`. Tabs have borders and a close icon; an icon
+closes that tab even when it is not selected, using the same dirty-buffer
+protection as the menu. **File > Close** (`<Control>w`) closes only
 the active tab; closing the last tab leaves the window open with a fresh
 untitled document. Only **Quit** (`<Control>q`) and a window-close request exit
 the editor. Close, Quit, and a window-close request offer in-app **Save**,
@@ -136,10 +149,14 @@ shortcuts resolve to the same named command callbacks.
 **File > Open Folder...** opens a modal folder chooser parented to the editor.
 Acceptance replaces the root in a resizable left-hand Project Explorer;
 cancellation leaves the current root and tabs unchanged. The root opens
-automatically. Expand a directory with its arrow or double-click it; double-click
-a file (or press Enter on it) opens it through the same document-opening path
+automatically. Expand a directory with its arrow or click its name; a single click
+on a file (or Enter on it) opens it through the same document-opening path
 as File > Open, including existing-tab focus and binary/invalid-UTF-8 rejection.
-Single-click selects a row without changing the document.
+Repeated activation focuses the existing tab, never opens a duplicate.
+Right-click the explorer for **Refresh** and checked **Show Hidden**, sharing
+the sidebar controls' state and actions. Refreshes preserve expanded folders
+and open buffers; successful Save and Save As refresh the explorer automatically,
+while failed or cancelled saves do not.
 
 Only expanded directories are enumerated. Filesystem enumeration and
 directories-first, case-sensitive UTF-8 byte-order sorting run off the GUI
@@ -291,7 +308,7 @@ authorize deletion or execution.
 
 ### Reopening the last project
 
-Preferences > Editor has **Reopen last project on startup** (default off). When
+Preferences > Startup has **Reopen last project on startup** (default off). When
 enabled, the user settings file remembers only the root path of the last active
 project:
 
@@ -318,7 +335,7 @@ project URL as text. **Close** hides it; it is closed with the editor.
 ## Preferences and settings
 
 **Edit > Preferences...** or **Ctrl+,** opens a non-modal window with Editor
-and Keyboard navigation on the left. Closing it hides it; reopening preserves
+Keyboard, and Startup navigation on the left. Closing it hides it; reopening preserves
 the selected page. Settings are global: changes apply immediately to all open
 documents and to subsequently created/opened documents, without changing file
 contents, modified state, language detection, or search options.
@@ -332,8 +349,19 @@ columns**. Defaults are `monospace`, 12 pt, 4 columns, spaces, line numbers on,
 wrapping off, and current-line highlighting off. Changing tab width/insertion
 does not rewrite existing indentation.
 
+**Save on loss of tab focus** and **Save on loss of window focus** are independent,
+persisted options, both off by default. Tab loss saves the outgoing modified
+document; window loss saves all modified named documents, including when focus
+moves to another window. Untitled buffers stay dirty without opening surprise
+Save As dialogs. Pending file/close/project operations suppress automatic saves.
+Failures leave buffers dirty and report a persistent status-line error without
+opening dialogs or causing focus/dialog loops. Explicit Save and close protections
+remain available.
+
 The **Keyboard** page searches named commands, displays their current GTK
-trigger strings, and permits editing or recording one key combination. Click
+trigger strings in aligned, read-only text boxes, and permits recording one key
+combination. Text remains selectable/copyable; shortcuts cannot be typed into
+the fields. Click
 **Record**, then press the combination; modifiers alone keep recording and
 Escape cancels. Starting another recording, switching categories, or hiding
 Preferences cancels the previous recorder. Invalid syntax and conflicts
@@ -361,6 +389,8 @@ insert_spaces = true
 line_numbers = true
 wrap = false
 highlight_current_line = false
+save_on_tab_loss = false
+save_on_window_loss = false
 
 [keyboard]
 save = "<Control>s"

@@ -32,6 +32,8 @@ class CwhipSettings {
     bool lineNumbers
     bool wrap
     bool highlightLine
+    bool saveOnTabLoss
+    bool saveOnWindowLoss
     bool reopenLast
     String lastRoot
     list commands
@@ -94,6 +96,8 @@ class CwhipSettings {
         lineNumbers = true
         wrap = false
         highlightLine = false
+        saveOnTabLoss = false
+        saveOnWindowLoss = false
     }
 
     void error(String message) {
@@ -293,6 +297,8 @@ class CwhipSettings {
         lineNumbers = boolean("line_numbers", lineNumbers)
         wrap = boolean("wrap", wrap)
         highlightLine = boolean("highlight_current_line", highlightLine)
+        saveOnTabLoss = boolean("save_on_tab_loss", saveOnTabLoss)
+        saveOnWindowLoss = boolean("save_on_window_loss", saveOnWindowLoss)
         // Stage the complete map before checking conflicts, allowing swaps.
         int i = 0
         while (i < commands.length) {
@@ -333,8 +339,9 @@ class CwhipSettings {
     }
 
     String serialize() {
-        String text = format("version = 1\n[editor]\nfont_family = {}\nfont_size = {}\ntab_width = {}\ninsert_spaces = {}\nline_numbers = {}\nwrap = {}\nhighlight_current_line = {}\n[keyboard]\n",
-            Gtk.Config().quote(fontFamily), fontSize, tabWidth, insertSpaces, lineNumbers, wrap, highlightLine)
+        String text = format("version = 1\n[editor]\nfont_family = {}\nfont_size = {}\ntab_width = {}\ninsert_spaces = {}\nline_numbers = {}\nwrap = {}\nhighlight_current_line = {}\nsave_on_tab_loss = {}\nsave_on_window_loss = {}\n[keyboard]\n",
+            Gtk.Config().quote(fontFamily), fontSize, tabWidth, insertSpaces, lineNumbers, wrap, highlightLine,
+            saveOnTabLoss, saveOnWindowLoss)
         int i = 0
         while (i < commands.length) {
             CommandBinding binding = commands[i] as CommandBinding
@@ -350,7 +357,6 @@ class KeyboardPreference {
     KeyboardPreference _self()
     CommandBinding binding
     CwhipSettings settings
-    Gtk.Box row
     Gtk.Label name
     Gtk.Entry entry
     Gtk.Button recordButton
@@ -363,26 +369,25 @@ class KeyboardPreference {
     bool refreshing
 
     KeyboardPreference(CwhipSettings model, CommandBinding command, callback<void()> changed,
-                       callback<void()> prepare) {
+                       callback<void()> prepare, Gtk.Grid grid, int index) {
         settings = model
         binding = command
         applied = changed
         prepareRecord = prepare
-        row = Gtk.Box(Gtk.Box.VERTICAL, 2)
-        Gtk.Box controls = Gtk.Box(Gtk.Box.HORIZONTAL, 4)
         name = Gtk.Label(binding.name)
         entry = Gtk.Entry(binding.trigger)
+        entry.setEditable(false)
+        entry.setHExpand(true)
         recordButton = Gtk.Button("Record")
         resetButton = Gtk.Button("Reset")
         disableButton = Gtk.Button("Disable")
         errorLabel = Gtk.Label("")
-        controls.append(name)
-        controls.append(entry)
-        controls.append(recordButton)
-        controls.append(resetButton)
-        controls.append(disableButton)
-        row.append(controls)
-        row.append(errorLabel)
+        grid.attach(name, 0, index * 2, 1, 1)
+        grid.attach(entry, 1, index * 2, 1, 1)
+        grid.attach(recordButton, 2, index * 2, 1, 1)
+        grid.attach(resetButton, 3, index * 2, 1, 1)
+        grid.attach(disableButton, 4, index * 2, 1, 1)
+        grid.attach(errorLabel, 0, index * 2 + 1, 5, 1)
         entry.onChanged(_self().changedTrigger)
         recordButton.onClicked(_self().record)
         resetButton.onClicked(_self().reset)
@@ -442,6 +447,14 @@ class KeyboardPreference {
         entry.setText(binding.trigger)
         errorLabel.setText("")
         refreshing = false
+    }
+    void setVisible(bool visible) {
+        name.setVisible(visible)
+        entry.setVisible(visible)
+        recordButton.setVisible(visible)
+        resetButton.setVisible(visible)
+        disableButton.setVisible(visible)
+        errorLabel.setVisible(visible)
     }
 }
 
@@ -1002,19 +1015,24 @@ class OverrideRow {
 OverrideRow OverrideRow._self() from "cwhip_gtk_self"
 
 class EditorDocument {
+    EditorDocument _self()
+    callback<void(EditorDocument)> closeAction
     GtkSource.View view
     Gtk.ScrolledWindow scroller
     String path
     list shortcuts
     bool shortcutConflict
     int shortcutRevision
+    String automaticSaveError
 
     EditorDocument(String filePath, String contents) {
         path = filePath
         shortcuts = []
         shortcutConflict = false
+        automaticSaveError = ""
         view = GtkSource.View()
         view.setMonospace(true)
+        view.setEmojiMenu(false)
         view.setLanguage(GtkSource.Content().languageFor(filePath))
         view.setText(contents)
         view.markSaved()
@@ -1036,7 +1054,9 @@ class EditorDocument {
         }
         return title
     }
+    void close() { closeAction(_self()) }
 }
+EditorDocument EditorDocument._self() from "cwhip_gtk_self"
 
 class ProjectNode {
     ProjectNode _self()
@@ -1101,6 +1121,10 @@ class ProjectExplorer {
     Gtk.Label title
     Gtk.CheckButton hidden
     Gtk.Button refreshButton
+    Gtk.ContextMenu contextMenu
+    Gtk.CheckButton contextHidden
+    Gtk.Button contextRefresh
+    bool syncingHidden
     String excludes
     list pending
     list nodes
@@ -1129,6 +1153,17 @@ class ProjectExplorer {
         hidden.onToggled(_self().hiddenChanged)
         sidebar.append(hidden)
         tree = Gtk.Tree(_self().expand, _self().activateFile)
+        tree.setSingleClickActivate(true)
+        contextMenu = Gtk.ContextMenu(tree)
+        Gtk.Box actions = Gtk.Box(Gtk.Box.VERTICAL, 4)
+        contextRefresh = Gtk.Button("Refresh")
+        contextRefresh.setSensitive(false)
+        contextRefresh.onClicked(_self().refresh)
+        contextHidden = Gtk.CheckButton("Show Hidden")
+        contextHidden.onToggled(_self().contextHiddenChanged)
+        actions.append(contextRefresh)
+        actions.append(contextHidden)
+        contextMenu.setChild(actions)
         tree.setHExpand(true)
         tree.setVExpand(true)
         Gtk.ScrolledWindow scroll = Gtk.ScrolledWindow()
@@ -1165,8 +1200,8 @@ class ProjectExplorer {
         excludes = patterns
         title.setText(label)
         refreshButton.setSensitive(true)
-        refresh()
-        pending = expandedPaths
+        contextRefresh.setSensitive(true)
+        rebuild(expandedPaths)
     }
 
     void restoreChildren(String parent) {
@@ -1207,16 +1242,30 @@ class ProjectExplorer {
 
     void refresh() {
         if (rootPath.equals("") || tree.disposed()) { return }
-        pending = []
+        rebuild(expandedPaths())
+    }
+
+    void rebuild(list expanded) {
         cancelLoads()
         tree.clear(0)
         nodes = []
         nextId = 1
+        pending = expanded
         tree.add(0, 1, rootPath, "folder-open-symbolic", true, rootPath, 1)
         tree.setExpanded(1, true)
     }
 
-    void hiddenChanged(bool value) { refresh() }
+    void hiddenChanged(bool value) {
+        if (syncingHidden) { return }
+        syncingHidden = true
+        contextHidden.setActive(value)
+        syncingHidden = false
+        refresh()
+    }
+    void contextHiddenChanged(bool value) {
+        if (syncingHidden) { return }
+        hidden.setActive(value)
+    }
 
     void expand(int id) {
         int i = 0
@@ -1244,6 +1293,7 @@ class CwhipEditor {
     Gtk.TransientWindow preferencesWindow
     Gtk.Box editorPreferences
     Gtk.Box keyboardPreferences
+    Gtk.Box startupPreferences
     Gtk.Label preferencesMessage
     Gtk.Entry fontEntry
     Gtk.Entry sizeEntry
@@ -1252,9 +1302,11 @@ class CwhipEditor {
     Gtk.CheckButton numbersCheck
     Gtk.CheckButton wrapCheck
     Gtk.CheckButton highlightCheck
+    Gtk.CheckButton saveTabCheck
+    Gtk.CheckButton saveWindowCheck
     Gtk.Entry commandSearch
     list keyboardRows
-    Gtk.Box keyboardRowsBox
+    Gtk.Grid keyboardRowsBox
     Gtk.Box resetChoices
     Gtk.Button confirmResetButton
     Gtk.Button cancelResetButton
@@ -1313,6 +1365,9 @@ class CwhipEditor {
     bool allowWindowClose
     bool searchDialogOpen
     int pageChanges
+    EditorDocument focusedDocument
+    bool automaticSaving
+    bool changingDocuments
     callback<void()> changedAction
     callback<void()> cursorAction
     callback<void()> pageChangedAction
@@ -1379,6 +1434,9 @@ class CwhipEditor {
             }
         }
         documents = []
+        focusedDocument = null
+        automaticSaving = false
+        changingDocuments = false
         recentFiles = []
         openFailures = []
         collectingFailures = false
@@ -1520,14 +1578,15 @@ class CwhipEditor {
         closeDiscardButton.onClicked(closeDiscardAction)
         closeCancelButton.onClicked(closeCancelAction)
         window.onCloseRequest(closeAction)
+        window.onFocusChanged(_self().windowFocusChanged)
 
         System.Process process = System.Process()
         bool explicitRequest = false
         int index = 1
         while (index < process.argc()) {
             String argument = process.arg(index)
-            if (!argument.equals("--test")) { explicitRequest = true }
-            if (!argument.equals("--test") && !argument.contains("://") && System.FileSystem().isDir(argument)) {
+            if (!argument.equals("--test") && !argument.equals("--foreground")) { explicitRequest = true }
+            if (!argument.equals("--test") && !argument.equals("--foreground") && !argument.contains("://") && System.FileSystem().isDir(argument)) {
                 openRootArgument(argument)
             } else { openFile(argument) }
             index = index + 1
@@ -1548,6 +1607,7 @@ class CwhipEditor {
         if (process.argc() > 1 && process.arg(1).equals("--test")) {
             Gtk.Application().post(testAction)
         }
+        Gtk.Application().ready()
     }
 
     callback<void()> commandAction(String command) {
@@ -1630,10 +1690,13 @@ class CwhipEditor {
         Gtk.Box categories = Gtk.Box(Gtk.Box.VERTICAL, 6)
         Gtk.Button editorCategory = Gtk.Button("Editor")
         Gtk.Button keyboardCategory = Gtk.Button("Keyboard")
+        Gtk.Button startupCategory = Gtk.Button("Startup")
         categories.append(editorCategory)
         categories.append(keyboardCategory)
+        categories.append(startupCategory)
         editorCategory.onClicked(_self().showEditorPreferences)
         keyboardCategory.onClicked(_self().showKeyboardPreferences)
+        startupCategory.onClicked(_self().showStartupPreferences)
         content.append(categories)
         Gtk.Box pages = Gtk.Box(Gtk.Box.VERTICAL, 8)
         pages.setHExpand(true)
@@ -1650,6 +1713,8 @@ class CwhipEditor {
         numbersCheck = preferenceCheck("Show line numbers", settings.lineNumbers)
         wrapCheck = preferenceCheck("Wrap long lines", settings.wrap)
         highlightCheck = preferenceCheck("Highlight current line", settings.highlightLine)
+        saveTabCheck = preferenceCheck("Save on loss of tab focus", settings.saveOnTabLoss)
+        saveWindowCheck = preferenceCheck("Save on loss of window focus", settings.saveOnWindowLoss)
         fontEntry.onChanged(_self().editorSettingChanged)
         sizeEntry.onChanged(_self().editorSettingChanged)
         tabsEntry.onChanged(_self().editorSettingChanged)
@@ -1664,7 +1729,7 @@ class CwhipEditor {
         commandSearch.onChanged(_self().filterCommands)
         Gtk.ScrolledWindow scroll = Gtk.ScrolledWindow()
         scroll.setVExpand(true)
-        keyboardRowsBox = Gtk.Box(Gtk.Box.VERTICAL, 4)
+        keyboardRowsBox = Gtk.Grid(6)
         scroll.setChild(keyboardRowsBox)
         keyboardRows = []
         keyboardPreferences.append(scroll)
@@ -1673,11 +1738,15 @@ class CwhipEditor {
         keyboardPreferences.append(keyboardReset)
         pages.append(keyboardPreferences)
         keyboardPreferences.setVisible(false)
-        root.append(content)
+        startupPreferences = Gtk.Box(Gtk.Box.VERTICAL, 6)
+        startupPreferences.append(Gtk.Label("Startup"))
         reopenCheck = Gtk.CheckButton("Reopen last project on startup")
         reopenCheck.setActive(settings.reopenLast)
         reopenCheck.onToggled(_self().reopenChanged)
-        root.append(reopenCheck)
+        startupPreferences.append(reopenCheck)
+        pages.append(startupPreferences)
+        startupPreferences.setVisible(false)
+        root.append(content)
         preferencesMessage = Gtk.Label(settings.errors)
         root.append(preferencesMessage)
         root.append(Gtk.Label(format("Automatically saved to {}", settings.path)))
@@ -1769,6 +1838,7 @@ class CwhipEditor {
         hidePreferences()
         editorPreferences.setVisible(true)
         keyboardPreferences.setVisible(false)
+        startupPreferences.setVisible(false)
         preferencesWindow.present()
     }
     void showKeyboardPreferences() {
@@ -1777,21 +1847,28 @@ class CwhipEditor {
             int i = 0
             while (i < settings.commands.length) {
                 KeyboardPreference row = KeyboardPreference(settings, settings.commands[i] as CommandBinding,
-                    _self().keyboardSettingsChanged, _self().stopRecording)
+                    _self().keyboardSettingsChanged, _self().stopRecording, keyboardRowsBox, i)
                 keyboardRows.append(row)
-                keyboardRowsBox.append(row.row)
                 i = i + 1
             }
         }
         editorPreferences.setVisible(false)
         keyboardPreferences.setVisible(true)
+        startupPreferences.setVisible(false)
+        preferencesWindow.present()
+    }
+    void showStartupPreferences() {
+        hidePreferences()
+        editorPreferences.setVisible(false)
+        keyboardPreferences.setVisible(false)
+        startupPreferences.setVisible(true)
         preferencesWindow.present()
     }
     void filterCommands(String query) {
         int i = 0
         while (i < keyboardRows.length) {
             KeyboardPreference row = keyboardRows[i] as KeyboardPreference
-            row.row.setVisible(row.binding.name.toLower().contains(query.toLower()) ||
+            row.setVisible(row.binding.name.toLower().contains(query.toLower()) ||
                                row.binding.id.contains(query.toLower()))
             i = i + 1
         }
@@ -1826,6 +1903,8 @@ class CwhipEditor {
         settings.lineNumbers = numbersCheck.active()
         settings.wrap = wrapCheck.active()
         settings.highlightLine = highlightCheck.active()
+        settings.saveOnTabLoss = saveTabCheck.active()
+        settings.saveOnWindowLoss = saveWindowCheck.active()
         settingsChanged()
     }
     void resetEditorPreferences() {
@@ -1851,6 +1930,8 @@ class CwhipEditor {
             numbersCheck.setActive(settings.lineNumbers)
             wrapCheck.setActive(settings.wrap)
             highlightCheck.setActive(settings.highlightLine)
+            saveTabCheck.setActive(settings.saveOnTabLoss)
+            saveWindowCheck.setActive(settings.saveOnWindowLoss)
             refreshingPreferences = false
         }
         if (resetSection.equals("Keyboard")) {
@@ -2376,6 +2457,7 @@ class CwhipEditor {
     }
 
     void closeAllDocuments() {
+        changingDocuments = true
         int index = 0
         while (index < documents.length) {
             EditorDocument document = documents[index] as EditorDocument
@@ -2384,6 +2466,8 @@ class CwhipEditor {
             index = index + 1
         }
         documents = []
+        focusedDocument = null
+        changingDocuments = false
     }
 
     void detachProject() {
@@ -2727,13 +2811,14 @@ class CwhipEditor {
         if (commandsBlocked()) { return }
         EditorDocument document = EditorDocument("", "")
         documents.append(document)
-        notebook.appendPage(document.scroller, document.tabTitle())
+        document.closeAction = _self().closeDocument
+        notebook.appendClosablePage(document.scroller, document.tabTitle(), document.close)
         configureShortcuts(document)
         activateDocument(document)
     }
 
     EditorDocument openDocument(String requestedPath) {
-        if (requestedPath.equals("") || requestedPath.equals("--test")) {
+        if (requestedPath.equals("") || requestedPath.equals("--test") || requestedPath.equals("--foreground")) {
             return null
         }
         if (requestedPath.contains("://")) {
@@ -2788,7 +2873,8 @@ class CwhipEditor {
         }
         EditorDocument document = EditorDocument(absolutePath, text)
         documents.append(document)
-        notebook.appendPage(document.scroller, document.tabTitle())
+        document.closeAction = _self().closeDocument
+        notebook.appendClosablePage(document.scroller, document.tabTitle(), document.close)
         configureShortcuts(document)
         rememberRecent(absolutePath)
         return document
@@ -2934,7 +3020,9 @@ class CwhipEditor {
         rememberRecent(absoluteDestination)
         document.view.markSaved()
         refreshTab(document)
-        status.setText("Saved")
+        document.automaticSaveError = ""
+        status.setText(format("Saved{}", automaticSaveErrors()))
+        project.refresh()
         updateMenu()
         return true
     }
@@ -3235,11 +3323,50 @@ class CwhipEditor {
 
     void pageChanged() {
         pageChanges = pageChanges + 1
+        if (changingDocuments || window.disposed()) { return }
+        EditorDocument previous = focusedDocument
+        focusedDocument = currentDocument()
+        if (!changingDocuments && previous != focusedDocument && settings.saveOnTabLoss) {
+            automaticSave(previous)
+        }
         if (searchDialogOpen) {
             EditorDocument document = currentDocument()
             if (document != null && document.view.hasSelection()) {
                 document.view.captureSearchScope()
             }
+        }
+        updateStatus()
+    }
+
+    void automaticSave(EditorDocument document) {
+        if (!presented || automaticSaving || changingDocuments || commandsBlocked() ||
+            document == null || document.path.equals("") || !document.view.modified()) { return }
+        automaticSaving = true
+        if (!writeDocument(document, document.path)) {
+            document.automaticSaveError = format("Automatic {}", status.text())
+        }
+        automaticSaving = false
+    }
+
+    String automaticSaveErrors() {
+        String errors = ""
+        int index = 0
+        while (index < documents.length) {
+            EditorDocument document = documents[index] as EditorDocument
+            if (!document.automaticSaveError.equals("")) {
+                errors.append(format("  {}", document.automaticSaveError))
+            }
+            index = index + 1
+        }
+        return errors
+    }
+
+    void windowFocusChanged(bool active) {
+        if (active || !presented || window.disposed() || !settings.saveOnWindowLoss) { return }
+        int index = 0
+        while (index < documents.length) {
+            automaticSave(documents[index] as EditorDocument)
+            index = index + 1
         }
         updateStatus()
     }
@@ -3257,6 +3384,7 @@ class CwhipEditor {
     }
 
     void updateStatus() {
+        if (window == null || window.disposed() || changingDocuments) { return }
         updateMenu()
         EditorDocument document = currentDocument()
         if (document == null) {
@@ -3267,6 +3395,7 @@ class CwhipEditor {
         if (document.view.modified()) {
             message.append("  Modified")
         }
+        message.append(automaticSaveErrors())
         status.setText(message)
     }
 
@@ -3391,6 +3520,11 @@ class CwhipEditor {
     void closeCurrentDocument() {
         if (commandsBlocked()) { return }
         EditorDocument document = currentDocument()
+        closeDocument(document)
+    }
+
+    void closeDocument(EditorDocument document) {
+        if (commandsBlocked()) { return }
         if (document == null) {
             return
         }
@@ -3410,6 +3544,7 @@ class CwhipEditor {
         int index = 0
         while (index < documents.length) {
             if ((documents[index] as EditorDocument) == document) {
+                changingDocuments = true
                 notebook.remove(document.scroller)
                 document.scroller.dispose()
                 list remaining = []
@@ -3422,6 +3557,8 @@ class CwhipEditor {
                     itemIndex = itemIndex + 1
                 }
                 documents = remaining
+                focusedDocument = currentDocument()
+                changingDocuments = false
                 if (pendingCloseDocument == document) {
                     pendingCloseDocument = null
                 }
@@ -3437,10 +3574,18 @@ class CwhipEditor {
                         next.view.focus()
                     }
                 }
+                // The closing shortcut's controller must unwind before restoring focus.
+                if (!pendingCloseAll) { Gtk.Application().post(_self().focusAfterClose) }
                 return
             }
             index = index + 1
         }
+    }
+
+    void focusAfterClose() {
+        if (window.disposed() || commandsBlocked() || searchDialogOpen) { return }
+        EditorDocument document = currentDocument()
+        if (document != null) { document.view.focus() }
     }
 
     EditorDocument firstModifiedDocument() {

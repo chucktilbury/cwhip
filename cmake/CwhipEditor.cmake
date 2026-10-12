@@ -1,4 +1,5 @@
 set(CWHIP_EDITOR_EXECUTABLE "${CWHIP_RUNTIME_OUTPUT_DIRECTORY}/cwhip-editor${CMAKE_EXECUTABLE_SUFFIX}")
+set(CWHIP_EDITOR_BINARY "${CWHIP_RUNTIME_OUTPUT_DIRECTORY}/cwhip-editor.bin")
 if(NOT CWHIP_GTK_SOURCEVIEW)
     add_custom_target(cwhip_editor
         COMMAND "${CMAKE_COMMAND}" -P "${CMAKE_CURRENT_LIST_DIR}/CwhipEditorUnavailable.cmake"
@@ -37,12 +38,12 @@ add_custom_command(
     COMMENT "Locking Cwhip Editor's staged standard packages"
     VERBATIM)
 add_custom_command(
-    OUTPUT "${CWHIP_EDITOR_EXECUTABLE}"
+    OUTPUT "${CWHIP_EDITOR_BINARY}"
     COMMAND "${CMAKE_COMMAND}" -E copy_directory
         "${cwhip_editor_source}" "${cwhip_editor_project}/editor"
     COMMAND ${cwhip_editor_environment} "$<TARGET_FILE:cwhip>"
         "${cwhip_editor_project}/editor/cwhip_editor.cw"
-        -M "${CWHIP_STAGE_MODULE_DIRECTORY}" -o "${CWHIP_EDITOR_EXECUTABLE}"
+        -M "${CWHIP_STAGE_MODULE_DIRECTORY}" -o "${CWHIP_EDITOR_BINARY}"
     DEPENDS cwhip cwhip_runtime cwhip_resources
         "${CMAKE_CURRENT_LIST_FILE}"
         "$<TARGET_FILE:cwhip_runtime>" "$<TARGET_FILE:cwhip_gtk_native>"
@@ -51,5 +52,9 @@ add_custom_command(
         "${cwhip_editor_project}/cwhip-pkg.toml" "${cwhip_editor_project}/cwhip-pkg.lock"
     COMMENT "Building Cwhip Editor"
     VERBATIM)
-add_custom_target(cwhip_editor DEPENDS "${CWHIP_EDITOR_EXECUTABLE}")
+add_executable(cwhip_editor_launcher EXCLUDE_FROM_ALL "${cwhip_editor_source}/launcher.c")
+set_target_properties(cwhip_editor_launcher PROPERTIES
+    OUTPUT_NAME cwhip-editor
+    RUNTIME_OUTPUT_DIRECTORY "${CWHIP_RUNTIME_OUTPUT_DIRECTORY}")
+add_custom_target(cwhip_editor DEPENDS cwhip_editor_launcher "${CWHIP_EDITOR_BINARY}")
 set_property(TARGET cwhip_editor PROPERTY CWHIP_EDITOR_EXECUTABLE "${CWHIP_EDITOR_EXECUTABLE}")

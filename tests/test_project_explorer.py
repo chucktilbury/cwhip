@@ -16,6 +16,8 @@ class ExplorerFixture {
     void collect()
     bool alert(String fragments)
     bool activate(int position)
+    bool singleClick()
+    bool context(bool hidden)
     bool chooser()
     void watch()
     int gap()
@@ -31,6 +33,8 @@ void ExplorerFixture.choose(String path, int accept, int overwrite) from "fixtur
 void ExplorerFixture.collect() from "fixture_editor_collect"
 bool ExplorerFixture.alert(String fragments) from "fixture_editor_alert"
 bool ExplorerFixture.activate(int position) from "explorer_activate"
+bool ExplorerFixture.singleClick() from "explorer_single_click"
+bool ExplorerFixture.context(bool hidden) from "explorer_context"
 bool ExplorerFixture.chooser() from "explorer_chooser"
 void ExplorerFixture.watch() from "explorer_watch"
 int ExplorerFixture.gap() from "explorer_gap"
@@ -122,8 +126,9 @@ class ExplorerChecks {
             require(find("project/loop").kind == 2 && !find("project/loop").started, "symlink loop is a leaf")
             require(editor.project.tree.value(3).equals(path("project/empty")), "directories first, deterministic sorting")
             require(ExplorerFixture().icons(), "GTK folder, file, source and symlink icons")
+            require(ExplorerFixture().singleClick(), "native list single-click activation enabled")
             // Root, empty, gone, sub, then a.txt: native GTK activation is
-            // double-click/Enter, not a direct call to the editor open method.
+            // single-click/Enter, not a direct call to the editor open method.
             require(ExplorerFixture().activate(4), "GTK file activation")
             require(editor.currentDocument().view.text().equals("alpha\n"), "file contents")
             before = editor.documents.length
@@ -169,28 +174,50 @@ class ExplorerChecks {
             require(ExplorerFixture().alert("Could not open|invalid.txt"), "UTF-8 dialog")
             editor.project.activateFile(find("project/loop").id)
             require(editor.status.text().contains("not a regular file"), "directory symlink not followed by tree")
-            editor.project.hidden.setActive(true)
+            require(ExplorerFixture().context(true) && editor.project.hidden.active() &&
+                editor.project.contextHidden.active(), "right-click Show Hidden shares checked state")
             advance()
             return
         }
         if (stage == 5) {
-            if (!ready("project")) { again()
+            if (!ready("project") || !ready("project/sub")) { again()
                 return }
             require(find("project/.hidden.txt") != null && find("project/.hidden-dir") != null, "show hidden")
-            require(!find("project/sub").started, "toggle rebuild remains lazy")
+            require(find("project/sub/nested.txt") != null, "toggle preserves expanded folders")
             System.File added = System.File(path("project/added.txt"), "w")
             added.write("new\n")
             added.close()
             require(System.FileSystem().remove(path("project/a.txt")), "remove file")
-            editor.project.refresh()
+            require(ExplorerFixture().context(false), "right-click Refresh")
             advance()
             return
         }
         if (stage == 6) {
-            if (!ready("project")) { again()
+            if (!ready("project") || !ready("project/sub")) { again()
                 return }
+            if (errorPhase == 2) {
+                require(find("project/added.txt") != null && find("project/a.txt") == null && find("project/gone") == null, "refresh additions/removals")
+                require(editor.currentDocument().path.equals(path("project/a.txt")), "refresh leaves open documents alone")
+                require(editor.writeDocument(editor.currentDocument(), path("project/saved.txt")),
+                    "successful save-as")
+                errorPhase = 3
+                again()
+                return
+            }
+            require(find("project/saved.txt") != null && find("project/sub/nested.txt") != null,
+                "save-as refreshes explorer and preserves expansion")
+            int generation = editor.project.generation
+            require(!editor.writeDocument(editor.currentDocument(), "/dev/null/failed.txt") &&
+                editor.project.generation == generation, "failed save does not refresh explorer")
+            if (errorPhase == 3) {
+                editor.saveCurrent()
+                require(editor.project.generation > generation, "successful Save refreshes explorer")
+                errorPhase = 4
+                again()
+                return
+            }
             require(find("project/added.txt") != null && find("project/a.txt") == null && find("project/gone") == null, "refresh additions/removals")
-            require(editor.currentDocument().path.equals(path("project/a.txt")), "refresh leaves open documents alone")
+            require(editor.currentDocument().path.equals(path("project/saved.txt")), "save-as preserves active tab")
             editor.project.hidden.setActive(false)
             editor.project.setRoot(path("missing"))
             advance()

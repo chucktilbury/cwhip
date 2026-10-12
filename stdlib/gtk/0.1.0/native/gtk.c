@@ -5,6 +5,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <errno.h>
+#include <unistd.h>
 #ifdef CWHIP_GTK_SOURCEVIEW
 #include <gtksourceview/gtksource.h>
 #endif
@@ -212,6 +214,16 @@ static void page_switched(GtkNotebook *notebook, GtkWidget *page, guint page_num
     signal_leave(connection, acquired);
 }
 
+static void window_focus_changed(GtkWindow *window, GParamSpec *property, gpointer data) {
+    (void)property;
+    Connection *connection = data;
+    int acquired = signal_enter(connection);
+    typedef void (*Adapter)(CwhipCallbackContext *, bool);
+    ((Adapter)cwhip_callback_adapter(connection->context))(
+        connection->context, gtk_window_is_active(window));
+    signal_leave(connection, acquired);
+}
+
 static void changed(GtkEditable *editable, gpointer data) {
     (void)editable;
     Connection *connection = data;
@@ -309,7 +321,7 @@ static int64_t connect_signal(GObject *object, const char *signal,
     connection->next = connections;
     connections = connection;
     connection->signal = g_signal_connect_data(object, signal, forwarder, connection,
-                                               connection_destroy, 0);
+        connection_destroy, strcmp(signal, "switch-page") == 0 ? G_CONNECT_AFTER : 0);
     if (!connection->signal) fatal("signal connection failed");
     return connection->token;
 }
@@ -431,6 +443,8 @@ void cwhip_gtk_run(void *self) {
     int status = g_application_run(G_APPLICATION(run_application), 0, NULL);
     cwhip_runtime_gil_acquire();
     --running;
+    if (status == 0 && !activated && !stopped)
+        cwhip_gtk_ready(self);
     g_object_unref(run_application);
     if (status != 0) fatal("GtkApplication run failed");
     cwhip_gtk_shutdown(self);
@@ -631,6 +645,9 @@ static void detach(WidgetRecord *r) {
     GtkWidget *parent = r->parent->widget;
     r->parent = NULL;
     if (GTK_IS_BOX(parent)) gtk_box_remove(GTK_BOX(parent), r->widget);
+    else if (GTK_IS_GRID(parent)) gtk_grid_remove(GTK_GRID(parent), r->widget);
+    else if (GTK_IS_POPOVER(r->widget)) gtk_widget_unparent(r->widget);
+    else if (GTK_IS_POPOVER(parent)) gtk_popover_set_child(GTK_POPOVER(parent), NULL);
     else if (GTK_IS_WINDOW(parent)) gtk_window_set_child(GTK_WINDOW(parent), NULL);
     else if (GTK_IS_SCROLLED_WINDOW(parent))
         gtk_scrolled_window_set_child(GTK_SCROLLED_WINDOW(parent), NULL);
@@ -671,6 +688,7 @@ static void widget_dispose(WidgetRecord *r) {
         g_clear_object(&r->menu);
     }
     disconnect_object(G_OBJECT(widget));
+    g_object_set_data(G_OBJECT(widget), "cwhip-tab-css", NULL);
 #ifdef CWHIP_GTK_SOURCEVIEW
     if (GTK_SOURCE_IS_VIEW(widget))
         disconnect_object(G_OBJECT(gtk_text_view_get_buffer(GTK_TEXT_VIEW(widget))));
@@ -762,6 +780,11 @@ int64_t cwhip_gtk_widget_create(void *self, int64_t kind, void *text,
     case 13: widget = gtk_list_view_new(NULL, NULL);
         gtk_list_view_set_single_click_activate(GTK_LIST_VIEW(widget), FALSE);
         break;
+    case 14: widget = gtk_grid_new();
+        gtk_grid_set_row_spacing(GTK_GRID(widget), (guint)spacing);
+        gtk_grid_set_column_spacing(GTK_GRID(widget), (guint)spacing);
+        break;
+    case 15: widget = gtk_popover_new(); break;
     case 9: widget = gtk_notebook_new(); break;
     case 10: {
         GMenu *menu = g_menu_new();
@@ -1182,6 +1205,10 @@ void cwhip_gtk_widget_attach(void *self, int64_t parent, int64_t child) {
     for (WidgetRecord *r = pr; r; r = r->parent)
         if (r == cr) fatal("parenting cycle");
     if (GTK_IS_BOX(p)) gtk_box_append(GTK_BOX(p), c);
+    else if (GTK_IS_POPOVER(p)) {
+        if (gtk_popover_get_child(GTK_POPOVER(p))) fatal("container already has a child");
+        gtk_popover_set_child(GTK_POPOVER(p), c);
+    }
     else if (GTK_IS_WINDOW(p)) {
         if (gtk_window_get_child(GTK_WINDOW(p))) fatal("container already has a child");
         gtk_window_set_child(GTK_WINDOW(p), c);
@@ -1333,13 +1360,140 @@ void cwhip_gtk_notebook_title(void *self, int64_t token, int64_t page, void *tit
         fatal("invalid notebook page");
     GtkWidget *tab = gtk_notebook_get_tab_label(GTK_NOTEBOOK(widget),
                                                 gtk_notebook_get_nth_page(GTK_NOTEBOOK(widget), (int)page));
+    if (GTK_IS_BOX(tab)) tab = gtk_widget_get_first_child(tab);
     if (!GTK_IS_LABEL(tab)) fatal("notebook tab label is not a Label");
     char *label = text_copy(title);
     gtk_label_set_text(GTK_LABEL(tab), label);
     g_free(label);
 }
 
+static void css_provider_release(gpointer data) {
+    GtkCssProvider *provider = data;
+    GdkDisplay *display = g_object_get_data(G_OBJECT(provider), "cwhip-css-display");
+    gtk_style_context_remove_provider_for_display(display, GTK_STYLE_PROVIDER(provider));
+    g_object_unref(provider);
+}
+
+void cwhip_gtk_notebook_closable(void *self, int64_t token, int64_t child,
+                                void *title, void *close) {
+    cwhip_gtk_notebook_append(self, token, child, title);
+    GtkWidget *notebook = widget_live(token);
+    GtkWidget *page = widget_live(child);
+    GtkWidget *label = gtk_notebook_get_tab_label(GTK_NOTEBOOK(notebook), page);
+    g_object_ref(label);
+    GtkWidget *tab = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 6);
+    gtk_notebook_set_tab_label(GTK_NOTEBOOK(notebook), page, tab);
+    gtk_box_append(GTK_BOX(tab), label);
+    g_object_unref(label);
+    GtkWidget *button = gtk_button_new_from_icon_name("window-close-symbolic");
+    gtk_widget_set_focus_on_click(button, FALSE);
+    gtk_widget_set_tooltip_text(button, "Close tab");
+    gtk_accessible_update_property(GTK_ACCESSIBLE(button),
+                                   GTK_ACCESSIBLE_PROPERTY_LABEL, "Close tab", -1);
+    gtk_widget_add_css_class(button, "flat");
+    gtk_box_append(GTK_BOX(tab), button);
+    cwhip_gtk_connect_clicked(GTK_BUTTON(button), close);
+    gtk_widget_add_css_class(notebook, "cwhip-file-tabs");
+    if (!g_object_get_data(G_OBJECT(notebook), "cwhip-tab-css")) {
+        GtkCssProvider *css = gtk_css_provider_new();
+        const char *style =
+            "notebook.cwhip-file-tabs > header > tabs > tab {"
+            "border: 1px solid @borders; border-radius: 4px 4px 0 0; margin: 0 2px; }";
+#if GTK_CHECK_VERSION(4, 12, 0)
+        gtk_css_provider_load_from_string(css, style);
+#else
+        gtk_css_provider_load_from_data(css, style, -1);
+#endif
+        GdkDisplay *display = gtk_widget_get_display(notebook);
+        g_object_set_data_full(G_OBJECT(css), "cwhip-css-display",
+                               g_object_ref(display), g_object_unref);
+        gtk_style_context_add_provider_for_display(display,
+            GTK_STYLE_PROVIDER(css), GTK_STYLE_PROVIDER_PRIORITY_APPLICATION);
+        g_object_set_data_full(G_OBJECT(notebook), "cwhip-tab-css", css, css_provider_release);
+    }
+}
+
+void cwhip_gtk_entry_editable(void *self, int64_t token, bool editable) {
+    (void)self;
+    GtkWidget *widget = widget_live(token);
+    if (!GTK_IS_EDITABLE(widget)) fatal("operation requires Entry");
+    gtk_editable_set_editable(GTK_EDITABLE(widget), editable);
+}
+
+void cwhip_gtk_tree_single_click(void *self, int64_t token, bool enabled) {
+    (void)self;
+    GtkWidget *widget = widget_live(token);
+    if (!GTK_IS_LIST_VIEW(widget)) fatal("operation requires Tree");
+    gtk_list_view_set_single_click_activate(GTK_LIST_VIEW(widget), enabled);
+}
+
+void cwhip_gtk_grid_attach(void *self, int64_t token, int64_t child, int64_t column,
+                           int64_t row, int64_t width, int64_t height) {
+    (void)self;
+    GtkWidget *grid = widget_live(token), *widget = widget_live(child);
+    WidgetRecord *pr = record_find(token), *cr = record_find(child);
+    if (!GTK_IS_GRID(grid) || GTK_IS_WINDOW(widget) || cr->parent ||
+        gtk_widget_get_parent(widget) || column < 0 || row < 0 || width < 1 ||
+        height < 1 || column > G_MAXINT - width || row > G_MAXINT - height)
+        fatal("invalid grid attachment");
+    for (WidgetRecord *r = pr; r; r = r->parent)
+        if (r == cr) fatal("parenting cycle");
+    gtk_grid_attach(GTK_GRID(grid), widget, (int)column, (int)row, (int)width, (int)height);
+    cr->parent = pr;
+}
+
+static void context_pressed(GtkGestureClick *gesture, int count, double x, double y,
+                            gpointer data) {
+    (void)count;
+    GtkPopover *popover = data;
+    GdkRectangle point = { (int)x, (int)y, 1, 1 };
+    gtk_popover_set_pointing_to(popover, &point);
+    gtk_popover_popup(popover);
+    gtk_gesture_set_state(GTK_GESTURE(gesture), GTK_EVENT_SEQUENCE_CLAIMED);
+}
+
+void cwhip_gtk_context_menu_bind(void *self, int64_t token, int64_t owner_token) {
+    (void)self;
+    GtkWidget *menu = widget_live(token), *owner_widget = widget_live(owner_token);
+    WidgetRecord *pr = record_find(owner_token), *cr = record_find(token);
+    if (!GTK_IS_POPOVER(menu) || cr->parent || gtk_widget_get_parent(menu))
+        fatal("invalid context menu owner");
+    for (WidgetRecord *r = pr; r; r = r->parent)
+        if (r == cr) fatal("parenting cycle");
+    gtk_widget_set_parent(menu, owner_widget);
+    cr->parent = pr;
+    GtkGesture *gesture = gtk_gesture_click_new();
+    gtk_gesture_single_set_button(GTK_GESTURE_SINGLE(gesture), GDK_BUTTON_SECONDARY);
+    g_signal_connect_object(gesture, "pressed", G_CALLBACK(context_pressed), menu, 0);
+    gtk_widget_add_controller(owner_widget, GTK_EVENT_CONTROLLER(gesture));
+}
+
+void cwhip_gtk_ready(void *self) {
+    (void)self;
+    require_live();
+    const char *raw = g_getenv("CWHIP_EDITOR_READY_FD");
+    if (!raw) return;
+    char *end;
+    long fd = strtol(raw, &end, 10);
+    if (!*raw || *end || fd < 3 || fd > G_MAXINT) fatal("invalid startup readiness fd");
+    char ready = 'R';
+    ssize_t result;
+    do { result = write((int)fd, &ready, 1); } while (result < 0 && errno == EINTR);
+    close((int)fd);
+    g_unsetenv("CWHIP_EDITOR_READY_FD");
+    if (result != 1) fatal("could not report startup readiness");
+}
+
 #ifdef CWHIP_GTK_SOURCEVIEW
+void cwhip_gtk_source_view_emoji_menu(void *self, int64_t token, bool enabled) {
+    (void)self;
+    GtkWidget *widget = widget_live(token);
+    if (!GTK_SOURCE_IS_VIEW(widget)) fatal("operation requires SourceView");
+    GtkInputHints hints = gtk_text_view_get_input_hints(GTK_TEXT_VIEW(widget));
+    gtk_text_view_set_input_hints(GTK_TEXT_VIEW(widget),
+        enabled ? hints & ~GTK_INPUT_HINT_NO_EMOJI : hints | GTK_INPUT_HINT_NO_EMOJI);
+}
+
 static GtkSourceBuffer *source_buffer(int64_t token) {
     GtkWidget *widget = widget_live(token);
     if (!GTK_SOURCE_IS_VIEW(widget)) fatal("operation requires GtkSourceView");
@@ -1546,13 +1700,6 @@ void cwhip_gtk_source_view_clear_shortcuts(void *self, int64_t token) {
     }
 }
 
-static void font_provider_release(gpointer data) {
-    GtkCssProvider *provider = data;
-    GdkDisplay *display = g_object_get_data(G_OBJECT(provider), "cwhip-font-display");
-    gtk_style_context_remove_provider_for_display(display, GTK_STYLE_PROVIDER(provider));
-    g_object_unref(provider);
-}
-
 void cwhip_gtk_source_view_configure(void *self, int64_t token, void *font_text,
                                    int64_t size, int64_t tabs, bool spaces,
                                    bool numbers, bool wrap, bool highlight) {
@@ -1580,13 +1727,13 @@ void cwhip_gtk_source_view_configure(void *self, int64_t token, void *font_text,
         gtk_css_provider_load_from_data(provider, css, -1);
 #endif
         GdkDisplay *display = gtk_widget_get_display(widget);
-        g_object_set_data_full(G_OBJECT(provider), "cwhip-font-display",
+        g_object_set_data_full(G_OBJECT(provider), "cwhip-css-display",
                                g_object_ref(display), g_object_unref);
         g_object_set_data(G_OBJECT(widget), "cwhip-font-provider", NULL);
         gtk_widget_add_css_class(widget, style_class);
         gtk_style_context_add_provider_for_display(display, GTK_STYLE_PROVIDER(provider),
                                                    GTK_STYLE_PROVIDER_PRIORITY_APPLICATION);
-        g_object_set_data_full(G_OBJECT(widget), "cwhip-font-provider", provider, font_provider_release);
+        g_object_set_data_full(G_OBJECT(widget), "cwhip-font-provider", provider, css_provider_release);
         g_object_set_data_full(G_OBJECT(widget), "cwhip-font-css", g_strdup(css), g_free);
     }
     gtk_text_view_set_monospace(GTK_TEXT_VIEW(widget), TRUE);
@@ -1958,6 +2105,13 @@ int64_t cwhip_gtk_checkbox_signal(void *self, void *source, void *callback) {
 }
 int64_t cwhip_gtk_notebook_signal(void *self, void *source, void *callback) {
     return cwhip_gtk_widget_signal(self, source_token(source), 4, callback);
+}
+int64_t cwhip_gtk_window_focus_signal(void *self, void *source, void *callback) {
+    (void)self;
+    GtkWidget *widget = widget_live(source_token(source));
+    if (!GTK_IS_WINDOW(widget)) fatal("focus change requires Window");
+    return connect_signal(G_OBJECT(widget), "notify::is-active",
+                          G_CALLBACK(window_focus_changed), callback, "callback<void(bool)>");
 }
 
 #include "gtk_config.c"

@@ -41,6 +41,12 @@ than once in the primary process, so handlers should present existing windows
 when appropriate. No command-line/open-file API is provided yet; the GTK run
 call does not consume Cwhip's program arguments.
 
+`Application.ready()` reports successful startup to Cwhip Editor's launcher,
+after the editor has initialized and presented its window. It is a no-op without
+the launcher's `CWHIP_EDITOR_READY_FD` handshake. Successful forwarded desktop
+activation also completes the handshake without running a local activation
+handler.
+
 Closing the last application window normally ends the run. `quit()` requests
 exit and requires an active run; it does not pretend that closing was approved.
 `run()` is single-use and **terminal**: on return it performs `shutdown()`.
@@ -93,15 +99,17 @@ The first-release additions are:
 
 | Class | Constructor and operations |
 | --- | --- |
-| `Window` | `Window(String title)`, `setTitle(String)`, `String title()`, `setDefaultSize(int width, int height)`, `int defaultWidth()`, `int defaultHeight()`, `setTransientFor(Window parent)`, `setChild(Widget)`, `remove(Widget)`, `present()`, `close()`, `onCloseRequest(callback<bool()>)` |
+| `Window` | `Window(String title)`, `setTitle(String)`, `String title()`, `setDefaultSize(int width, int height)`, `int defaultWidth()`, `int defaultHeight()`, `setTransientFor(Window parent)`, `setChild(Widget)`, `remove(Widget)`, `present()`, `close()`, `onCloseRequest(callback<bool()>)`, `onFocusChanged(callback<void(bool)>)` |
 | `TransientWindow` | `TransientWindow(String title)`, `setTitle(String)`, `String title()`, `setDefaultSize(int width, int height)`, `int defaultWidth()`, `int defaultHeight()`, `setTransientFor(Window parent)`, `setChild(Widget)`, `remove(Widget)`, `present()`, `close()`, `onCloseRequest(callback<bool()>)` |
 | `Box` | `Box(int orientation, int spacing)`, `setLayout(int orientation, int spacing)`, `append(Widget)`, `remove(Widget)` |
+| `Grid` | `Grid(int spacing)`, `attach(Widget, int column, int row, int width, int height)` |
+| `ContextMenu` | `ContextMenu(Widget owner)`, `setChild(Widget)` |
 | `Label` | `Label(String text)`, `setText(String)`, `String text()` |
 | `Button` | `Button(String label)`, `setLabel(String)`, `String label()`, `onClicked(callback<void()>)` |
-| `Entry` | `Entry(String text)`, `setText(String)`, `String text()`, `focus()`, `onChanged(callback<void(String)>)` |
+| `Entry` | `Entry(String text)`, `setText(String)`, `String text()`, `focus()`, `setEditable(bool)`, `onChanged(callback<void(String)>)` |
 | `CheckButton` | `CheckButton(String label)`, `setLabel(String)`, `String label()`, `setActive(bool)`, `bool active()`, `onToggled(callback<void(bool)>)` |
 | `ScrolledWindow` | `ScrolledWindow()`, `setChild(Widget)`, `remove(Widget)` |
-| `Notebook` | `Notebook()`, `appendPage(Widget, String)`, `int currentPage()`, `setCurrentPage(int)`, `int pageCount()`, `setPageTitle(int, String)`, `remove(Widget)`, `onPageChanged(callback<void()>)` |
+| `Notebook` | `Notebook()`, `appendPage(Widget, String)`, `appendClosablePage(Widget, String, callback<void()>)`, `int currentPage()`, `setCurrentPage(int)`, `int pageCount()`, `setPageTitle(int, String)`, `remove(Widget)`, `onPageChanged(callback<void()>)` |
 | `Paned` | `Paned()`, `append(Widget)`, `setPosition(int)`, `int position()` |
 | `MenuBar` | `MenuBar()`, `int addMenu(String)`, `int addItem(int menu, String label, callback<void()>)`, `setItemEnabled(int item, bool)`, `activateItem(int item)` |
 
@@ -112,6 +120,14 @@ Default window dimensions must be positive and fit that range.
 `defaultWidth`/`defaultHeight` return GTK's current default size, which GTK 4
 updates when the user resizes an unmaximized window (`0` means unset); use them
 to persist window size.
+`onFocusChanged` reports GTK's window-active state (`false` on loss).
+`Grid` uses zero-based, nonnegative row/column positions and positive spans.
+`Entry.setEditable(false)` keeps selection/copy and programmatic updates available.
+`ContextMenu` attaches a secondary-button popover to its owner and accepts a
+single content widget (usually a Box of actions/check buttons); owner disposal
+tears it down. `appendClosablePage` adds a bordered title/close-icon tab, invoking
+the supplied callback without automatically removing the page. Page-change
+callbacks run after GTK changes its current page.
 Text accepts managed UTF-8 strings, including empty strings, but not null,
 embedded NULs, or invalid UTF-8. Getters return managed copies.
 
@@ -235,7 +251,8 @@ row metadata, copied from the caller, not filesystem policy. `request(id)`
 runs when an expandable row expands (possibly again on rebinding);
 applications should guard already-started loads. Collapsed rows do not request
 population merely to render their expansion arrow. `activate(id)` runs for
-leaves on double-click/Enter; directory activation toggles expansion.
+leaves on double-click/Enter by default; `setSingleClickActivate(true)` enables
+single-click activation (used by Cwhip Editor). Directory activation toggles expansion.
 `clear(parent)` removes its descendants, invalidating their IDs.
 `setExpanded` requires a visible, expandable row; expand its ancestors first.
 `expanded(id)` reports whether a live row is currently expanded (false
@@ -310,6 +327,7 @@ void copy()
 void paste()
 void selectAll()
 void focus()
+void setEmojiMenu(bool enabled)
 void setCursor(int line, int column)
 ```
 
@@ -320,6 +338,8 @@ the line end. It matches the 1-based `line()`/`column()` getters.
 
 Undo/redo state and selection query the actual text buffer. Clipboard operations
 use GTK's display clipboard; paste is asynchronous and obeys text-view editability.
+`setEmojiMenu(false)` hides Insert Emoji using GTK's no-emoji input hint while
+retaining native editing items; the default remains enabled for other applications.
 `setText` follows GTK's whole-buffer replacement semantics: it is irreversible
 and clears prior undo/redo history. It is appropriate for loading/resetting a
 document; typing, clipboard edits and `replaceNext` create undoable user edits.
