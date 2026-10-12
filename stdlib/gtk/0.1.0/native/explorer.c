@@ -7,6 +7,8 @@ typedef struct TreeItem {
     char *value;
     int64_t data;
     GListStore *children;
+    struct TreeItem *parent_item;
+    guint position;
 } TreeItem;
 typedef struct TreeItemClass {
     GObjectClass parent;
@@ -33,7 +35,9 @@ typedef struct TreeState {
     CwhipCallbackContext *request;
     CwhipCallbackContext *activate;
     GListStore *roots;
+    GtkTreeListModel *model;
     GHashTable *items;
+    GHashTable *by_value;
 } TreeState;
 
 static TreeState *tree_ref(TreeState *tree) {
@@ -56,6 +60,7 @@ static void tree_unref(gpointer data) {
     if (--tree->refs) return;
     g_object_unref(tree->roots);
     g_hash_table_unref(tree->items);
+    g_hash_table_unref(tree->by_value);
     free(tree);
 }
 static void tree_stop(GtkWidget *widget) {
@@ -153,11 +158,13 @@ void cwhip_gtk_tree_setup(void *self, int64_t token, void *request, void *activa
     tree->refs = 1;
     tree->roots = g_list_store_new(cwhip_tree_item_get_type());
     tree->items = g_hash_table_new_full(g_int64_hash, g_int64_equal, g_free, g_object_unref);
+    tree->by_value = g_hash_table_new(g_str_hash, g_str_equal);
     tree->request = cwhip_callback_acquire(request, "callback<void(int)>");
     tree->activate = cwhip_callback_acquire(activate, "callback<void(int)>");
     GtkTreeListModel *model =
         gtk_tree_list_model_new(G_LIST_MODEL(g_object_ref(tree->roots)), FALSE, FALSE,
                                 tree_children, tree_ref(tree), tree_unref);
+    tree->model = model;
     GtkSingleSelection *selection = gtk_single_selection_new(G_LIST_MODEL(model));
     gtk_single_selection_set_autoselect(selection, FALSE);
     gtk_list_view_set_model(GTK_LIST_VIEW(widget), GTK_SELECTION_MODEL(selection));
@@ -186,10 +193,16 @@ void cwhip_gtk_tree_add(void *self, int64_t token, int64_t parent, int64_t id, v
     item->icon = text_copy(icon);
     item->value = text_copy(value);
     item->data = item_data;
+    item->parent_item = ancestor;
+    item->position = g_list_model_get_n_items(G_LIST_MODEL(store));
     if (expandable) item->children = g_list_store_new(cwhip_tree_item_get_type());
     int64_t *key = g_new(int64_t, 1);
     *key = id;
     g_hash_table_insert(tree->items, key, item);
+    TreeItem *existing = g_hash_table_lookup(tree->by_value, item->value);
+    if (!existing || item->id < existing->id) {
+        g_hash_table_insert(tree->by_value, item->value, item);
+    }
     g_list_store_append(store, item);
 }
 static TreeItem *tree_item_live(int64_t token, int64_t id) {
@@ -210,14 +223,8 @@ int64_t cwhip_gtk_tree_find(void *self, int64_t token, void *value) {
     (void)self;
     TreeState *tree = tree_live(token);
     char *text = text_copy(value);
-    GHashTableIter iter;
-    gpointer item_data;
-    int64_t id = 0;
-    g_hash_table_iter_init(&iter, tree->items);
-    while (g_hash_table_iter_next(&iter, NULL, &item_data)) {
-        TreeItem *item = item_data;
-        if (strcmp(item->value, text) == 0 && (!id || item->id < id)) id = item->id;
-    }
+    TreeItem *item = g_hash_table_lookup(tree->by_value, text);
+    int64_t id = item ? item->id : 0;
     g_free(text);
     return id;
 }
@@ -233,6 +240,8 @@ static void tree_forget(TreeState *tree, GListStore *store) {
     for (guint i = 0; i < count; ++i) {
         TreeItem *item = g_list_model_get_item(G_LIST_MODEL(store), i);
         if (item->children) tree_forget(tree, item->children);
+        if (g_hash_table_lookup(tree->by_value, item->value) == item)
+            g_hash_table_remove(tree->by_value, item->value);
         g_hash_table_remove(tree->items, &item->id);
         g_object_unref(item);
     }
@@ -246,47 +255,52 @@ void cwhip_gtk_tree_clear(void *self, int64_t token, int64_t parent) {
     if (!store) fatal("invalid Tree parent");
     tree_forget(tree, store);
 }
+static GtkTreeListRow *tree_item_get_row(TreeState *tree, TreeItem *target) {
+    if (!target) return NULL;
+    GArray *path = g_array_new(FALSE, FALSE, sizeof(TreeItem *));
+    for (TreeItem *curr = target; curr; curr = curr->parent_item) {
+        g_array_append_val(path, curr);
+    }
+    TreeItem *root = g_array_index(path, TreeItem *, path->len - 1);
+    GtkTreeListRow *row = gtk_tree_list_model_get_child_row(tree->model, root->position);
+    for (int i = (int)path->len - 2; i >= 0 && row; --i) {
+        if (!gtk_tree_list_row_get_expanded(row)) {
+            g_object_unref(row);
+            row = NULL;
+            break;
+        }
+        TreeItem *child_item = g_array_index(path, TreeItem *, i);
+        GtkTreeListRow *child_row = gtk_tree_list_row_get_child_row(row, child_item->position);
+        g_object_unref(row);
+        row = child_row;
+    }
+    g_array_free(path, TRUE);
+    return row;
+}
 void cwhip_gtk_tree_expand(void *self, int64_t token, int64_t id, bool expanded) {
     (void)self;
     TreeState *tree = tree_ref(tree_live(token));
     TreeItem *target = g_hash_table_lookup(tree->items, &id);
     if (!target || !target->children) fatal("Tree expansion requires an expandable row");
-    GtkSelectionModel *selection =
-        g_object_ref(gtk_list_view_get_model(GTK_LIST_VIEW(widget_live(token))));
-    guint count = g_list_model_get_n_items(G_LIST_MODEL(selection));
-    bool found = false;
-    for (guint i = 0; i < count; ++i) {
-        GtkTreeListRow *row = g_list_model_get_item(G_LIST_MODEL(selection), i);
-        TreeItem *item = gtk_tree_list_row_get_item(row);
-        bool match = item->id == id;
-        if (match) {
-            found = true;
-            gtk_tree_list_row_set_expanded(row, expanded);
-            if (expanded) tree_invoke(tree, true, id);
-        }
-        g_object_unref(row);
-        if (match) break;
+    GtkTreeListRow *row = tree_item_get_row(tree, target);
+    if (!row) {
+        tree_unref(tree);
+        fatal("Tree row is not visible; expand its ancestors first");
     }
-    g_object_unref(selection);
+    gtk_tree_list_row_set_expanded(row, expanded);
+    if (expanded) tree_invoke(tree, true, id);
+    g_object_unref(row);
     tree_unref(tree);
-    if (!found) fatal("Tree row is not visible; expand its ancestors first");
 }
 bool cwhip_gtk_tree_is_expanded(void *self, int64_t token, int64_t id) {
     (void)self;
-    tree_live(token);
-    GtkSelectionModel *selection =
-        g_object_ref(gtk_list_view_get_model(GTK_LIST_VIEW(widget_live(token))));
-    guint count = g_list_model_get_n_items(G_LIST_MODEL(selection));
-    bool expanded = false;
-    for (guint i = 0; i < count; ++i) {
-        GtkTreeListRow *row = g_list_model_get_item(G_LIST_MODEL(selection), i);
-        TreeItem *item = gtk_tree_list_row_get_item(row);
-        bool match = item->id == id;
-        if (match) expanded = gtk_tree_list_row_get_expanded(row);
-        g_object_unref(row);
-        if (match) break;
-    }
-    g_object_unref(selection);
+    TreeState *tree = tree_live(token);
+    TreeItem *target = g_hash_table_lookup(tree->items, &id);
+    if (!target) return false;
+    GtkTreeListRow *row = tree_item_get_row(tree, target);
+    if (!row) return false;
+    bool expanded = gtk_tree_list_row_get_expanded(row);
+    g_object_unref(row);
     return expanded;
 }
 int64_t cwhip_gtk_paned_get_position(void *self, int64_t token) {
@@ -418,6 +432,7 @@ static gpointer directory_worker(gpointer data) {
         g_ptr_array_set_size(job->entries, 0);
     } else g_ptr_array_sort(job->entries, directory_compare);
     g_atomic_int_set(&job->done, 1);
+    g_main_context_wakeup(main_context);
     directory_unref(job);
     return NULL;
 }
@@ -435,9 +450,12 @@ static void directory_close(DirectoryJob *job) {
         link = &(*link)->next;
     *link = job->next;
     g_cancellable_cancel(job->cancel);
-    g_source_destroy(job->source);
-    g_source_unref(job->source);
-    job->source = NULL;
+    if (job->source) {
+        GSource *s = job->source;
+        job->source = NULL;
+        g_source_destroy(s);
+        g_source_unref(s);
+    }
     directory_release(job);
     directory_unref(job);
 }
@@ -460,9 +478,45 @@ static void directory_deliver(DirectoryJob *job, int64_t count, const char *erro
     if (job->closed) directory_release(job);
     cwhip_gc_pop_or_abort(&frame);
 }
-static gboolean directory_dispatch(gpointer data) {
-    DirectoryJob *job = data;
-    if (!g_atomic_int_get(&job->done)) return G_SOURCE_CONTINUE;
+typedef struct DirectorySource {
+    GSource source;
+    DirectoryJob *job;
+    gint64 next_time;
+} DirectorySource;
+
+static gboolean directory_source_prepare(GSource *source, gint *timeout) {
+    DirectorySource *ds = (DirectorySource *)source;
+    DirectoryJob *job = ds->job;
+    if (!g_atomic_int_get(&job->done)) {
+        *timeout = -1;
+        return FALSE;
+    }
+    if (ds->next_time == 0) {
+        *timeout = 0;
+        return TRUE;
+    }
+    gint64 now = g_get_monotonic_time();
+    if (now >= ds->next_time) {
+        *timeout = 0;
+        return TRUE;
+    }
+    *timeout = (gint)((ds->next_time - now + 999) / 1000);
+    return FALSE;
+}
+
+static gboolean directory_source_check(GSource *source) {
+    DirectorySource *ds = (DirectorySource *)source;
+    DirectoryJob *job = ds->job;
+    if (!g_atomic_int_get(&job->done)) return FALSE;
+    if (ds->next_time == 0) return TRUE;
+    return g_get_monotonic_time() >= ds->next_time;
+}
+
+static gboolean directory_source_dispatch(GSource *source, GSourceFunc callback, gpointer user_data) {
+    (void)callback;
+    (void)user_data;
+    DirectorySource *ds = (DirectorySource *)source;
+    DirectoryJob *job = ds->job;
     cwhip_gtk_require_owner();
     int acquired = cwhip_runtime_managed_enter();
     g_atomic_int_inc(&job->refs);
@@ -476,10 +530,20 @@ static gboolean directory_dispatch(gpointer data) {
         directory_close(job);
     }
     bool closed = job->closed;
+    if (!closed) {
+        ds->next_time = g_get_monotonic_time() + 5 * 1000;
+    }
     directory_unref(job);
     cwhip_runtime_managed_leave(acquired);
     return closed ? G_SOURCE_REMOVE : G_SOURCE_CONTINUE;
 }
+
+static GSourceFuncs directory_source_funcs = {
+    .prepare = directory_source_prepare,
+    .check = directory_source_check,
+    .dispatch = directory_source_dispatch,
+    .finalize = NULL,
+};
 static int64_t directory_start(int64_t owner_token, void *path, bool hidden, void *root,
                                void *excludes, void *callback) {
     tree_live(owner_token);
@@ -498,9 +562,12 @@ static int64_t directory_start(int64_t owner_token, void *path, bool hidden, voi
     job->entries = g_ptr_array_new_with_free_func(directory_entry_free);
     job->cancel = g_cancellable_new();
     job->context = cwhip_callback_acquire(callback, "callback<void(int,String)>");
-    job->source = g_timeout_source_new(5);
-    g_source_set_callback(job->source, directory_dispatch, job, NULL);
-    g_source_attach(job->source, main_context);
+    GSource *source = g_source_new(&directory_source_funcs, sizeof(DirectorySource));
+    DirectorySource *ds = (DirectorySource *)source;
+    ds->job = job;
+    ds->next_time = 0;
+    job->source = source;
+    g_source_attach(source, main_context);
     job->next = directory_jobs;
     directory_jobs = job;
     GThread *thread = g_thread_new("cwhip-directory", directory_worker, job);
@@ -557,6 +624,7 @@ void cwhip_gtk_directory_append(void *self, int64_t token, int64_t tree_token, i
     for (unsigned i = 0; i < 4; ++i)
         if (!defaults[i]) fatal("icon rules require defaults for kinds 0 through 3");
     gpointer additions[64];
+    guint start_pos = g_list_model_get_n_items(G_LIST_MODEL(store));
     for (int64_t i = 0; i < count; ++i) {
         DirectoryEntry *entry = g_ptr_array_index(job->entries, job->position + i);
         int64_t id = first_id + i;
@@ -576,14 +644,19 @@ void cwhip_gtk_directory_append(void *self, int64_t token, int64_t tree_token, i
         item->icon = g_strdup(icon);
         item->value = g_strdup(entry->path);
         item->data = entry->kind;
+        item->parent_item = ancestor;
+        item->position = start_pos + (guint)i;
         if (entry->kind == 1) item->children = g_list_store_new(cwhip_tree_item_get_type());
         int64_t *key = g_new(int64_t, 1);
         *key = id;
         g_hash_table_insert(tree->items, key, item);
+        TreeItem *existing = g_hash_table_lookup(tree->by_value, item->value);
+        if (!existing || item->id < existing->id) {
+            g_hash_table_insert(tree->by_value, item->value, item);
+        }
         additions[i] = item;
     }
-    g_list_store_splice(store, g_list_model_get_n_items(G_LIST_MODEL(store)), 0, additions,
-                        (guint)count);
+    g_list_store_splice(store, start_pos, 0, additions, (guint)count);
     g_strfreev(rules);
     g_free(rules_text);
     g_object_unref(store);

@@ -843,7 +843,9 @@ void cwhip_gtk_widget_visible(void *self, int64_t token, bool value) {
 
 void cwhip_gtk_widget_sensitive(void *self, int64_t token, bool value) {
     (void)self;
-    gtk_widget_set_sensitive(widget_live(token), value);
+    GtkWidget *w = widget_live(token);
+    if (gtk_widget_get_sensitive(w) != (gboolean)value)
+        gtk_widget_set_sensitive(w, value);
 }
 
 void cwhip_gtk_widget_expand(void *self, int64_t token, bool horizontal, bool value) {
@@ -912,7 +914,9 @@ static GSimpleAction *menu_item(int64_t token, int64_t item) {
 
 void cwhip_gtk_menu_item_enabled(void *self, int64_t token, int64_t item, bool enabled) {
     (void)self;
-    g_simple_action_set_enabled(menu_item(token, item), enabled);
+    GSimpleAction *action = menu_item(token, item);
+    if (g_action_get_enabled(G_ACTION(action)) != (gboolean)enabled)
+        g_simple_action_set_enabled(action, enabled);
 }
 
 void cwhip_gtk_menu_item_activate(void *self, int64_t token, int64_t item) {
@@ -1172,7 +1176,10 @@ void cwhip_gtk_widget_text_set(void *self, int64_t token, void *text) {
     GtkWidget *w = g_object_ref(widget_live(token));
     char *label = text_copy(text);
     if (GTK_IS_WINDOW(w)) gtk_window_set_title(GTK_WINDOW(w), label);
-    else if (GTK_IS_LABEL(w)) gtk_label_set_text(GTK_LABEL(w), label);
+    else if (GTK_IS_LABEL(w)) {
+        if (g_strcmp0(gtk_label_get_text(GTK_LABEL(w)), label) != 0)
+            gtk_label_set_text(GTK_LABEL(w), label);
+    }
     else if (GTK_IS_BUTTON(w)) gtk_button_set_label(GTK_BUTTON(w), label);
     else if (GTK_IS_EDITABLE(w)) gtk_editable_set_text(GTK_EDITABLE(w), label);
     else if (GTK_IS_CHECK_BUTTON(w)) gtk_check_button_set_label(GTK_CHECK_BUTTON(w), label);
@@ -1363,7 +1370,8 @@ void cwhip_gtk_notebook_title(void *self, int64_t token, int64_t page, void *tit
     if (GTK_IS_BOX(tab)) tab = gtk_widget_get_first_child(tab);
     if (!GTK_IS_LABEL(tab)) fatal("notebook tab label is not a Label");
     char *label = text_copy(title);
-    gtk_label_set_text(GTK_LABEL(tab), label);
+    if (g_strcmp0(gtk_label_get_text(GTK_LABEL(tab)), label) != 0)
+        gtk_label_set_text(GTK_LABEL(tab), label);
     g_free(label);
 }
 

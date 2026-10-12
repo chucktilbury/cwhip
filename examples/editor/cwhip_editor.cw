@@ -1024,12 +1024,14 @@ class EditorDocument {
     bool shortcutConflict
     int shortcutRevision
     String automaticSaveError
+    String lastTitle
 
     EditorDocument(String filePath, String contents) {
         path = filePath
         shortcuts = []
         shortcutConflict = false
         automaticSaveError = ""
+        lastTitle = ""
         view = GtkSource.View()
         view.setMonospace(true)
         view.setEmojiMenu(false)
@@ -1245,6 +1247,15 @@ class ProjectExplorer {
         rebuild(expandedPaths())
     }
 
+    void fileSaved(String path) {
+        generation = generation + 1
+        if (rootPath.equals("") || tree.disposed()) { return }
+        if (!path.startsWith(rootPath)) { return }
+        int id = tree.findValue(path)
+        if (id > 0) { return }
+        refresh()
+    }
+
     void rebuild(list expanded) {
         cancelLoads()
         tree.clear(0)
@@ -1334,6 +1345,15 @@ class CwhipEditor {
     int newItem
     int openItem
     int quitItem
+    bool menuInitialized
+    bool menuReady
+    bool menuEditable
+    bool menuRecent
+    bool menuQuit
+    bool menuProjectActive
+    bool menuCanUndo
+    bool menuCanRedo
+    bool menuSelected
     Gtk.FileDialog fileDialog
     EditorDocument dialogDocument
     bool dialogClosing
@@ -3022,7 +3042,7 @@ class CwhipEditor {
         refreshTab(document)
         document.automaticSaveError = ""
         status.setText(format("Saved{}", automaticSaveErrors()))
-        project.refresh()
+        project.fileSaved(absoluteDestination)
         updateMenu()
         return true
     }
@@ -3314,11 +3334,19 @@ class CwhipEditor {
     }
 
     void changed() {
+        if (window == null || window.disposed() || changingDocuments) { return }
         EditorDocument document = currentDocument()
         if (document != null) {
             refreshTab(document)
         }
-        updateStatus()
+        updateStatusText()
+        updateEditActions()
+    }
+
+    void cursorMoved() {
+        if (window == null || window.disposed() || changingDocuments) { return }
+        updateStatusText()
+        updateSelectionActions()
     }
 
     void pageChanged() {
@@ -3372,26 +3400,27 @@ class CwhipEditor {
     }
 
     void refreshTab(EditorDocument document) {
+        String title = document.tabTitle()
+        if (title.equals(document.lastTitle)) { return }
+        document.lastTitle = title
         int index = 0
         while (index < documents.length) {
             EditorDocument item = documents[index] as EditorDocument
             if (item == document) {
-                notebook.setPageTitle(index, item.tabTitle())
+                notebook.setPageTitle(index, title)
                 return
             }
             index = index + 1
         }
     }
 
-    void updateStatus() {
-        if (window == null || window.disposed() || changingDocuments) { return }
-        updateMenu()
+    void updateStatusText() {
+        if (status == null || window.disposed() || changingDocuments) { return }
         EditorDocument document = currentDocument()
         if (document == null) {
             return
         }
-        String message = "Ln "
-        message = format("Ln {}, Col {}", document.view.line(), document.view.column())
+        String message = format("Ln {}, Col {}", document.view.line(), document.view.column())
         if (document.view.modified()) {
             message.append("  Modified")
         }
@@ -3399,31 +3428,27 @@ class CwhipEditor {
         status.setText(message)
     }
 
-    void updateMenu() {
-        if (menu == null || status == null || window.disposed()) { return }
-        bool ready = !commandsBlocked()
+    void updateStatus() {
+        if (window == null || window.disposed() || changingDocuments) { return }
+        updateMenu()
+        updateStatusText()
+    }
+
+    void updateSelectionActions() {
+        if (menu == null || window.disposed()) { return }
         EditorDocument document = currentDocument()
-        bool editable = ready && document != null
-        menu.setItemEnabled(newItem, ready)
-        menu.setItemEnabled(openItem, ready)
-        menu.setItemEnabled(openFolderItem, ready)
-        project.sidebar.setSensitive(ready)
-        menu.setItemEnabled(recentItem, ready && recentFiles.length > 0)
-        menu.setItemEnabled(quitItem, fileDialog == null)
-        menu.setItemEnabled(projectNewItem, ready)
-        menu.setItemEnabled(projectOpenItem, ready)
-        int projectIndex = 0
-        while (projectIndex < projectItems.length) {
-            menu.setItemEnabled(projectItems[projectIndex] as int, ready && activeProject != null)
-            projectIndex = projectIndex + 1
+        bool selected = menuReady && document != null && document.view.hasSelection()
+        if (selected != menuSelected) {
+            menuSelected = selected
+            menu.setItemEnabled(cutItem, selected)
+            menu.setItemEnabled(copyItem, selected)
         }
-        menu.setItemEnabled(aboutItem, fileDialog == null)
-        confirmChoices.setSensitive(fileDialog == null)
-        int index = 0
-        while (index < documentItems.length) {
-            menu.setItemEnabled(documentItems[index] as int, editable)
-            index = index + 1
-        }
+    }
+
+    void updateEditActions() {
+        if (menu == null || window.disposed()) { return }
+        EditorDocument document = currentDocument()
+        bool editable = menuReady && document != null
         bool canUndo = false
         bool canRedo = false
         bool selected = false
@@ -3432,15 +3457,72 @@ class CwhipEditor {
             canRedo = document.view.canRedo()
             selected = document.view.hasSelection()
         }
-        menu.setItemEnabled(undoItem, canUndo)
-        menu.setItemEnabled(redoItem, canRedo)
-        menu.setItemEnabled(cutItem, selected)
-        menu.setItemEnabled(copyItem, selected)
-        notebook.setSensitive(fileDialog == null)
-        closeChoices.setSensitive(fileDialog == null)
-        findRow.setSensitive(ready)
-        replaceRow.setSensitive(ready)
-        optionsRow.setSensitive(ready)
+        if (!menuInitialized || canUndo != menuCanUndo) {
+            menuCanUndo = canUndo
+            menu.setItemEnabled(undoItem, canUndo)
+        }
+        if (!menuInitialized || canRedo != menuCanRedo) {
+            menuCanRedo = canRedo
+            menu.setItemEnabled(redoItem, canRedo)
+        }
+        if (!menuInitialized || selected != menuSelected) {
+            menuSelected = selected
+            menu.setItemEnabled(cutItem, selected)
+            menu.setItemEnabled(copyItem, selected)
+        }
+    }
+
+    void updateMenu() {
+        if (menu == null || status == null || window.disposed()) { return }
+        bool ready = !commandsBlocked()
+        EditorDocument document = currentDocument()
+        bool editable = ready && document != null
+        bool recent = ready && recentFiles.length > 0
+        bool quit = fileDialog == null
+        bool projectActive = ready && activeProject != null
+
+        if (!menuInitialized || ready != menuReady) {
+            menuReady = ready
+            menu.setItemEnabled(newItem, ready)
+            menu.setItemEnabled(openItem, ready)
+            menu.setItemEnabled(openFolderItem, ready)
+            project.sidebar.setSensitive(ready)
+            menu.setItemEnabled(projectNewItem, ready)
+            menu.setItemEnabled(projectOpenItem, ready)
+            findRow.setSensitive(ready)
+            replaceRow.setSensitive(ready)
+            optionsRow.setSensitive(ready)
+        }
+        if (!menuInitialized || recent != menuRecent) {
+            menuRecent = recent
+            menu.setItemEnabled(recentItem, recent)
+        }
+        if (!menuInitialized || quit != menuQuit) {
+            menuQuit = quit
+            menu.setItemEnabled(quitItem, quit)
+            menu.setItemEnabled(aboutItem, quit)
+            confirmChoices.setSensitive(quit)
+            notebook.setSensitive(quit)
+            closeChoices.setSensitive(quit)
+        }
+        if (!menuInitialized || projectActive != menuProjectActive) {
+            menuProjectActive = projectActive
+            int projectIndex = 0
+            while (projectIndex < projectItems.length) {
+                menu.setItemEnabled(projectItems[projectIndex] as int, projectActive)
+                projectIndex = projectIndex + 1
+            }
+        }
+        if (!menuInitialized || editable != menuEditable) {
+            menuEditable = editable
+            int index = 0
+            while (index < documentItems.length) {
+                menu.setItemEnabled(documentItems[index] as int, editable)
+                index = index + 1
+            }
+        }
+        updateEditActions()
+        menuInitialized = true
     }
 
     bool workspaceNeedsSave() {
@@ -3774,7 +3856,7 @@ start {
     Gtk.Application app = Gtk.Application("org.cw.Editor")
     CwhipEditor editor = CwhipEditor()
     editor.changedAction = editor.changed
-    editor.cursorAction = editor.updateStatus
+    editor.cursorAction = editor.cursorMoved
     editor.pageChangedAction = editor.pageChanged
     editor.openAction = editor.chooseOpen
     editor.recentAction = editor.openRecent
