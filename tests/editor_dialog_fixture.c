@@ -474,7 +474,7 @@ bool fixture_preferences_grid_readonly(void *self) {
         }
     }
     g_clear_object(&window);
-    return valid && entries == 22;
+    return valid && entries == 24;
 }
 
 bool fixture_editor_tabs(void *self) {
@@ -734,6 +734,72 @@ bool fixture_editor_monospace(void *self) {
     GtkWidget *view = find_view(GTK_WIDGET(editor_window()));
     return view && GTK_SOURCE_IS_VIEW(view) &&
         gtk_text_view_get_monospace(GTK_TEXT_VIEW(view));
+}
+
+static GtkWidget *find_marked_view(GtkWidget *widget, const char *marker) {
+    if (GTK_SOURCE_IS_VIEW(widget)) {
+        GtkTextBuffer *buffer = gtk_text_view_get_buffer(GTK_TEXT_VIEW(widget));
+        GtkTextIter start, end;
+        gtk_text_buffer_get_bounds(buffer, &start, &end);
+        char *text = gtk_text_buffer_get_text(buffer, &start, &end, TRUE);
+        bool found = g_str_has_prefix(text, marker);
+        g_free(text);
+        if (found) return widget;
+    }
+    for (GtkWidget *child = gtk_widget_get_first_child(widget); child;
+         child = gtk_widget_get_next_sibling(child)) {
+        GtkWidget *view = find_marked_view(child, marker);
+        if (view) return view;
+    }
+    return NULL;
+}
+
+void fixture_editor_select_marked(void *self, void *marker_text, int64_t start, int64_t end) {
+    (void)self;
+    cwhip_gtk_require_owner();
+    const char *bytes;
+    uint64_t length;
+    cwhip_string_bytes(marker_text, &bytes, &length);
+    char *marker = g_strndup(bytes, length);
+    GtkWidget *view = find_marked_view(GTK_WIDGET(editor_window()), marker);
+    g_free(marker);
+    if (!view) abort();
+    GtkTextBuffer *buffer = gtk_text_view_get_buffer(GTK_TEXT_VIEW(view));
+    GtkTextIter from, to;
+    gtk_text_buffer_get_iter_at_offset(buffer, &from, (int)start);
+    gtk_text_buffer_get_iter_at_offset(buffer, &to, (int)end);
+    gtk_text_buffer_select_range(buffer, &from, &to);
+}
+
+/* Sends a key press through the view's key controllers, then applies the
+ * default text insertion or backspace when no controller handled it. */
+bool fixture_editor_type(void *self, void *marker_text, int64_t keyval) {
+    (void)self;
+    cwhip_gtk_require_owner();
+    const char *bytes;
+    uint64_t length;
+    cwhip_string_bytes(marker_text, &bytes, &length);
+    char *marker = g_strndup(bytes, length);
+    GtkWidget *view = find_marked_view(GTK_WIDGET(editor_window()), marker);
+    g_free(marker);
+    if (!view) abort();
+    gboolean handled = FALSE;
+    GtkEventController *controller = g_object_get_data(G_OBJECT(view), "cwhip-auto-pair-controller");
+    if (controller)
+        g_signal_emit_by_name(controller, "key-pressed", (guint)keyval, 0u, 0, &handled);
+    if (handled) return true;
+    GtkTextBuffer *buffer = gtk_text_view_get_buffer(GTK_TEXT_VIEW(view));
+    if (keyval == GDK_KEY_BackSpace) {
+        GtkTextIter cursor;
+        gtk_text_buffer_get_iter_at_mark(buffer, &cursor, gtk_text_buffer_get_insert(buffer));
+        gtk_text_buffer_backspace(buffer, &cursor, TRUE, TRUE);
+    } else {
+        char text[8] = {0};
+        g_unichar_to_utf8(gdk_keyval_to_unicode((guint)keyval), text);
+        gtk_text_buffer_delete_selection(buffer, TRUE, TRUE);
+        gtk_text_buffer_insert_at_cursor(buffer, text, -1);
+    }
+    return false;
 }
 
 void fixture_editor_cleanup(void *self) {

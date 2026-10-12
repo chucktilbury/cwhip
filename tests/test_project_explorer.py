@@ -124,6 +124,7 @@ class ExplorerChecks {
             require(find("project/sub/nested.txt") == null, "no recursive population")
             require(find("project/.hidden.txt") == null && find("project/.hidden-dir") == null, "hidden files and directories excluded")
             require(find("project/loop").kind == 2 && !find("project/loop").started, "symlink loop is a leaf")
+            require(find("project/binary.dat") == null, "binary files hidden from explorer")
             require(editor.project.tree.value(3).equals(path("project/empty")), "directories first, deterministic sorting")
             require(ExplorerFixture().icons(), "GTK folder, file, source and symlink icons")
             require(ExplorerFixture().singleClick(), "native list single-click activation enabled")
@@ -157,7 +158,7 @@ class ExplorerChecks {
             require(find("project/empty").error.equals(""), "empty directory success")
             if (errorPhase == 0) {
                 before = editor.documents.length
-                editor.project.activateFile(find("project/binary.dat").id)
+                editor.openFile(path("project/binary.dat"))
                 require(editor.documents.length == before && editor.status.text().contains("not a text file"), "binary preserved rejection")
                 errorPhase = 1
                 again()

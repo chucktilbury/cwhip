@@ -119,7 +119,7 @@ class PreferencesChecks {
                     !editor.settings.insertSpaces && !editor.settings.lineNumbers &&
                     editor.settings.wrap && editor.settings.highlightLine, "startup reload")
                 require(PreferenceFixture().views(18, 3, false, false, true, true), "startup view properties")
-                require(editor.currentDocument().view.hasShortcut("<Control><Alt>s") &&
+                require(editor.currentDocument().view.hasShortcut("<Control><Alt>e") &&
                     !editor.currentDocument().view.hasShortcut("<Control>s"), "startup shortcut reload")
                 editor.newAction()
                 stage = 1
@@ -224,7 +224,7 @@ class PreferencesChecks {
             return
         }
         if (mode.equals("legacy")) {
-            require(editor.currentDocument().view.hasShortcut("<Control><Alt>s") &&
+            require(editor.currentDocument().view.hasShortcut("<Control><Alt>e") &&
                 !editor.currentDocument().view.hasShortcut("<Control>s") &&
                 !editor.currentDocument().view.hasShortcut("<Control>w"), "legacy full-map semantics")
             editor.showPreferences()
@@ -249,7 +249,7 @@ class PreferencesChecks {
         }
         if (mode.equals("old-shortcuts")) {
             require(editor.currentDocument().view.hasShortcut("<Control>s") &&
-                !editor.currentDocument().view.hasShortcut("<Control><Alt>s"),
+                !editor.currentDocument().view.hasShortcut("<Control><Alt>e"),
                 "old shortcut path is ignored")
             editor.quitAction()
             print(format("PASS old-shortcuts {}", checks))
@@ -257,7 +257,7 @@ class PreferencesChecks {
         }
         if (mode.equals("precedence")) {
             require(editor.settings.writable, "authoritative TOML ignores obsolete malformed legacy")
-            require(editor.currentDocument().view.hasShortcut("<Control><Alt>s") &&
+            require(editor.currentDocument().view.hasShortcut("<Control><Alt>e") &&
                 editor.currentDocument().view.hasShortcut("<Control>w"), "TOML map overrides legacy; missing keys use defaults")
             editor.quitAction()
             print(format("PASS precedence {}", checks))
@@ -381,7 +381,7 @@ class PreferencesChecks {
             editor.highlightCheck.setActive(true)
             require(PreferenceFixture().click("Keyboard"), "Keyboard category control")
             editor.commandSearch.setText("save")
-            require(editor.keyboardRows.length == 22, "named command rows")
+            require(editor.keyboardRows.length == 24, "named command rows")
             require(PreferenceFixture().commandVisible("Save") && !PreferenceFixture().commandVisible("Quit"), "command search filters actual rows")
             editor.commandSearch.setText("")
             KeyboardPreference save = row("save")
@@ -390,8 +390,8 @@ class PreferencesChecks {
             save.entry.setText("not-a-trigger")
             require(save.errorLabel.text().contains("Invalid") && save.binding.trigger.equals("<Control>s"), "invalid trigger does not override")
             require(PreferenceFixture().commandClick("Save", "Record"), "Record control")
-            require(PreferenceFixture().record("<Control><Alt>s"), "real recorder controller")
-            require(save.binding.normalized.equals(Gtk.Keyboard().normalize("<Control><Alt>s")), "recorded binding applied")
+            require(PreferenceFixture().record("<Control><Alt>e"), "real recorder controller")
+            require(save.binding.normalized.equals(Gtk.Keyboard().normalize("<Control><Alt>e")), "recorded binding applied")
             require(editor.currentDocument().view.hasShortcut(save.binding.trigger) &&
                 !editor.currentDocument().view.hasShortcut("<Control>s"), "rebind replaces old registration")
         }
@@ -399,7 +399,7 @@ class PreferencesChecks {
             KeyboardPreference save = row("save")
             require(PreferenceFixture().commandClick("Save", "Reset"), "individual Reset control")
             require(save.binding.trigger.equals("<Control>s"), "individual reset")
-            save.setTrigger("<Control><Alt>s")
+            save.setTrigger("<Control><Alt>e")
             require(PreferenceFixture().commandClick("Find", "Disable"), "Disable control")
             require(!editor.currentDocument().view.hasShortcut("<Control>f"), "disabled binding removed")
             require(PreferenceFixture().click("Reset Keyboard to Defaults"), "Keyboard reset control")
@@ -408,10 +408,10 @@ class PreferencesChecks {
             require(editor.currentDocument().view.hasShortcut("<Control>f") &&
                 editor.currentDocument().view.hasShortcut("<Control>w") &&
                 editor.currentDocument().view.hasShortcut("<Control>q"), "defaults restored")
-            save.setTrigger("<Control><Alt>s")
+            save.setTrigger("<Control><Alt>e")
             require(PreferenceFixture().commandClick("Save", "Record"), "record again")
             require(PreferenceFixture().record("Escape") && save.recording == 0 &&
-                save.binding.trigger.equals("<Control><Alt>s"), "Escape cancels recording")
+                save.binding.trigger.equals("<Control><Alt>e"), "Escape cancels recording")
             save.record()
             require(PreferenceFixture().close(), "hide during recording")
             require(save.recording == 0, "hide cancels recorder")
@@ -505,7 +505,7 @@ def main():
                 old_settings.write_text("version = 1\n[editor]\nfont_size = 16\n")
             old_shortcuts = case / "tweed-shortcuts.conf"
             if name == "old-shortcuts":
-                old_shortcuts.write_text("<Control><Alt>s=save\n")
+                old_shortcuts.write_text("<Control><Alt>e=save\n")
             (case / "example.cw").write_text("class Example {}\n")
             if name == "invalid-read":
                 path.parent.chmod(0)
@@ -525,7 +525,7 @@ def main():
                 assert old_settings.read_text() == "version = 1\n[editor]\nfont_size = 16\n"
                 assert not path.exists(), "old settings were copied to the new path"
             if name == "old-shortcuts":
-                assert old_shortcuts.read_text() == "<Control><Alt>s=save\n"
+                assert old_shortcuts.read_text() == "<Control><Alt>e=save\n"
             return path
 
         original = 'version = 1\n[unrelated]\nkeep = ["one", "two"]\n[editor]\nextra = { nested = true }\n'
@@ -534,7 +534,7 @@ def main():
         assert data["unrelated"]["keep"] == ["one", "two"]
         assert data["editor"]["extra"] == {"nested": True}
         assert data["editor"]["font_size"] == 18 and data["editor"]["tab_width"] == 3
-        assert data["keyboard"]["save"] == "<Control><Alt>s"
+        assert data["keyboard"]["save"] == "<Control><Alt>e"
         run("reload", saved.read_text())
         usability = run("usability")
         focus = tomllib.loads(usability.read_text())
@@ -542,13 +542,13 @@ def main():
         assert focus["editor"]["save_on_window_loss"] is True
         assert focus["project"]["reopen_last"] is True
         run("focus-reload", usability.read_text())
-        legacy = run("legacy", legacy="<Control><Alt>s=save\n")
+        legacy = run("legacy", legacy="<Control><Alt>e=save\n")
         migrated = tomllib.loads(legacy.read_text())
-        assert migrated["keyboard"]["save"] == "<Control><Alt>s"
+        assert migrated["keyboard"]["save"] == "<Control><Alt>e"
         assert migrated["keyboard"]["close"] == ""
         run("old-settings")
         run("old-shortcuts")
-        run("precedence", 'version = 1\n[keyboard]\nsave = "<Control><Alt>s"\n', legacy="broken legacy\n")
+        run("precedence", 'version = 1\n[keyboard]\nsave = "<Control><Alt>e"\n', legacy="broken legacy\n")
         run("save-failure")
         run("async-save-failure")
         run("shutdown-saving")

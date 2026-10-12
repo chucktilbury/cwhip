@@ -1,4 +1,6 @@
 /* Included by gtk.c: shares the package's widget tokens and owner-thread lifecycle. */
+#include <fcntl.h>
+#include <sys/stat.h>
 typedef struct TreeItem {
     GObject parent;
     int64_t id;
@@ -381,6 +383,22 @@ static bool directory_excluded(const DirectoryJob *job, const char *name, const 
     }
     return false;
 }
+/* Regular files (or links to them) that start with an ELF header or contain a
+ * NUL byte in their first 1 KiB are binaries and are hidden from the explorer. */
+static bool directory_binary(const char *path) {
+    struct stat status;
+    if (stat(path, &status) != 0 || !S_ISREG(status.st_mode)) return false;
+    int fd = open(path, O_RDONLY | O_NOCTTY | O_NONBLOCK);
+    if (fd < 0) return false;
+    unsigned char bytes[1024];
+    ssize_t length;
+    do length = read(fd, bytes, sizeof(bytes));
+    while (length < 0 && errno == EINTR);
+    close(fd);
+    if (length <= 0) return false;
+    if (length >= 4 && memcmp(bytes, "\x7f" "ELF", 4) == 0) return true;
+    return memchr(bytes, '\0', (size_t)length) != NULL;
+}
 static gpointer directory_worker(gpointer data) {
     DirectoryJob *job = data;
     GError *error = NULL;
@@ -406,10 +424,16 @@ static gpointer directory_worker(gpointer data) {
                     g_object_unref(info);
                     continue;
                 }
+                GFileType type = g_file_info_get_file_type(info);
+                if ((type == G_FILE_TYPE_REGULAR || type == G_FILE_TYPE_SYMBOLIC_LINK) &&
+                    directory_binary(entry_path)) {
+                    g_free(entry_path);
+                    g_object_unref(info);
+                    continue;
+                }
                 DirectoryEntry *entry = g_new0(DirectoryEntry, 1);
                 entry->name = g_strdup(name);
                 entry->path = entry_path;
-                GFileType type = g_file_info_get_file_type(info);
                 entry->kind = type == G_FILE_TYPE_DIRECTORY       ? 1
                               : type == G_FILE_TYPE_SYMBOLIC_LINK ? 2
                               : type == G_FILE_TYPE_REGULAR       ? 0

@@ -34,6 +34,8 @@ class CwhipSettings {
     bool highlightLine
     bool saveOnTabLoss
     bool saveOnWindowLoss
+    bool stripTrailingSpaces
+    bool autoCompleteBrackets
     bool reopenLast
     String lastRoot
     list commands
@@ -51,6 +53,7 @@ class CwhipSettings {
             CommandBinding("open", "Open files", "<Control>o"),
             CommandBinding("save", "Save", "<Control>s"),
             CommandBinding("save-as", "Save as", "<Control><Shift>s"),
+            CommandBinding("save-all", "Save all", "<Control><Alt>s"),
             CommandBinding("close", "Close tab", "<Control>w"),
             CommandBinding("quit", "Quit", "<Control>q"),
             CommandBinding("find", "Find", "<Control>f"),
@@ -61,6 +64,7 @@ class CwhipSettings {
             CommandBinding("copy", "Copy", "<Control>c"),
             CommandBinding("paste", "Paste", "<Control>v"),
             CommandBinding("select-all", "Select all", "<Control>a"),
+            CommandBinding("strip-trailing-spaces", "Strip trailing spaces", ""),
             CommandBinding("preferences", "Preferences", "<Control>comma"),
             CommandBinding("project-new", "New project", ""),
             CommandBinding("project-open", "Open project", ""),
@@ -98,6 +102,8 @@ class CwhipSettings {
         highlightLine = false
         saveOnTabLoss = false
         saveOnWindowLoss = false
+        stripTrailingSpaces = false
+        autoCompleteBrackets = true
     }
 
     void error(String message) {
@@ -299,6 +305,8 @@ class CwhipSettings {
         highlightLine = boolean("highlight_current_line", highlightLine)
         saveOnTabLoss = boolean("save_on_tab_loss", saveOnTabLoss)
         saveOnWindowLoss = boolean("save_on_window_loss", saveOnWindowLoss)
+        stripTrailingSpaces = boolean("strip_trailing_spaces", stripTrailingSpaces)
+        autoCompleteBrackets = boolean("auto_complete_brackets", autoCompleteBrackets)
         // Stage the complete map before checking conflicts, allowing swaps.
         int i = 0
         while (i < commands.length) {
@@ -339,9 +347,9 @@ class CwhipSettings {
     }
 
     String serialize() {
-        String text = format("version = 1\n[editor]\nfont_family = {}\nfont_size = {}\ntab_width = {}\ninsert_spaces = {}\nline_numbers = {}\nwrap = {}\nhighlight_current_line = {}\nsave_on_tab_loss = {}\nsave_on_window_loss = {}\n[keyboard]\n",
+        String text = format("version = 1\n[editor]\nfont_family = {}\nfont_size = {}\ntab_width = {}\ninsert_spaces = {}\nline_numbers = {}\nwrap = {}\nhighlight_current_line = {}\nsave_on_tab_loss = {}\nsave_on_window_loss = {}\nstrip_trailing_spaces = {}\nauto_complete_brackets = {}\n[keyboard]\n",
             Gtk.Config().quote(fontFamily), fontSize, tabWidth, insertSpaces, lineNumbers, wrap, highlightLine,
-            saveOnTabLoss, saveOnWindowLoss)
+            saveOnTabLoss, saveOnWindowLoss, stripTrailingSpaces, autoCompleteBrackets)
         int i = 0
         while (i < commands.length) {
             CommandBinding binding = commands[i] as CommandBinding
@@ -1056,6 +1064,7 @@ class EditorDocument {
         }
         return title
     }
+    bool stripTrailingSpaces() { return view.stripTrailingSpaces() }
     void close() { closeAction(_self()) }
 }
 EditorDocument EditorDocument._self() from "cwhip_gtk_self"
@@ -1150,10 +1159,10 @@ class ProjectExplorer {
         refreshButton = Gtk.Button("Refresh")
         refreshButton.setSensitive(false)
         refreshButton.onClicked(_self().refresh)
-        sidebar.append(refreshButton)
+        // Refresh and hidden-file toggles live in the tree context menu; these
+        // unparented widgets keep the shared state and callbacks.
         hidden = Gtk.CheckButton("Show Hidden Files")
         hidden.onToggled(_self().hiddenChanged)
-        sidebar.append(hidden)
         tree = Gtk.Tree(_self().expand, _self().activateFile)
         tree.setSingleClickActivate(true)
         contextMenu = Gtk.ContextMenu(tree)
@@ -1315,6 +1324,8 @@ class CwhipEditor {
     Gtk.CheckButton highlightCheck
     Gtk.CheckButton saveTabCheck
     Gtk.CheckButton saveWindowCheck
+    Gtk.CheckButton stripCheck
+    Gtk.CheckButton bracketsCheck
     Gtk.Entry commandSearch
     list keyboardRows
     Gtk.Grid keyboardRowsBox
@@ -1505,6 +1516,7 @@ class CwhipEditor {
         recentItem = menu.addItem(fileMenu, "Recent", recentAction)
         documentItems.append(menu.addItem(fileMenu, "Save", commandAction("save")))
         documentItems.append(menu.addItem(fileMenu, "Save As...", commandAction("save-as")))
+        documentItems.append(menu.addItem(fileMenu, "Save All", commandAction("save-all")))
         documentItems.append(menu.addItem(fileMenu, "Close", commandAction("close")))
         quitItem = menu.addItem(fileMenu, "Quit", commandAction("quit"))
         int editMenu = menu.addMenu("Edit")
@@ -1516,6 +1528,7 @@ class CwhipEditor {
         documentItems.append(menu.addItem(editMenu, "Select All", commandAction("select-all")))
         documentItems.append(menu.addItem(editMenu, "Find", commandAction("find")))
         documentItems.append(menu.addItem(editMenu, "Replace", commandAction("replace")))
+        documentItems.append(menu.addItem(editMenu, "Strip Trailing Spaces", commandAction("strip-trailing-spaces")))
         preferencesItem = menu.addItem(editMenu, "Preferences...", commandAction("preferences"))
         int projectMenu = menu.addMenu("Project")
         projectNewItem = menu.addItem(projectMenu, "New Project...", commandAction("project-new"))
@@ -1633,6 +1646,8 @@ class CwhipEditor {
     callback<void()> commandAction(String command) {
         if (command.equals("save")) { return saveAction }
         if (command.equals("save-as")) { return saveAsAction }
+        if (command.equals("save-all")) { return _self().saveAll }
+        if (command.equals("strip-trailing-spaces")) { return _self().stripTrailingSpacesCurrent }
         if (command.equals("open")) { return openAction }
         if (command.equals("new")) { return newAction }
         if (command.equals("close")) { return closeTabAction }
@@ -1682,6 +1697,7 @@ class CwhipEditor {
             if (current.hasHighlight) { highlight = current.highlightLine }
         }
         document.view.configure(font, size, tabs, spaces, numbers, wrapLines, highlight)
+        document.view.setAutoCompleteBrackets(settings.autoCompleteBrackets)
         if (document.shortcutRevision == settings.shortcutRevision) { return }
         document.shortcutRevision = settings.shortcutRevision
         document.view.clearShortcuts()
@@ -1735,6 +1751,8 @@ class CwhipEditor {
         highlightCheck = preferenceCheck("Highlight current line", settings.highlightLine)
         saveTabCheck = preferenceCheck("Save on loss of tab focus", settings.saveOnTabLoss)
         saveWindowCheck = preferenceCheck("Save on loss of window focus", settings.saveOnWindowLoss)
+        stripCheck = preferenceCheck("Strip trailing spaces on save", settings.stripTrailingSpaces)
+        bracketsCheck = preferenceCheck("Auto-close brackets and quotes", settings.autoCompleteBrackets)
         fontEntry.onChanged(_self().editorSettingChanged)
         sizeEntry.onChanged(_self().editorSettingChanged)
         tabsEntry.onChanged(_self().editorSettingChanged)
@@ -1925,6 +1943,8 @@ class CwhipEditor {
         settings.highlightLine = highlightCheck.active()
         settings.saveOnTabLoss = saveTabCheck.active()
         settings.saveOnWindowLoss = saveWindowCheck.active()
+        settings.stripTrailingSpaces = stripCheck.active()
+        settings.autoCompleteBrackets = bracketsCheck.active()
         settingsChanged()
     }
     void resetEditorPreferences() {
@@ -1952,6 +1972,8 @@ class CwhipEditor {
             highlightCheck.setActive(settings.highlightLine)
             saveTabCheck.setActive(settings.saveOnTabLoss)
             saveWindowCheck.setActive(settings.saveOnWindowLoss)
+            stripCheck.setActive(settings.stripTrailingSpaces)
+            bracketsCheck.setActive(settings.autoCompleteBrackets)
             refreshingPreferences = false
         }
         if (resetSection.equals("Keyboard")) {
@@ -2960,6 +2982,37 @@ class CwhipEditor {
         writeDocument(document, destination)
     }
 
+    // Saves every modified document that already has a path; untitled
+    // documents are left for an explicit Save As.
+    void saveAll() {
+        if (commandsBlocked()) { return }
+        int saved = 0
+        int skipped = 0
+        int failed = 0
+        int i = 0
+        while (i < documents.length) {
+            EditorDocument doc = documents[i] as EditorDocument
+            if (doc.view.modified()) {
+                if (doc.path.equals("")) { skipped = skipped + 1 }
+                else {
+                    if (writeDocument(doc, doc.path)) { saved = saved + 1 } else { failed = failed + 1 }
+                }
+            }
+            i = i + 1
+        }
+        if (failed > 0) { return }
+        if (skipped > 0) { status.setText(format("Saved {} file(s); {} untitled document(s) not saved", saved, skipped)) }
+        else { status.setText(format("Saved {} file(s){}", saved, automaticSaveErrors())) }
+    }
+
+    void stripTrailingSpacesCurrent() {
+        if (commandsBlocked()) { return }
+        EditorDocument document = currentDocument()
+        if (document == null) { return }
+        if (document.stripTrailingSpaces()) { status.setText("Stripped trailing spaces") }
+        else { status.setText("No trailing spaces") }
+    }
+
     void saveAsCurrent() {
         if (commandsBlocked()) { return }
         EditorDocument document = currentDocument()
@@ -3011,6 +3064,7 @@ class CwhipEditor {
             }
             index = index + 1
         }
+        if (settings.stripTrailingSpaces) { document.stripTrailingSpaces() }
         System.File output = System.File(absoluteDestination, "w")
         if (!output.isOpen()) {
             showError("Save failed: ", absoluteDestination)

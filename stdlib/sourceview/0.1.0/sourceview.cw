@@ -18,6 +18,8 @@ namespace GtkSource {
         void _markSaved(int token)
         void _undo(int token)
         void _redo(int token)
+        bool _stripTrailingSpaces(int token)
+        void _autoPair(int token, bool enabled)
         bool _canUndo(int token)
         bool _canRedo(int token)
         bool _hasSelection(int token)
@@ -61,6 +63,10 @@ namespace GtkSource {
         void markSaved() { _markSaved(_widgetToken()) }
         void undo() { _undo(_widgetToken()) }
         void redo() { _redo(_widgetToken()) }
+        // Removes trailing spaces and tabs as one undo step; true when text changed.
+        bool stripTrailingSpaces() { return _stripTrailingSpaces(_widgetToken()) }
+        // Auto-closes ()[]{}"'' pairs, wraps selections, and steps over closers.
+        void setAutoCompleteBrackets(bool enabled) { _autoPair(_widgetToken(), enabled) }
         bool canUndo() { return _canUndo(_widgetToken()) }
         bool canRedo() { return _canRedo(_widgetToken()) }
         bool hasSelection() { return _hasSelection(_widgetToken()) }
@@ -120,6 +126,8 @@ namespace GtkSource {
     void View._markSaved(int token) from "cwhip_gtk_source_view_mark_saved"
     void View._undo(int token) from "cwhip_gtk_source_view_undo"
     void View._redo(int token) from "cwhip_gtk_source_view_redo"
+    bool View._stripTrailingSpaces(int token) from "cwhip_gtk_source_view_strip_trailing_spaces"
+    void View._autoPair(int token, bool enabled) from "cwhip_gtk_source_view_auto_pair"
     bool View._canUndo(int token) from "cwhip_gtk_source_view_can_undo"
     bool View._canRedo(int token) from "cwhip_gtk_source_view_can_redo"
     bool View._hasSelection(int token) from "cwhip_gtk_source_view_has_selection"

@@ -1655,6 +1655,130 @@ void cwhip_gtk_source_view_redo(void *self, int64_t token) {
     if (gtk_text_buffer_get_can_redo(buffer)) gtk_text_buffer_redo(buffer);
 }
 
+/* Removes trailing spaces and tabs from every line as one undoable action. */
+bool cwhip_gtk_source_view_strip_trailing_spaces(void *self, int64_t token) {
+    (void)self;
+    GtkTextBuffer *buffer = GTK_TEXT_BUFFER(source_buffer(token));
+    bool changed = false;
+    gtk_text_buffer_begin_user_action(buffer);
+    int lines = gtk_text_buffer_get_line_count(buffer);
+    for (int line = 0; line < lines; ++line) {
+        GtkTextIter end, start;
+        gtk_text_buffer_get_iter_at_line(buffer, &end, line);
+        if (!gtk_text_iter_ends_line(&end)) gtk_text_iter_forward_to_line_end(&end);
+        start = end;
+        while (!gtk_text_iter_starts_line(&start)) {
+            GtkTextIter previous = start;
+            gtk_text_iter_backward_char(&previous);
+            gunichar c = gtk_text_iter_get_char(&previous);
+            if (c != ' ' && c != '\t') break;
+            start = previous;
+        }
+        if (!gtk_text_iter_equal(&start, &end)) {
+            gtk_text_buffer_delete(buffer, &start, &end);
+            changed = true;
+        }
+    }
+    gtk_text_buffer_end_user_action(buffer);
+    return changed;
+}
+
+#define AUTO_PAIR_ENABLED "cwhip-auto-pair-enabled"
+#define AUTO_PAIR_CONTROLLER "cwhip-auto-pair-controller"
+
+static gunichar pair_close(gunichar c) {
+    switch (c) {
+    case '(': return ')';
+    case '[': return ']';
+    case '{': return '}';
+    case '"': return '"';
+    case '\'': return '\'';
+    default: return 0;
+    }
+}
+
+static gboolean auto_pair_key(GtkEventControllerKey *controller, guint keyval, guint keycode,
+                              GdkModifierType state, gpointer data) {
+    (void)keycode;
+    (void)data;
+    GtkWidget *widget = gtk_event_controller_get_widget(GTK_EVENT_CONTROLLER(controller));
+    if (!g_object_get_data(G_OBJECT(widget), AUTO_PAIR_ENABLED)) return FALSE;
+    if (!gtk_text_view_get_editable(GTK_TEXT_VIEW(widget))) return FALSE;
+    if (state & (GDK_CONTROL_MASK | GDK_SUPER_MASK | GDK_META_MASK)) return FALSE;
+    GtkTextBuffer *buffer = gtk_text_view_get_buffer(GTK_TEXT_VIEW(widget));
+    GtkTextIter start, end;
+    bool selected = gtk_text_buffer_get_selection_bounds(buffer, &start, &end);
+    gunichar next = gtk_text_iter_get_char(&end);
+    gunichar previous = 0;
+    GtkTextIter before = start;
+    if (gtk_text_iter_backward_char(&before)) previous = gtk_text_iter_get_char(&before);
+    if (keyval == GDK_KEY_BackSpace) {
+        if (selected || !previous || pair_close(previous) == 0 || pair_close(previous) != next)
+            return FALSE;
+        GtkTextIter after = end;
+        gtk_text_iter_forward_char(&after);
+        gtk_text_buffer_begin_user_action(buffer);
+        gtk_text_buffer_delete(buffer, &before, &after);
+        gtk_text_buffer_end_user_action(buffer);
+        return TRUE;
+    }
+    gunichar c = gdk_keyval_to_unicode(keyval);
+    if (!c) return FALSE;
+    bool closing = c == ')' || c == ']' || c == '}' || c == '"' || c == '\'';
+    if (closing && !selected && next == c) {
+        GtkTextIter after = end;
+        gtk_text_iter_forward_char(&after);
+        gtk_text_buffer_place_cursor(buffer, &after);
+        return TRUE;
+    }
+    gunichar close = pair_close(c);
+    if (!close) return FALSE;
+    /* Apostrophes inside words (don't, it's) are not quote pairs. */
+    if (!selected && c == '\'' && previous && g_unichar_isalnum(previous)) return FALSE;
+    char open_text[8] = {0}, close_text[8] = {0};
+    g_unichar_to_utf8(c, open_text);
+    g_unichar_to_utf8(close, close_text);
+    gtk_text_buffer_begin_user_action(buffer);
+    if (selected) {
+        GtkTextMark *first = gtk_text_buffer_create_mark(buffer, NULL, &start, TRUE);
+        GtkTextMark *last = gtk_text_buffer_create_mark(buffer, NULL, &end, FALSE);
+        gtk_text_buffer_insert(buffer, &end, close_text, -1);
+        gtk_text_buffer_get_iter_at_mark(buffer, &start, first);
+        gtk_text_buffer_insert(buffer, &start, open_text, -1);
+        gtk_text_buffer_get_iter_at_mark(buffer, &start, first);
+        gtk_text_iter_forward_char(&start);
+        gtk_text_buffer_get_iter_at_mark(buffer, &end, last);
+        gtk_text_iter_backward_char(&end);
+        gtk_text_buffer_select_range(buffer, &start, &end);
+        gtk_text_buffer_delete_mark(buffer, first);
+        gtk_text_buffer_delete_mark(buffer, last);
+    } else {
+        gtk_text_buffer_insert(buffer, &start, open_text, -1);
+        GtkTextMark *cursor = gtk_text_buffer_create_mark(buffer, NULL, &start, TRUE);
+        gtk_text_buffer_insert(buffer, &start, close_text, -1);
+        gtk_text_buffer_get_iter_at_mark(buffer, &start, cursor);
+        gtk_text_buffer_place_cursor(buffer, &start);
+        gtk_text_buffer_delete_mark(buffer, cursor);
+    }
+    gtk_text_buffer_end_user_action(buffer);
+    gtk_text_view_scroll_mark_onscreen(GTK_TEXT_VIEW(widget), gtk_text_buffer_get_insert(buffer));
+    return TRUE;
+}
+
+void cwhip_gtk_source_view_auto_pair(void *self, int64_t token, bool enabled) {
+    (void)self;
+    GtkWidget *widget = widget_live(token);
+    if (!GTK_SOURCE_IS_VIEW(widget)) fatal("operation requires GtkSourceView");
+    if (!g_object_get_data(G_OBJECT(widget), AUTO_PAIR_CONTROLLER)) {
+        GtkEventController *controller = gtk_event_controller_key_new();
+        gtk_event_controller_set_propagation_phase(controller, GTK_PHASE_CAPTURE);
+        g_signal_connect(controller, "key-pressed", G_CALLBACK(auto_pair_key), NULL);
+        gtk_widget_add_controller(widget, controller);
+        g_object_set_data(G_OBJECT(widget), AUTO_PAIR_CONTROLLER, controller);
+    }
+    g_object_set_data(G_OBJECT(widget), AUTO_PAIR_ENABLED, GINT_TO_POINTER(enabled ? 1 : 0));
+}
+
 bool cwhip_gtk_source_view_can_undo(void *self, int64_t token) {
     (void)self;
     return gtk_text_buffer_get_can_undo(GTK_TEXT_BUFFER(source_buffer(token))) != FALSE;

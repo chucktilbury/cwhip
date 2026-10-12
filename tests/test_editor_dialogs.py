@@ -27,6 +27,8 @@ class Fixture {
     bool searchDialog(bool replaceMode)
     bool closeSearchDialog()
     bool monospace()
+    bool press(String marker, int keyval)
+    void selectMarked(String marker, int first, int last)
     void cleanup()
 }
 void Fixture.choose(String path, int accept, int overwrite) from "fixture_editor_choose"
@@ -43,6 +45,8 @@ void Fixture.select(int first, int last) from "fixture_editor_select"
 bool Fixture.searchDialog(bool replaceMode) from "fixture_editor_search_dialog"
 bool Fixture.closeSearchDialog() from "fixture_editor_close_search_dialog"
 bool Fixture.monospace() from "fixture_editor_monospace"
+bool Fixture.press(String marker, int keyval) from "fixture_editor_type"
+void Fixture.selectMarked(String marker, int first, int last) from "fixture_editor_select_marked"
 void Fixture.cleanup() from "fixture_editor_cleanup"
 
 class EditorChecks {
@@ -167,7 +171,7 @@ class EditorChecks {
             require(editor.status.text().contains("another open document") && contents(path("other.cw")).equals("other\n") && saved.path.equals(path("overwrite.cw")), "identity collision rejected")
             editor.menu.activateItem(editor.newItem)
             editor.currentDocument().view.setText("unsaved\n")
-            editor.menu.activateItem(editor.documentItems[2] as int)
+            editor.menu.activateItem(editor.documentItems[3] as int)
             require(editor.pendingCloseDocument == editor.currentDocument(), "dirty Close prompts")
             Fixture().choose("", 0, 0)
             editor.closeSaveAction()
@@ -223,15 +227,15 @@ class EditorChecks {
         }
         if (stage == 12) {
             require(editor.currentDocument().view.text().equals("undo this\n"), "Paste clipboard")
-            editor.menu.activateItem(editor.documentItems[4] as int)
+            editor.menu.activateItem(editor.documentItems[5] as int)
             require(editor.currentDocument().view.hasSelection(), "menu Select All")
             editor.findEntry.setText("undo")
-            editor.menu.activateItem(editor.documentItems[5] as int)
+            editor.menu.activateItem(editor.documentItems[6] as int)
             require(Fixture().entryFocus("undo"), "Find menu focuses query")
             editor.findAction()
             require(editor.currentDocument().view.hasSelection(), "Find selection")
             editor.replaceEntry.setText("replace")
-            editor.menu.activateItem(editor.documentItems[6] as int)
+            editor.menu.activateItem(editor.documentItems[7] as int)
             require(Fixture().entryFocus("replace"), "Replace menu focuses replacement")
             editor.replaceAction()
             require(editor.currentDocument().view.text().contains("replace this"), "Replace contents")
@@ -342,6 +346,45 @@ class EditorChecks {
         }
         if (stage == 16) {
             require(!editor.window.disposed() && editor.documents.length == documentsBeforeMany + 1 && !editor.pendingCloseAll && editor.pendingCloseDocument == null, "Quit Save As Cancel preserves all documents")
+            editor.newDocument()
+            EditorDocument pairs = editor.currentDocument()
+            pairs.view.setText("#pair\n")
+            pairs.view.setCursor(2, 1)
+            require(editor.settings.autoCompleteBrackets, "auto-close defaults on")
+            require(Fixture().press("#pair", 40) && pairs.view.text().equals("#pair\n()"), "open paren auto-closes")
+            Fixture().press("#pair", 97)
+            require(Fixture().press("#pair", 41) && pairs.view.text().equals("#pair\n(a)"), "closing paren steps over")
+            Fixture().press("#pair", 91)
+            require(pairs.view.text().equals("#pair\n(a)[]") && Fixture().press("#pair", 65288) &&
+                pairs.view.text().equals("#pair\n(a)"), "backspace deletes empty pair")
+            Fixture().press("#pair", 123)
+            Fixture().press("#pair", 34)
+            require(pairs.view.text().equals("#pair\n(a){\"\"}"), "nested brace and quote pairs")
+            require(Fixture().press("#pair", 34) && Fixture().press("#pair", 125), "quote and brace step over")
+            Fixture().press("#pair", 105)
+            require(!Fixture().press("#pair", 39) && pairs.view.text().equals("#pair\n(a){\"\"}i'"), "apostrophe after word is not paired")
+            Fixture().selectMarked("#pair", 1, 5)
+            require(Fixture().press("#pair", 91) && pairs.view.text().equals("#[pair]\n(a){\"\"}i'") &&
+                pairs.view.selectedText().equals("pair"), "selection wrapped in pair")
+            editor.settings.autoCompleteBrackets = false
+            editor.applyDocumentSettings(pairs)
+            pairs.view.setCursor(2, 100)
+            require(!Fixture().press("#[pair", 40) && pairs.view.text().equals("#[pair]\n(a){\"\"}i'("), "auto-close can be disabled")
+            editor.settings.autoCompleteBrackets = true
+            editor.applyDocumentSettings(pairs)
+            pairs.view.setText("#strip  \nline\t \n  \nkeep\n")
+            require(!editor.settings.stripTrailingSpaces, "strip defaults off")
+            require(editor.writeDocument(pairs, path("strip.cw")) && contents(path("strip.cw")).equals("#strip  \nline\t \n  \nkeep\n"), "save keeps trailing spaces by default")
+            editor.settings.stripTrailingSpaces = true
+            pairs.view.setText("#strip  \nline\t \n  \nkeep\n")
+            editor.saveAll()
+            require(contents(path("strip.cw")).equals("#strip\nline\n\nkeep\n") && !pairs.view.modified(), "Save All strips trailing spaces when enabled")
+            editor.settings.stripTrailingSpaces = false
+            pairs.view.setText("a \t\n")
+            editor.stripTrailingSpacesCurrent()
+            require(pairs.view.text().equals("a\n") && editor.status.text().equals("Stripped trailing spaces"), "strip trailing spaces command")
+            require(editor.settings.command("save-all").trigger.equals("<Control><Alt>s") && Fixture().shortcut("<Control><Alt>s") &&
+                !pairs.view.modified() && contents(path("strip.cw")).equals("a\n"), "Save All shortcut")
             editor.quitAction()
             editor.closeDiscardAction()
             require(editor.window.disposed(), "Quit Discard")
