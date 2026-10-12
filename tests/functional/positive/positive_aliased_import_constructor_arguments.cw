@@ -1,0 +1,63 @@
+import system as sys
+
+class Box {
+    String value
+
+    Box(String text) { value = text }
+    Box(int number) { value = "int" }
+    Box(bool flag) { value = "bool" }
+
+    String label() { return value }
+    void set(String text) { value = text }
+    void set(int number) { value = "int" }
+
+    Box rebuild() { return Box(sys.FileSystem().basename("/m/method.txt")) }
+}
+
+class Pair {
+    Box inner
+
+    Pair(Box box) { inner = box }
+}
+
+class Derived : Box {
+    Derived() { super Box(sys.FileSystem().basename("/d/derived.txt")) }
+}
+
+class AliasError : Exception {
+    AliasError() { super Exception(sys.FileSystem().basename("/e/base.txt")) }
+}
+
+start {
+    sys.File missing("/definitely/not/a/cwhip/dir/file.txt", "r")
+    print(missing.isOpen())
+
+    try {
+        raise(Exception(sys.System().lastError()))
+    } except() as message {
+        print(message.length > 0)
+    }
+
+    Exception direct = Exception(sys.FileSystem().basename("/x/direct.txt"))
+    print(direct.message)
+
+    Box box = Box(sys.FileSystem().basename("/b/box.txt"))
+    print(box.label())
+
+    Box declared(sys.FileSystem().extension("/b/declared.cw"))
+    print(declared.label())
+
+    Pair pair = Pair(Box(sys.FileSystem().basename("/p/nested.txt")))
+    print(pair.inner.label())
+
+    box.set(sys.FileSystem().basename("/s/overload.txt"))
+    print(box.label())
+
+    print(box.rebuild().label())
+    print(Derived().label())
+    print(AliasError().message)
+
+    list files = [sys.FileSystem()]
+    Box typed = Box(files[0] is sys.FileSystem)
+    print(typed.label())
+}

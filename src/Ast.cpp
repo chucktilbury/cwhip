@@ -20,6 +20,7 @@ std::unique_ptr<Expression> cloneExpression(const Expression& expression) {
     copy->sliceHasStep = expression.sliceHasStep;
     copy->resolvedSignature = expression.resolvedSignature;
     copy->resolvedType = expression.resolvedType;
+    copy->classResolved = expression.classResolved;
     if (expression.left) copy->left = cloneExpression(*expression.left);
     if (expression.right) copy->right = cloneExpression(*expression.right);
     for (const auto& argument : expression.arguments)
