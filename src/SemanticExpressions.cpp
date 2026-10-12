@@ -918,41 +918,44 @@ std::string SemanticAnalyzer::analyzeExpression(Expression& expression,
         }
         return "buffer";
     case ExpressionKind::ConstructorCall: {
-        const auto symbol = findSymbolIndex(expression.value);
-        const auto* field = currentClass_ ? findField(*currentClass_, expression.value) : nullptr;
-        if ((symbol != symbols_.size() && isCallbackType(symbols_[symbol].type)) ||
-            (field && isCallbackType(field->type))) {
-            auto callee = std::make_unique<Expression>();
-            callee->kind = ExpressionKind::Identifier;
-            callee->value = expression.value;
-            callee->location = expression.location;
-            expression.left = std::move(callee);
-            expression.kind = ExpressionKind::CallbackCall;
-            return analyzeExpression(expression);
+        if (!expression.classResolved) {
+            const auto symbol = findSymbolIndex(expression.value);
+            const auto* field = currentClass_ ? findField(*currentClass_, expression.value) : nullptr;
+            if ((symbol != symbols_.size() && isCallbackType(symbols_[symbol].type)) ||
+                (field && isCallbackType(field->type))) {
+                auto callee = std::make_unique<Expression>();
+                callee->kind = ExpressionKind::Identifier;
+                callee->value = expression.value;
+                callee->location = expression.location;
+                expression.left = std::move(callee);
+                expression.kind = ExpressionKind::CallbackCall;
+                return analyzeExpression(expression);
+            }
+            if (currentClass_ != nullptr && countMethods(*currentClass_, expression.value) != 0) {
+                auto receiver = std::make_unique<Expression>();
+                receiver->kind = ExpressionKind::ImplicitThis;
+                receiver->location = expression.location;
+                auto member = std::make_unique<Expression>();
+                member->kind = ExpressionKind::Member;
+                member->location = expression.location;
+                member->value = expression.value;
+                member->left = std::move(receiver);
+                expression.kind = ExpressionKind::Call;
+                expression.value.clear();
+                expression.left = std::move(member);
+                return analyzeExpression(expression);
+            }
+            if (currentClass_ != nullptr &&
+                expression.value.find('.') == std::string::npos &&
+                !hasNamespaceOrClass(expression.value, currentNamespace_)) {
+                throw DiagnosticError(expression.location,
+                                      "class '" + currentClass_->name + "' has no method '" +
+                                          expression.value + "'");
+            }
+            expression.value =
+                resolveClassName(expression.value, currentNamespace_, expression.location);
+            expression.classResolved = true;
         }
-        if (currentClass_ != nullptr && countMethods(*currentClass_, expression.value) != 0) {
-            auto receiver = std::make_unique<Expression>();
-            receiver->kind = ExpressionKind::ImplicitThis;
-            receiver->location = expression.location;
-            auto member = std::make_unique<Expression>();
-            member->kind = ExpressionKind::Member;
-            member->location = expression.location;
-            member->value = expression.value;
-            member->left = std::move(receiver);
-            expression.kind = ExpressionKind::Call;
-            expression.value.clear();
-            expression.left = std::move(member);
-            return analyzeExpression(expression);
-        }
-        if (currentClass_ != nullptr &&
-            expression.value.find('.') == std::string::npos &&
-            !hasNamespaceOrClass(expression.value, currentNamespace_)) {
-            throw DiagnosticError(expression.location,
-                                  "class '" + currentClass_->name + "' has no method '" +
-                                      expression.value + "'");
-        }
-        expression.value =
-            resolveClassName(expression.value, currentNamespace_, expression.location);
         const auto* owner = findClass(expression.value, expression.location);
         std::vector<const MethodDeclaration*> constructors;
         for (const auto& method : owner->methods) {

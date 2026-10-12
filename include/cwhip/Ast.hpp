@@ -44,6 +44,11 @@ struct Expression {
     // same resolution instead of repeating it.
     std::string resolvedSignature;
     std::string resolvedType;
+    // Set once a ConstructorCall's class name has been rewritten to its
+    // canonical qualified name. Arguments may be analyzed more than once (for
+    // overload selection), and the canonical name is not necessarily
+    // resolvable again from the source module (e.g. through an import alias).
+    bool classResolved = false;
     std::unique_ptr<Expression> left;
     std::unique_ptr<Expression> right;
     std::vector<std::unique_ptr<Expression>> arguments;
