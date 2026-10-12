@@ -45,6 +45,7 @@ if(DOXYGEN_FOUND)
         COMMAND "${DOXYGEN_EXECUTABLE}" "${CMAKE_SOURCE_DIR}/doc/doxygen.cfg"
         WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/doc"
         COMMENT "Generating API documentation"
+        DEPENDS site
         VERBATIM
     )
 endif()
@@ -53,7 +54,6 @@ add_custom_target(site
     COMMAND "/usr/bin/python3" "build.py"
     WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/doc/website"
     COMMENT "Generating web site"
-    DEPENDS docs
     VERBATIM
 )
 
