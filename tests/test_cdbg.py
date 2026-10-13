@@ -73,6 +73,7 @@ class DebugChecks {
     int stops
     unsigned deadline
     String mode
+    String oldPid
     void require(bool condition, String label) {
         if (!condition) {
             System.StandardIO().writeErrorLine(format("FAIL {} stage {}: {} ({})",
@@ -108,6 +109,17 @@ class DebugChecks {
             }
         } else {
             require(ui.failure.equals(""), ui.failure)
+            if (mode.equals("no-source") && ui.loaded && idle()) {
+                require(ui.source.text().startsWith("Source unavailable:"),
+                    "missing debug source explicitly reported")
+                ui.window.close()
+                print("true")
+                return
+            }
+            if (mode.equals("no-source")) {
+                Gtk.Application().post(_self().tick)
+                return
+            }
             if (mode.equals("cancel")) {
                 if (stage == 0 && ui.loaded && idle()) { ui.resume()
                     stage = 1 }
@@ -119,17 +131,24 @@ class DebugChecks {
                     stage = 3
                 }
                 if (stage == 3 && ui.running && idle()) {
+                    oldPid = ui.inferiorPid
+                    ui.restart()
+                    stage = 4
+                }
+                if (stage == 4 && ui.running && idle() && !ui.restarting &&
+                    !ui.inferiorPid.equals(oldPid)) {
                     String pid = ui.inferiorPid
                     ui.window.close()
                     require(ui.closed && ui.process == null && ui.pollToken == 0,
                         "close running session cleans up")
-                    print(format("true:{}", pid))
+                    print(format("true:{}:{}", oldPid, pid))
                     return
                 }
                 Gtk.Application().post(_self().tick)
                 return
             }
             if (stage == 0 && ui.loaded && idle()) {
+                require(ui.source.text().contains("counter"), "source visible immediately after Load")
                 ui.breakpoint.setText(format("{}:{}", System.Process().getEnv("CDBG_TEST_SOURCE"),
                     System.Process().getEnv("CDBG_TEST_LINE")))
                 ui.addBreakpoint()
@@ -164,6 +183,16 @@ class DebugChecks {
                     ui.watches.text().split("counter = 21").length == 2,
                     "new watches and frame refresh replace stale inspection")
                 stops = ui.stopCount
+                oldPid = ui.inferiorPid
+                ui.restart()
+                stage = 30
+            }
+            if (stage == 30 && ui.stopCount > stops && !ui.running && idle()) {
+                require(!ui.inferiorPid.equals(oldPid), "Restart replaces stopped inferior")
+                require(ui.breaks.text().contains("#1") &&
+                    ui.watches.text().contains("counter + 1 = 22"),
+                    "Restart preserves breakpoints and watches")
+                stops = ui.stopCount
                 ui.stepInto()
                 stage = 4
             }
@@ -189,6 +218,18 @@ class DebugChecks {
             }
             if (stage == 8 && !ui.hasRun && !ui.running && idle()) {
                 require(ui.status.text().contains("exited"), "normal inferior exit")
+                ui.restart()
+                stage = 9
+            }
+            if (stage == 9 && !ui.hasRun && !ui.running && idle() && !ui.restarting) {
+                require(ui.status.text().contains("exited"), "Restart after exit runs target again")
+                ui.target.setText(System.Process().getEnv("CDBG_TEST_TARGET"))
+                ui.launch()
+                stage = 10
+            }
+            if (stage == 10 && ui.loaded && idle()) {
+                require(!ui.hasRun && !ui.running && ui.breaks.text().equals("") &&
+                    ui.source.text().contains("counter"), "Load reloads source without running")
                 ui.endSession()
                 require(ui.process == null && !ui.loaded && ui.pollToken == 0 &&
                     ui.temporary.equals(""), "owned process and temporary cleanup")
@@ -325,6 +366,8 @@ def main() -> None:
         c_source.write_text(C_FIXTURE)
         c_binary = work / "native target"
         subprocess.run([args.clang, "-g", "-O0", str(c_source), "-o", str(c_binary)], check=True)
+        stripped_binary = work / "no debug info"
+        subprocess.run([args.clang, str(c_source), "-o", str(stripped_binary)], check=True)
         loop_source = work / "loop.c"
         loop_source.write_text("int main(void) { volatile int counter = 0; while (1) { counter++; } }\n")
         loop_binary = work / "loop"
@@ -338,6 +381,8 @@ def main() -> None:
         for mode, target, debug_source, line in (
             ("native", c_binary, c_source, "7"),
             ("cwhip", cw_source, cw_source, "10"),
+            ("relative-cwhip", Path(cw_source.name), cw_source, "10"),
+            ("no-source", stripped_binary, c_source, "7"),
             ("missing", c_binary, c_source, "7"),
             ("compile-error", bad_source, bad_source, "1"),
             ("invalid-target", invalid_target, invalid_target, "1"),
@@ -352,14 +397,15 @@ def main() -> None:
                 expected_output = result.stdout == "true"
                 if mode == "cancel":
                     expected_output = result.stdout.startswith("true:")
-                    pid = int(result.stdout.split(":")[1])
-                    deadline = time.monotonic() + 5
-                    while Path(f"/proc/{pid}").exists() and time.monotonic() < deadline:
-                        time.sleep(0.05)
-                    assert not Path(f"/proc/{pid}").exists(), f"orphan inferior {pid}"
+                    for value in result.stdout.split(":")[1:]:
+                        pid = int(value)
+                        deadline = time.monotonic() + 5
+                        while Path(f"/proc/{pid}").exists() and time.monotonic() < deadline:
+                            time.sleep(0.05)
+                        assert not Path(f"/proc/{pid}").exists(), f"orphan inferior {pid}"
                 assert result.returncode == 0 and expected_output, (
                     mode, result.returncode, result.stdout, result.stderr)
-                if mode in ("native", "cwhip", "cancel"):
+                if mode in ("native", "cwhip", "relative-cwhip", "no-source", "cancel"):
                     assert not result.stderr, result.stderr
                 else:
                     assert "cdbg:" in result.stderr, result.stderr

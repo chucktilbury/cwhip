@@ -29,6 +29,12 @@ are not overwritten. Other paths are treated as prebuilt executables; compile
 these with debug information. Temporary compiler outputs are removed when the
 session ends or the window closes.
 
+**Load** ends the old session, reloads the entered target (recompiling `.cw`
+sources), clears breakpoints, and prepares GDB without running the program.
+Source is displayed immediately: from the entered `.cw` file, or from readable
+source paths in an executable's debug information. A stripped executable or
+missing source file shows an explicit source-unavailable message.
+
 `CDBG_COMPILER` can select a compiler (otherwise cdbg first tries its sibling
 `cwhip`, then PATH); `CDBG_GDB` can select the GDB executable (default `gdb` on
 PATH). The compiler's existing package discovery and project lock rules apply.
@@ -44,7 +50,10 @@ launched in cdbg's current working directory.
 2. **Run / Continue**, **Step Into**, **Step Over**, **Step Out** and **Pause**
    use GDB's run/continue/step/next/finish/interrupt commands. Controls reflect
    running versus stopped state. **End Session** stops GDB and its owned process
-   group; **Load** starts a fresh session.
+   group; **Load** starts a fresh session. **Restart** stops the current inferior
+   and runs the already loaded executable from the beginning, preserving
+   breakpoints, watches and arguments. It works while running, stopped or after
+   exit; it does not recompile source. Use **Load** after changing the source.
 3. At each stop the source location/current line, Locals / Arguments, Stack,
    and Watches are refreshed. Enter an expression such as `counter` and click
    **Watch**; out-of-scope/evaluation errors are displayed alongside that
@@ -89,3 +98,7 @@ real local GDB launch, source compilation with `-g`, source locations,
 breakpoints, stepping, locals, watches, stack-frame selection, errors and
 teardown under a private GTK display/session bus. Missing GDB is reported
 explicitly at configuration time rather than counted as a passing GUI test.
+Load-time source checks cover source paths (including relative paths), executables
+with DWARF, and explicit missing-debug-source feedback. Restart checks cover
+stopped, running and exited targets, retained breakpoints/watches, and cleanup
+of the previous inferior.
