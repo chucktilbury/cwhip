@@ -22,7 +22,7 @@ fails with a clear missing-GUI dependency message.
 
 `cdbg [SOURCE.cw|EXECUTABLE [-- ARGS...]]` opens the GUI in the foreground;
 arguments after the target are passed individually to the inferior, without a
-shell. With no target, enter a path and click **Load**. A `.cw` source is compiled
+shell. A `.cw` command-line target is compiled
 asynchronously using `cwhip -g` to an owned temporary executable. Compilation
 errors appear in a parented modal dialog, the status line, Debugger Console and
 stderr; user source/output files
@@ -30,12 +30,27 @@ are not overwritten. Other paths are treated as prebuilt executables; compile
 these with debug information. Temporary compiler outputs are removed when the
 session ends or the window closes.
 
-**Load** ends the old session, reloads the entered target (recompiling `.cw`
-sources), clears breakpoints, and prepares GDB without running the program.
-Source is displayed immediately: from the entered `.cw` file, or from readable
-source paths in an executable's debug information. A stripped executable or
-missing source file shows an explicit source-unavailable message. Target/source
-open failures also show a modal **Could not load file** dialog.
+The **File** menu separates the two kinds of file:
+
+- **Load Executable…** opens a file chooser and starts a fresh GDB session for
+  the chosen executable: breakpoints are cleared and the target is prepared but
+  not run. Its source tabs come from the readable source paths in its debug
+  information. A command-line `.cw` target is compiled first, as above.
+- **Open Source Code…** opens a text file in a read-only source tab without
+  compiling it or changing the debug session. An already open file reuses its
+  tab. Executables (ELF), binary files and invalid UTF-8 are rejected.
+- **Quit** (Ctrl+Q) ends the session and closes cdbg.
+
+A stripped executable or missing source file shows an explicit
+source-unavailable message. Any target/source open failure shows a modal
+**Could not load file** dialog parented to the cdbg window and leaves the source
+area and its existing tabs visible and unchanged; with no file tab, a "No source"
+placeholder page is kept instead of hiding the area.
+
+**Search > Find…** (Ctrl+F) opens a Find dialog with a text box, **Find Next**,
+**Find Previous** and **Close**. It searches the active source tab, wraps around
+the ends of the file (reported as "Wrapped"), and reports "Not found" when there
+is no match.
 
 `CDBG_COMPILER` can select a compiler (otherwise cdbg first tries its sibling
 `cwhip`, then PATH); `CDBG_GDB` can select the GDB executable (default `gdb` on
@@ -45,17 +60,18 @@ launched in cdbg's current working directory.
 
 ## Controls and inspection
 
-1. Load a source or executable. Enter a **function** or **file:line** and click
+1. Load an executable (or start cdbg with a source/executable). Enter a **function** or **file:line** and click
    **Add**. For the example above, `examples/debugger.cw:10` stops before the
    method call; absolute file paths are also accepted. Breakpoints have numeric
    IDs shown in the Breakpoints pane; **Delete ID** removes one.
 2. **Run / Continue**, **Step Into**, **Step Over**, **Step Out** and **Pause**
    use GDB's run/continue/step/next/finish/interrupt commands. Controls reflect
    running versus stopped state. **End Session** stops GDB and its owned process
-   group; **Load** starts a fresh session. **Restart** stops the current inferior
+   group; **File > Load Executable…** starts a fresh session. **Restart** stops the current inferior
    and runs the already loaded executable from the beginning, preserving
    breakpoints, watches and arguments. It works while running, stopped or after
-   exit; it does not recompile source. Use **Load** after changing the source.
+   exit; it does not recompile source. Restart cdbg with the `.cw` path, or load
+   a rebuilt executable, after changing the source.
 3. At each stop the source location/current line, Locals / Arguments, Stack,
    and Watches are refreshed. Enter an expression such as `counter` and click
    **Watch**; out-of-scope/evaluation errors are displayed alongside that
@@ -64,9 +80,12 @@ launched in cdbg's current working directory.
 
 Source files occupy separate notebook tabs. Debug-info sources are opened on
 load, and stopping in another file opens/selects its tab without duplicates.
+Every source and inspector tab is drawn with a border, and each source tab has a
+close icon. Closing a tab never ends the debug session; if execution later stops
+in a closed file, its tab is reopened (once).
 The highlighted stopped line is centered vertically where the buffer allows;
 stepping in the same file reuses its buffer rather than reloading/re-scrolling
-the entire file. **Load** reloads source contents; **Restart** retains them.
+the entire file. Load Executable reloads source contents; **Restart** retains them.
 Source and inspector panes are read-only, retain text selection/copy, and omit
 Insert Emoji from their right-click menus.
 
@@ -99,8 +118,9 @@ pretty-printers. Those objects therefore appear as pointers/opaque types rather
 than an expandable Cwhip object tree. Step Into may enter compiler/runtime
 helpers; use Step Out or file:line breakpoints to return to source. LLDB/DAP and
 richer Cwhip object inspection are follow-up work, not implemented features.
-Also planned, not implemented in this iteration: gutter-click breakpoint toggles,
-right-click actions on Watches/Breakpoints, and borders on all tabs.
+Also planned, not implemented in this iteration: gutter-click breakpoint toggles
+and right-click actions on Watches/Breakpoints. (Tab borders and source-tab
+close icons are implemented.)
 
 ## Checks
 
@@ -122,4 +142,9 @@ of the previous inferior.
 UI regressions check source-tab reuse across files, read-only/no-Emoji panes and
 the actual source popup, parented modal load-error dialogs, measured viewport
 centering and unchanged buffer content on step, and stdout/stderr isolation
-(including MI-looking program output).
+(including MI-looking program output). A File/Search regression drives the real
+menus, file chooser, Ctrl+F/Ctrl+Q shortcuts and Find dialog: failed opens
+(missing, binary, ELF executable, invalid UTF-8) keep the source area and tabs
+unchanged, Load Executable versus Open Source Code, Find Next/Previous with
+wraparound and not-found, tab close/reopen-on-stop without duplicates, and tab
+borders/close icons.

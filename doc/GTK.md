@@ -99,7 +99,7 @@ The first-release additions are:
 
 | Class | Constructor and operations |
 | --- | --- |
-| `Window` | `Window(String title)`, `setTitle(String)`, `String title()`, `setDefaultSize(int width, int height)`, `int defaultWidth()`, `int defaultHeight()`, `setTransientFor(Window parent)`, `setChild(Widget)`, `remove(Widget)`, `present()`, `close()`, `onCloseRequest(callback<bool()>)`, `onFocusChanged(callback<void(bool)>)` |
+| `Window` | `Window(String title)`, `setTitle(String)`, `String title()`, `setDefaultSize(int width, int height)`, `int defaultWidth()`, `int defaultHeight()`, `setTransientFor(Window parent)`, `setChild(Widget)`, `remove(Widget)`, `present()`, `close()`, `onCloseRequest(callback<bool()>)`, `onFocusChanged(callback<void(bool)>)`, `bindShortcut(String trigger, callback<void()>)`, `bool hasShortcut(String trigger)` |
 | `TransientWindow` | `TransientWindow(String title)`, `setTitle(String)`, `String title()`, `setDefaultSize(int width, int height)`, `int defaultWidth()`, `int defaultHeight()`, `setTransientFor(Window parent)`, `setChild(Widget)`, `remove(Widget)`, `present()`, `close()`, `onCloseRequest(callback<bool()>)` |
 | `Box` | `Box(int orientation, int spacing)`, `setLayout(int orientation, int spacing)`, `append(Widget)`, `remove(Widget)` |
 | `Grid` | `Grid(int spacing)`, `attach(Widget, int column, int row, int width, int height)` |
@@ -109,9 +109,9 @@ The first-release additions are:
 | `Entry` | `Entry(String text)`, `setText(String)`, `String text()`, `focus()`, `setEditable(bool)`, `onChanged(callback<void(String)>)` |
 | `CheckButton` | `CheckButton(String label)`, `setLabel(String)`, `String label()`, `setActive(bool)`, `bool active()`, `onToggled(callback<void(bool)>)` |
 | `ScrolledWindow` | `ScrolledWindow()`, `setChild(Widget)`, `remove(Widget)` |
-| `Notebook` | `Notebook()`, `appendPage(Widget, String)`, `appendClosablePage(Widget, String, callback<void()>)`, `int currentPage()`, `setCurrentPage(int)`, `int pageCount()`, `setPageTitle(int, String)`, `remove(Widget)`, `onPageChanged(callback<void()>)` |
+| `Notebook` | `Notebook()`, `appendPage(Widget, String)`, `appendClosablePage(Widget, String, callback<void()>)`, `int currentPage()`, `setCurrentPage(int)`, `int pageCount()`, `setPageTitle(int, String)`, `remove(Widget)`, `onPageChanged(callback<void()>)`, `setBorderedTabs()` |
 | `Paned` | `Paned()`, `append(Widget)`, `setPosition(int)`, `int position()` |
-| `MenuBar` | `MenuBar()`, `int addMenu(String)`, `int addItem(int menu, String label, callback<void()>)`, `setItemEnabled(int item, bool)`, `activateItem(int item)` |
+| `MenuBar` | `MenuBar()`, `int addMenu(String)`, `int addItem(int menu, String label, callback<void()>)`, `addSeparator(int menu)`, `setItemEnabled(int item, bool)`, `activateItem(int item)` |
 
 Methods without a listed result return `void`, except signal registration,
 which returns `SignalConnection`. Orientation is `Gtk.Box.HORIZONTAL` (`0`) or
@@ -126,7 +126,11 @@ to persist window size.
 `ContextMenu` attaches a secondary-button popover to its owner and accepts a
 single content widget (usually a Box of actions/check buttons); owner disposal
 tears it down. `appendClosablePage` adds a bordered title/close-icon tab, invoking
-the supplied callback without automatically removing the page. Page-change
+the supplied callback without automatically removing the page.
+`setBorderedTabs()` applies the same tab border to every page of a notebook.
+`Window.bindShortcut` installs a window-wide shortcut (GTK trigger syntax such
+as `<Control>q`) whose callback may close or dispose the window; it is released
+with the window. Page-change
 callbacks run after GTK changes its current page.
 Text accepts managed UTF-8 strings, including empty strings, but not null,
 embedded NULs, or invalid UTF-8. Getters return managed copies.
@@ -157,6 +161,8 @@ their typed callback receivers until menu disposal or application shutdown.
 `setItemEnabled` updates the actual GTK action state. `activateItem` invokes
 that same action, including GTK's disabled-action check; disabled items do not
 invoke callbacks. An action may dispose its own menu/window or shut down.
+`addSeparator(menu)` starts a new menu section, so later items in that menu are
+drawn after a separator.
 
 ```text
 Gtk.FileDialog(Window parent, bool save, String initialPath,
@@ -374,7 +380,7 @@ released while its own callback is running is marked released and its receiver
 root is dropped only after the callback returns; later activations are ignored.
 
 Search and replace take an option sum of `GtkSource.View.CASE_SENSITIVE`,
-`WHOLE_WORDS` and `IN_SELECTION` (0 is case-insensitive, substring, whole
+`WHOLE_WORDS`, `IN_SELECTION` and (for `findWith` only) `BACKWARD` (0 is case-insensitive, substring, whole
 buffer; `find`/`replaceNext` are the zero-option forms):
 
 ```text
@@ -386,7 +392,8 @@ bool hasSearchScope()
 String selectedText()
 ```
 
-`findWith` selects the next match after the current selection, wrapping once.
+`findWith` selects the next match after the current selection, wrapping once;
+with `BACKWARD` it selects the previous match before the selection start.
 `replaceWith` replaces the selection when it is a match, otherwise finds and
 replaces the next one. `replaceAll` is a single undoable user action, never
 rescans inserted text, and returns the replacement count. Whole words require

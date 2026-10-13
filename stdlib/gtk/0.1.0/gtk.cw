@@ -157,6 +157,8 @@ namespace Gtk {
     class Window : Widget {
         private:
         Window _windowSelf()
+        bool _bindShortcut(int token, String trigger, callback<void()> action)
+        bool _hasShortcut(int token, String trigger)
         public:
         Window(String title) { super Widget(1, title, 0, 0) }
         void setTitle(String title) { _setText(title) }
@@ -171,6 +173,11 @@ namespace Gtk {
         void remove(Widget child) { _removeChild(child) }
         void present() { _presentWindow() }
         void close() { _closeWindow() }
+        // Binds a GTK accelerator such as "<Control>q" for the whole window.
+        bool bindShortcut(String trigger, callback<void()> action) {
+            return _bindShortcut(_widgetToken(), trigger, action)
+        }
+        bool hasShortcut(String trigger) { return _hasShortcut(_widgetToken(), trigger) }
         SignalConnection onCloseRequest(callback<bool()> action) {
             return SignalConnection(_windowSelf(), action)
         }
@@ -269,12 +276,15 @@ namespace Gtk {
         int _addItem(int token, int menu, String label, callback<void()> action)
         void _enabled(int token, int item, bool value)
         void _activate(int token, int item)
+        void _separator(int token, int menu)
         public:
         MenuBar() { super Widget(10, "", 0, 0) }
         int addMenu(String label) { return _addMenu(_widgetToken(), label) }
         int addItem(int menu, String label, callback<void()> action) {
             return _addItem(_widgetToken(), menu, label, action)
         }
+        // Draws a divider before the next item added to menu.
+        void addSeparator(int menu) { _separator(_widgetToken(), menu) }
         void setItemEnabled(int item, bool enabled) { _enabled(_widgetToken(), item, enabled) }
         void activateItem(int item) { _activate(_widgetToken(), item) }
     }
@@ -358,6 +368,7 @@ namespace Gtk {
         private:
         Notebook _notebookSelf()
         void _closable(int token, int child, String title, callback<void()> close)
+        void _bordered(int token)
         public:
         Notebook() { super Widget(9, "", 0, 0) }
         void appendPage(Widget child, String title) {
@@ -366,6 +377,8 @@ namespace Gtk {
         void appendClosablePage(Widget child, String title, callback<void()> close) {
             _closable(_widgetToken(), child._widgetToken(), title, close)
         }
+        // Draws a border around every tab label, as closable pages already do.
+        void setBorderedTabs() { _bordered(_widgetToken()) }
         int currentPage() { return _notebookCurrent(_widgetToken()) }
         void setCurrentPage(int page) { _notebookSetCurrent(_widgetToken(), page) }
         int pageCount() { return _notebookCount(_widgetToken()) }
@@ -482,6 +495,10 @@ namespace Gtk {
     void Entry._editable(int token, bool editable) from "cwhip_gtk_entry_editable"
     void Notebook._closable(int token, int child, String title, callback<void()> close)
         from "cwhip_gtk_notebook_closable"
+    void Notebook._bordered(int token) from "cwhip_gtk_notebook_bordered"
+    bool Window._bindShortcut(int token, String trigger, callback<void()> action)
+        from "cwhip_gtk_window_bind_shortcut"
+    bool Window._hasShortcut(int token, String trigger) from "cwhip_gtk_window_has_shortcut"
     bool SignalConnection._disconnect(int token) from "cwhip_gtk_connection_disconnect"
     bool SignalConnection._connected(int token) from "cwhip_gtk_connected"
     int Widget._create(int kind, String text, int orientation, int spacing, callback<void()> root)
@@ -497,6 +514,7 @@ namespace Gtk {
         from "cwhip_gtk_menu_item_add"
     void MenuBar._enabled(int token, int item, bool value) from "cwhip_gtk_menu_item_enabled"
     void MenuBar._activate(int token, int item) from "cwhip_gtk_menu_item_activate"
+    void MenuBar._separator(int token, int menu) from "cwhip_gtk_menu_separator_add"
     int FileDialog._create(int parent, bool save, String initialPath, callback<void(String)> result)
         from "cwhip_gtk_file_dialog_create"
     int FileDialog._createMultiple(int parent, String initialPath, callback<void(String)> path)

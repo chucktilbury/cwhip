@@ -51,7 +51,6 @@ typedef struct WidgetRecord {
     bool native_destroying;
 } WidgetRecord;
 
-#ifdef CWHIP_GTK_SOURCEVIEW
 /* A shortcut callback may dispose its own view (closing a tab or the window).
  * While `active` is nonzero, disposal only marks the binding: the callback
  * registration is released, and an orphaned binding freed, when the outermost
@@ -78,7 +77,6 @@ static void shortcut_release(ShortcutBinding *binding) {
     binding->context = NULL;
     binding->release_pending = false;
 }
-#endif
 
 typedef struct Connection {
     struct Connection *next;
@@ -692,6 +690,7 @@ static void widget_dispose(WidgetRecord *r) {
     if (GTK_SOURCE_IS_VIEW(widget))
         disconnect_object(G_OBJECT(gtk_text_view_get_buffer(GTK_TEXT_VIEW(widget))));
     g_object_set_data(G_OBJECT(widget), "cwhip-font-provider", NULL);
+#endif
     for (ShortcutBinding *binding = r->shortcuts; binding;) {
         ShortcutBinding *next = binding->next;
         shortcut_release(binding);
@@ -699,7 +698,6 @@ static void widget_dispose(WidgetRecord *r) {
         binding = next;
     }
     r->shortcuts = NULL;
-#endif
     for (WidgetRecord *child = widgets; child; child = child->next)
         if (child->parent == r) widget_dispose(child);
     detach(r);
@@ -869,11 +867,31 @@ int64_t cwhip_gtk_menu_add(void *self, int64_t token, void *label) {
     WidgetRecord *record = menu_record(token);
     char *text = text_copy(label);
     GMenu *menu = g_menu_new();
+    GMenu *section = g_menu_new();
+    g_menu_append_section(menu, NULL, G_MENU_MODEL(section));
+    /* Borrowed: the menubar model owns the submenu for the record's lifetime. */
+    g_object_set_data(G_OBJECT(section), "cwhip-menu-parent", menu);
     int64_t index = record->submenus->len;
-    g_ptr_array_add(record->submenus, menu);
+    /* Items append to the submenu's current section; a separator starts a
+     * new section, which GTK renders with a dividing line. */
+    g_ptr_array_add(record->submenus, section);
     g_menu_append_submenu(record->menu, text, G_MENU_MODEL(menu));
+    g_object_unref(menu);
     g_free(text);
     return index;
+}
+
+void cwhip_gtk_menu_separator_add(void *self, int64_t token, int64_t menu) {
+    (void)self;
+    WidgetRecord *record = menu_record(token);
+    if (menu < 0 || menu >= record->submenus->len) fatal("invalid menu index");
+    GMenu *current = g_ptr_array_index(record->submenus, (guint)menu);
+    GMenu *parent = g_object_get_data(G_OBJECT(current), "cwhip-menu-parent");
+    GMenu *section = g_menu_new();
+    g_menu_append_section(parent, NULL, G_MENU_MODEL(section));
+    g_object_set_data(G_OBJECT(section), "cwhip-menu-parent", parent);
+    record->submenus->pdata[menu] = section;
+    g_object_unref(current);
 }
 
 static void menu_activated(GSimpleAction *action, GVariant *parameter, gpointer data) {
@@ -1381,6 +1399,27 @@ static void css_provider_release(gpointer data) {
     g_object_unref(provider);
 }
 
+static void notebook_bordered(GtkWidget *notebook) {
+    gtk_widget_add_css_class(notebook, "cwhip-file-tabs");
+    if (!g_object_get_data(G_OBJECT(notebook), "cwhip-tab-css")) {
+        GtkCssProvider *css = gtk_css_provider_new();
+        const char *style =
+            "notebook.cwhip-file-tabs > header > tabs > tab {"
+            "border: 1px solid @borders; border-radius: 4px 4px 0 0; margin: 0 2px; }";
+#if GTK_CHECK_VERSION(4, 12, 0)
+        gtk_css_provider_load_from_string(css, style);
+#else
+        gtk_css_provider_load_from_data(css, style, -1);
+#endif
+        GdkDisplay *display = gtk_widget_get_display(notebook);
+        g_object_set_data_full(G_OBJECT(css), "cwhip-css-display",
+                               g_object_ref(display), g_object_unref);
+        gtk_style_context_add_provider_for_display(display,
+            GTK_STYLE_PROVIDER(css), GTK_STYLE_PROVIDER_PRIORITY_APPLICATION);
+        g_object_set_data_full(G_OBJECT(notebook), "cwhip-tab-css", css, css_provider_release);
+    }
+}
+
 void cwhip_gtk_notebook_closable(void *self, int64_t token, int64_t child,
                                 void *title, void *close) {
     cwhip_gtk_notebook_append(self, token, child, title);
@@ -1400,24 +1439,14 @@ void cwhip_gtk_notebook_closable(void *self, int64_t token, int64_t child,
     gtk_widget_add_css_class(button, "flat");
     gtk_box_append(GTK_BOX(tab), button);
     cwhip_gtk_connect_clicked(GTK_BUTTON(button), close);
-    gtk_widget_add_css_class(notebook, "cwhip-file-tabs");
-    if (!g_object_get_data(G_OBJECT(notebook), "cwhip-tab-css")) {
-        GtkCssProvider *css = gtk_css_provider_new();
-        const char *style =
-            "notebook.cwhip-file-tabs > header > tabs > tab {"
-            "border: 1px solid @borders; border-radius: 4px 4px 0 0; margin: 0 2px; }";
-#if GTK_CHECK_VERSION(4, 12, 0)
-        gtk_css_provider_load_from_string(css, style);
-#else
-        gtk_css_provider_load_from_data(css, style, -1);
-#endif
-        GdkDisplay *display = gtk_widget_get_display(notebook);
-        g_object_set_data_full(G_OBJECT(css), "cwhip-css-display",
-                               g_object_ref(display), g_object_unref);
-        gtk_style_context_add_provider_for_display(display,
-            GTK_STYLE_PROVIDER(css), GTK_STYLE_PROVIDER_PRIORITY_APPLICATION);
-        g_object_set_data_full(G_OBJECT(notebook), "cwhip-tab-css", css, css_provider_release);
-    }
+    notebook_bordered(notebook);
+}
+
+void cwhip_gtk_notebook_bordered(void *self, int64_t token) {
+    (void)self;
+    GtkWidget *notebook = widget_live(token);
+    if (!GTK_IS_NOTEBOOK(notebook)) fatal("operation requires Notebook");
+    notebook_bordered(notebook);
 }
 
 void cwhip_gtk_entry_editable(void *self, int64_t token, bool editable) {
@@ -1491,22 +1520,6 @@ void cwhip_gtk_ready(void *self) {
     if (result != 1) fatal("could not report startup readiness");
 }
 
-#ifdef CWHIP_GTK_SOURCEVIEW
-void cwhip_gtk_source_view_emoji_menu(void *self, int64_t token, bool enabled) {
-    (void)self;
-    GtkWidget *widget = widget_live(token);
-    if (!GTK_SOURCE_IS_VIEW(widget)) fatal("operation requires SourceView");
-    GtkInputHints hints = gtk_text_view_get_input_hints(GTK_TEXT_VIEW(widget));
-    gtk_text_view_set_input_hints(GTK_TEXT_VIEW(widget),
-        enabled ? hints & ~GTK_INPUT_HINT_NO_EMOJI : hints | GTK_INPUT_HINT_NO_EMOJI);
-}
-
-static GtkSourceBuffer *source_buffer(int64_t token) {
-    GtkWidget *widget = widget_live(token);
-    if (!GTK_SOURCE_IS_VIEW(widget)) fatal("operation requires GtkSourceView");
-    return GTK_SOURCE_BUFFER(gtk_text_view_get_buffer(GTK_TEXT_VIEW(widget)));
-}
-
 static void shortcut_free(ShortcutBinding *binding) {
     g_free(binding->trigger);
     free(binding);
@@ -1549,6 +1562,78 @@ static void shortcut_context_dispose(gpointer data) {
     cwhip_runtime_managed_leave(acquired);
 }
 
+static bool shortcut_bind(GtkWidget *widget, int64_t token, void *trigger_text,
+                          void *callback, GtkShortcutScope scope) {
+    char *trigger_name = text_copy(trigger_text);
+    GtkShortcutTrigger *trigger = gtk_shortcut_trigger_parse_string(trigger_name);
+    if (!trigger) {
+        g_free(trigger_name);
+        return false;
+    }
+    ShortcutBinding *binding = calloc(1, sizeof(*binding));
+    if (!binding) fatal("allocation failed");
+    binding->owner = record_find(token);
+    binding->context = cwhip_callback_acquire(callback, "callback<void()>");
+    binding->trigger = trigger_name;
+    binding->next = binding->owner->shortcuts;
+    binding->owner->shortcuts = binding;
+    GtkShortcutAction *action = gtk_callback_action_new(
+        shortcut_invoke, binding, shortcut_context_dispose);
+    if (!action) fatal("could not create GTK shortcut action");
+    GtkShortcut *shortcut = gtk_shortcut_new(trigger, action);
+    GtkEventController *controller = gtk_shortcut_controller_new();
+    binding->controller = controller;
+    gtk_shortcut_controller_set_scope(GTK_SHORTCUT_CONTROLLER(controller), scope);
+    gtk_shortcut_controller_add_shortcut(GTK_SHORTCUT_CONTROLLER(controller), shortcut);
+    gtk_widget_add_controller(widget, controller);
+    return true;
+}
+
+static bool shortcut_bound(WidgetRecord *record, void *trigger_text) {
+    char *trigger = text_copy(trigger_text);
+    bool found = false;
+    for (ShortcutBinding *binding = record->shortcuts; binding; binding = binding->next)
+        if (g_str_equal(binding->trigger, trigger)) {
+            found = true;
+            break;
+        }
+    g_free(trigger);
+    return found;
+}
+
+/* A window-level controller sees key events bubbling up from any focused
+ * descendant, including entries and read-only source panes. */
+bool cwhip_gtk_window_bind_shortcut(void *self, int64_t token, void *trigger_text,
+                                    void *callback) {
+    (void)self;
+    GtkWidget *widget = widget_live(token);
+    if (!GTK_IS_WINDOW(widget)) fatal("operation requires Window");
+    return shortcut_bind(widget, token, trigger_text, callback, GTK_SHORTCUT_SCOPE_LOCAL);
+}
+
+bool cwhip_gtk_window_has_shortcut(void *self, int64_t token, void *trigger_text) {
+    (void)self;
+    WidgetRecord *record = record_find(token);
+    if (!GTK_IS_WINDOW(record->widget)) fatal("operation requires Window");
+    return shortcut_bound(record, trigger_text);
+}
+
+#ifdef CWHIP_GTK_SOURCEVIEW
+void cwhip_gtk_source_view_emoji_menu(void *self, int64_t token, bool enabled) {
+    (void)self;
+    GtkWidget *widget = widget_live(token);
+    if (!GTK_SOURCE_IS_VIEW(widget)) fatal("operation requires SourceView");
+    GtkInputHints hints = gtk_text_view_get_input_hints(GTK_TEXT_VIEW(widget));
+    gtk_text_view_set_input_hints(GTK_TEXT_VIEW(widget),
+        enabled ? hints & ~GTK_INPUT_HINT_NO_EMOJI : hints | GTK_INPUT_HINT_NO_EMOJI);
+}
+
+static GtkSourceBuffer *source_buffer(int64_t token) {
+    GtkWidget *widget = widget_live(token);
+    if (!GTK_SOURCE_IS_VIEW(widget)) fatal("operation requires GtkSourceView");
+    return GTK_SOURCE_BUFFER(gtk_text_view_get_buffer(GTK_TEXT_VIEW(widget)));
+}
+
 int64_t cwhip_gtk_source_view_changed(void *self, int64_t token, void *callback) {
     (void)self;
     GtkTextBuffer *buffer = GTK_TEXT_BUFFER(source_buffer(token));
@@ -1573,45 +1658,14 @@ bool cwhip_gtk_source_view_bind_shortcut(void *self, int64_t token, void *trigge
     (void)self;
     GtkWidget *widget = widget_live(token);
     if (!GTK_SOURCE_IS_VIEW(widget)) fatal("operation requires GtkSourceView");
-    char *trigger_name = text_copy(trigger_text);
-    GtkShortcutTrigger *trigger = gtk_shortcut_trigger_parse_string(trigger_name);
-    if (!trigger) {
-        g_free(trigger_name);
-        return false;
-    }
-    ShortcutBinding *binding = calloc(1, sizeof(*binding));
-    if (!binding) fatal("allocation failed");
-    binding->owner = record_find(token);
-    binding->context = cwhip_callback_acquire(callback, "callback<void()>");
-    binding->trigger = trigger_name;
-    binding->next = binding->owner->shortcuts;
-    binding->owner->shortcuts = binding;
-    GtkShortcutAction *action = gtk_callback_action_new(
-        shortcut_invoke, binding, shortcut_context_dispose);
-    if (!action) fatal("could not create GTK shortcut action");
-    GtkShortcut *shortcut = gtk_shortcut_new(trigger, action);
-    GtkEventController *controller = gtk_shortcut_controller_new();
-    binding->controller = controller;
-    gtk_shortcut_controller_set_scope(GTK_SHORTCUT_CONTROLLER(controller),
-                                      GTK_SHORTCUT_SCOPE_LOCAL);
-    gtk_shortcut_controller_add_shortcut(GTK_SHORTCUT_CONTROLLER(controller), shortcut);
-    gtk_widget_add_controller(widget, controller);
-    return true;
+    return shortcut_bind(widget, token, trigger_text, callback, GTK_SHORTCUT_SCOPE_LOCAL);
 }
 
 bool cwhip_gtk_source_view_has_shortcut(void *self, int64_t token, void *trigger_text) {
     (void)self;
-    char *trigger = text_copy(trigger_text);
     WidgetRecord *record = record_find(token);
     if (!GTK_SOURCE_IS_VIEW(record->widget)) fatal("operation requires GtkSourceView");
-    bool found = false;
-    for (ShortcutBinding *binding = record->shortcuts; binding; binding = binding->next)
-        if (g_str_equal(binding->trigger, trigger)) {
-            found = true;
-            break;
-        }
-    g_free(trigger);
-    return found;
+    return shortcut_bound(record, trigger_text);
 }
 
 void cwhip_gtk_source_view_set_text(void *self, int64_t token, void *text) {
@@ -1887,6 +1941,7 @@ enum {
     SEARCH_CASE_SENSITIVE = 1,
     SEARCH_WHOLE_WORDS = 2,
     SEARCH_IN_SELECTION = 4,
+    SEARCH_BACKWARD = 8,
 };
 
 /* The "in selection" scope and the last match are buffer marks so they track
@@ -1948,6 +2003,20 @@ static bool search_range(GtkTextIter from, const GtkTextIter *high, const char *
     return false;
 }
 
+static bool search_range_backward(GtkTextIter from, const GtkTextIter *low, const char *query,
+                                  int64_t flags, GtkTextIter *match_start,
+                                  GtkTextIter *match_end) {
+    GtkTextSearchFlags mode = flags & SEARCH_CASE_SENSITIVE ? 0 : GTK_TEXT_SEARCH_CASE_INSENSITIVE;
+    while (gtk_text_iter_compare(&from, low) > 0) {
+        if (!gtk_text_iter_backward_search(&from, query, mode, match_start, match_end, low))
+            return false;
+        if (!(flags & SEARCH_WHOLE_WORDS) || at_word_bounds(match_start, match_end)) return true;
+        from = *match_end;
+        if (!gtk_text_iter_backward_char(&from)) return false;
+    }
+    return false;
+}
+
 static bool selection_matches(GtkTextBuffer *buffer, const char *query, int64_t flags,
                               GtkTextIter *start, GtkTextIter *end) {
     GtkTextIter low, high, match_start, match_end;
@@ -1963,14 +2032,24 @@ static bool source_find(int64_t token, const char *query, int64_t flags) {
     GtkTextBuffer *buffer = GTK_TEXT_BUFFER(source_buffer(token));
     GtkTextIter low, high, from, selection_end, match_start, match_end;
     if (!*query || !search_bounds(buffer, flags, &low, &high)) return false;
+    bool backward = flags & SEARCH_BACKWARD;
     if (!gtk_text_buffer_get_selection_bounds(buffer, &from, &selection_end))
         gtk_text_buffer_get_iter_at_mark(buffer, &from, gtk_text_buffer_get_insert(buffer));
-    else from = selection_end;
-    if (gtk_text_iter_compare(&from, &low) < 0 || gtk_text_iter_compare(&from, &high) > 0)
-        from = low;
-    bool found = search_range(from, &high, query, flags, &match_start, &match_end);
-    if (!found && !gtk_text_iter_equal(&from, &low))
-        found = search_range(low, &high, query, flags, &match_start, &match_end);
+    else if (!backward) from = selection_end;
+    bool found;
+    if (backward) {
+        if (gtk_text_iter_compare(&from, &low) < 0 || gtk_text_iter_compare(&from, &high) > 0)
+            from = high;
+        found = search_range_backward(from, &low, query, flags, &match_start, &match_end);
+        if (!found && !gtk_text_iter_equal(&from, &high))
+            found = search_range_backward(high, &low, query, flags, &match_start, &match_end);
+    } else {
+        if (gtk_text_iter_compare(&from, &low) < 0 || gtk_text_iter_compare(&from, &high) > 0)
+            from = low;
+        found = search_range(from, &high, query, flags, &match_start, &match_end);
+        if (!found && !gtk_text_iter_equal(&from, &low))
+            found = search_range(low, &high, query, flags, &match_start, &match_end);
+    }
     if (found) {
         gtk_text_buffer_select_range(buffer, &match_start, &match_end);
         mark_set(buffer, MATCH_START, &match_start, TRUE);

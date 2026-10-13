@@ -52,7 +52,7 @@ namespace GtkSource {
         int _cursorMoved(int token, callback<void()> action)
         public:
         // Search option bits; add them together to combine options.
-        enum { CASE_SENSITIVE = 1, WHOLE_WORDS = 2, IN_SELECTION = 4 }
+        enum { CASE_SENSITIVE = 1, WHOLE_WORDS = 2, IN_SELECTION = 4, BACKWARD = 8 }
         View() {
             _widget = Gtk.SourceViewWidget()
             _language(_widgetToken(), "")

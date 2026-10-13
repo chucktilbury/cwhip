@@ -74,6 +74,14 @@ class DebugUiFixture {
     bool centered()
     void track()
     int changes()
+    bool bordered()
+    int closeButtons()
+    bool closeTab(String name)
+    bool sourceVisible()
+    bool findVisible()
+    bool findClick(String name)
+    bool shortcut(String trigger)
+    void choose(String path)
 }
 bool DebugUiFixture.alert() from "cdbg_fixture_alert"
 bool DebugUiFixture.panes() from "cdbg_fixture_panes"
@@ -81,6 +89,14 @@ bool DebugUiFixture.noEmoji() from "cdbg_fixture_no_emoji"
 bool DebugUiFixture.centered() from "cdbg_fixture_centered"
 void DebugUiFixture.track() from "cdbg_fixture_track"
 int DebugUiFixture.changes() from "cdbg_fixture_changes"
+bool DebugUiFixture.bordered() from "cdbg_fixture_bordered"
+int DebugUiFixture.closeButtons() from "cdbg_fixture_close_buttons"
+bool DebugUiFixture.closeTab(String name) from "cdbg_fixture_close_tab"
+bool DebugUiFixture.sourceVisible() from "cdbg_fixture_source_visible"
+bool DebugUiFixture.findVisible() from "cdbg_fixture_find_visible"
+bool DebugUiFixture.findClick(String name) from "cdbg_fixture_find_click"
+bool DebugUiFixture.shortcut(String trigger) from "cdbg_fixture_shortcut"
+void DebugUiFixture.choose(String path) from "cdbg_fixture_choose"
 
 class DebugChecks {
     Cdbg ui
@@ -106,14 +122,140 @@ class DebugChecks {
         ui.consume("ed\\n\"\n")
         require(ui.console.text().equals("fragmented\n"), "fragmented record reassembled")
         deadline = Time.Clock().monotonicMilliseconds() + 20000u
-        ui.target.setText(System.Process().getEnv("CDBG_TEST_TARGET"))
-        ui.launch()
+        if (mode.equals("ui")) {
+            require(ui.sourceTabs.pageCount() == 1 && ui.source.text().startsWith("No source"),
+                "source area starts with a placeholder page")
+        }
+        ui.loadTarget(System.Process().getEnv("CDBG_TEST_TARGET"))
         Gtk.Application().post(_self().tick)
+    }
+    int pages
+    // Open Source Code rejection: wait for the parented dialog, then require
+    // the source notebook to be visible with its tabs unchanged.
+    bool rejected(String label) {
+        if (!DebugUiFixture().alert()) { return false }
+        require(!ui.failure.equals(""), label)
+        require(ui.sourceTabs.pageCount() == pages && DebugUiFixture().sourceVisible() &&
+            DebugUiFixture().closeButtons() == pages && ui.source.text().contains("counter"),
+            format("{}: failed open leaves source tabs visible and unchanged", label))
+        ui.failure = ""
+        return true
+    }
+    void found(String button, String expected) {
+        require(DebugUiFixture().findClick(button), format("Find dialog {} button", button))
+        require(ui.findStatus.text().equals(expected),
+            format("{} reported '{}' expecting '{}'", button, ui.findStatus.text(), expected))
+    }
+    bool uiTick() {
+        String work = System.Process().getEnv("CDBG_TEST_WORK")
+        String notes = format("{}/notes.txt", work)
+        if (stage == 0 && ui.loaded && idle()) {
+            require(ui.failure.equals(""), ui.failure)
+            require(DebugUiFixture().bordered(), "source and inspector tabs are bordered")
+            pages = ui.sourceTabs.pageCount()
+            require(pages == 2 && DebugUiFixture().closeButtons() == 2 &&
+                DebugUiFixture().sourceVisible(), "each DWARF source tab has a close icon")
+            require(!ui.openSource(format("{}/missing.txt", work)), "missing source rejected")
+            stage = 1
+        }
+        if (stage == 1 && rejected("missing source")) {
+            require(!ui.openSource(format("{}/binary.cw", work)), "binary source rejected")
+            stage = 2
+        }
+        if (stage == 2 && rejected("binary source")) {
+            require(!ui.openSource(System.Process().getEnv("CDBG_TEST_TARGET")),
+                "executable rejected by Open Source Code")
+            stage = 3
+        }
+        if (stage == 3 && rejected("executable as source")) {
+            require(!ui.openSource(format("{}/invalid-utf8.cw", work)), "invalid UTF-8 rejected")
+            stage = 4
+        }
+        if (stage == 4 && rejected("invalid UTF-8 source")) {
+            require(ui.loaded && !ui.hasRun, "rejections leave the debug session alone")
+            require(ui.openSource(notes) && ui.sourceTabs.pageCount() == 3 &&
+                DebugUiFixture().closeButtons() == 3 && ui.source.text().contains("needle"),
+                "text source opens in a closable tab without compiling")
+            require(ui.openSource(notes) && ui.sourceTabs.pageCount() == 3, "reopen reuses tab")
+            require(ui.failure.equals("") && ui.loaded && !ui.hasRun, "Open Source keeps session")
+            require(DebugUiFixture().shortcut("<Control>f") && DebugUiFixture().findVisible(),
+                "Ctrl+F shows Find dialog")
+            ui.source.centerCursor(1, 1)
+            ui.findEntry.setText("needle")
+            found("Find Next", "Found: needle at line 2")
+            found("Find Next", "Found: needle at line 4")
+            found("Find Next", "Wrapped: needle at line 2")
+            found("Find Previous", "Wrapped: needle at line 4")
+            found("Find Previous", "Found: needle at line 2")
+            ui.findEntry.setText("absent")
+            found("Find Next", "Not found: absent")
+            found("Close", "Not found: absent")
+            require(!DebugUiFixture().findVisible(), "Close hides Find dialog")
+            require(DebugUiFixture().closeTab("helper.c") && DebugUiFixture().closeTab("notes.txt") &&
+                ui.sourceTabs.pageCount() == 1 && DebugUiFixture().closeButtons() == 1,
+                "close icons remove tabs")
+            require(ui.loaded && ui.process != null, "closing tabs keeps the debug session")
+            ui.breakpoint.setText(format("{}:{}", System.Process().getEnv("CDBG_TEST_SOURCE"),
+                System.Process().getEnv("CDBG_TEST_LINE")))
+            ui.addBreakpoint()
+            stage = 5
+        }
+        if (stage == 5 && idle()) { ui.resume()
+            stage = 6 }
+        if (stage == 6 && ui.stopCount > 0 && !ui.running && idle()) {
+            require(ui.sourceTabs.pageCount() == 1, "stop in open file adds no tab")
+            stops = ui.stopCount
+            ui.stepInto()
+            stage = 7
+        }
+        if (stage == 7 && ui.stopCount > stops && !ui.running && idle()) {
+            require(ui.source.text().contains("doubled") && ui.sourceTabs.pageCount() == 2 &&
+                DebugUiFixture().closeButtons() == 2, "stop reopens closed file once")
+            stops = ui.stopCount
+            ui.stepOver()
+            stage = 8
+        }
+        if (stage == 8 && ui.stopCount > stops && !ui.running && idle()) {
+            require(ui.sourceTabs.pageCount() == 2, "stepping in reopened file adds no duplicate")
+            require(DebugUiFixture().closeTab("helper.c") &&
+                DebugUiFixture().closeTab(System.FileSystem().basename(
+                    System.Process().getEnv("CDBG_TEST_SOURCE"))),
+                "close every file tab")
+            require(ui.sourceTabs.pageCount() == 1 && DebugUiFixture().closeButtons() == 0 &&
+                DebugUiFixture().sourceVisible() && ui.source.text().startsWith("No source"),
+                "closing the last tab leaves a visible placeholder")
+            DebugUiFixture().choose(System.Process().getEnv("CDBG_TEST_TARGET"))
+            ui.menu.activateItem(ui.loadItem)
+            stage = 9
+        }
+        if (stage == 9 && ui.loaded && !ui.hasRun && idle() && ui.sourceTabs.pageCount() == 2) {
+            require(ui.breaks.text().equals("") && ui.failure.equals("") &&
+                DebugUiFixture().closeButtons() == 2 && ui.source.text().contains("counter"),
+                "File > Load Executable starts a fresh session with DWARF tabs")
+            DebugUiFixture().choose(notes)
+            ui.menu.activateItem(ui.openItem)
+            stage = 10
+        }
+        if (stage == 10 && ui.sourceTabs.pageCount() == 3) {
+            require(ui.source.text().contains("needle") && ui.loaded && !ui.hasRun &&
+                ui.failure.equals(""), "File > Open Source Code opens text without loading it")
+            require(ui.window.hasShortcut("<Control>q") && ui.window.hasShortcut("<Control>f"),
+                "Quit and Find shortcuts bound on the window")
+            ui.menu.activateItem(ui.quitItem)
+            require(ui.closed && ui.process == null, "Quit closes the debugger and GDB")
+            print("true")
+            return false
+        }
+        return true
     }
     DebugChecks _self()
     bool idle() { return ui.active == null && ui.requests.length == 0 }
     void tick() {
         require(Time.Clock().monotonicMilliseconds() < deadline, "session deadline")
+        if (mode.equals("ui")) {
+            if (uiTick()) { Gtk.Application().post(_self().tick) }
+            return
+        }
         if (mode.equals("missing") || mode.equals("compile-error") || mode.equals("invalid-target") ||
             mode.equals("missing-file") || mode.equals("binary-source") || mode.equals("invalid-utf8") ||
             mode.equals("missing-source")) {
@@ -164,7 +306,8 @@ class DebugChecks {
             if (mode.equals("no-source") && ui.loaded && idle()) {
                 require(ui.source.text().startsWith("Source unavailable:"),
                     "missing debug source explicitly reported")
-                ui.window.close()
+                require(DebugUiFixture().shortcut("<Control>q") && ui.closed && ui.process == null,
+                    "Ctrl+Q quits through the window shortcut")
                 print("true")
                 return
             }
@@ -304,8 +447,7 @@ class DebugChecks {
             }
             if (stage == 9 && !ui.hasRun && !ui.running && idle() && !ui.restarting) {
                 require(ui.status.text().contains("exited"), "Restart after exit runs target again")
-                ui.target.setText(System.Process().getEnv("CDBG_TEST_TARGET"))
-                ui.launch()
+                ui.loadTarget(System.Process().getEnv("CDBG_TEST_TARGET"))
                 stage = 10
             }
             if (stage == 10 && ui.loaded && idle()) {
@@ -468,6 +610,7 @@ def main() -> None:
         subprocess.run([args.clang, "-g", "-O0", str(c_source), "-o", str(c_binary)], check=True)
         stripped_binary = work / "no debug info"
         subprocess.run([args.clang, str(c_source), "-o", str(stripped_binary)], check=True)
+        (work / "notes.txt").write_text("alpha\nneedle one\nbeta\nneedle two\n")
         vanished_source = work / "vanished.c"
         vanished_source.write_text("int main(void) { return 0; }\n")
         vanished_binary = work / "vanished"
@@ -508,9 +651,11 @@ def main() -> None:
             ("missing-source", vanished_binary, vanished_source, "1"),
             ("scroll", scroll_binary, scroll_source, "123"),
             ("cancel", loop_binary, loop_source, "1"),
+            ("ui", c_binary, c_source, "7"),
         ):
             with headless(args.xvfb, work, env) as gtk_env:
                 gtk_env.update(CDBG_TEST_MODE=mode, CDBG_TEST_TARGET=str(target),
+                               CDBG_TEST_WORK=str(work),
                                CDBG_TEST_SOURCE=str(debug_source), CDBG_TEST_LINE=line,
                                CDBG_COMPILER=str(args.compiler),
                                CDBG_GDB=args.gdb if mode != "missing" else str(work / "no-gdb"))
@@ -526,7 +671,11 @@ def main() -> None:
                         assert not Path(f"/proc/{pid}").exists(), f"orphan inferior {pid}"
                 assert result.returncode == 0 and expected_output, (
                     mode, result.returncode, result.stdout, result.stderr)
-                if mode in ("native", "cwhip", "relative-cwhip", "no-source", "cancel", "scroll"):
+                if mode == "ui":
+                    lines = [line for line in result.stderr.splitlines() if line]
+                    assert len(lines) == 4 and all(line.startswith("cdbg: ") for line in lines), (
+                        result.stderr)
+                elif mode in ("native", "cwhip", "relative-cwhip", "no-source", "cancel", "scroll"):
                     assert not result.stderr, result.stderr
                 else:
                     assert "cdbg:" in result.stderr, result.stderr
