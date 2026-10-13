@@ -142,6 +142,15 @@ void cwhip_process_close(void *self, void *process);
  * be closed exactly once; events returned by next must be released. */
 void *cwhip_process_async_start(void *self, void *executable, void *arguments,
                                void *working_directory);
+/* Like cwhip_process_async_start, but the child's stdin is a pipe fed by
+ * cwhip_process_async_write (all-or-nothing, nonblocking, bounded to 1 MiB of
+ * queued bytes) and ended by cwhip_process_async_close_input. */
+void *cwhip_process_async_start_interactive(void *self, void *executable, void *arguments,
+                                           void *working_directory);
+int32_t cwhip_process_async_write(void *self, void *process, void *text);
+int32_t cwhip_process_async_close_input(void *self, void *process);
+int64_t cwhip_process_async_pending_input(void *self, void *process);
+void *cwhip_process_async_input_error(void *self, void *process);
 void *cwhip_process_async_next(void *self, void *process, int64_t timeout_milliseconds);
 int64_t cwhip_process_async_event_kind(void *self, void *event);
 void *cwhip_process_async_event_data(void *self, void *event);

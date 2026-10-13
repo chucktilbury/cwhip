@@ -47,7 +47,7 @@ void ExplorerFixture.stop() from "explorer_stop"
 void ExplorerFixture.later(callback<void()> action) from "explorer_later"
 
 class ExplorerChecks {
-    CwhipEditor editor
+    Cedit editor
     int stage
     int deadline
     int waitUntil
@@ -304,7 +304,7 @@ class ExplorerChecks {
 
 class ExplorerLifetime {
     ExplorerLifetime _self()
-    CwhipEditor editor
+    Cedit editor
     Gtk.DirectoryScan scan
     int deliveries
     String mode

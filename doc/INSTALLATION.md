@@ -39,7 +39,12 @@ cmake --build /tmp/cwhip-compiler-build
 The root build places the compiler and test executables in `bin/` and the
 front-end archive in `lib/libcwhip_frontend.a`.
 
-## Cwhip Editor and optional GTK packages
+## cedit and optional GTK packages
+
+The separate [cdbg local debugger prototype](CDBG.md) uses the same GUI
+dependencies and adds a runtime dependency on GDB. Build it with
+`cmake --build build --target cdbg -j4`; neither GUI application renames the
+`cwhip` compiler.
 
 On a fresh configuration, CMake detects `pkg-config`, GTK 4.10+ and GtkSourceView 5
 development files and defaults `CWHIP_GTK` and `CWHIP_GTK_SOURCEVIEW` to the
@@ -50,26 +55,26 @@ the enabled native package archives and stages their sources, manifests and
 language resources. GTK and GtkSourceView link only into importing applications,
 never into `cwhip` or non-GUI programs.
 
-With those development dependencies installed, configure once and build Cwhip Editor:
+With those development dependencies installed, configure once and build cedit:
 
 ```sh
 cmake -S . -B build -G "Unix Makefiles" -DCMAKE_BUILD_TYPE=Debug
-make -C build -j4 cwhip_editor
-./bin/cwhip-editor file1.cw file2.cw
+make -C build -j4 cedit
+./bin/cedit file1.cw file2.cw
 ```
 
-From inside `build/`, use `make cwhip_editor`. The generator-independent equivalent is
-`cmake --build build --target cwhip_editor -j4`. This works on a fresh
+From inside `build/`, use `make cedit`. The generator-independent equivalent is
+`cmake --build build --target cedit -j4`. This works on a fresh
 build without first building the compiler. The output is
-`<source>/bin/cwhip-editor` by default, or
-`<CWHIP_STAGE_PREFIX>/bin/cwhip-editor` with a custom staging prefix;
+`<source>/bin/cedit` by default, or
+`<CWHIP_STAGE_PREFIX>/bin/cedit` with a custom staging prefix;
 standalone `src/` builds use their build directory as the prefix. The target
 generates a private source project and package lock under the build directory,
 using only this build's staged packages, not user HOME packages or environment
 resource overrides. Source/include, native archive, manifest, builtin and
 language-resource changes rebuild it; unchanged builds do not recompile it.
 The editor is built on demand, not by the default `all` target, and is not
-installed by `cmake --install`. See [Cwhip Editor](CWHIP-EDITOR.md).
+installed by `cmake --install`. See [cedit](CEDIT.md).
 
 For a deliberate compiler-only configuration, including on machines without
 GUI development files:
@@ -79,7 +84,7 @@ cmake -S . -B build-compiler -DCWHIP_GTK=OFF -DCWHIP_GTK_SOURCEVIEW=OFF
 cmake --build build-compiler --target cwhip -j4
 ```
 
-`cwhip_editor` then fails with an explicit dependency/configuration diagnostic rather
+`cedit` then fails with an explicit dependency/configuration diagnostic rather
 than claiming a successful editor build. Explicit `ON` options require their
 development dependencies and fail configuration if missing;
 `CWHIP_GTK_SOURCEVIEW=ON` requires `CWHIP_GTK=ON`. Defaults are cached: after
@@ -89,7 +94,7 @@ reconfigure with both options `ON`.
 With GTK enabled and `BUILD_TESTING=ON` (the root-build default), headless GUI
 tests default to enabled when Xvfb and `dbus-daemon` are found
 (`xvfb dbus-daemon` on Debian/Ubuntu). Otherwise configuration explicitly
-reports that GUI tests are disabled; this does not block building Cwhip Editor.
+reports that GUI tests are disabled; this does not block building cedit.
 Set `-DCWHIP_GTK_TESTS=ON` to require these tools and fail if missing, or use
 `-DBUILD_TESTING=OFF` to omit all tests. Enabled tests never silently skip
 missing fixtures. Xvfb can be selected with

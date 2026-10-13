@@ -8,6 +8,11 @@ namespace Process {
         void close(handle process)
 
         handle asyncStart(String executable, list arguments, String workingDirectory)
+        handle asyncStartInteractive(String executable, list arguments, String workingDirectory)
+        bool asyncWrite(handle process, String text)
+        bool asyncCloseInput(handle process)
+        int asyncPendingInput(handle process)
+        String asyncInputError(handle process)
         handle asyncNext(handle process, int timeoutMilliseconds)
         int asyncEventKind(handle event)
         buffer asyncEventData(handle event)
@@ -152,19 +157,30 @@ namespace Process {
         int _exitCode
         int _signal
         String _error
+        bool _interactive
+        String _inputError
 
-        void launch(String executable, list arguments, String workingDirectory) {
+        void launch(String executable, list arguments, String workingDirectory, bool interactive) {
             _closed = false
-            _native = Runtime().asyncStart(executable, arguments, workingDirectory)
+            _interactive = interactive
+            if (interactive) {
+                _native = Runtime().asyncStartInteractive(executable, arguments, workingDirectory)
+            } else {
+                _native = Runtime().asyncStart(executable, arguments, workingDirectory)
+            }
         }
 
         public:
         AsyncProcess(String executable, list arguments) {
-            launch(executable, arguments, null)
+            launch(executable, arguments, null, false)
         }
 
         AsyncProcess(String executable, list arguments, String workingDirectory) {
-            launch(executable, arguments, workingDirectory)
+            launch(executable, arguments, workingDirectory, false)
+        }
+
+        AsyncProcess(String executable, list arguments, String workingDirectory, bool interactive) {
+            launch(executable, arguments, workingDirectory, interactive)
         }
 
         bool started() {
@@ -232,6 +248,38 @@ namespace Process {
             return Runtime().asyncError(_native)
         }
 
+        bool interactive() {
+            return _interactive && started()
+        }
+
+        bool write(String text) {
+            if (_closed) {
+                return false
+            }
+            return Runtime().asyncWrite(_native, text)
+        }
+
+        bool closeInput() {
+            if (_closed) {
+                return interactive()
+            }
+            return Runtime().asyncCloseInput(_native)
+        }
+
+        int pendingInput() {
+            if (_closed) {
+                return 0
+            }
+            return Runtime().asyncPendingInput(_native)
+        }
+
+        String inputError() {
+            if (_closed) {
+                return _inputError
+            }
+            return Runtime().asyncInputError(_native)
+        }
+
         void close() {
             if (_closed) {
                 return
@@ -244,6 +292,7 @@ namespace Process {
             _exitCode = Runtime().asyncExitCode(_native)
             _signal = Runtime().asyncSignal(_native)
             _error = Runtime().asyncError(_native)
+            _inputError = Runtime().asyncInputError(_native)
             handle native = _native
             _native = null
             _closed = true
@@ -258,6 +307,11 @@ namespace Process {
     String Runtime.stderr(handle process) from "cwhip_process_stderr"
     void Runtime.close(handle process) from "cwhip_process_close"
     handle Runtime.asyncStart(String executable, list arguments, String workingDirectory) from "cwhip_process_async_start"
+    handle Runtime.asyncStartInteractive(String executable, list arguments, String workingDirectory) from "cwhip_process_async_start_interactive"
+    bool Runtime.asyncWrite(handle process, String text) from "cwhip_process_async_write"
+    bool Runtime.asyncCloseInput(handle process) from "cwhip_process_async_close_input"
+    int Runtime.asyncPendingInput(handle process) from "cwhip_process_async_pending_input"
+    String Runtime.asyncInputError(handle process) from "cwhip_process_async_input_error"
     handle Runtime.asyncNext(handle process, int timeoutMilliseconds) from "cwhip_process_async_next"
     int Runtime.asyncEventKind(handle event) from "cwhip_process_async_event_kind"
     buffer Runtime.asyncEventData(handle event) from "cwhip_process_async_event_data"

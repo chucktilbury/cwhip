@@ -1,4 +1,4 @@
-"""Exercise the actual Cwhip editor's menus and asynchronous native choosers."""
+"""Exercise the actual cedit's menus and asynchronous native choosers."""
 
 import argparse
 from pathlib import Path
@@ -52,7 +52,7 @@ void Fixture.selectMarked(String marker, int first, int last) from "fixture_edit
 void Fixture.cleanup() from "fixture_editor_cleanup"
 
 class EditorChecks {
-    CwhipEditor editor
+    Cedit editor
     int stage
     int checks
     int originalHeight

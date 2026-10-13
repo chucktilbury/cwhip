@@ -57,7 +57,8 @@ cmake -S . -B build-gtk -DCWHIP_GTK=ON -DCWHIP_GTK_SOURCEVIEW=ON -DCWHIP_GTK_TES
   -DCMAKE_C_FLAGS=-Werror=deprecated-declarations \
   -DCWHIP_STAGE_PREFIX="$PWD/build-gtk/stage"
 cmake --build build-gtk -j4
-cmake --build build-gtk --target cwhip_editor -j4
+cmake --build build-gtk --target cedit -j4
+cmake --build build-gtk --target cdbg -j4
 ctest --test-dir build-gtk -L gtk --output-on-failure
 ```
 
@@ -96,19 +97,27 @@ configured suite with `ctest --test-dir build-gtk --output-on-failure`.
 immediate cancellation/parent disposal/shutdown for all four dialog operations,
 prompt GC release of callback receivers, and native weak-ref finalization after
 late cancelled completions (including after application shutdown).
-`cwhip_editor_dialogs` checks multi-select acceptance/cancellation and Save/Save As
+`cedit_dialogs` checks multi-select acceptance/cancellation and Save/Save As
 overwrite decisions without losing tabs or changing files on cancellation.
-`cwhip_project_explorer` checks folder acceptance/cancellation and both immediate
+`cedit_project_explorer` checks folder acceptance/cancellation and both immediate
 and mapped parent/shutdown teardown, alongside the existing tree regressions.
 Only test fixtures use deprecated chooser APIs to drive GTK's real fallback UI;
 the package build remains checked with deprecated declarations as errors.
-`cwhip_cwhip_binary` runs the actual `cwhip-editor` target output with the same
-bounded editor fixture, private Xvfb and session bus; its `cwhip_cwhip_build` CTest
+`cedit_binary` runs the actual `cedit` target output with the same
+bounded editor fixture, private Xvfb and session bus; its `cedit_build` CTest
 fixture builds the target first. GUI options default to installed development
 dependencies on fresh configurations; the explicit options above ensure this
 test configuration fails rather than becoming compiler-only.
 The build fixture also checks nanosecond output timestamps on a second
 invocation so an unchanged target cannot silently recompile or relink.
+
+With GDB installed, `cdbg_session` exercises the Cwhip GTK debugger against
+real native and Cwhip `-g` targets: breakpoint insertion/deletion, source stops,
+locals/watches, stack selection, step/next/finish, pause, inferior exit and
+running-session teardown. It also covers missing GDB, failed compilation,
+invalid executables and the actual built GUI's startup/close.
+`cdbg_mi_parser` checks nested MI records/escaping and rejection of malformed
+input; `cdbg_build` checks the separate target and no-op rebuild.
 
 For sanitizer coverage, add `-DCWHIP_GTK=ON` and `CWHIP_XVFB_EXECUTABLE` if needed
 to the sanitizer build above, then run the same selector with `-j1` to avoid

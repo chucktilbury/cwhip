@@ -41,7 +41,7 @@ bool ProjectFixture.has(String title, String fragment) from "project_window_has"
 int ProjectFixture.tabWidth() from "project_tab_width"
 
 class ProjectChecks {
-    CwhipEditor editor
+    Cedit editor
     callback<void()> nextAction
     String mode
     int stage
@@ -176,7 +176,7 @@ class ProjectChecks {
             editor.showPreferences()
             editor.tabsEntry.setText("5")
             require(editor.settings.tabWidth == 5 && ProjectFixture().tabWidth() == 3, "project override beats user preference")
-            require(ProjectFixture().has("Cwhip Preferences", "overrides: tab width"), "Preferences names active overrides")
+            require(ProjectFixture().has("cedit Preferences", "overrides: tab width"), "Preferences names active overrides")
             require(ProjectFixture().click("Configure Project", "Reset All to Inherit"), "inherit button")
             require(ProjectFixture().click("Configure Project", "Apply"), "Apply inherit")
             advance()
@@ -284,7 +284,7 @@ class ProjectChecks {
         }
         require(editor.confirmOp.equals("continue-quit") && !editor.window.disposed(), "quit asks after failed workspace save")
         print(format("PASS {} {}", mode, checks))
-        require(ProjectFixture().click("Cwhip Editor", "Quit Without Saving"), "quit without saving")
+        require(ProjectFixture().click("cedit", "Quit Without Saving"), "quit without saving")
     }
     void dirtySwitch() {
         if (stage == 0) {
@@ -340,8 +340,8 @@ class ProjectChecks {
             return
         }
         if (stage == 3) {
-            require(editor.confirmOp.equals("replace-save-as") && ProjectFixture().has("Cwhip Editor", "already has Cwhip project metadata"), "overwrite confirmation")
-            require(ProjectFixture().click("Cwhip Editor", "Cancel"), "cancel overwrite")
+            require(editor.confirmOp.equals("replace-save-as") && ProjectFixture().has("cedit", "already has Cwhip project metadata"), "overwrite confirmation")
+            require(ProjectFixture().click("cedit", "Cancel"), "cancel overwrite")
             require(editor.activeProject.root.equals(path("copy")), "cancel keeps project")
             ProjectFixture().choose(path("taken"), 1, 0)
             menu(item(1))
@@ -349,7 +349,7 @@ class ProjectChecks {
             return
         }
         if (stage == 4) {
-            require(ProjectFixture().click("Cwhip Editor", "Replace Metadata"), "accept overwrite")
+            require(ProjectFixture().click("cedit", "Replace Metadata"), "accept overwrite")
             advance()
             return
         }
@@ -360,11 +360,11 @@ class ProjectChecks {
         if (stage == 0) {
             require(editor.settings.lastRoot.equals(path("proj")), "remembered root")
             menu(item(2))
-            require(ProjectFixture().has("Cwhip Editor", path("proj")), "confirmation names root")
-            require(ProjectFixture().click("Cwhip Editor", "Cancel"), "cancel delete")
+            require(ProjectFixture().has("cedit", path("proj")), "confirmation names root")
+            require(ProjectFixture().click("cedit", "Cancel"), "cancel delete")
             require(System.FileSystem().isFile(path("proj/.cwhip/project.toml")) && editor.activeProject != null, "cancel keeps metadata")
             menu(item(2))
-            require(ProjectFixture().click("Cwhip Editor", "Delete Metadata"), "confirm delete")
+            require(ProjectFixture().click("cedit", "Delete Metadata"), "confirm delete")
             require(editor.activeProject == null && editor.project.rootPath.equals(path("proj")), "folder mode on same root")
             require(editor.settings.lastRoot.equals(""), "deleted project forgotten")
             advance()
@@ -377,15 +377,15 @@ class ProjectChecks {
             menu(editor.aboutItem)
             String version = System.Process().getEnv("EXPECTED_VERSION")
             require(editor.version().equals(version), "version matches CMake project version")
-            require(ProjectFixture().visible("About Cwhip"), "parented About window")
-            require(ProjectFixture().has("About Cwhip", format("Version {}", version)) &&
-                ProjectFixture().has("About Cwhip", "Cwhip Editor") &&
-                ProjectFixture().has("About Cwhip", "https://cwhip.org") &&
-                ProjectFixture().has("About Cwhip", "https://github.com/chucktilbury/cwhip"), "About contents")
-            require(ProjectFixture().click("About Cwhip", "Close"), "Close button")
-            require(!ProjectFixture().visible("About Cwhip"), "About hidden")
+            require(ProjectFixture().visible("About cedit"), "parented About window")
+            require(ProjectFixture().has("About cedit", format("Version {}", version)) &&
+                ProjectFixture().has("About cedit", "cedit") &&
+                ProjectFixture().has("About cedit", "https://cwhip.org") &&
+                ProjectFixture().has("About cedit", "https://github.com/chucktilbury/cwhip"), "About contents")
+            require(ProjectFixture().click("About cedit", "Close"), "Close button")
+            require(!ProjectFixture().visible("About cedit"), "About hidden")
             menu(editor.aboutItem)
-            require(ProjectFixture().visible("About Cwhip"), "About reopens")
+            require(ProjectFixture().visible("About cedit"), "About reopens")
             advance()
             return
         }

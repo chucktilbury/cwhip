@@ -1,5 +1,9 @@
 # Tests
 
+The separate `cdbg_*` cases cover the local GDB-backed GTK debugger prototype,
+its structured MI parser, source compilation, controls/inspection, failure
+paths and child-process cleanup. See [debugger checks](../doc/CDBG.md#checks).
+
 This directory contains C++ unit/structural tests, CTest case definitions, and
 functional Cwhip programs. Build the repository with CMake, then run the full
 suite from the repository root:
@@ -55,7 +59,7 @@ case so CMake discovers it; no central test list needs editing.
 
 ## Unit and CLI tests
 
-With GTK tests enabled, `cwhip_project_explorer` drives the actual Cwhip Editor model,
+With GTK tests enabled, `cedit_project_explorer` drives the actual cedit model,
 native parented folder chooser and GTK tree activation under private Xvfb/dbus
 and isolated HOME/XDG directories. It covers lazy expansion, duplicate focus,
 hidden entries, refresh, read errors, non-UTF-8 filenames, symlink loops, stale
@@ -68,7 +72,7 @@ Folder chooser regressions include acceptance/cancellation, immediate repeated
 cancellation, and parent close/shutdown both before and after mapping.
 `cwhip_gtk_bindings` separately checks all four `GtkFileDialog` operations,
 callback-root release under GC and native finalization after late cancellation
-completions; `cwhip_editor_dialogs` preserves Open multi-select and Save/Save As
+completions; `cedit_dialogs` preserves Open multi-select and Save/Save As
 overwrite/cancel coverage.
 
 Parser and semantic fixtures consumed by `cwhip_tests` use a

@@ -41,7 +41,7 @@ than once in the primary process, so handlers should present existing windows
 when appropriate. No command-line/open-file API is provided yet; the GTK run
 call does not consume Cwhip's program arguments.
 
-`Application.ready()` reports successful startup to Cwhip Editor's launcher,
+`Application.ready()` reports successful startup to cedit's launcher,
 after the editor has initialized and presented its window. It is a no-op without
 the launcher's `CWHIP_EDITOR_READY_FD` handshake. Successful forwarded desktop
 activation also completes the handshake without running a local activation
@@ -252,7 +252,7 @@ runs when an expandable row expands (possibly again on rebinding);
 applications should guard already-started loads. Collapsed rows do not request
 population merely to render their expansion arrow. `activate(id)` runs for
 leaves on double-click/Enter by default; `setSingleClickActivate(true)` enables
-single-click activation (used by Cwhip Editor). Directory activation toggles expansion.
+single-click activation (used by cedit). Directory activation toggles expansion.
 `clear(parent)` removes its descendants, invalidating their IDs.
 `setExpanded` requires a visible, expandable row; expand its ancestors first.
 `expanded(id)` reports whether a live row is currently expanded (false
@@ -437,7 +437,7 @@ removes the recorder, and is safe inside its callback. It remains registered
 until cancelled, its entry is destroyed, or application shutdown; callers must
 cancel after receiving a result and coordinate which entry is recording.
 
-`Gtk.Config` exposes the small TOML/persistence primitives used by Cwhip Editor's
+`Gtk.Config` exposes the small TOML/persistence primitives used by cedit's
 Cwhip-written settings model, not a settings framework:
 
 | Operation | Result/contract |

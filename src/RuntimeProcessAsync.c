@@ -9,6 +9,15 @@
  * Cwhip threads consume that queue with explicit pull operations. Blocking
  * consumers release the runtime lock before waiting on the native mutex, and
  * never acquire the runtime lock while holding it.
+ *
+ * Interactive children additionally get a stdin pipe whose nonblocking write
+ * end is also owned exclusively by the pump. Cwhip threads only append bytes
+ * to a bounded unmanaged queue under the native mutex and poke a private wake
+ * pipe; the pump flushes the queue as the pipe drains, handling partial
+ * writes, and closes stdin on request or at completion. Because the pump runs
+ * with every signal blocked, a SIGPIPE raised by writing to a child that
+ * closed its stdin stays pending on that private thread (and is discarded when
+ * it exits) instead of terminating the program; the write reports EPIPE.
  */
 #define _GNU_SOURCE
 
@@ -54,7 +63,8 @@ enum {
     PUMP_POLL_MILLISECONDS = 50,
     CANCEL_DRAIN_MILLISECONDS = 250,
     READ_CHUNK_BYTES = 65536,
-    READS_PER_STREAM_PASS = 16
+    READS_PER_STREAM_PASS = 16,
+    INPUT_QUEUE_LIMIT_BYTES = 1048576
 };
 
 typedef struct CwhipProcessEvent {
@@ -76,6 +86,23 @@ typedef struct CwhipAsyncProcess {
     /* Owned exclusively by the pump thread after start. */
     int stdout_fd;
     int stderr_fd;
+    int stdin_fd;
+
+    /* Immutable after start. The wake pipe lives until destroy_process so a
+     * retained caller can always poke it without risking SIGPIPE. */
+    int interactive;
+    int wake_read_fd;
+    int wake_write_fd;
+
+    /* Protected by lock: queued stdin bytes are input[input_start, +input_length). */
+    unsigned char *input;
+    size_t input_start;
+    size_t input_length;
+    size_t input_capacity;
+    int input_close_requested;
+    int input_closed;
+    int input_failed;
+    char *input_error;
 
     CwhipProcessEvent *head;
     CwhipProcessEvent *tail;
@@ -185,6 +212,34 @@ static int make_pipe(int descriptors[2]) {
     return 1;
 }
 
+/* The child's read end stays blocking; only the pump's write end is
+ * nonblocking so a slow reader can never stall the pump. */
+static int make_input_pipe(int descriptors[2]) {
+    if (pipe2(descriptors, O_CLOEXEC) != 0) return 0;
+    if (!raise_descriptor(&descriptors[0]) || !raise_descriptor(&descriptors[1])) goto failed;
+    const int flags = fcntl(descriptors[1], F_GETFL);
+    if (flags < 0 || fcntl(descriptors[1], F_SETFL, flags | O_NONBLOCK) != 0) goto failed;
+    return 1;
+failed:;
+    const int saved = errno;
+    close_fd(&descriptors[0]);
+    close_fd(&descriptors[1]);
+    errno = saved;
+    return 0;
+}
+
+static int make_wake_pipe(int descriptors[2]) {
+    if (pipe2(descriptors, O_CLOEXEC | O_NONBLOCK) != 0) return 0;
+    if (!raise_descriptor(&descriptors[0]) || !raise_descriptor(&descriptors[1])) {
+        const int saved = errno;
+        close_fd(&descriptors[0]);
+        close_fd(&descriptors[1]);
+        errno = saved;
+        return 0;
+    }
+    return 1;
+}
+
 static char *copy_string(void *object) {
     if (object == NULL) {
         errno = EINVAL;
@@ -281,11 +336,86 @@ static void drain_stream(CwhipAsyncProcess *process, int *descriptor, int kind) 
     }
 }
 
+/* Caller holds process->lock. Replaces the most recent stdin diagnostic. */
+static void set_input_error_locked(CwhipAsyncProcess *process, const char *prefix,
+                                   int error_number) {
+    char *message = format_message(prefix, NULL, error_number);
+    if (message == NULL) return;
+    free(process->input_error);
+    process->input_error = message;
+}
+
+/* Pump only, with process->lock held. Discards anything still queued. */
+static void close_input_locked(CwhipAsyncProcess *process) {
+    close_fd(&process->stdin_fd);
+    process->input_closed = 1;
+    process->input_start = 0;
+    process->input_length = 0;
+}
+
+/* Pump only, with process->lock held. Every write is nonblocking, so the lock
+ * is held for a bounded time; partial writes advance the queue. */
+static void flush_input_locked(CwhipAsyncProcess *process) {
+    while (process->stdin_fd >= 0 && process->input_length > 0) {
+        const ssize_t count = write(process->stdin_fd, process->input + process->input_start,
+                                    process->input_length);
+        if (count > 0) {
+            process->input_start += (size_t)count;
+            process->input_length -= (size_t)count;
+            continue;
+        }
+        if (count < 0 && errno == EINTR) continue;
+        if (count < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) return;
+        const int saved = count < 0 ? errno : EIO;
+        process->input_failed = 1;
+        set_input_error_locked(process,
+                               saved == EPIPE ? "stdin closed by the child; queued input was discarded"
+                                              : "stdin write failed; queued input was discarded",
+                               saved);
+        close_input_locked(process);
+        return;
+    }
+    if (process->input_length == 0) process->input_start = 0;
+    if (process->stdin_fd >= 0 && process->input_length == 0 && process->input_close_requested) {
+        close_input_locked(process);
+    }
+}
+
+static void drain_wake_pipe(CwhipAsyncProcess *process) {
+    unsigned char sink[64];
+    for (;;) {
+        const ssize_t count = read(process->wake_read_fd, sink, sizeof(sink));
+        if (count > 0 || (count < 0 && errno == EINTR)) continue;
+        return;
+    }
+}
+
 static void *pump_main(void *argument) {
     CwhipAsyncProcess *process = (CwhipAsyncProcess *)argument;
     for (;;) {
-        struct pollfd descriptors[2];
+        struct pollfd descriptors[4];
         nfds_t count = 0;
+        nfds_t stdin_index = 4;
+        nfds_t wake_index = 4;
+        if (process->stdin_fd >= 0) {
+            (void)pthread_mutex_lock(&process->lock);
+            const int pending = process->input_length > 0;
+            (void)pthread_mutex_unlock(&process->lock);
+            /* With no events requested, poll still reports POLLERR/POLLHUP
+             * once the child closes its read end. */
+            stdin_index = count;
+            descriptors[count].fd = process->stdin_fd;
+            descriptors[count].events = pending ? POLLOUT : 0;
+            descriptors[count].revents = 0;
+            ++count;
+        }
+        if (process->wake_read_fd >= 0) {
+            wake_index = count;
+            descriptors[count].fd = process->wake_read_fd;
+            descriptors[count].events = POLLIN;
+            descriptors[count].revents = 0;
+            ++count;
+        }
         if (process->stdout_fd >= 0) {
             descriptors[count].fd = process->stdout_fd;
             descriptors[count].events = POLLIN;
@@ -298,7 +428,23 @@ static void *pump_main(void *argument) {
             descriptors[count].revents = 0;
             ++count;
         }
-        (void)poll(count == 0 ? NULL : descriptors, count, PUMP_POLL_MILLISECONDS);
+        if (poll(count == 0 ? NULL : descriptors, count, PUMP_POLL_MILLISECONDS) < 0) {
+            for (nfds_t index = 0; index < count; ++index) descriptors[index].revents = 0;
+        }
+        if (wake_index < count && descriptors[wake_index].revents != 0) drain_wake_pipe(process);
+        if (process->stdin_fd >= 0) {
+            (void)pthread_mutex_lock(&process->lock);
+            const short revents = stdin_index < count ? descriptors[stdin_index].revents : 0;
+            if ((revents & (POLLERR | POLLHUP | POLLNVAL)) != 0 && process->input_length == 0 &&
+                !process->input_close_requested) {
+                process->input_failed = 1;
+                set_input_error_locked(process, "stdin closed by the child", EPIPE);
+                close_input_locked(process);
+            } else {
+                flush_input_locked(process);
+            }
+            (void)pthread_mutex_unlock(&process->lock);
+        }
         if (process->stdout_fd >= 0) drain_stream(process, &process->stdout_fd, EVENT_STDOUT);
         if (process->stderr_fd >= 0) drain_stream(process, &process->stderr_fd, EVENT_STDERR);
 
@@ -328,6 +474,14 @@ static void *pump_main(void *argument) {
         }
         if (process->reaped && process->stdout_fd < 0 && process->stderr_fd < 0) {
             (void)pthread_mutex_lock(&process->lock);
+            if (process->input_length > 0 && !process->input_failed) {
+                process->input_failed = 1;
+                set_input_error_locked(process,
+                                       "process completed before queued stdin was written; "
+                                       "input was discarded",
+                                       EPIPE);
+            }
+            close_input_locked(process);
             process->completed = 1;
             if (!append_event_locked(process, EVENT_COMPLETED, NULL, 0)) {
                 record_error_locked(process, "completion event allocation failed", NULL, ENOMEM);
@@ -362,6 +516,9 @@ static CwhipAsyncProcess *allocate_process(void) {
     process->pid = -1;
     process->stdout_fd = -1;
     process->stderr_fd = -1;
+    process->stdin_fd = -1;
+    process->wake_read_fd = -1;
+    process->wake_write_fd = -1;
     process->references = 1;
     process->state = STATE_RUNNING;
     process->exit_code = -1;
@@ -376,6 +533,11 @@ static void destroy_process(CwhipAsyncProcess *process) {
         event = next;
     }
     free(process->error);
+    free(process->input);
+    free(process->input_error);
+    close_fd(&process->stdin_fd);
+    close_fd(&process->wake_read_fd);
+    close_fd(&process->wake_write_fd);
     (void)pthread_mutex_destroy(&process->lock);
     (void)pthread_cond_destroy(&process->changed);
     free(process);
@@ -399,9 +561,8 @@ static CwhipAsyncProcess *fail_launch(CwhipAsyncProcess *process, const char *pr
 #define CWHIP_HAVE_SPAWN_CHDIR 1
 #endif
 
-void *cwhip_process_async_start(void *self, void *executable, void *arguments,
-                               void *working_directory) {
-    (void)self;
+static void *start_process(void *executable, void *arguments, void *working_directory,
+                           int interactive) {
     CwhipAsyncProcess *process = allocate_process();
     if (process == NULL) {
         cwhip_runtime_set_error(ENOMEM);
@@ -479,15 +640,23 @@ void *cwhip_process_async_start(void *self, void *executable, void *arguments,
 
     int output_pipe[2] = {-1, -1};
     int error_pipe[2] = {-1, -1};
-    if (!make_pipe(output_pipe) || !make_pipe(error_pipe)) {
+    int input_pipe[2] = {-1, -1};
+    int wake_pipe[2] = {-1, -1};
+    if (!make_pipe(output_pipe) || !make_pipe(error_pipe) ||
+        (interactive && (!make_input_pipe(input_pipe) || !make_wake_pipe(wake_pipe)))) {
         const int saved = errno;
         close_fd(&output_pipe[0]);
         close_fd(&output_pipe[1]);
         close_fd(&error_pipe[0]);
         close_fd(&error_pipe[1]);
+        close_fd(&input_pipe[0]);
+        close_fd(&input_pipe[1]);
+        close_fd(&wake_pipe[0]);
+        close_fd(&wake_pipe[1]);
         free_arguments(argv, argument_count + 1);
         free(directory);
-        return fail_launch(process, "cannot create output pipes", NULL, saved);
+        return fail_launch(process, interactive ? "cannot create process pipes" : "cannot create output pipes",
+                           NULL, saved);
     }
 
     posix_spawn_file_actions_t actions;
@@ -513,7 +682,10 @@ void *cwhip_process_async_start(void *self, void *executable, void *arguments,
         if (status == 0) status = posix_spawnattr_setsigdefault(&attributes, &defaults);
     }
     if (status == 0) {
-        status = posix_spawn_file_actions_addopen(&actions, STDIN_FILENO, "/dev/null", O_RDONLY, 0);
+        status = interactive
+                     ? posix_spawn_file_actions_adddup2(&actions, input_pipe[0], STDIN_FILENO)
+                     : posix_spawn_file_actions_addopen(&actions, STDIN_FILENO, "/dev/null",
+                                                        O_RDONLY, 0);
     }
     if (status == 0) {
         status = posix_spawn_file_actions_adddup2(&actions, output_pipe[1], STDOUT_FILENO);
@@ -533,9 +705,13 @@ void *cwhip_process_async_start(void *self, void *executable, void *arguments,
     if (actions_initialized) (void)posix_spawn_file_actions_destroy(&actions);
     close_fd(&output_pipe[1]);
     close_fd(&error_pipe[1]);
+    close_fd(&input_pipe[0]);
     if (status != 0) {
         close_fd(&output_pipe[0]);
         close_fd(&error_pipe[0]);
+        close_fd(&input_pipe[1]);
+        close_fd(&wake_pipe[0]);
+        close_fd(&wake_pipe[1]);
         CwhipAsyncProcess *failed =
             setup_failed ? fail_launch(process, "cannot prepare launch of", program, status)
                          : fail_launch(process, "cannot start", program, status);
@@ -546,6 +722,10 @@ void *cwhip_process_async_start(void *self, void *executable, void *arguments,
     process->pid = pid;
     process->stdout_fd = output_pipe[0];
     process->stderr_fd = error_pipe[0];
+    process->stdin_fd = input_pipe[1];
+    process->wake_read_fd = wake_pipe[0];
+    process->wake_write_fd = wake_pipe[1];
+    process->interactive = interactive;
 
     /* The pump inherits a fully blocked mask so process signals are delivered
      * to application threads, never to this private native thread. */
@@ -562,6 +742,9 @@ void *cwhip_process_async_start(void *self, void *executable, void *arguments,
         }
         close_fd(&process->stdout_fd);
         close_fd(&process->stderr_fd);
+        close_fd(&process->stdin_fd);
+        process->input_closed = 1;
+        process->interactive = 0;
         process->pid = -1;
         CwhipAsyncProcess *failed = fail_launch(process, "cannot start output thread for", program,
                                                status);
@@ -574,6 +757,18 @@ void *cwhip_process_async_start(void *self, void *executable, void *arguments,
     free(directory);
     cwhip_runtime_clear_error();
     return process;
+}
+
+void *cwhip_process_async_start(void *self, void *executable, void *arguments,
+                               void *working_directory) {
+    (void)self;
+    return start_process(executable, arguments, working_directory, 0);
+}
+
+void *cwhip_process_async_start_interactive(void *self, void *executable, void *arguments,
+                                           void *working_directory) {
+    (void)self;
+    return start_process(executable, arguments, working_directory, 1);
 }
 
 /* Every operation pins the object while the caller still holds the runtime
@@ -718,6 +913,162 @@ int32_t cwhip_process_async_cancel(void *self, void *object, int64_t grace) {
     return accepted;
 }
 
+/* Caller holds process->lock. Returns 0 when stdin accepts data, otherwise an
+ * errno value after recording why (a sticky pipe failure keeps its message). */
+static int input_rejection_locked(CwhipAsyncProcess *process) {
+    if (process->state == STATE_LAUNCH_FAILED && process->completed && process->pid <= 0) {
+        set_input_error_locked(process, "process did not start", ESRCH);
+        return ESRCH;
+    }
+    if (!process->interactive) {
+        set_input_error_locked(process, "process was not started with interactive input", EBADF);
+        return EBADF;
+    }
+    if (process->closing) {
+        set_input_error_locked(process, "process was closed", EBADF);
+        return EBADF;
+    }
+    if (process->input_failed) {
+        if (process->input_error == NULL) set_input_error_locked(process, "stdin failed", EPIPE);
+        return EPIPE;
+    }
+    if (process->input_close_requested) {
+        set_input_error_locked(process, "stdin was closed by closeInput", EPIPE);
+        return EPIPE;
+    }
+    if (process->cancel_requested) {
+        set_input_error_locked(process, "process was cancelled", ECANCELED);
+        return ECANCELED;
+    }
+    if (process->completed || process->input_closed) {
+        set_input_error_locked(process, "process has completed", EPIPE);
+        return EPIPE;
+    }
+    return 0;
+}
+
+/* Caller holds process->lock and has checked the queue limit. */
+static int reserve_input_locked(CwhipAsyncProcess *process, size_t extra) {
+    const size_t needed = process->input_length + extra;
+    if (process->input_start + needed <= process->input_capacity) return 1;
+    if (process->input_start > 0) {
+        if (process->input_length > 0) {
+            memmove(process->input, process->input + process->input_start, process->input_length);
+        }
+        process->input_start = 0;
+        if (needed <= process->input_capacity) return 1;
+    }
+    size_t capacity = process->input_capacity == 0 ? 4096 : process->input_capacity;
+    while (capacity < needed) capacity *= 2;
+    if (capacity > INPUT_QUEUE_LIMIT_BYTES) capacity = INPUT_QUEUE_LIMIT_BYTES;
+    unsigned char *grown = (unsigned char *)realloc(process->input, capacity);
+    if (grown == NULL) return 0;
+    process->input = grown;
+    process->input_capacity = capacity;
+    return 1;
+}
+
+static void wake_pump(CwhipAsyncProcess *process) {
+    static const unsigned char byte = 1;
+    ssize_t written;
+    do {
+        written = write(process->wake_write_fd, &byte, 1);
+    } while (written < 0 && errno == EINTR);
+    /* EAGAIN means a wake-up is already pending, which is sufficient. */
+}
+
+/* Queues the whole string for the child's stdin or nothing at all. Never
+ * blocks on the child: the pump performs the actual nonblocking writes. */
+int32_t cwhip_process_async_write(void *self, void *object, void *text) {
+    (void)self;
+    CwhipAsyncProcess *process = (CwhipAsyncProcess *)object;
+    if (process == NULL) {
+        cwhip_runtime_set_error(EINVAL);
+        return 0;
+    }
+    retain(process);
+    const char *bytes = NULL;
+    uint64_t length = 0;
+    if (text != NULL) cwhip_string_bytes(text, &bytes, &length);
+    int reason;
+    (void)pthread_mutex_lock(&process->lock);
+    if (text == NULL) {
+        reason = EINVAL;
+        set_input_error_locked(process, "invalid stdin text", EINVAL);
+    } else {
+        reason = input_rejection_locked(process);
+    }
+    if (reason == 0 && length > INPUT_QUEUE_LIMIT_BYTES) {
+        reason = E2BIG;
+        set_input_error_locked(process, "stdin text exceeds the 1 MiB queue limit", E2BIG);
+    } else if (reason == 0 && (size_t)length > INPUT_QUEUE_LIMIT_BYTES - process->input_length) {
+        reason = EAGAIN;
+        set_input_error_locked(process, "stdin queue is full; retry after the child reads", EAGAIN);
+    } else if (reason == 0 && length > 0) {
+        if (!reserve_input_locked(process, (size_t)length)) {
+            reason = ENOMEM;
+            set_input_error_locked(process, "cannot queue stdin", ENOMEM);
+        } else {
+            memcpy(process->input + process->input_start + process->input_length, bytes,
+                   (size_t)length);
+            process->input_length += (size_t)length;
+        }
+    }
+    (void)pthread_mutex_unlock(&process->lock);
+    if (reason == 0 && length > 0) wake_pump(process);
+    release(process);
+    if (reason != 0) {
+        cwhip_runtime_set_error(reason);
+        return 0;
+    }
+    cwhip_runtime_clear_error();
+    return 1;
+}
+
+/* Requests end of file on the child's stdin once queued bytes are written.
+ * Idempotent; returns false only when the process has no interactive stdin. */
+int32_t cwhip_process_async_close_input(void *self, void *object) {
+    (void)self;
+    CwhipAsyncProcess *process = (CwhipAsyncProcess *)object;
+    if (process == NULL) {
+        cwhip_runtime_set_error(EINVAL);
+        return 0;
+    }
+    retain(process);
+    int reason = 0;
+    int wake = 0;
+    (void)pthread_mutex_lock(&process->lock);
+    if (!process->interactive) {
+        reason = process->pid <= 0 ? ESRCH : EBADF;
+        set_input_error_locked(process,
+                               reason == ESRCH ? "process did not start"
+                                               : "process was not started with interactive input",
+                               reason);
+    } else if (!process->input_close_requested) {
+        process->input_close_requested = 1;
+        wake = !process->input_closed;
+    }
+    (void)pthread_mutex_unlock(&process->lock);
+    if (wake) wake_pump(process);
+    release(process);
+    if (reason != 0) {
+        cwhip_runtime_set_error(reason);
+        return 0;
+    }
+    cwhip_runtime_clear_error();
+    return 1;
+}
+
+int64_t cwhip_process_async_pending_input(void *self, void *object) {
+    (void)self;
+    CwhipAsyncProcess *process = (CwhipAsyncProcess *)object;
+    if (process == NULL) return 0;
+    (void)pthread_mutex_lock(&process->lock);
+    const size_t pending = process->input_length;
+    (void)pthread_mutex_unlock(&process->lock);
+    return (int64_t)pending;
+}
+
 static int read_int_locked(CwhipAsyncProcess *process, const int *field) {
     (void)pthread_mutex_lock(&process->lock);
     const int value = process->completed ? *field : -2;
@@ -766,6 +1117,27 @@ void *cwhip_process_async_error(void *self, void *object) {
         if (copy != NULL) memcpy(copy, process->error, length + 1);
     }
     (void)pthread_mutex_unlock(&process->lock);
+    void *result = cwhip_string_new(&cwhip_string_class_meta, copy == NULL ? "" : copy,
+                                   copy == NULL ? 0 : length);
+    free(copy);
+    return result;
+}
+
+void *cwhip_process_async_input_error(void *self, void *object) {
+    (void)self;
+    if (&cwhip_string_class_meta == NULL) abort();
+    CwhipAsyncProcess *process = (CwhipAsyncProcess *)object;
+    char *copy = NULL;
+    size_t length = 0;
+    if (process != NULL) {
+        (void)pthread_mutex_lock(&process->lock);
+        if (process->input_error != NULL) {
+            length = strlen(process->input_error);
+            copy = (char *)malloc(length + 1);
+            if (copy != NULL) memcpy(copy, process->input_error, length + 1);
+        }
+        (void)pthread_mutex_unlock(&process->lock);
+    }
     void *result = cwhip_string_new(&cwhip_string_class_meta, copy == NULL ? "" : copy,
                                    copy == NULL ? 0 : length);
     free(copy);

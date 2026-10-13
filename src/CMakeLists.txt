@@ -285,7 +285,8 @@ add_dependencies(cwhip cwhip_runtime)
 set_target_properties(cwhip PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${CWHIP_RUNTIME_OUTPUT_DIRECTORY}"
 )
-include("${CMAKE_CURRENT_SOURCE_DIR}/../cmake/CwhipEditor.cmake")
+include("${CMAKE_CURRENT_SOURCE_DIR}/../cmake/Cedit.cmake")
+include("${CMAKE_CURRENT_SOURCE_DIR}/../cmake/Cdbg.cmake")
 
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
     target_compile_options(cwhip_frontend PRIVATE -Wall -Wextra -Wpedantic)

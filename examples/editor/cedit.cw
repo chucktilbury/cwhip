@@ -24,7 +24,7 @@ class CommandBinding {
     }
 }
 
-class CwhipSettings {
+class CeditSettings {
     String fontFamily
     int fontSize
     int tabWidth
@@ -46,7 +46,7 @@ class CwhipSettings {
     bool legacyConflict
     int shortcutRevision
 
-    CwhipSettings() {
+    CeditSettings() {
         resetEditor()
         commands = [
             CommandBinding("new", "New document", "<Control>n"),
@@ -72,7 +72,7 @@ class CwhipSettings {
             CommandBinding("project-save-as", "Save project as", ""),
             CommandBinding("project-delete", "Delete project metadata", ""),
             CommandBinding("project-configure", "Configure project", ""),
-            CommandBinding("about", "About Cwhip", "")
+            CommandBinding("about", "About cedit", "")
         ]
         reopenLast = false
         lastRoot = ""
@@ -368,7 +368,7 @@ class CwhipSettings {
 class KeyboardPreference {
     KeyboardPreference _self()
     CommandBinding binding
-    CwhipSettings settings
+    CeditSettings settings
     Gtk.Label name
     Gtk.Entry entry
     Gtk.Button recordButton
@@ -380,7 +380,7 @@ class KeyboardPreference {
     int recording
     bool refreshing
 
-    KeyboardPreference(CwhipSettings model, CommandBinding command, callback<void()> changed,
+    KeyboardPreference(CeditSettings model, CommandBinding command, callback<void()> changed,
                        callback<void()> prepare, Gtk.Grid grid, int index) {
         settings = model
         binding = command
@@ -721,7 +721,7 @@ class CwhipProject {
 
     // Returns "" when the project can be opened. Invalid individual values
     // keep it open with errors shown and its configuration unwritable.
-    String load(CwhipSettings settings) {
+    String load(CeditSettings settings) {
         String problem = metadataProblem()
         if (!problem.equals("")) { return problem }
         original = readMetadata(configPath, 65536)
@@ -1327,9 +1327,9 @@ class ProjectExplorer {
 }
 ProjectExplorer ProjectExplorer._self() from "cwhip_gtk_self"
 
-class CwhipEditor {
-    CwhipEditor _self()
-    CwhipSettings settings
+class Cedit {
+    Cedit _self()
+    CeditSettings settings
     Gtk.TransientWindow preferencesWindow
     Gtk.Box editorPreferences
     Gtk.Box keyboardPreferences
@@ -1513,7 +1513,7 @@ class CwhipEditor {
         confirmOp = ""
         overrideRows = []
         hasAutomaticSaveErrors = false
-        settings = CwhipSettings()
+        settings = CeditSettings()
         int commandIndex = 0
         while (commandIndex < settings.commands.length) {
             CommandBinding binding = settings.commands[commandIndex] as CommandBinding
@@ -1524,7 +1524,7 @@ class CwhipEditor {
         savePending = false
         saveAgain = false
         closeAfterSave = false
-        window = Gtk.Window("Cwhip Editor")
+        window = Gtk.Window("cedit")
         window.setDefaultSize(1000, 700)
         layout = Gtk.Box(Gtk.Box.VERTICAL, 5)
         window.setChild(layout)
@@ -1561,7 +1561,7 @@ class CwhipEditor {
         projectItems.append(menu.addItem(projectMenu, "Delete Project...", commandAction("project-delete")))
         projectItems.append(menu.addItem(projectMenu, "Configure Project...", commandAction("project-configure")))
         int helpMenu = menu.addMenu("Help")
-        aboutItem = menu.addItem(helpMenu, "About Cwhip...", commandAction("about"))
+        aboutItem = menu.addItem(helpMenu, "About cedit...", commandAction("about"))
         searchWindow = Gtk.TransientWindow("Find")
         searchWindow.setDefaultSize(520, 150)
         searchWindow.setTransientFor(window)
@@ -1740,7 +1740,7 @@ class CwhipEditor {
     }
 
     void createPreferences() {
-        preferencesWindow = Gtk.TransientWindow("Cwhip Preferences")
+        preferencesWindow = Gtk.TransientWindow("cedit Preferences")
         preferencesWindow.setTransientFor(window)
         preferencesWindow.setDefaultSize(850, 600)
         Gtk.Box root = Gtk.Box(Gtk.Box.VERTICAL, 8)
@@ -2849,11 +2849,11 @@ class CwhipEditor {
     void showAbout() {
         if (fileDialog != null) { return }
         if (aboutWindow == null || aboutWindow.disposed()) {
-            aboutWindow = Gtk.TransientWindow("About Cwhip")
+            aboutWindow = Gtk.TransientWindow("About cedit")
             aboutWindow.setTransientFor(window)
             aboutWindow.setDefaultSize(480, 300)
             Gtk.Box root = Gtk.Box(Gtk.Box.VERTICAL, 8)
-            root.append(Gtk.Label("Cwhip Editor"))
+            root.append(Gtk.Label("cedit"))
             root.append(Gtk.Label(format("Version {}", version())))
             root.append(Gtk.Label("A GTK editor for Cwhip, written in Cwhip\nwith GtkSourceView syntax highlighting, a project explorer,\nand per-project configuration."))
             root.append(Gtk.Label("License: no license file is included in the repository."))
@@ -3955,11 +3955,11 @@ class CwhipEditor {
     }
 }
 
-CwhipEditor CwhipEditor._self() from "cwhip_gtk_self"
+Cedit Cedit._self() from "cwhip_gtk_self"
 
 start {
     Gtk.Application app = Gtk.Application("org.cw.Editor")
-    CwhipEditor editor = CwhipEditor()
+    Cedit editor = Cedit()
     editor.changedAction = editor.changed
     editor.cursorAction = editor.cursorMoved
     editor.pageChangedAction = editor.pageChanged

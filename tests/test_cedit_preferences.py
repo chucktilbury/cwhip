@@ -46,7 +46,7 @@ bool PreferenceFixture.noEmoji() from "fixture_editor_no_emoji"
 void PreferenceFixture.tick() from "fixture_preferences_tick"
 
 class PreferencesChecks {
-    CwhipEditor editor
+    Cedit editor
     callback<void()> nextAction
     callback<void(String)> shutdownAction
     bool shutdownCallbackRan

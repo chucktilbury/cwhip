@@ -20,7 +20,7 @@ static GtkWindow *editor_window(void) {
     GList *windows = gtk_application_get_windows(
         GTK_APPLICATION(g_application_get_default()));
     for (GList *item = windows; item; item = item->next) {
-        if (g_strcmp0(gtk_window_get_title(item->data), "Cwhip Editor") == 0)
+        if (g_strcmp0(gtk_window_get_title(item->data), "cedit") == 0)
             return item->data;
     }
     abort();
@@ -359,7 +359,7 @@ static GtkWindow *preferences_window(void) {
     GListModel *windows = gtk_window_get_toplevels();
     for (guint i = 0; i < g_list_model_get_n_items(windows); ++i) {
         GtkWindow *window = g_list_model_get_item(windows, i);
-        if (g_strcmp0(gtk_window_get_title(window), "Cwhip Preferences") == 0) return window;
+        if (g_strcmp0(gtk_window_get_title(window), "cedit Preferences") == 0) return window;
         g_object_unref(window);
     }
     return NULL;

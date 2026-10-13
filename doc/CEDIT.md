@@ -1,6 +1,6 @@
-# Cwhip editor
+# cedit
 
-`examples/editor/cwhip_editor.cw` is a GTK editor written in Cwhip. Its compiler
+`examples/editor/cedit.cw` is a GTK editor written in Cwhip. Its compiler
 is `cwhip`; runtime and package ABI names use the `cwhip_*` prefix. The editor uses the optional GTK
 package and a separate GtkSourceView-backed `sourceview` package. It provides
 File, Edit, Project and Help menus, native open/save-as file choosers, multiple notebook tabs,
@@ -47,27 +47,37 @@ Build the editor directly:
 
 ```sh
 cmake -S . -B build-cwhip -G "Unix Makefiles" -DCMAKE_BUILD_TYPE=Debug
-make -C build-cwhip -j4 cwhip_editor
-./bin/cwhip-editor file1.cw file2.cw
+make -C build-cwhip -j4 cedit
+./bin/cedit file1.cw file2.cw
 ```
 
-Inside the configured Makefiles build directory, use `make cwhip_editor`; with any
-generator, use `cmake --build build-cwhip --target cwhip_editor -j4`. The target builds
+Inside the configured Makefiles build directory, use `make cedit`; with any
+generator, use `cmake --build build-cwhip --target cedit -j4`. The target builds
 the compiler and required support on a fresh build, generates a private package
 lock from staged modules, and compiles the editor only when its inputs change.
 An ordinary compiler build prepares the enabled peripheral support but does
-not compile the editor. The executable is `<source>/bin/cwhip-editor` by default;
-with `-DCWHIP_STAGE_PREFIX=/absolute/prefix` it is `/absolute/prefix/bin/cwhip-editor`.
-No manual compiler invocation or package activation is needed. Cwhip is not
-currently an install target.
+not compile the editor. The executable is `<source>/bin/cedit` by default;
+with `-DCWHIP_STAGE_PREFIX=/absolute/prefix` it is `/absolute/prefix/bin/cedit`.
+No manual compiler invocation or package activation is needed. The editor remains
+a staged example, not a `cmake --install` target; no desktop entry is installed.
 
-`cwhip-editor` starts the GUI in the background and returns the shell prompt
+The editor was previously named `cwhip-editor`; rebuild using the `cedit` target
+and update commands to use `cedit`. The source entry point is now `cedit.cw`.
+The Cwhip language, compiler, package names, and native ABI are unchanged.
+For continuity, cedit retains `$XDG_CONFIG_HOME/cwhip/settings.toml` (or
+`$HOME/.config/cwhip/settings.toml`), the `cwhip-shortcuts.conf` legacy import,
+and `.cwhip/project.toml` and `.cwhip/workspace.toml` project data.
+It also retains the `org.cw.Editor` application ID for single-instance forwarding
+and the internal `CWHIP_EDITOR_READY_FD` GTK launcher handshake. No user data
+is moved or rewritten as part of the rename.
+
+`cedit` starts the GUI in the background and returns the shell prompt
 only after initialization and window presentation. Startup failures remain
 visible on stderr and return a nonzero exit status; startup has a 30-second
 readiness deadline. The window appears normally, not minimized or hidden.
-Use `cwhip-editor --foreground ...` when a debugger, script, or test needs to
+Use `cedit --foreground ...` when a debugger, script, or test needs to
 own the GUI process and wait for its exit. `--test` also stays in the foreground.
-The launcher and sibling `cwhip-editor.bin` must stay together; directly running
+The launcher and sibling `cedit.bin` must stay together; directly running
 the compiled `.bin` (or compiling the Cwhip source yourself) stays foreground.
 GUI diagnostics continue to use the launching terminal's stdout/stderr.
 
@@ -75,7 +85,7 @@ Headless tests require Xvfb and `dbus-daemon`; they default to enabled when
 those tools are present, otherwise configuration explicitly reports them
 disabled without blocking Cwhip. Set `-DCWHIP_GTK_TESTS=ON` to require them, or
 `-DBUILD_TESTING=OFF` to omit all tests. Compiler-only builds
-can set `-DCWHIP_GTK=OFF -DCWHIP_GTK_SOURCEVIEW=OFF`; their `cwhip_editor` target reports
+can set `-DCWHIP_GTK=OFF -DCWHIP_GTK_SOURCEVIEW=OFF`; their `cedit` target reports
 the missing support explicitly. To enable GUI support in an already configured
 compiler-only build, reconfigure with both options `ON`. Even with GUI packages
 enabled, the compiler and non-import applications do not link GTK or
@@ -199,7 +209,7 @@ to the editor; cancelling one changes nothing.
   Cwhip metadata, a confirmation bar offers **Replace Metadata** or **Cancel**.
 - **Open Project...** chooses a folder; it must already contain
   `.cwhip/project.toml`, otherwise an alert explains how to create one.
-  Running `cwhip-editor DIR` opens `DIR` as a project when it contains that file and
+  Running `cedit DIR` opens `DIR` as a project when it contains that file and
   as a plain folder otherwise.
 - **Save Project** writes the current configuration and workspace state.
 - **Save Project As...** chooses a different folder and writes a copy of the
@@ -327,7 +337,7 @@ remembered project is reported in an alert and the editor starts normally.
 
 ## About
 
-**Help > About Cwhip...** opens a small window parented to the editor showing the
+**Help > About cedit...** opens a small window parented to the editor showing the
 editor name, version (the repository version from `CMakeLists.txt`), a short
 description, licensing status (the repository has no license file) and the
 project URL as text. **Close** hides it; it is closed with the editor.
@@ -495,6 +505,6 @@ Run the editor-specific headless cases and existing GTK integration checks:
 
 ```sh
 ctest --test-dir build-cwhip \
-  -R '^(cwhip_editor_binary|cwhip_editor_shortcuts|cwhip_editor_preferences_[a-z]+|cwhip_editor_dialogs|cwhip_example_editor_cwhip_editor\\.cw|cwhip_editor_default_shortcuts|cwhip_editor_project_[a-z]+|cwhip_project_explorer|cwhip_gtk|cwhip_gtk_bindings)$' \
+  -R '^(cedit_binary|cedit_shortcuts|cedit_preferences_[a-z]+|cedit_dialogs|cwhip_example_editor_cedit\\.cw|cedit_default_shortcuts|cedit_project_[a-z]+|cedit_project_explorer|cwhip_gtk|cwhip_gtk_bindings)$' \
   --output-on-failure
 ```

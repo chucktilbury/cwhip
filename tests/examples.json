@@ -1,6 +1,7 @@
 {
+  "debugger.cw": {"stdout": "42"},
   "gtk.cw": {"requires": "gtk", "args": ["--test"], "stdout": "Hello GTK"},
-  "editor/cwhip_editor.cw": {"requires": "sourceview", "args": ["--test", "editor-a.cw", "editor-b.cw", "editor-a.cw"], "stdout": "true"},
+  "editor/cedit.cw": {"requires": "sourceview", "args": ["--test", "editor-a.cw", "editor-b.cw", "editor-a.cw"], "stdout": "true"},
   "cast_scalar.cw": {"stdout": "18446744073709551606"},
   "collection_cast.cw": {"stdout": "class Bar 5"},
   "ctor_dtor.cw": {"stdout": "in the FirstBase constructorin the SecondBase constructor\nin the Child constructorfirst foo is 123second foo is 42end child constructor\nfirst base bar is 24first base foo is 246\nin the Child destructorin the SecondBase destructorin the FirstBase destructor"},

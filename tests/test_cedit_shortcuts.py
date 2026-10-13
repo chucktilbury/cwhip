@@ -1,4 +1,4 @@
-"""Drive Cwhip Editor with real X key events and window-manager close.
+"""Drive cedit with real X key events and window-manager close.
 
 Ctrl+W must close only the focused tab, while Ctrl+Q and the window close
 button must quit cleanly; closing from inside a shortcut callback previously
@@ -93,7 +93,7 @@ class Display:
             window = self.window_at(x, y)
             if not window:
                 time.sleep(0.1)
-        assert window, "Cwhip Editor window never appeared"
+        assert window, "cedit window never appeared"
         time.sleep(0.5)
         # The pointer entered while GTK was mapping/layouting the notebook.
         # Move again so GTK repicks the now-allocated SourceView as its target.
@@ -129,12 +129,12 @@ class Display:
 def finish(process: subprocess.Popen, expect_running: bool) -> str:
     if expect_running:
         assert process.poll() is None, (
-            f"Cwhip Editor exited with {process.returncode}:\n{process.communicate()[0]}")
+            f"cedit exited with {process.returncode}:\n{process.communicate()[0]}")
         process.terminate()
         output = process.communicate(timeout=10)[0]
     else:
         output = process.communicate(timeout=10)[0]
-        assert process.returncode == 0, f"Cwhip Editor exited with {process.returncode}:\n{output}"
+        assert process.returncode == 0, f"cedit exited with {process.returncode}:\n{output}"
     for marker in ("callback error", "in-flight", "CRITICAL", "AddressSanitizer",
                    "runtime error:", "LeakSanitizer"):
         assert marker not in output, output
@@ -167,7 +167,7 @@ def scenario(executable: Path, work: Path, env: dict[str, str], name: str, actio
 def close_tabs(display: Display, process: subprocess.Popen, case: Path) -> None:
     display.focus_editor()
     display.keys("Control_L+w")  # closes b.txt only
-    assert process.poll() is None, "Ctrl+W must not quit Cwhip Editor"
+    assert process.poll() is None, "Ctrl+W must not quit cedit"
     display.keys("x")
     display.keys("Control_L+s")
     saved_path = case / "a.txt"
@@ -253,7 +253,7 @@ def background_startup(executable: Path, work: Path, env: dict[str, str]) -> Non
             assert process.wait(timeout=20) == 0, "launcher failed"
             children = set(children_path.read_text().split()) - before
             gui = [int(pid) for pid in children
-                   if Path(f"/proc/{pid}/exe").resolve() == executable.with_name("cwhip-editor.bin")]
+                   if Path(f"/proc/{pid}/exe").resolve() == executable.with_name("cedit.bin")]
             if gui:
                 child = gui[0]
             assert len(gui) == 1, children

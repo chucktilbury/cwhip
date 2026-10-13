@@ -84,7 +84,8 @@ No environment activation is needed. The manifest schema is in
 | `include/` | Runtime C headers and compiler headers |
 | `builtin/` | Built-in `String` class source |
 | `stdlib/` | Versioned standard-library packages |
-| `examples/` | Runnable `.cw` examples, including the [Cwhip Editor and its build targets](doc/CWHIP-EDITOR.md) |
+| `examples/` | Runnable `.cw` examples, including the [cedit and its build targets](doc/CEDIT.md) |
+| `tools/cdbg/` | [Local GDB-backed cdbg prototype](doc/CDBG.md), written in Cwhip with GTK |
 | `tests/` | Compiler and editor tests |
 | `doc/` | User documentation |
 | `build/`, `bin/`, `lib/`, `share/` | Local CMake build outputs |

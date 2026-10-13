@@ -85,7 +85,7 @@ if(CWHIP_GTK)
     option(CWHIP_GTK_TESTS "Enable headless GUI tests (default: detect installed test tools)"
         ${cwhip_gtk_tests_default})
     if(NOT CWHIP_GTK_TESTS)
-        message(STATUS "Headless GUI tests disabled; set CWHIP_GTK_TESTS=ON with Xvfb and dbus-daemon to require them. Cwhip Editor can still be built.")
+        message(STATUS "Headless GUI tests disabled; set CWHIP_GTK_TESTS=ON with Xvfb and dbus-daemon to require them. cedit can still be built.")
     endif()
 endif()
 if(CWHIP_GTK AND CWHIP_GTK_TESTS)
@@ -436,83 +436,112 @@ foreach(example_case IN LISTS example_cases)
     set_tests_properties("cwhip_example_${example_name}" PROPERTIES LABELS examples TIMEOUT 60)
 endforeach()
 if(CWHIP_GTK_SOURCEVIEW)
-    get_target_property(CWHIP_EDITOR_EXECUTABLE cwhip_editor CWHIP_EDITOR_EXECUTABLE)
-    add_test(NAME cwhip_editor_build
-        COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/test_cwhip_build.py"
+    get_target_property(CEDIT_EXECUTABLE cedit CEDIT_EXECUTABLE)
+    add_test(NAME cedit_build
+        COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/test_cedit_build.py"
         --build "${CMAKE_BINARY_DIR}" --cmake "${CMAKE_COMMAND}"
-        --executable "${CWHIP_EDITOR_EXECUTABLE}" --compiler "$<TARGET_FILE:cwhip>")
-    set_tests_properties(cwhip_editor_build PROPERTIES
-        FIXTURES_SETUP cwhip_editor_binary LABELS build TIMEOUT 180)
+        --executable "${CEDIT_EXECUTABLE}" --compiler "$<TARGET_FILE:cwhip>")
+    set_tests_properties(cedit_build PROPERTIES
+        FIXTURES_SETUP cedit_binary LABELS build TIMEOUT 180)
 endif()
 if(CWHIP_GTK_SOURCEVIEW AND CWHIP_GTK_TESTS)
-    add_test(NAME cwhip_editor_binary
+    add_test(NAME cedit_binary
         COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/test_examples.py"
-        --compiler "$<TARGET_FILE:cwhip>" --executable "${CWHIP_EDITOR_EXECUTABLE}"
+        --compiler "$<TARGET_FILE:cwhip>" --executable "${CEDIT_EXECUTABLE}"
         --examples "${example_directory}"
         --manifest "${CMAKE_CURRENT_SOURCE_DIR}/examples.json"
         --work "${CMAKE_CURRENT_BINARY_DIR}/cwhip-binary"
-        --case "editor/cwhip_editor.cw" ${gtk_program_arguments})
-    set_tests_properties(cwhip_editor_binary PROPERTIES
-        FIXTURES_REQUIRED cwhip_editor_binary LABELS "examples;gtk;build" TIMEOUT 60)
-    add_test(NAME cwhip_editor_shortcuts
-        COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/test_cwhip_shortcuts.py"
-        --executable "${CWHIP_EDITOR_EXECUTABLE}" --xvfb "${CWHIP_XVFB_EXECUTABLE}"
+        --case "editor/cedit.cw" ${gtk_program_arguments})
+    set_tests_properties(cedit_binary PROPERTIES
+        FIXTURES_REQUIRED cedit_binary LABELS "examples;gtk;build" TIMEOUT 60)
+    add_test(NAME cedit_shortcuts
+        COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/test_cedit_shortcuts.py"
+        --executable "${CEDIT_EXECUTABLE}" --xvfb "${CWHIP_XVFB_EXECUTABLE}"
         --work "${CMAKE_CURRENT_BINARY_DIR}/cwhip-shortcuts")
-    set_tests_properties(cwhip_editor_shortcuts PROPERTIES
-        FIXTURES_REQUIRED cwhip_editor_binary LABELS "examples;gtk" TIMEOUT 120)
-    add_test(NAME cwhip_project_explorer
+    set_tests_properties(cedit_shortcuts PROPERTIES
+        FIXTURES_REQUIRED cedit_binary LABELS "examples;gtk" TIMEOUT 120)
+    add_test(NAME cedit_project_explorer
         COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/test_project_explorer.py"
         --compiler "$<TARGET_FILE:cwhip>" --clang "${CWHIP_CLANG_EXECUTABLE}"
         --include "${CMAKE_CURRENT_SOURCE_DIR}/../include"
         --native "${CMAKE_CURRENT_SOURCE_DIR}/../stdlib/gtk/0.1.0/native"
-        --source "${example_directory}/editor/cwhip_editor.cw"
+        --source "${example_directory}/editor/cedit.cw"
         --work "${CMAKE_CURRENT_BINARY_DIR}/project-explorer"
         --sanitize "${CWHIP_SANITIZER_LIST}" --xvfb "${CWHIP_XVFB_EXECUTABLE}")
-    set_tests_properties(cwhip_project_explorer PROPERTIES LABELS "examples;gtk" TIMEOUT 150)
-    add_test(NAME cwhip_editor_dialogs
+    set_tests_properties(cedit_project_explorer PROPERTIES LABELS "examples;gtk" TIMEOUT 150)
+    add_test(NAME cedit_dialogs
         COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/test_editor_dialogs.py"
         --compiler "$<TARGET_FILE:cwhip>" --clang "${CWHIP_CLANG_EXECUTABLE}"
         --include "${CMAKE_CURRENT_SOURCE_DIR}/../include"
         --native "${CMAKE_CURRENT_SOURCE_DIR}/../stdlib/gtk/0.1.0/native"
-        --source "${example_directory}/editor/cwhip_editor.cw"
+        --source "${example_directory}/editor/cedit.cw"
         --work "${CMAKE_CURRENT_BINARY_DIR}/editor-dialogs"
         --sanitize "${CWHIP_SANITIZER_LIST}" --xvfb "${CWHIP_XVFB_EXECUTABLE}")
-    set_tests_properties(cwhip_editor_dialogs PROPERTIES LABELS "examples;gtk" TIMEOUT 120)
+    set_tests_properties(cedit_dialogs PROPERTIES LABELS "examples;gtk" TIMEOUT 120)
     # Each group compiles its own editor and uses its own work directory so
     # the groups can run in parallel.
     foreach(group IN ITEMS ui migration save invalid)
-        add_test(NAME cwhip_editor_preferences_${group}
-            COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/test_cwhip_preferences.py"
+        add_test(NAME cedit_preferences_${group}
+            COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/test_cedit_preferences.py"
             --compiler "$<TARGET_FILE:cwhip>" --clang "${CWHIP_CLANG_EXECUTABLE}"
             --include "${CMAKE_CURRENT_SOURCE_DIR}/../include"
             --native "${CMAKE_CURRENT_SOURCE_DIR}/../stdlib/gtk/0.1.0/native"
-            --source "${example_directory}/editor/cwhip_editor.cw"
+            --source "${example_directory}/editor/cedit.cw"
             --work "${CMAKE_CURRENT_BINARY_DIR}/cwhip-preferences-${group}"
             --group ${group}
             --sanitize "${CWHIP_SANITIZER_LIST}" --xvfb "${CWHIP_XVFB_EXECUTABLE}")
-        set_tests_properties(cwhip_editor_preferences_${group} PROPERTIES LABELS "examples;gtk" TIMEOUT 300)
+        set_tests_properties(cedit_preferences_${group} PROPERTIES LABELS "examples;gtk" TIMEOUT 300)
     endforeach()
     foreach(group IN ITEMS session switching lifecycle invalid)
-        add_test(NAME cwhip_editor_project_${group}
-            COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/test_cwhip_project.py"
+        add_test(NAME cedit_project_${group}
+            COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/test_cedit_project.py"
             --compiler "$<TARGET_FILE:cwhip>" --clang "${CWHIP_CLANG_EXECUTABLE}"
             --include "${CMAKE_CURRENT_SOURCE_DIR}/../include"
             --native "${CMAKE_CURRENT_SOURCE_DIR}/../stdlib/gtk/0.1.0/native"
-            --source "${example_directory}/editor/cwhip_editor.cw"
+            --source "${example_directory}/editor/cedit.cw"
             --cmake "${CMAKE_CURRENT_SOURCE_DIR}/../CMakeLists.txt"
             --work "${CMAKE_CURRENT_BINARY_DIR}/cwhip-project-${group}"
             --group ${group}
             --sanitize "${CWHIP_SANITIZER_LIST}" --xvfb "${CWHIP_XVFB_EXECUTABLE}")
-        set_tests_properties(cwhip_editor_project_${group} PROPERTIES LABELS "examples;gtk" TIMEOUT 300)
+        set_tests_properties(cedit_project_${group} PROPERTIES LABELS "examples;gtk" TIMEOUT 300)
     endforeach()
-    add_test(NAME cwhip_editor_default_shortcuts
+    add_test(NAME cedit_default_shortcuts
         COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/test_examples.py"
         --compiler "$<TARGET_FILE:cwhip>" --examples "${example_directory}"
         --manifest "${CMAKE_CURRENT_SOURCE_DIR}/examples.json"
         --work "${CMAKE_CURRENT_BINARY_DIR}/examples-default-shortcuts"
-        --case "editor/cwhip_editor.cw" --gtk --sourceview --default-shortcuts
+        --case "editor/cedit.cw" --gtk --sourceview --default-shortcuts
         --xvfb "${CWHIP_XVFB_EXECUTABLE}")
-    set_tests_properties(cwhip_editor_default_shortcuts PROPERTIES LABELS "examples;gtk" TIMEOUT 60)
+    set_tests_properties(cedit_default_shortcuts PROPERTIES LABELS "examples;gtk" TIMEOUT 60)
+endif()
+
+if(CWHIP_GTK_SOURCEVIEW)
+    get_target_property(CDBG_EXECUTABLE cdbg CDBG_EXECUTABLE)
+    set(cdbg_test_arguments
+        --compiler "$<TARGET_FILE:cwhip>"
+        --source "${CMAKE_CURRENT_SOURCE_DIR}/../tools/cdbg/cdbg.cw"
+        --work "${CMAKE_CURRENT_BINARY_DIR}/cdbg")
+    add_test(NAME cdbg_build COMMAND "${Python3_EXECUTABLE}"
+        "${CMAKE_CURRENT_SOURCE_DIR}/test_cdbg.py" ${cdbg_test_arguments}
+        --group build --build "${CMAKE_BINARY_DIR}" --cmake "${CMAKE_COMMAND}"
+        --executable "${CDBG_EXECUTABLE}")
+    set_tests_properties(cdbg_build PROPERTIES
+        FIXTURES_SETUP cdbg_binary LABELS build TIMEOUT 240)
+    add_test(NAME cdbg_mi_parser COMMAND "${Python3_EXECUTABLE}"
+        "${CMAKE_CURRENT_SOURCE_DIR}/test_cdbg.py" ${cdbg_test_arguments} --group parser)
+    set_tests_properties(cdbg_mi_parser PROPERTIES LABELS debugger TIMEOUT 60)
+    find_program(CWHIP_GDB_EXECUTABLE NAMES gdb)
+    if(CWHIP_GTK_TESTS AND CWHIP_GDB_EXECUTABLE)
+        add_test(NAME cdbg_session COMMAND "${Python3_EXECUTABLE}"
+            "${CMAKE_CURRENT_SOURCE_DIR}/test_cdbg.py" ${cdbg_test_arguments}
+            --group session --gdb "${CWHIP_GDB_EXECUTABLE}"
+            --executable "${CDBG_EXECUTABLE}"
+            --clang "${CWHIP_CLANG_EXECUTABLE}" --xvfb "${CWHIP_XVFB_EXECUTABLE}")
+        set_tests_properties(cdbg_session PROPERTIES
+            FIXTURES_REQUIRED cdbg_binary LABELS "debugger;gtk" TIMEOUT 180)
+    elseif(CWHIP_GTK_TESTS)
+        message(STATUS "cdbg local session test disabled: GDB was not found")
+    endif()
 endif()
 
 add_test(NAME cwhip_documentation_programs

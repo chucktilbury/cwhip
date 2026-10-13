@@ -569,12 +569,14 @@ start {
 
 `P.AsyncProcess` launches a child without blocking, streams its stdout and
 stderr separately while it runs, reports completion once, and supports
-cancellation. It is intended for tools such as an IDE running a compiler, and
-it does not require or use GTK. The existing `P.Process` API is unchanged.
+cancellation. It is intended for tools such as an IDE running a compiler or a
+debugger, and it does not require or use GTK. The existing `P.Process` API is
+unchanged.
 
 ```text
 AsyncProcess(String executable, list arguments)
 AsyncProcess(String executable, list arguments, String workingDirectory)
+AsyncProcess(String executable, list arguments, String workingDirectory, bool interactive)
 enum { RUNNING = 0, EXITED, SIGNALED, CANCELLED, LAUNCH_FAILED, WAIT_FAILED }
 bool started()
 ProcessEvent next(int timeoutMilliseconds)
@@ -585,6 +587,11 @@ int state()
 int exitCode()
 int signal()
 String error()
+bool interactive()
+bool write(String text)
+bool closeInput()
+int pendingInput()
+String inputError()
 void close()
 
 ProcessEvent
@@ -607,8 +614,8 @@ int pending()
 involved, so spaces, quotes, `$`, `;`, `|`, `*`, and empty strings are passed
 verbatim. A non-null `workingDirectory` becomes the child's current directory;
 a relative executable path containing `/` is then resolved from that
-directory. The child inherits the environment, reads stdin from `/dev/null`,
-starts with an empty signal mask and default dispositions for common job
+directory. The child inherits the environment, reads stdin from `/dev/null`
+(unless started interactively, below), starts with an empty signal mask and default dispositions for common job
 control/termination signals, and runs in its own process group.
 
 **Events.** A native pump thread per child drains both pipes continuously, so a
@@ -688,10 +695,80 @@ while blocking, so other Cwhip threads keep running. The pump thread never
 runs Cwhip code or touches managed memory. In a GTK program, read events on a
 worker thread and deliver UI updates with `Gtk.Application().post` (see
 [GTK.md](GTK.md)); do not block the GTK main loop in `next(-1)` or `wait(-1)`.
+`write`, `closeInput`, `pendingInput`, and `inputError` never block on the
+child or release the runtime lock, so they are safe to call directly from GTK
+callbacks; `next(0)` from a GTK timer is the nonblocking way to read replies.
+
+**Interactive stdin.** The four-argument constructor with `interactive ==
+true` (pass `null` for the inherited working directory) connects the child's
+stdin to a pipe instead of `/dev/null`; with `false` it is identical to the
+three-argument constructor, and the existing constructors never create a
+stdin pipe, so children that expect immediate end of file are unaffected.
+`interactive()` is `true` only for a successfully started interactive child.
+This is meant for line protocols such as GDB/MI on a GTK main thread:
+
+- `write(text)` never blocks on the child. It copies the String's UTF-8 bytes
+  (byte-for-byte, no newline added) into a native queue and returns `true`, or
+  rejects the whole string and returns `false`; there are no partial accepts.
+  The pump thread performs nonblocking writes as the pipe drains, resuming
+  partial writes, so bytes reach the child in call order (also across
+  threads; concurrent `write` calls are each atomic). `""` is accepted while
+  input is open. The queue is bounded to 1 MiB of unwritten bytes; when a
+  write would exceed it, `write` fails with `inputError()` starting with
+  `stdin queue is full`, and the caller should retry later (for example from
+  the next timer tick, after polling `next(0)`). A single string larger than
+  1 MiB always fails (`stdin text exceeds the 1 MiB queue limit`).
+  `pendingInput()` is the number of queued bytes not yet written to the pipe.
+- `closeInput()` requests end of file: already queued bytes are still written,
+  then the pipe is closed. It is idempotent and returns `true` for an
+  interactive child (also after completion or `close()`), `false` with an
+  input error for a non-interactive or unstarted one. Later writes fail.
+- `write` returns `false` and sets `inputError()` (and `System.lastError()`)
+  when the object is not interactive (`process was not started with
+  interactive input`), did not start (`process did not start`), after
+  `closeInput` (`stdin was closed by closeInput`), after `cancel`
+  (`process was cancelled`), after completion (`process has completed`),
+  and after `close()` (leaving `inputError()` unchanged). If the child closes its stdin or exits while
+  bytes are still queued, the remaining bytes are discarded and the failure
+  is sticky: `stdin closed by the child...: Broken pipe` or
+  `process completed before queued stdin was written; input was discarded`.
+  `SIGPIPE` is never raised in Cwhip threads, so a dead child cannot terminate
+  the program. `inputError()` is the most recent stdin failure (`""` if none)
+  and is independent of `error()`, which still describes launch, wait, and
+  output failures; input problems never change `state()`.
+- Completion, `cancel`, and `close()` are unchanged: completion and `close()`
+  close stdin and discard any queued bytes, and `pendingInput()` is `0`
+  afterwards. Each stdin pipe end is close-on-exec, so other children never
+  inherit it and cannot delay its end of file.
+
+```cwhip
+import process as P
+// test: {"stdout": "got:ping\nbye\n0"}
+
+start {
+    P.AsyncProcess child = P.AsyncProcess("/bin/sh",
+        ["-c", "read line; echo \"got:$line\"; read line; echo bye"], null, true)
+    child.write("ping\n")
+    P.OutputDecoder text = P.OutputDecoder()
+    String out = ""
+    while (!out.contains("got:ping\n")) {
+        out.append(text.decode(child.next(-1).data()))
+    }
+    child.closeInput()
+    P.ProcessEvent event = child.next(-1)
+    while (!event.isCompleted()) {
+        out.append(text.decode(event.data()))
+        event = child.next(-1)
+    }
+    out.append(text.finish())
+    print(out)
+    print(child.exitCode())
+    child.close()
+}
+```
 
 Scope: POSIX hosts only (Linux/glibc and macOS spawn primitives); Windows is
-not supported. There is no stdin writing, environment override, or
-pseudo-terminal support.
+not supported. There is no environment override or pseudo-terminal support.
 
 ```cwhip
 import process as P
@@ -872,7 +949,7 @@ supported C surface.
 | `terminal`: Terminal | `cwhip_terminal_stdin_interactive`, `cwhip_terminal_stdout_interactive`, `cwhip_terminal_columns`, `cwhip_terminal_rows`, `cwhip_terminal_supports_color` |
 | `random`: SecureRandom | `cwhip_random_bytes`, `cwhip_random_fill` |
 | `process`: Process | `cwhip_process_spawn`, `wait`, `exit_code`, `stdout`, `stderr`, `close` (all with the `cwhip_process_` prefix) |
-| `process`: AsyncProcess, OutputDecoder | `cwhip_process_async_start`, `next`, `event_kind`, `event_data`, `event_release`, `wait`, `cancel`, `state`, `exit_code`, `signal`, `error`, `shutdown`, `close` (all with the `cwhip_process_async_` prefix), `cwhip_process_text_decode`, `cwhip_process_text_incomplete_tail`. Every non-null event handle from `next` must be passed to `event_release` once; call `close` once per started handle (it implies `shutdown`) |
+| `process`: AsyncProcess, OutputDecoder | `cwhip_process_async_start`, `start_interactive`, `write`, `close_input`, `pending_input`, `input_error`, `next`, `event_kind`, `event_data`, `event_release`, `wait`, `cancel`, `state`, `exit_code`, `signal`, `error`, `shutdown`, `close` (all with the `cwhip_process_async_` prefix), `cwhip_process_text_decode`, `cwhip_process_text_incomplete_tail`. Every non-null event handle from `next` must be passed to `event_release` once; call `close` once per started handle (it implies `shutdown`) |
 | `synchronization`: Mutex, Condition, Semaphore | All `cwhip_mutex_*`, `cwhip_condition_*`, and `cwhip_semaphore_*` declarations; `release` is the C counterpart of wrapper `close` |
 | String conversion for C | `cwhip_string_cstr` accepts a captured String slot; `cwhip_string_bytes` accepts a managed String object and returns borrowed bytes/length |
 
@@ -1014,6 +1091,11 @@ String stdout(handle process)
 String stderr(handle process)
 void close(handle process)
 handle asyncStart(String executable, list arguments, String workingDirectory)
+handle asyncStartInteractive(String executable, list arguments, String workingDirectory)
+bool asyncWrite(handle process, String text)
+bool asyncCloseInput(handle process)
+int asyncPendingInput(handle process)
+String asyncInputError(handle process)
 handle asyncNext(handle process, int timeoutMilliseconds)
 int asyncEventKind(handle event)
 buffer asyncEventData(handle event)
