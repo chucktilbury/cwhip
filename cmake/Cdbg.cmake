@@ -10,6 +10,8 @@ set(cdbg_source "${CMAKE_CURRENT_SOURCE_DIR}/../tools/cdbg")
 set(cdbg_project "${CMAKE_CURRENT_BINARY_DIR}/cdbg-project")
 file(GLOB_RECURSE cdbg_inputs CONFIGURE_DEPENDS "${cdbg_source}/*")
 file(MAKE_DIRECTORY "${cdbg_project}/home" "${cdbg_project}/xdg")
+add_library(cdbg_terminal OBJECT EXCLUDE_FROM_ALL "${cdbg_source}/terminal.c")
+target_include_directories(cdbg_terminal PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../include")
 set(cdbg_environment
     "${CMAKE_COMMAND}" -E env
     --unset=CWHIP_PACKAGE_PATH --unset=CWHIP_MODULE_REGISTRY --unset=CWHIP_MODULE_DIR
@@ -38,7 +40,9 @@ add_custom_command(
     COMMAND ${cdbg_environment} "$<TARGET_FILE:cwhip>"
         "${cdbg_project}/debugger/cdbg.cw"
         -M "${CWHIP_STAGE_MODULE_DIRECTORY}" -o "${CDBG_EXECUTABLE}"
-    DEPENDS cwhip cwhip_runtime cwhip_resources "${CMAKE_CURRENT_LIST_FILE}"
+        $<TARGET_OBJECTS:cdbg_terminal>
+    DEPENDS cwhip cwhip_runtime cwhip_resources cdbg_terminal "${CMAKE_CURRENT_LIST_FILE}"
+        $<TARGET_OBJECTS:cdbg_terminal>
         "$<TARGET_FILE:cwhip_runtime>" "$<TARGET_FILE:cwhip_gtk_native>"
         "${CWHIP_RESOURCE_STAMP}" ${cdbg_inputs}
         "${cdbg_project}/cwhip-pkg.toml" "${cdbg_project}/cwhip-pkg.lock"

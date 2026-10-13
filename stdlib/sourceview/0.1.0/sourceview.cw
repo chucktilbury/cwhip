@@ -37,6 +37,8 @@ namespace GtkSource {
         int _line(int token)
         int _column(int token)
         void _setCursor(int token, int line, int column)
+        void _centerCursor(int token, int line, int column)
+        void _editable(int token, bool editable)
         bool _hasContext(int token, String context, int offset)
         bool _language(int token, String language)
         void _monospace(int token, bool monospace)
@@ -100,6 +102,8 @@ namespace GtkSource {
         int line() { return _line(_widgetToken()) }
         int column() { return _column(_widgetToken()) }
         void setCursor(int line, int column) { _setCursor(_widgetToken(), line, column) }
+        void centerCursor(int line, int column) { _centerCursor(_widgetToken(), line, column) }
+        void setEditable(bool editable) { _editable(_widgetToken(), editable) }
         bool hasContextAt(String context, int offset) {
             return _hasContext(_widgetToken(), context, offset)
         }
@@ -139,6 +143,8 @@ namespace GtkSource {
     int View._line(int token) from "cwhip_gtk_source_view_line"
     int View._column(int token) from "cwhip_gtk_source_view_column"
     void View._setCursor(int token, int line, int column) from "cwhip_gtk_source_view_set_cursor"
+    void View._centerCursor(int token, int line, int column) from "cwhip_gtk_source_view_center_cursor"
+    void View._editable(int token, bool editable) from "cwhip_gtk_source_view_editable"
     bool View._hasContext(int token, String context, int offset)
         from "cwhip_gtk_source_view_has_context"
     bool View._language(int token, String language) from "cwhip_gtk_source_view_language"

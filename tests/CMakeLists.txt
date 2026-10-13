@@ -516,6 +516,12 @@ if(CWHIP_GTK_SOURCEVIEW AND CWHIP_GTK_TESTS)
 endif()
 
 if(CWHIP_GTK_SOURCEVIEW)
+    add_executable(cdbg_terminal_test test_cdbg_terminal.c
+        "${CMAKE_CURRENT_SOURCE_DIR}/../tools/cdbg/terminal.c")
+    target_include_directories(cdbg_terminal_test PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../include")
+    target_compile_options(cdbg_terminal_test PRIVATE -UNDEBUG)
+    add_test(NAME cdbg_terminal COMMAND cdbg_terminal_test)
+    set_tests_properties(cdbg_terminal PROPERTIES LABELS debugger TIMEOUT 10)
     get_target_property(CDBG_EXECUTABLE cdbg CDBG_EXECUTABLE)
     set(cdbg_test_arguments
         --compiler "$<TARGET_FILE:cwhip>"

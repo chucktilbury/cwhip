@@ -67,6 +67,21 @@ start {
 
 DRIVER = r'''
 import time
+class DebugUiFixture {
+    bool alert()
+    bool panes()
+    bool noEmoji()
+    bool centered()
+    void track()
+    int changes()
+}
+bool DebugUiFixture.alert() from "cdbg_fixture_alert"
+bool DebugUiFixture.panes() from "cdbg_fixture_panes"
+bool DebugUiFixture.noEmoji() from "cdbg_fixture_no_emoji"
+bool DebugUiFixture.centered() from "cdbg_fixture_centered"
+void DebugUiFixture.track() from "cdbg_fixture_track"
+int DebugUiFixture.changes() from "cdbg_fixture_changes"
+
 class DebugChecks {
     Cdbg ui
     int stage
@@ -99,9 +114,17 @@ class DebugChecks {
     bool idle() { return ui.active == null && ui.requests.length == 0 }
     void tick() {
         require(Time.Clock().monotonicMilliseconds() < deadline, "session deadline")
-        if (mode.equals("missing") || mode.equals("compile-error") || mode.equals("invalid-target")) {
+        if (mode.equals("missing") || mode.equals("compile-error") || mode.equals("invalid-target") ||
+            mode.equals("missing-file") || mode.equals("binary-source") || mode.equals("invalid-utf8") ||
+            mode.equals("missing-source")) {
             if (!ui.failure.equals("")) {
-                require(!ui.loaded && !ui.running, "failed startup not success-shaped")
+                if (!mode.equals("missing-source")) {
+                    require(!ui.loaded && !ui.running, "failed startup not success-shaped")
+                }
+                if (!mode.equals("missing")) {
+                    if (!DebugUiFixture().alert()) { Gtk.Application().post(_self().tick)
+                        return }
+                }
                 ui.endSession()
                 ui.window.close()
                 print("true")
@@ -109,6 +132,35 @@ class DebugChecks {
             }
         } else {
             require(ui.failure.equals(""), ui.failure)
+            require(DebugUiFixture().panes(), "all text panes read-only without Emoji hint")
+            if (mode.equals("scroll")) {
+                if (stage == 0 && ui.loaded && idle()) {
+                    ui.breakpoint.setText(format("{}:{}", System.Process().getEnv("CDBG_TEST_SOURCE"),
+                        System.Process().getEnv("CDBG_TEST_LINE")))
+                    ui.addBreakpoint()
+                    stage = 1
+                }
+                if (stage == 1 && idle()) { ui.resume()
+                    stage = 2 }
+                if (stage == 2 && ui.stopCount > 0 && !ui.running && idle() &&
+                    DebugUiFixture().centered()) {
+                    require(DebugUiFixture().noEmoji(), "actual context menu omits Insert Emoji")
+                    DebugUiFixture().track()
+                    stops = ui.stopCount
+                    ui.stepOver()
+                    stage = 3
+                }
+                if (stage == 3 && ui.stopCount > stops && !ui.running && idle() &&
+                    DebugUiFixture().centered()) {
+                    require(DebugUiFixture().changes() == 0, "step retains source buffer text")
+                    require(ui.sourceTabs.pageCount() == 1, "steps reuse existing file tab")
+                    ui.window.close()
+                    print("true")
+                    return
+                }
+                Gtk.Application().post(_self().tick)
+                return
+            }
             if (mode.equals("no-source") && ui.loaded && idle()) {
                 require(ui.source.text().startsWith("Source unavailable:"),
                     "missing debug source explicitly reported")
@@ -123,7 +175,8 @@ class DebugChecks {
             if (mode.equals("cancel")) {
                 if (stage == 0 && ui.loaded && idle()) { ui.resume()
                     stage = 1 }
-                if (stage == 1 && ui.running && idle()) { ui.interrupt()
+                if (stage == 1 && ui.running && idle() && ui.programOutput.text().contains("ready")) {
+                    ui.interrupt()
                     stage = 2 }
                 if (stage == 2 && !ui.running && ui.stopCount > 0 && idle()) {
                     require(!ui.inferiorPid.equals(""), "inferior PID received")
@@ -149,6 +202,10 @@ class DebugChecks {
             }
             if (stage == 0 && ui.loaded && idle()) {
                 require(ui.source.text().contains("counter"), "source visible immediately after Load")
+                require(DebugUiFixture().noEmoji(), "source context menu excludes Emoji")
+                if (mode.equals("native")) {
+                    require(ui.sourceTabs.pageCount() == 2, "multiple source files have tabs")
+                }
                 ui.breakpoint.setText(format("{}:{}", System.Process().getEnv("CDBG_TEST_SOURCE"),
                     System.Process().getEnv("CDBG_TEST_LINE")))
                 ui.addBreakpoint()
@@ -197,6 +254,10 @@ class DebugChecks {
                 stage = 4
             }
             if (stage == 4 && ui.stopCount > stops && !ui.running && idle()) {
+                if (mode.equals("native")) {
+                    require(ui.source.text().contains("doubled") && ui.sourceTabs.pageCount() == 2,
+                        "stop switches to helper file without a duplicate tab")
+                }
                 stops = ui.stopCount
                 ui.stepOver()
                 stage = 5
@@ -218,6 +279,26 @@ class DebugChecks {
             }
             if (stage == 8 && !ui.hasRun && !ui.running && idle()) {
                 require(ui.status.text().contains("exited"), "normal inferior exit")
+                if (mode.equals("native")) {
+                    if (!ui.programOutput.text().contains("stderr-only")) {
+                        Gtk.Application().post(_self().tick)
+                        return
+                    }
+                    require(ui.programOutput.text().contains("stdout-only") &&
+                        ui.programOutput.text().contains("^9999^done") &&
+                        ui.programOutput.text().contains("\\0") &&
+                        ui.programOutput.text().length <= 65536 &&
+                        !ui.console.text().contains("stdout-only") &&
+                        !ui.console.text().contains("stderr-only"),
+                        "stdout/stderr and MI-like inferior output isolated from GDB")
+                } else {
+                    if (!ui.programOutput.text().contains("cwhip-output:42")) {
+                        Gtk.Application().post(_self().tick)
+                        return
+                    }
+                    require(!ui.console.text().contains("cwhip-output:42"),
+                        "Cwhip output uses Program Output")
+                }
                 ui.restart()
                 stage = 9
             }
@@ -251,13 +332,19 @@ start {
 '''
 
 C_FIXTURE = """\
-int helper(int value) {
-    int doubled = value * 2;
-    return doubled;
-}
+#include "helper.c"
+#include <stdio.h>
+/* fixture */
+/* fixture */
 int main(void) {
     int counter = 21;
     counter = helper(counter);
+    for (int index = 0; index < 23000; ++index) fputs("\\xe2\\x82\\xac", stdout);
+    puts("stdout-only");
+    fputs("stderr-only\\n", stderr);
+    puts("^9999^done");
+    const unsigned char binary[] = {0, 255, '\\n'};
+    fwrite(binary, 1, sizeof binary, stdout);
     return counter == 42 ? 0 : 1;
 }
 """
@@ -273,14 +360,15 @@ start {
     Counter worker = Counter()
     int counter = 21
     counter = worker.double(counter)
-    print(counter)
+    print(format("cwhip-output:{}", counter))
 }
 """
 
 
 def compile_program(compiler: Path, source: Path, output: Path, work: Path,
-                    env: dict[str, str]) -> None:
-    result = invoke([str(compiler), str(source), "-o", str(output)], work, env)
+                    env: dict[str, str], objects: list[Path] | None = None) -> None:
+    result = invoke([str(compiler), str(source), "-o", str(output)] +
+                    [str(obj) for obj in objects or []], work, env)
     assert result.returncode == 0, result.stderr
 
 
@@ -351,6 +439,7 @@ def main() -> None:
         work = Path(directory)
         env = environment(work)
         shutil.copy(args.source.parent / "mi.cw", work / "mi.cw")
+        shutil.copy(args.source.parent / "terminal.cw", work / "terminal.cw")
         source = work / "checks.cw"
         binary = work / "checks"
         if args.group == "parser":
@@ -361,23 +450,50 @@ def main() -> None:
             assert not result.stderr, result.stderr
             return
         source.write_text(args.source.read_text().split("\nstart {")[0] + DRIVER)
-        compile_program(args.compiler, source, binary, work, env)
+        root = args.source.resolve().parents[2]
+        fixture = work / "ui.o"
+        terminal = work / "terminal.o"
+        gtk_flags = subprocess.check_output(
+            ["pkg-config", "--cflags", "gtk4", "gtksourceview-5"], text=True).split()
+        subprocess.run([args.clang, "-c", str(root / "tests/cdbg_ui_fixture.c"),
+                        "-I", str(root / "include"), *gtk_flags, "-o", str(fixture)], check=True)
+        subprocess.run([args.clang, "-c", str(args.source.parent / "terminal.c"),
+                        "-I", str(root / "include"), "-o", str(terminal)], check=True)
+        compile_program(args.compiler, source, binary, work, env, [fixture, terminal])
+        (work / "helper.c").write_text(
+            "int helper(int value) {\n    int doubled = value * 2;\n    return doubled;\n}\n")
         c_source = work / 'target with "quotes".c'
         c_source.write_text(C_FIXTURE)
         c_binary = work / "native target"
         subprocess.run([args.clang, "-g", "-O0", str(c_source), "-o", str(c_binary)], check=True)
         stripped_binary = work / "no debug info"
         subprocess.run([args.clang, str(c_source), "-o", str(stripped_binary)], check=True)
+        vanished_source = work / "vanished.c"
+        vanished_source.write_text("int main(void) { return 0; }\n")
+        vanished_binary = work / "vanished"
+        subprocess.run([args.clang, "-g", str(vanished_source), "-o", str(vanished_binary)], check=True)
+        vanished_source.unlink()
         loop_source = work / "loop.c"
-        loop_source.write_text("int main(void) { volatile int counter = 0; while (1) { counter++; } }\n")
+        loop_source.write_text('#include <stdio.h>\nint main(void) { volatile unsigned counter = 0; '
+                               'puts("ready"); fflush(stdout); while (1) { counter++; } }\n')
         loop_binary = work / "loop"
         subprocess.run([args.clang, "-g", "-O0", str(loop_source), "-o", str(loop_binary)], check=True)
         cw_source = work / "target with spaces.cw"
         cw_source.write_text(CW_FIXTURE)
         bad_source = work / "bad.cw"
         bad_source.write_text("start { missing_symbol() }\n")
+        binary_source = work / "binary.cw"
+        binary_source.write_bytes(b"\x00not source")
+        invalid_utf8 = work / "invalid-utf8.cw"
+        invalid_utf8.write_bytes(b"\xffnot source")
         invalid_target = work / "invalid-target"
         invalid_target.write_text("This is not an executable\n")
+        scroll_source = work / "scroll.c"
+        scroll_source.write_text("\n" * 120 +
+            "int main(void) {\n volatile int counter = 21;\n counter++;\n counter++;\n return 0;\n}\n" +
+            "\n" * 150)
+        scroll_binary = work / "scroll"
+        subprocess.run([args.clang, "-g", "-O0", str(scroll_source), "-o", str(scroll_binary)], check=True)
         for mode, target, debug_source, line in (
             ("native", c_binary, c_source, "7"),
             ("cwhip", cw_source, cw_source, "10"),
@@ -386,6 +502,11 @@ def main() -> None:
             ("missing", c_binary, c_source, "7"),
             ("compile-error", bad_source, bad_source, "1"),
             ("invalid-target", invalid_target, invalid_target, "1"),
+            ("missing-file", work / "missing.cw", work / "missing.cw", "1"),
+            ("binary-source", binary_source, binary_source, "1"),
+            ("invalid-utf8", invalid_utf8, invalid_utf8, "1"),
+            ("missing-source", vanished_binary, vanished_source, "1"),
+            ("scroll", scroll_binary, scroll_source, "123"),
             ("cancel", loop_binary, loop_source, "1"),
         ):
             with headless(args.xvfb, work, env) as gtk_env:
@@ -405,7 +526,7 @@ def main() -> None:
                         assert not Path(f"/proc/{pid}").exists(), f"orphan inferior {pid}"
                 assert result.returncode == 0 and expected_output, (
                     mode, result.returncode, result.stdout, result.stderr)
-                if mode in ("native", "cwhip", "relative-cwhip", "no-source", "cancel"):
+                if mode in ("native", "cwhip", "relative-cwhip", "no-source", "cancel", "scroll"):
                     assert not result.stderr, result.stderr
                 else:
                     assert "cdbg:" in result.stderr, result.stderr

@@ -2097,9 +2097,7 @@ int64_t cwhip_gtk_source_view_line(void *self, int64_t token) {
     return gtk_text_iter_get_line(&cursor) + 1;
 }
 
-/* Moves the insertion point to a 1-based line/column, clamped to the buffer. */
-void cwhip_gtk_source_view_set_cursor(void *self, int64_t token, int64_t line, int64_t column) {
-    (void)self;
+static void source_cursor(int64_t token, int64_t line, int64_t column, bool center) {
     GtkTextBuffer *buffer = GTK_TEXT_BUFFER(source_buffer(token));
     GtkTextIter cursor;
     int lines = gtk_text_buffer_get_line_count(buffer);
@@ -2112,8 +2110,29 @@ void cwhip_gtk_source_view_set_cursor(void *self, int64_t token, int64_t line, i
     if (column - 1 > length) column = length + 1;
     gtk_text_iter_set_line_offset(&cursor, (int)column - 1);
     gtk_text_buffer_place_cursor(buffer, &cursor);
-    gtk_text_view_scroll_mark_onscreen(GTK_TEXT_VIEW(widget_live(token)),
-                                       gtk_text_buffer_get_insert(buffer));
+    GtkTextView *view = GTK_TEXT_VIEW(widget_live(token));
+    if (center)
+        gtk_text_view_scroll_to_mark(view, gtk_text_buffer_get_insert(buffer),
+                                    0.0, TRUE, 0.0, 0.5);
+    else
+        gtk_text_view_scroll_mark_onscreen(view, gtk_text_buffer_get_insert(buffer));
+}
+
+/* Moves the insertion point to a 1-based line/column, clamped to the buffer. */
+void cwhip_gtk_source_view_set_cursor(void *self, int64_t token, int64_t line, int64_t column) {
+    (void)self;
+    source_cursor(token, line, column, false);
+}
+
+void cwhip_gtk_source_view_center_cursor(void *self, int64_t token, int64_t line, int64_t column) {
+    (void)self;
+    source_cursor(token, line, column, true);
+}
+
+void cwhip_gtk_source_view_editable(void *self, int64_t token, bool editable) {
+    (void)self;
+    source_buffer(token);
+    gtk_text_view_set_editable(GTK_TEXT_VIEW(widget_live(token)), editable);
 }
 
 int64_t cwhip_gtk_source_view_column(void *self, int64_t token) {

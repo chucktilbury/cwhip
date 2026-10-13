@@ -329,12 +329,18 @@ void selectAll()
 void focus()
 void setEmojiMenu(bool enabled)
 void setCursor(int line, int column)
+void centerCursor(int line, int column)
+void setEditable(bool editable)
 ```
 
 `setCursor` places the insertion cursor at a 1-based line and character column
 and scrolls it into view. Values are clamped to the buffer: lines below 1 or past
 the end select the first/last line, and columns past the end of the line select
 the line end. It matches the 1-based `line()`/`column()` getters.
+`centerCursor` uses the same clamping but vertically centers the insertion mark
+in the viewport (subject to the beginning/end of the buffer), without a
+preceding scroll-to-edge. `setEditable(false)` prevents user edits while
+retaining selection/copy and programmatic buffer updates.
 
 Undo/redo state and selection query the actual text buffer. Clipboard operations
 use GTK's display clipboard; paste is asynchronous and obeys text-view editability.
