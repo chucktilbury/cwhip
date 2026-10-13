@@ -67,6 +67,7 @@ set_target_properties(cwhip_gc_runtime_tests PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${CWHIP_RUNTIME_OUTPUT_DIRECTORY}"
 )
 add_test(NAME cwhip_gc_runtime_lifecycle COMMAND cwhip_gc_runtime_tests)
+add_test(NAME cwhip_gc_runtime_stress COMMAND cwhip_gc_runtime_tests)
 add_test(NAME cwhip_callbacks
     COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/test_callbacks.py"
         --compiler "$<TARGET_FILE:cwhip>" --clang "${CWHIP_CLANG_EXECUTABLE}"
@@ -565,3 +566,4 @@ if(CWHIP_SANITIZE AND NOT CWHIP_SANITIZE STREQUAL "OFF")
     set_tests_properties(cwhip_unit_and_functional cwhip_command_line_parser PROPERTIES
         ENVIRONMENT "${frontend_test_environment}")
 endif()
+set_property(TEST cwhip_gc_runtime_stress APPEND PROPERTY ENVIRONMENT "CWHIP_GC_STRESS=1")

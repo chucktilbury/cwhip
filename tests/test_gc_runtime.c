@@ -46,6 +46,96 @@ static int fail(const char *message) {
     return 1;
 }
 
+static int test_allocation_policy_and_index(void) {
+    const char *stress = getenv("CWHIP_GC_STRESS");
+    const int stress_enabled = stress != NULL && strcmp(stress, "1") == 0;
+    cwhip_gc_alloc(&node_metadata);
+    cwhip_gc_alloc(&node_metadata);
+    if (cwhip_gc_heap_count() != (stress_enabled ? 1 : 2))
+        return fail("allocation collection policy did not match stress mode");
+    for (int index = 0; index < 2048; ++index) {
+        switch (index % 4) {
+        case 0: cwhip_gc_alloc(&node_metadata); break;
+        case 1: cwhip_gc_alloc_array(2); break;
+        case 2: cwhip_gc_alloc_map(); break;
+        case 3: cwhip_buffer_new(2, "runtime-test.cw", 17, 1, 1); break;
+        }
+        if (cwhip_gc_heap_count() > 256)
+            return fail("unreachable allocation churn did not trigger collection");
+    }
+    cwhip_gc_collect();
+    if (cwhip_gc_heap_count() != 0)
+        return fail("allocation churn left unreachable objects after collection");
+
+    TestNode *head = NULL;
+    void *interior = NULL;
+    void *chain_slots[] = {&head, &interior};
+    CwhipRootFrame chain_frame = {0};
+    cwhip_gc_push_or_abort(&chain_frame, chain_slots, 2);
+    for (int index = 0; index < 2048; ++index) {
+        TestNode *node = cwhip_gc_alloc(&node_metadata);
+        node->next = head;
+        node->value = index;
+        head = node;
+    }
+    interior = &head->value;
+    head = NULL;
+    cwhip_gc_collect();
+    head = cwhip_gc_root(interior);
+    if (cwhip_gc_heap_count() != 2048 || head->value != 2047)
+        return fail("interior root did not preserve its complete object graph");
+    for (int index = 0; index < 512; ++index) cwhip_gc_alloc(&node_metadata);
+    if (cwhip_gc_heap_count() != (stress_enabled ? 2049 : 2560))
+        return fail("allocation budget did not grow with the live object count");
+    cwhip_gc_collect();
+    if (cwhip_gc_heap_count() != 2048)
+        return fail("adaptive budget retained unreachable objects after collection");
+    for (int index = 2047; index >= 0; --index) {
+        if (head == NULL || head->value != index)
+            return fail("adaptive collections lost part of a live graph");
+        cwhip_gc_require_alive(&head->value, "runtime-test.cw", 17, 1, 1);
+        head = head->next;
+    }
+    interior = NULL;
+    cwhip_gc_collect();
+    cwhip_gc_pop_or_abort(&chain_frame);
+    if (cwhip_gc_heap_count() != 0)
+        return fail("live graph was not reclaimed after dropping its roots");
+
+    TestNode *roots[1024] = {0};
+    void *slots[1024];
+    for (size_t index = 0; index < 1024; ++index) slots[index] = &roots[index];
+    CwhipRootFrame frame = {0};
+    cwhip_gc_push_or_abort(&frame, slots, 1024);
+    for (int round = 0; round < 3; ++round) {
+        for (size_t index = 0; index < 1024; ++index) {
+            if (roots[index] == NULL) roots[index] = cwhip_gc_alloc(&node_metadata);
+            roots[index]->value = (int)index;
+        }
+        for (size_t index = 0; index < 1024; ++index) {
+            if (index % 3 != (size_t)round) roots[index] = NULL;
+        }
+        cwhip_gc_collect();
+        size_t survivors = 0;
+        for (size_t index = 0; index < 1024; ++index) {
+            if (roots[index] == NULL) continue;
+            ++survivors;
+            if (cwhip_gc_root(&roots[index]->value) != roots[index] ||
+                roots[index]->value != (int)index)
+                return fail("address index lost a survivor during partial sweeping");
+            cwhip_gc_begin_construction(roots[index]);
+            cwhip_gc_end_construction(roots[index]);
+        }
+        if (cwhip_gc_heap_count() != survivors)
+            return fail("partial sweeping reported an incorrect object count");
+    }
+    cwhip_gc_pop_or_abort(&frame);
+    cwhip_gc_collect();
+    if (cwhip_gc_heap_count() != 0)
+        return fail("address index retained objects after all roots were popped");
+    return 0;
+}
+
 int main(void) {
     cwhip_runtime_thread_enter();
     CwhipRootFrame outer = {0};
@@ -295,6 +385,7 @@ int main(void) {
     if (cwhip_gc_heap_count() != 0 || !cwhip_gc_pop(&array_frame)) {
         return fail("array roots were not released cleanly");
     }
+    if (test_allocation_policy_and_index()) return 1;
     cwhip_runtime_thread_exit();
     puts("PASS precise roots, reclamation, finalization, destruction, and frame lifecycle");
     return 0;

@@ -153,6 +153,7 @@ start {
     Maker maker = Maker()
     maker.release()
     print("before collection")
+    inline { cwhip_gc_collect(); }
     Payload collector = Payload(12)
     print("after collection")
 }

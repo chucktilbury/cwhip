@@ -408,15 +408,24 @@ stack root frames around each function; descriptors identify only object
 reference slots, including object locals, parameters, `this`, and
 object-valued temporaries. Class metadata includes generated offsets for
 reference fields, which the collector follows. Cwhip execution is serialized
-by the runtime's global lock; collection occurs before each object allocation
-and never scans arbitrary stack words.
+by the runtime's global lock; collection is triggered by an adaptive allocation
+budget and never scans arbitrary stack words. The budget permits at least 256
+allocations between collections and grows with the live object count after
+the previous collection. Objects, lists, dicts, and buffers share this budget.
+An address-ordered balanced tree indexes heap objects, including interior
+pointers to inherited subobjects, without moving their allocations.
+Set `CWHIP_GC_STRESS=1` before launching a program to collect before every
+managed allocation instead; the runtime reads this setting on its first
+allocation. Native runtime tests can also force collection with
+`cwhip_gc_collect()`.
 Frames stay active across all control-flow paths and are popped on every
 generated return.
 
 This is a safety-oriented prototype, not a production-validated memory
 manager. Root descriptors include all object-typed slots for a function's
 whole lifetime, so stale values can delay reclamation until return. There is only the limited finalizer support described below, no weak
-references, concurrent/incremental collection, or configurable thresholds.
+references, concurrent/incremental collection, or user-configurable thresholds
+beyond the stress mode above.
 Cwhip threads share the runtime lock rather than executing Cwhip code in
 parallel. Runtime tests cover root-frame lifecycle errors,
 reachable-object survival through reference fields, and unreachable-object

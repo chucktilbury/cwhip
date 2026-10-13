@@ -14,5 +14,6 @@ class Maker {
 start {
     Maker maker = Maker()
     maker.make()
+    inline { cwhip_gc_collect(); }
     Resource trigger = Resource()
 }
