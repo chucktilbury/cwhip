@@ -97,6 +97,7 @@ start {
 
   Maker maker = Maker()
   maker.makeUnreachable()
+  inline { cwhip_gc_collect(); }
   Multiple explicit = Multiple(4)
   explicit.destroy()
   Multiple trigger = Multiple(20)

@@ -151,6 +151,9 @@ double cwhip_string_to_float(const char *data, uint64_t length, const char *file
 
 typedef struct HeapNode {
     struct HeapNode *next;
+    struct HeapNode *left;
+    struct HeapNode *right;
+    int height;
     struct HeapNode *destroy_previous;
     struct HeapNode *construct_previous;
     void *object;
@@ -223,6 +226,10 @@ _Static_assert(alignof(CwhipExceptionFrame) <= 16,
                "generated exception frames require at most 16-byte alignment");
 
 static HeapNode *heap = NULL;
+static HeapNode *heap_index = NULL;
+static size_t allocations_since_collection = 0;
+static size_t allocation_threshold = 256;
+static int gc_stress = -1;
 /* Coarse-grained "GIL"-style threading (see the thread-registration block
  * below): only one Cwhip thread ever executes managed code at a time, so
  * the shared `heap`/`object_count` need no separate lock beyond that
@@ -1044,23 +1051,125 @@ static int valid_reference_offset(const CwhipClassMeta *metadata, uint64_t offse
            offset % alignof(void *) == 0;
 }
 
-static HeapNode *find_object(const void *object) {
-    for (HeapNode *node = heap; node != NULL; node = node->next) {
-        if (node->object == object) {
-            return node;
-        }
+static int index_height(const HeapNode *node) {
+    return node == NULL ? 0 : node->height;
+}
+
+static void update_index_height(HeapNode *node) {
+    const int left = index_height(node->left);
+    const int right = index_height(node->right);
+    node->height = 1 + (left > right ? left : right);
+}
+
+static HeapNode *rotate_index_left(HeapNode *node) {
+    HeapNode *right = node->right;
+    node->right = right->left;
+    right->left = node;
+    update_index_height(node);
+    update_index_height(right);
+    return right;
+}
+
+static HeapNode *rotate_index_right(HeapNode *node) {
+    HeapNode *left = node->left;
+    node->left = left->right;
+    left->right = node;
+    update_index_height(node);
+    update_index_height(left);
+    return left;
+}
+
+static HeapNode *balance_index(HeapNode *node) {
+    update_index_height(node);
+    if (index_height(node->left) - index_height(node->right) > 1) {
+        if (index_height(node->left->right) > index_height(node->left->left))
+            node->left = rotate_index_left(node->left);
+        return rotate_index_right(node);
     }
-    return NULL;
+    if (index_height(node->right) - index_height(node->left) > 1) {
+        if (index_height(node->right->left) > index_height(node->right->right))
+            node->right = rotate_index_right(node->right);
+        return rotate_index_left(node);
+    }
+    return node;
+}
+
+static HeapNode *insert_index(HeapNode *tree, HeapNode *node) {
+    if (tree == NULL) return node;
+    if ((uintptr_t)node->object < (uintptr_t)tree->object)
+        tree->left = insert_index(tree->left, node);
+    else
+        tree->right = insert_index(tree->right, node);
+    return balance_index(tree);
+}
+
+static HeapNode *detach_index_minimum(HeapNode *tree, HeapNode **minimum) {
+    if (tree->left == NULL) {
+        *minimum = tree;
+        return tree->right;
+    }
+    tree->left = detach_index_minimum(tree->left, minimum);
+    return balance_index(tree);
+}
+
+static HeapNode *remove_index(HeapNode *tree, const HeapNode *node) {
+    if (tree == NULL) abort();
+    if ((uintptr_t)node->object < (uintptr_t)tree->object) {
+        tree->left = remove_index(tree->left, node);
+    } else if ((uintptr_t)node->object > (uintptr_t)tree->object) {
+        tree->right = remove_index(tree->right, node);
+    } else {
+        if (tree != node) abort();
+        if (tree->left == NULL) return tree->right;
+        if (tree->right == NULL) return tree->left;
+        HeapNode *successor = NULL;
+        HeapNode *right = detach_index_minimum(tree->right, &successor);
+        successor->left = tree->left;
+        successor->right = right;
+        tree = successor;
+    }
+    return balance_index(tree);
 }
 
 static HeapNode *find_containing_object(const void *object) {
     const uintptr_t address = (uintptr_t)object;
-    for (HeapNode *node = heap; node != NULL; node = node->next) {
+    HeapNode *node = heap_index;
+    while (node != NULL) {
         const uintptr_t start = (uintptr_t)node->object;
-        if (address < start) continue;
+        if (address < start) {
+            node = node->left;
+            continue;
+        }
         if (address - start < node->allocation_size) return node;
+        node = node->right;
     }
     return NULL;
+}
+
+static HeapNode *find_object(const void *object) {
+    HeapNode *node = find_containing_object(object);
+    return node != NULL && node->object == object ? node : NULL;
+}
+
+static void collect_before_allocation(void) {
+    if (gc_stress < 0) {
+        const char *value = getenv("CWHIP_GC_STRESS");
+        gc_stress = value != NULL && strcmp(value, "1") == 0;
+    }
+    if (gc_stress || allocations_since_collection >= allocation_threshold)
+        cwhip_gc_collect();
+}
+
+static void register_allocation(HeapNode *node) {
+    if (object_count == SIZE_MAX || allocations_since_collection == SIZE_MAX) abort();
+    node->left = NULL;
+    node->right = NULL;
+    node->height = 1;
+    heap_index = insert_index(heap_index, node);
+    node->next = heap;
+    heap = node;
+    ++object_count;
+    ++allocations_since_collection;
 }
 
 static void mark_object(void *object, HeapNode **worklist, size_t *work_count) {
@@ -1437,6 +1546,7 @@ void cwhip_gc_collect(void) {
         HeapNode *node = *link;
         if (!node->marked) {
             *link = node->next;
+            heap_index = remove_index(heap_index, node);
             if (node->is_array) {
                 free(((CwhipArray *)node->object)->values);
             }
@@ -1456,6 +1566,8 @@ void cwhip_gc_collect(void) {
             link = &node->next;
         }
     }
+    allocations_since_collection = 0;
+    allocation_threshold = object_count > 256 ? object_count : 256;
     collecting = 0;
 }
 
@@ -1482,7 +1594,7 @@ void *cwhip_gc_alloc(const CwhipClassMeta *metadata) {
             abort();
         }
     }
-    cwhip_gc_collect();
+    collect_before_allocation();
     void *object = calloc(1, (size_t)metadata->object_size);
     HeapNode *node = (HeapNode *)malloc(sizeof(*node));
     if (object == NULL || node == NULL) {
@@ -1502,9 +1614,7 @@ void *cwhip_gc_alloc(const CwhipClassMeta *metadata) {
     node->destroy_previous = NULL;
     node->constructing = 0;
     node->construct_previous = NULL;
-    node->next = heap;
-    heap = node;
-    ++object_count;
+    register_allocation(node);
     return object;
 }
 
@@ -1514,7 +1624,7 @@ void *cwhip_gc_alloc_array(int64_t requested_length) {
         abort();
     }
     const uint64_t length = (uint64_t)requested_length;
-    cwhip_gc_collect();
+    collect_before_allocation();
     CwhipArray *array = (CwhipArray *)calloc(1, sizeof(*array));
     HeapNode *node = (HeapNode *)malloc(sizeof(*node));
     CwhipArrayValue *values = length == 0 ? NULL :
@@ -1541,15 +1651,13 @@ void *cwhip_gc_alloc_array(int64_t requested_length) {
     node->destroy_previous = NULL;
     node->constructing = 0;
     node->construct_previous = NULL;
-    node->next = heap;
-    heap = node;
-    ++object_count;
+    register_allocation(node);
     return array;
 }
 
 void *cwhip_gc_alloc_map(void) {
     if (collecting || running_destructor) abort();
-    cwhip_gc_collect();
+    collect_before_allocation();
     CwhipMap *map = (CwhipMap *)calloc(1, sizeof(*map));
     HeapNode *node = (HeapNode *)malloc(sizeof(*node));
     if (map == NULL || node == NULL) {
@@ -1569,9 +1677,7 @@ void *cwhip_gc_alloc_map(void) {
     node->destroy_previous = NULL;
     node->constructing = 0;
     node->construct_previous = NULL;
-    node->next = heap;
-    heap = node;
-    ++object_count;
+    register_allocation(node);
     return map;
 }
 

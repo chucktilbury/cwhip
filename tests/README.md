@@ -10,6 +10,14 @@ cmake --build build
 ctest --test-dir build --output-on-failure
 ```
 
+`cwhip_gc_runtime_lifecycle` covers precise roots, interior pointers, adaptive
+collection, finalizers, and heap-index updates. `cwhip_gc_runtime_stress` runs
+the same checks with collection before every allocation. To stress generated
+programs too, run `CWHIP_GC_STRESS=1 ctest --test-dir build --output-on-failure -R
+'gc|finalizer|inherited_destructors|transitive_virtual_bases'`. Fixtures that
+assert finalizer output order force collection explicitly instead of depending
+on the allocation budget.
+
 ## Adding an integration test
 
 Integration tests are discovered from individual

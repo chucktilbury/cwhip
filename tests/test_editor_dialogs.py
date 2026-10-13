@@ -19,6 +19,7 @@ class Fixture {
     bool shortcut(String trigger)
     int height()
     void resize()
+    void tick()
     bool entryFocus(String text)
     void chooseMany(String folder, int count)
     bool alert(String fragments)
@@ -37,6 +38,7 @@ void Fixture.edit(String text) from "fixture_editor_edit"
 bool Fixture.shortcut(String trigger) from "fixture_editor_shortcut"
 int Fixture.height() from "fixture_editor_height"
 void Fixture.resize() from "fixture_editor_resize"
+void Fixture.tick() from "fixture_preferences_tick"
 bool Fixture.entryFocus(String text) from "fixture_editor_entry_focus"
 void Fixture.chooseMany(String folder, int count) from "fixture_editor_choose_many"
 bool Fixture.alert(String fragments) from "fixture_editor_alert"
@@ -54,6 +56,7 @@ class EditorChecks {
     int stage
     int checks
     int originalHeight
+    int resizeAttempts
     int documentsBeforeMany
     EditorDocument saved
     EditorDocument search
@@ -242,12 +245,20 @@ class EditorChecks {
             originalHeight = Fixture().height()
             require(originalHeight > 350, "multiline viewport allocation")
             Fixture().resize()
-            // Chooser cancellation yields control for GTK to allocate the resized window.
             Fixture().choose("", 0, 0)
             editor.menu.activateItem(editor.openItem)
         }
         if (stage == 13) {
-            require(Fixture().height() > originalHeight + 100, "viewport grows after resize")
+            // Pending GTK configure events can overwrite an earlier resize request.
+            if (Fixture().height() <= originalHeight + 100 && resizeAttempts < 100) {
+                resizeAttempts = resizeAttempts + 1
+                Fixture().tick()
+                Fixture().resize()
+                Gtk.Application().post(nextAction)
+                return
+            }
+            require(Fixture().height() > originalHeight + 100,
+                format("viewport grows after resize ({} -> {})", originalHeight, Fixture().height()))
             require(editor.currentDocument().view.language().equals("cwhip"), "Cwhip source highlighted")
             editor.newDocument()
             require(editor.currentDocument().view.language().equals("") && !editor.currentDocument().view.hasContextAt("keyword", 0), "untitled is plain text")

@@ -675,7 +675,9 @@ int64_t fixture_editor_height(void *self) {
 void fixture_editor_resize(void *self) {
     (void)self;
     cwhip_gtk_require_owner();
-    gtk_window_set_default_size(editor_window(), 1000, 750);
+    GtkWindow *window = editor_window();
+    gtk_window_set_default_size(window, gtk_widget_get_width(GTK_WIDGET(window)),
+                               gtk_widget_get_height(GTK_WIDGET(window)) + 200);
 }
 
 bool fixture_editor_entry_focus(void *self, void *text) {

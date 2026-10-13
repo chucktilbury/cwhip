@@ -918,6 +918,11 @@ definition is used as a finalizer when the collector reclaims an instance;
 collection timing is not deterministic, so finalizers should not be used as a
 substitute for explicit resource management. Finalizers must not let
 exceptions escape.
+The current runtime collects according to an adaptive allocation budget.
+For root/finalizer stress testing, launch the program with `CWHIP_GC_STRESS=1`
+to collect before every managed allocation. This diagnostic setting does not
+change reachability or destruction rules; programs must not depend on collection
+frequency.
 Explicit `object.destroy()` runs the method but does not immediately reclaim
 the object's storage. It marks the object destroyed before running the
 destructor chain; a repeated call or later use raises a catchable runtime

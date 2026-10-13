@@ -24,6 +24,7 @@ start {
     Maker maker = Maker()
     maker.makeExplicit()
     maker.makeImplicit()
+    inline { cwhip_gc_collect(); }
     Resource trigger = Resource(3)
     print(trigger.code)
 }
