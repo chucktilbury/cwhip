@@ -151,9 +151,6 @@ double cwhip_string_to_float(const char *data, uint64_t length, const char *file
 
 typedef struct HeapNode {
     struct HeapNode *next;
-    struct HeapNode *left;
-    struct HeapNode *right;
-    int height;
     struct HeapNode *destroy_previous;
     struct HeapNode *construct_previous;
     void *object;
@@ -165,6 +162,7 @@ typedef struct HeapNode {
     int destroyed;
     int destroying;
     int constructing;
+    _Alignas(max_align_t) unsigned char payload[];
 } HeapNode;
 
 typedef struct CwhipTraceFrame {
@@ -226,7 +224,14 @@ _Static_assert(alignof(CwhipExceptionFrame) <= 16,
                "generated exception frames require at most 16-byte alignment");
 
 static HeapNode *heap = NULL;
-static HeapNode *heap_index = NULL;
+static void **heap_table = NULL;
+static size_t heap_capacity = 0;
+static HeapNode **interior_index = NULL;
+static size_t interior_count = 0;
+static int interior_dirty = 1;
+static const CwhipClassMeta **validated_metadata = NULL;
+static size_t metadata_capacity = 0;
+static size_t metadata_count = 0;
 static size_t allocations_since_collection = 0;
 static size_t allocation_threshold = 256;
 static int gc_stress = -1;
@@ -1051,121 +1056,106 @@ static int valid_reference_offset(const CwhipClassMeta *metadata, uint64_t offse
            offset % alignof(void *) == 0;
 }
 
-static int index_height(const HeapNode *node) {
-    return node == NULL ? 0 : node->height;
+static HeapNode **allocate_worklist(void);
+
+static size_t pointer_hash(const void *pointer) {
+    uintptr_t value = (uintptr_t)pointer;
+    value >>= 4;
+    value ^= value >> 16;
+    value *= (uintptr_t)0x9e3779b1U;
+    value ^= value >> 16;
+    return (size_t)value;
 }
 
-static void update_index_height(HeapNode *node) {
-    const int left = index_height(node->left);
-    const int right = index_height(node->right);
-    node->height = 1 + (left > right ? left : right);
+static void insert_heap_address(void *object) {
+    size_t slot = pointer_hash(object) & (heap_capacity - 1);
+    while (heap_table[slot] != NULL) slot = (slot + 1) & (heap_capacity - 1);
+    heap_table[slot] = object;
 }
 
-static HeapNode *rotate_index_left(HeapNode *node) {
-    HeapNode *right = node->right;
-    node->right = right->left;
-    right->left = node;
-    update_index_height(node);
-    update_index_height(right);
-    return right;
-}
-
-static HeapNode *rotate_index_right(HeapNode *node) {
-    HeapNode *left = node->left;
-    node->left = left->right;
-    left->right = node;
-    update_index_height(node);
-    update_index_height(left);
-    return left;
-}
-
-static HeapNode *balance_index(HeapNode *node) {
-    update_index_height(node);
-    if (index_height(node->left) - index_height(node->right) > 1) {
-        if (index_height(node->left->right) > index_height(node->left->left))
-            node->left = rotate_index_left(node->left);
-        return rotate_index_right(node);
-    }
-    if (index_height(node->right) - index_height(node->left) > 1) {
-        if (index_height(node->right->left) > index_height(node->right->right))
-            node->right = rotate_index_right(node->right);
-        return rotate_index_left(node);
-    }
-    return node;
-}
-
-static HeapNode *insert_index(HeapNode *tree, HeapNode *node) {
-    if (tree == NULL) return node;
-    if ((uintptr_t)node->object < (uintptr_t)tree->object)
-        tree->left = insert_index(tree->left, node);
-    else
-        tree->right = insert_index(tree->right, node);
-    return balance_index(tree);
-}
-
-static HeapNode *detach_index_minimum(HeapNode *tree, HeapNode **minimum) {
-    if (tree->left == NULL) {
-        *minimum = tree;
-        return tree->right;
-    }
-    tree->left = detach_index_minimum(tree->left, minimum);
-    return balance_index(tree);
-}
-
-static HeapNode *remove_index(HeapNode *tree, const HeapNode *node) {
-    if (tree == NULL) abort();
-    if ((uintptr_t)node->object < (uintptr_t)tree->object) {
-        tree->left = remove_index(tree->left, node);
-    } else if ((uintptr_t)node->object > (uintptr_t)tree->object) {
-        tree->right = remove_index(tree->right, node);
+static void rebuild_heap_table(size_t capacity) {
+    if (capacity != heap_capacity) {
+        if (capacity > SIZE_MAX / sizeof(*heap_table)) abort();
+        void **table = calloc(capacity, sizeof(*table));
+        if (table == NULL) abort();
+        free(heap_table);
+        heap_table = table;
+        heap_capacity = capacity;
     } else {
-        if (tree != node) abort();
-        if (tree->left == NULL) return tree->right;
-        if (tree->right == NULL) return tree->left;
-        HeapNode *successor = NULL;
-        HeapNode *right = detach_index_minimum(tree->right, &successor);
-        successor->left = tree->left;
-        successor->right = right;
-        tree = successor;
+        memset(heap_table, 0, capacity * sizeof(*heap_table));
     }
-    return balance_index(tree);
+    for (HeapNode *node = heap; node != NULL; node = node->next)
+        insert_heap_address(node->object);
 }
 
-static HeapNode *find_containing_object(const void *object) {
-    const uintptr_t address = (uintptr_t)object;
-    HeapNode *node = heap_index;
-    while (node != NULL) {
-        const uintptr_t start = (uintptr_t)node->object;
-        if (address < start) {
-            node = node->left;
-            continue;
-        }
-        if (address - start < node->allocation_size) return node;
-        node = node->right;
+static HeapNode *find_object(const void *object) {
+    if (object == NULL || heap_capacity == 0) return NULL;
+    size_t slot = pointer_hash(object) & (heap_capacity - 1);
+    while (heap_table[slot] != NULL) {
+        if (heap_table[slot] == object)
+            return (HeapNode *)((unsigned char *)heap_table[slot] -
+                               offsetof(HeapNode, payload));
+        slot = (slot + 1) & (heap_capacity - 1);
     }
     return NULL;
 }
 
-static HeapNode *find_object(const void *object) {
-    HeapNode *node = find_containing_object(object);
-    return node != NULL && node->object == object ? node : NULL;
+static int compare_object_addresses(const void *left, const void *right) {
+    const uintptr_t a = (uintptr_t)(*(HeapNode *const *)left)->object;
+    const uintptr_t b = (uintptr_t)(*(HeapNode *const *)right)->object;
+    return (a > b) - (a < b);
 }
 
-static void collect_before_allocation(void) {
+static HeapNode *find_containing_object(const void *object) {
+    if (object == NULL) return NULL;
+    HeapNode *exact = find_object(object);
+    if (exact != NULL) return exact;
+    /* Only native interior roots and base-class views need an ordered index. */
+    if (interior_dirty) {
+        free(interior_index);
+        interior_index = allocate_worklist();
+        interior_count = 0;
+        for (HeapNode *node = heap; node != NULL; node = node->next)
+            interior_index[interior_count++] = node;
+        if (interior_count > 1)
+            qsort(interior_index, interior_count, sizeof(*interior_index),
+                  compare_object_addresses);
+        interior_dirty = 0;
+    }
+    const uintptr_t address = (uintptr_t)object;
+    size_t low = 0, high = interior_count;
+    while (low < high) {
+        const size_t middle = low + (high - low) / 2;
+        HeapNode *node = interior_index[middle];
+        const uintptr_t start = (uintptr_t)node->object;
+        if (address < start) high = middle;
+        else if (address - start < node->allocation_size) return node;
+        else low = middle + 1;
+    }
+    return NULL;
+}
+
+static int stress_enabled(void) {
     if (gc_stress < 0) {
         const char *value = getenv("CWHIP_GC_STRESS");
         gc_stress = value != NULL && strcmp(value, "1") == 0;
     }
-    if (gc_stress || allocations_since_collection >= allocation_threshold)
+    return gc_stress;
+}
+
+static void collect_before_allocation(void) {
+    if (stress_enabled() || allocations_since_collection >= allocation_threshold)
         cwhip_gc_collect();
 }
 
 static void register_allocation(HeapNode *node) {
     if (object_count == SIZE_MAX || allocations_since_collection == SIZE_MAX) abort();
-    node->left = NULL;
-    node->right = NULL;
-    node->height = 1;
-    heap_index = insert_index(heap_index, node);
+    if (object_count >= heap_capacity / 2) {
+        if (heap_capacity > SIZE_MAX / 2) abort();
+        rebuild_heap_table(heap_capacity == 0 ? 512 : heap_capacity * 2);
+    }
+    insert_heap_address(node->object);
+    interior_dirty = 1;
     node->next = heap;
     heap = node;
     ++object_count;
@@ -1185,18 +1175,20 @@ static void mark_object(void *object, HeapNode **worklist, size_t *work_count) {
 }
 
 static int gc_push(CwhipRootFrame *frame, void *const *slots,
-                   const uint64_t *const *tags, uint64_t count) {
+                   const uint64_t *const *tags, uint64_t count, int check) {
     if (frame == NULL || (count != 0 && slots == NULL)) {
         return 0;
     }
-    for (CwhipRootFrame *active = root_frame; active != NULL; active = active->previous) {
-        if (active == frame) {
-            return 0;
+    if (check) {
+        for (CwhipRootFrame *active = root_frame; active != NULL; active = active->previous) {
+            if (active == frame) {
+                return 0;
+            }
         }
-    }
-    for (uint64_t index = 0; index < count; ++index) {
-        if (slots[index] == NULL) {
-            return 0;
+        for (uint64_t index = 0; index < count; ++index) {
+            if (slots[index] == NULL) {
+                return 0;
+            }
         }
     }
     frame->previous = root_frame;
@@ -1208,7 +1200,7 @@ static int gc_push(CwhipRootFrame *frame, void *const *slots,
 }
 
 int cwhip_gc_push(CwhipRootFrame *frame, void *const *slots, uint64_t count) {
-    return gc_push(frame, slots, NULL, count);
+    return gc_push(frame, slots, NULL, count, 1);
 }
 
 int cwhip_gc_pop(CwhipRootFrame *frame) {
@@ -1224,14 +1216,19 @@ int cwhip_gc_pop(CwhipRootFrame *frame) {
 }
 
 void cwhip_gc_push_or_abort(CwhipRootFrame *frame, void *const *slots, uint64_t count) {
-    if (!cwhip_gc_push(frame, slots, count)) {
-        abort();
-    }
+    cwhip_gc_push_tagged_or_abort(frame, slots, NULL, count);
 }
 
 void cwhip_gc_push_tagged_or_abort(CwhipRootFrame *frame, void *const *slots,
                                   const uint64_t *const *tags, uint64_t count) {
-    if (!gc_push(frame, slots, tags, count)) abort();
+#ifdef NDEBUG
+    const int check = stress_enabled();
+#else
+    const int check = 1;
+#endif
+    if (!gc_push(frame, slots, tags, count, check)) {
+        abort();
+    }
 }
 
 void cwhip_gc_pop_or_abort(CwhipRootFrame *frame) {
@@ -1487,15 +1484,12 @@ static void trace_graph(HeapNode **worklist, size_t *work_count) {
         if (metadata == NULL) abort();
         for (uint64_t index = 0; index < metadata->reference_field_count; ++index) {
             const uint64_t offset = metadata->reference_field_offsets[index];
-            if (!valid_reference_offset(metadata, offset)) abort();
             void *child = NULL;
             memcpy(&child, (const unsigned char *)node->object + offset, sizeof(child));
             mark_object(child, worklist, work_count);
         }
         for (uint64_t index = 0; index < metadata->dynamic_reference_field_count; ++index) {
             const uint64_t offset = metadata->dynamic_reference_field_offsets[index];
-            if (!valid_reference_offset(metadata, offset) ||
-                offset < offsetof(CwhipArrayValue, pointer)) abort();
             uint64_t tag = 0;
             memcpy(&tag, (const unsigned char *)node->object +
                              offset - offsetof(CwhipArrayValue, pointer),
@@ -1511,6 +1505,7 @@ static void trace_graph(HeapNode **worklist, size_t *work_count) {
 void cwhip_gc_collect(void) {
     if (collecting || running_destructor) abort();
     collecting = 1;
+    int finalizers_ran = 0;
     for (HeapNode *node = heap; node != NULL; node = node->next) {
         node->marked = 0;
     }
@@ -1526,6 +1521,7 @@ void cwhip_gc_collect(void) {
         if (metadata == NULL) abort();
         node->destroyed = 1;
         if (metadata->finalize != NULL) {
+            finalizers_ran = 1;
             node->destroying = 1;
             running_destructor = 1;
             metadata->finalize(node->object);
@@ -1535,10 +1531,12 @@ void cwhip_gc_collect(void) {
     }
 
     /* Finalizers may attach dead objects to live objects; retain, but keep them destroyed. */
-    for (HeapNode *node = heap; node != NULL; node = node->next) node->marked = 0;
-    work_count = 0;
-    mark_roots(worklist, &work_count);
-    trace_graph(worklist, &work_count);
+    if (finalizers_ran) {
+        for (HeapNode *node = heap; node != NULL; node = node->next) node->marked = 0;
+        work_count = 0;
+        mark_roots(worklist, &work_count);
+        trace_graph(worklist, &work_count);
+    }
     free(worklist);
 
     HeapNode **link = &heap;
@@ -1546,7 +1544,6 @@ void cwhip_gc_collect(void) {
         HeapNode *node = *link;
         if (!node->marked) {
             *link = node->next;
-            heap_index = remove_index(heap_index, node);
             if (node->is_array) {
                 free(((CwhipArray *)node->object)->values);
             }
@@ -1559,21 +1556,47 @@ void cwhip_gc_collect(void) {
                 free(map->buckets);
             }
             if (node->is_buffer) free(((CwhipBuffer *)node->object)->data);
-            free(node->object);
             free(node);
             --object_count;
         } else {
             link = &node->next;
         }
     }
+    interior_dirty = 1;
+    free(interior_index);
+    interior_index = NULL;
+    interior_count = 0;
+    if (object_count == 0) {
+        free(heap_table);
+        heap_table = NULL;
+        heap_capacity = 0;
+        free(validated_metadata);
+        validated_metadata = NULL;
+        metadata_capacity = 0;
+        metadata_count = 0;
+    } else {
+        size_t capacity = 512;
+        while (object_count >= capacity / 2) {
+            if (capacity > SIZE_MAX / 2) abort();
+            capacity *= 2;
+        }
+        rebuild_heap_table(capacity);
+    }
     allocations_since_collection = 0;
     allocation_threshold = object_count > 256 ? object_count : 256;
     collecting = 0;
 }
 
-void *cwhip_gc_alloc(const CwhipClassMeta *metadata) {
-    if (collecting || running_destructor) abort();
-    if (metadata == NULL || metadata->object_size < sizeof(void *) ||
+static void validate_metadata(const CwhipClassMeta *metadata) {
+    if (metadata == NULL) abort();
+    if (metadata_capacity != 0) {
+        size_t slot = pointer_hash(metadata) & (metadata_capacity - 1);
+        while (validated_metadata[slot] != NULL) {
+            if (validated_metadata[slot] == metadata) return;
+            slot = (slot + 1) & (metadata_capacity - 1);
+        }
+    }
+    if (metadata->object_size < sizeof(void *) ||
         metadata->object_size > (uint64_t)SIZE_MAX ||
         (metadata->reference_field_count != 0 &&
          metadata->reference_field_offsets == NULL) ||
@@ -1594,14 +1617,44 @@ void *cwhip_gc_alloc(const CwhipClassMeta *metadata) {
             abort();
         }
     }
-    collect_before_allocation();
-    void *object = calloc(1, (size_t)metadata->object_size);
-    HeapNode *node = (HeapNode *)malloc(sizeof(*node));
-    if (object == NULL || node == NULL) {
-        free(object);
-        free(node);
-        abort();
+    if (metadata_count >= metadata_capacity / 2) {
+        if (metadata_capacity > SIZE_MAX / 2) abort();
+        const size_t capacity = metadata_capacity == 0 ? 32 : metadata_capacity * 2;
+        if (capacity > SIZE_MAX / sizeof(*validated_metadata)) abort();
+        const CwhipClassMeta **table = calloc(capacity, sizeof(*table));
+        if (table == NULL) abort();
+        for (size_t index = 0; index < metadata_capacity; ++index) {
+            const CwhipClassMeta *entry = validated_metadata[index];
+            if (entry == NULL) continue;
+            size_t slot = pointer_hash(entry) & (capacity - 1);
+            while (table[slot] != NULL) slot = (slot + 1) & (capacity - 1);
+            table[slot] = entry;
+        }
+        free(validated_metadata);
+        validated_metadata = table;
+        metadata_capacity = capacity;
     }
+    size_t slot = pointer_hash(metadata) & (metadata_capacity - 1);
+    while (validated_metadata[slot] != NULL) slot = (slot + 1) & (metadata_capacity - 1);
+    validated_metadata[slot] = metadata;
+    ++metadata_count;
+}
+
+static HeapNode *allocate_node(size_t size) {
+    if (size > SIZE_MAX - offsetof(HeapNode, payload)) abort();
+    HeapNode *node = calloc(1, offsetof(HeapNode, payload) + size);
+    if (node == NULL) abort();
+    node->object = node->payload;
+    node->allocation_size = size;
+    return node;
+}
+
+void *cwhip_gc_alloc(const CwhipClassMeta *metadata) {
+    if (collecting || running_destructor) abort();
+    collect_before_allocation();
+    validate_metadata(metadata);
+    HeapNode *node = allocate_node((size_t)metadata->object_size);
+    void *object = node->object;
     memcpy(object, &metadata, sizeof(metadata));
     node->object = object;
     node->allocation_size = (size_t)metadata->object_size;
@@ -1625,12 +1678,11 @@ void *cwhip_gc_alloc_array(int64_t requested_length) {
     }
     const uint64_t length = (uint64_t)requested_length;
     collect_before_allocation();
-    CwhipArray *array = (CwhipArray *)calloc(1, sizeof(*array));
-    HeapNode *node = (HeapNode *)malloc(sizeof(*node));
+    HeapNode *node = allocate_node(sizeof(CwhipArray));
+    CwhipArray *array = node->object;
     CwhipArrayValue *values = length == 0 ? NULL :
         (CwhipArrayValue *)calloc((size_t)length, sizeof(*values));
-    if (array == NULL || node == NULL || (length != 0 && values == NULL)) {
-        free(array);
+    if (length != 0 && values == NULL) {
         free(node);
         free(values);
         abort();
@@ -1658,13 +1710,8 @@ void *cwhip_gc_alloc_array(int64_t requested_length) {
 void *cwhip_gc_alloc_map(void) {
     if (collecting || running_destructor) abort();
     collect_before_allocation();
-    CwhipMap *map = (CwhipMap *)calloc(1, sizeof(*map));
-    HeapNode *node = (HeapNode *)malloc(sizeof(*node));
-    if (map == NULL || node == NULL) {
-        free(map);
-        free(node);
-        abort();
-    }
+    HeapNode *node = allocate_node(sizeof(CwhipMap));
+    CwhipMap *map = node->object;
     map->metadata = &map_metadata;
     node->object = map;
     node->allocation_size = sizeof(*map);

@@ -6,6 +6,8 @@
 #include "cwhip/RuntimeGc.h"
 
 #include <stddef.h>
+#include <setjmp.h>
+#include <stdalign.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -29,12 +31,15 @@ typedef struct FinalizeNode {
 static int finalizer_count = 0;
 static FinalizeNode **resurrection_slot = NULL;
 static int resurrect_during_finalization = 0;
+static TestNode *finalizer_parent = NULL;
+static TestNode *finalizer_child = NULL;
 
 static void count_finalizer(void *object) {
     FinalizeNode *node = (FinalizeNode *)object;
     if (node->value != 73) abort();
     ++finalizer_count;
     if (resurrect_during_finalization) *resurrection_slot = node;
+    if (finalizer_parent != NULL) finalizer_parent->next = finalizer_child;
 }
 
 static const CwhipClassMeta finalize_metadata = {
@@ -133,6 +138,107 @@ static int test_allocation_policy_and_index(void) {
     cwhip_gc_collect();
     if (cwhip_gc_heap_count() != 0)
         return fail("address index retained objects after all roots were popped");
+    return 0;
+}
+
+static int expect_invalid_reference(void *pointer) {
+    void *frame = malloc((size_t)cwhip_exception_frame_size());
+    if (frame == NULL) abort();
+    cwhip_exception_frame_init(frame);
+    cwhip_exception_push(frame);
+    int failed = 0;
+    if (setjmp(*(jmp_buf *)cwhip_exception_frame_buffer(frame)) == 0) {
+        cwhip_gc_require_alive(pointer, "runtime-test.cw",
+                               sizeof("runtime-test.cw") - 1, 1, 1);
+        cwhip_exception_pop(frame);
+        failed = fail("invalid reference was accepted");
+    } else {
+        const char *message = cwhip_exception_copy_message(frame);
+        if (cwhip_exception_message_length(frame) != 24 ||
+            memcmp(message, "invalid object reference", 24) != 0)
+            failed = fail("invalid reference diagnostic changed");
+    }
+    cwhip_exception_clear(frame);
+    free(frame);
+    return failed;
+}
+
+static int test_heap_tables(void) {
+    enum { count = 600, classes = 80 };
+    static CwhipClassMeta metadata[classes];
+    TestNode *roots[count] = {0};
+    void *slots[count];
+    for (size_t index = 0; index < count; ++index) slots[index] = &roots[index];
+    for (size_t index = 0; index < classes; ++index) metadata[index] = node_metadata;
+    CwhipRootFrame frame = {0};
+    cwhip_gc_push_or_abort(&frame, slots, count);
+    for (size_t index = 0; index < count; ++index) {
+        roots[index] = cwhip_gc_alloc(&metadata[index % classes]);
+        roots[index]->value = (int)index;
+        if ((uintptr_t)roots[index] % alignof(max_align_t) != 0)
+            return fail("coallocated payload lost malloc alignment");
+        /* Build an interior index, then invalidate it with the next allocation. */
+        if (index % 97 == 0 &&
+            cwhip_gc_root(&roots[index]->value) != roots[index])
+            return fail("interior lookup missed a newly inserted object");
+    }
+    cwhip_gc_collect();
+    for (size_t index = 0; index < count; ++index) {
+        if (cwhip_gc_root(roots[index]) != roots[index] ||
+            cwhip_gc_root((unsigned char *)roots[index] + sizeof(TestNode) - 1) !=
+                roots[index])
+            return fail("hash growth or interior boundary lookup lost an object");
+        cwhip_gc_require_alive(roots[index], "runtime-test.cw",
+                               sizeof("runtime-test.cw") - 1, 1, 1);
+    }
+    int native = 0;
+    if (expect_invalid_reference(&native)) return 1;
+    uintptr_t dead_address = (uintptr_t)roots[1];
+    for (size_t index = 1; index < count; ++index) roots[index] = NULL;
+    cwhip_gc_collect();
+    if (cwhip_gc_heap_count() != 1 ||
+        cwhip_gc_root(&roots[0]->value) != roots[0])
+        return fail("bulk shrink left an incorrect address index");
+    if (expect_invalid_reference((void *)dead_address) ||
+        expect_invalid_reference((unsigned char *)roots[0] - 1) ||
+        expect_invalid_reference((unsigned char *)roots[0] + sizeof(TestNode)))
+        return 1;
+    cwhip_gc_pop_or_abort(&frame);
+    cwhip_gc_collect();
+    if (cwhip_gc_heap_count() != 0)
+        return fail("hash and metadata table cleanup retained objects");
+    return 0;
+}
+
+static int test_finalizer_graph_mutation(void) {
+    TestNode *parent = NULL;
+    TestNode *child = NULL;
+    FinalizeNode *resource = NULL;
+    void *slots[] = {&parent, &child, &resource};
+    CwhipRootFrame frame = {0};
+    cwhip_gc_push_or_abort(&frame, slots, 3);
+    parent = cwhip_gc_alloc(&node_metadata);
+    child = cwhip_gc_alloc(&node_metadata);
+    child->value = 91;
+    resource = cwhip_gc_alloc(&finalize_metadata);
+    resource->value = 73;
+    finalizer_parent = parent;
+    finalizer_child = child;
+    child = NULL;
+    resource = NULL;
+    cwhip_gc_collect();
+    finalizer_parent = NULL;
+    finalizer_child = NULL;
+    if (cwhip_gc_heap_count() != 2 || parent->next == NULL ||
+        parent->next->value != 91)
+        return fail("finalizer re-mark did not retain a newly attached graph");
+    cwhip_gc_collect();
+    if (cwhip_gc_heap_count() != 2 || parent->next->value != 91)
+        return fail("no-finalizer collection lost a resurrected graph");
+    cwhip_gc_pop_or_abort(&frame);
+    cwhip_gc_collect();
+    if (cwhip_gc_heap_count() != 0)
+        return fail("resurrected graph was not reclaimed after dropping its root");
     return 0;
 }
 
@@ -386,6 +492,8 @@ int main(void) {
         return fail("array roots were not released cleanly");
     }
     if (test_allocation_policy_and_index()) return 1;
+    if (test_heap_tables()) return 1;
+    if (test_finalizer_graph_mutation()) return 1;
     cwhip_runtime_thread_exit();
     puts("PASS precise roots, reclamation, finalization, destruction, and frame lifecycle");
     return 0;

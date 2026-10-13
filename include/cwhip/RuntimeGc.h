@@ -43,6 +43,9 @@ typedef struct CwhipClassMeta {
     const CwhipClassName *base_classes;
 } CwhipClassMeta;
 
+/* Class metadata and its referenced tables must remain immutable and valid
+ * while the managed heap is nonempty; the collector caches their validation. */
+
 typedef enum CwhipArrayValueTag {
     CWHIP_ARRAY_INTEGER = 1,
     CWHIP_ARRAY_STRING = 2,

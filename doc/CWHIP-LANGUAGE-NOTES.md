@@ -412,11 +412,18 @@ by the runtime's global lock; collection is triggered by an adaptive allocation
 budget and never scans arbitrary stack words. The budget permits at least 256
 allocations between collections and grows with the live object count after
 the previous collection. Objects, lists, dicts, and buffers share this budget.
-An address-ordered balanced tree indexes heap objects, including interior
-pointers to inherited subobjects, without moving their allocations.
+Each allocation includes its collector header. An exact-address hash table
+handles ordinary object lookup; an address-sorted index is built lazily for
+interior pointers, including inherited subobjects. Sweep rebuilds the hash
+table in bulk. Neither structure moves objects. Immutable class metadata's
+reference offsets are validated once and cached until the heap is empty.
+Generated root-frame pushes check duplicate frames and null slot descriptors
+in debug builds and stress mode; the checked `cwhip_gc_push()` native API
+always performs those checks. Collection still validates root descriptors.
+The finalizer re-mark pass is skipped when no finalizers ran.
 Set `CWHIP_GC_STRESS=1` before launching a program to collect before every
 managed allocation instead; the runtime reads this setting on its first
-allocation. Native runtime tests can also force collection with
+use. Native runtime tests can also force collection with
 `cwhip_gc_collect()`.
 Frames stay active across all control-flow paths and are popped on every
 generated return.
