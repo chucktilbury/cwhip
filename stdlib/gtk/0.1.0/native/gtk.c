@@ -1516,6 +1516,28 @@ static void context_pressed(GtkGestureClick *gesture, int count, double x, doubl
     gtk_gesture_set_state(GTK_GESTURE(gesture), GTK_EVENT_SEQUENCE_CLAIMED);
 }
 
+bool cwhip_gtk_window_maximized(void *self, int64_t token) {
+    (void)self;
+    GtkWidget *widget = widget_live(token);
+    if (!GTK_IS_WINDOW(widget)) fatal("operation requires Window");
+    return gtk_window_is_maximized(GTK_WINDOW(widget));
+}
+
+void cwhip_gtk_notebook_scrollable(void *self, int64_t token, bool enabled) {
+    (void)self;
+    GtkWidget *widget = widget_live(token);
+    if (!GTK_IS_NOTEBOOK(widget)) fatal("operation requires Notebook");
+    gtk_notebook_set_scrollable(GTK_NOTEBOOK(widget), enabled);
+}
+
+void cwhip_gtk_window_maximize(void *self, int64_t token, bool enabled) {
+    (void)self;
+    GtkWidget *widget = widget_live(token);
+    if (!GTK_IS_WINDOW(widget)) fatal("operation requires Window");
+    if (enabled) gtk_window_maximize(GTK_WINDOW(widget));
+    else gtk_window_unmaximize(GTK_WINDOW(widget));
+}
+
 void cwhip_gtk_context_menu_bind(void *self, int64_t token, int64_t owner_token) {
     (void)self;
     GtkWidget *menu = widget_live(token), *owner_widget = widget_live(owner_token);
@@ -1696,7 +1718,8 @@ static void source_line_pressed(GtkGestureClick *gesture, int count, double x, d
     int acquired = signal_enter(connection);
     GtkWidget *widget = gtk_event_controller_get_widget(GTK_EVENT_CONTROLLER(gesture));
     int line = text_click_line(widget, x, y);
-    gtk_gesture_set_state(GTK_GESTURE(gesture), GTK_EVENT_SEQUENCE_CLAIMED);
+    if (g_object_get_data(G_OBJECT(widget), "cwhip-line-selection"))
+        gtk_gesture_set_state(GTK_GESTURE(gesture), GTK_EVENT_SEQUENCE_CLAIMED);
     typedef void (*Adapter)(CwhipCallbackContext *, int64_t);
     ((Adapter)cwhip_callback_adapter(connection->context))(connection->context, line);
     signal_leave(connection, acquired);

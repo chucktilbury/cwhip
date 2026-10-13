@@ -393,6 +393,17 @@ bool cdbg_fixture_compact(void *self) {
         !button_labeled(window, "Select Frame") && !button_labeled(window, "Delete ID");
 }
 
+static GtkTextView *inspector_view(const char *title);
+
+bool cdbg_fixture_no_break_menus(void *self) {
+    (void)self;
+    GtkTextView *source = source_view(), *breaks = inspector_view("Breakpoints");
+    return source && breaks &&
+        !button_labeled(GTK_WIDGET(source), "Add Breakpoint") &&
+        !button_labeled(GTK_WIDGET(source), "Delete Breakpoint") &&
+        !button_labeled(GTK_WIDGET(breaks), "Delete Breakpoint");
+}
+
 static GtkTextView *inspector_view(const char *title) {
     GtkWidget *notebook = notebook_at(1);
     if (!notebook) return NULL;
@@ -485,10 +496,22 @@ int64_t cdbg_fixture_marks(void *self, void *filename, int64_t line) {
                 gtk_source_mark_attributes_get_icon_name(style))
                 ++count;
         }
+
         g_slist_free(marks);
     }
     g_free(name);
     return count;
+}
+
+bool cdbg_fixture_disabled(void *self, int64_t line) {
+    (void)self;
+    GtkTextView *view = source_view();
+    if (!view) return false;
+    GSList *marks = gtk_source_buffer_get_source_marks_at_line(
+        GTK_SOURCE_BUFFER(gtk_text_view_get_buffer(view)), line - 1, "disabled-breakpoint");
+    bool found = marks != NULL;
+    g_slist_free(marks);
+    return found;
 }
 
 static GtkWindow *watch_dialog(void) {

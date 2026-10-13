@@ -120,6 +120,9 @@ Default window dimensions must be positive and fit that range.
 `defaultWidth`/`defaultHeight` return GTK's current default size, which GTK 4
 updates when the user resizes an unmaximized window (`0` means unset); use them
 to persist window size.
+`Window.maximized()` returns the current native maximization state;
+`setMaximized(bool)` requests maximize/unmaximize, including before presentation.
+The window manager may apply this request asynchronously.
 `onFocusChanged` reports GTK's window-active state (`false` on loss).
 `Grid` uses zero-based, nonnegative row/column positions and positive spans.
 `Entry.setEditable(false)` keeps selection/copy and programmatic updates available.
@@ -131,6 +134,8 @@ views with line selection enabled select that whole line instead.
 `appendClosablePage` adds a bordered title/close-icon tab, invoking
 the supplied callback without automatically removing the page.
 `setBorderedTabs()` applies the same tab border to every page of a notebook.
+`Notebook.setScrollable(bool)` adds tab-strip scrolling when titles do not fit,
+instead of letting the entire tab strip impose its minimum width on a pane.
 `Window.bindShortcut` installs a window-wide shortcut (GTK trigger syntax such
 as `<Control>q`) whose callback may close or dispose the window; it is released
 with the window. Page-change
@@ -379,7 +384,8 @@ void clearLineMarks(String category)
 
 `onLineActivated` handles a primary single click in the capture phase, positions
 the cursor (or selects the line when `setLineSelection(true)`), and reports the
-one-based line number. Double clicks retain normal text selection behavior.
+one-based line number. Only line-selection mode claims the gesture; otherwise
+native text selection/drag behavior continues. Double clicks retain normal text selection behavior.
 The returned signal token can be disconnected; widget disposal disconnects
 controller callbacks and releases their receivers, including during invocation.
 `setLineSelection` also applies to a text view's `ContextMenu` right click.
@@ -489,9 +495,11 @@ Cwhip-written settings model, not a settings framework:
 | `String key(String text, String section, int index)` | Zero-based key enumeration; `""` at the end or for an absent table. |
 | `String quote(String text)` | A TOML-escaped basic string literal. |
 | `String item(String text, String section, String key, int index, String field)` | After validation: a tagged value (same tags as `value`) for zero-based element `index` of array `section.key`, or with nonempty `field`, that key of a table element (`""` if absent, `x` if the element is not a table). `""` past the end or for a missing array. |
+| `int arraySize(String text, String section, String key)` | Array element count, or `-1` for a missing/non-array value. |
 | `String remove(String text, String section, String key)` | Validated TOML with one key removed (empty section addresses the root); other values are kept and serialized as by `merge`. |
 | `String merge(String original, String updates)` | Both inputs must be validated TOML; recursively overlays updates and serializes, preserving unrelated values but not comments/formatting. |
 | `void save(String path, String text, String expected, callback<void(String)> result)` | Asynchronously loads the local file, checks expected previous contents, then atomically replaces using its ETag where supported. Expected `""` allows a missing first-run file. Result is `""` on success, or an explicit I/O/concurrent-edit error. The caller creates the parent directory and bounds/validates the data. |
+| `String saveNow(String path, String text, String expected)` | Synchronous counterpart for small bounded state snapshots that must finish before window teardown. Uses the same content/ETag guard and atomic private-file replacement. Returns `""` on success or an explicit error; callers must report it. Bounds/validation and parent-directory creation remain the caller's responsibility. |
 
 Save callback roots and copied bytes survive asynchronous I/O. Shutdown drains
 pending operations without invoking their callbacks after teardown. These

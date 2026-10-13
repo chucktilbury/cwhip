@@ -97,6 +97,8 @@ class DebugUiFixture {
     bool lineClick(String pane, int line, String action)
     int marks(String file, int line)
     bool watchDialog(String expression, bool accept)
+    bool noBreakMenus()
+    bool disabled(int line)
 }
 bool DebugUiFixture.alert() from "cdbg_fixture_alert"
 bool DebugUiFixture.panes() from "cdbg_fixture_panes"
@@ -116,6 +118,8 @@ bool DebugUiFixture.compact() from "cdbg_fixture_compact"
 bool DebugUiFixture.lineClick(String pane, int line, String action) from "cdbg_fixture_line_click"
 int DebugUiFixture.marks(String file, int line) from "cdbg_fixture_marks"
 bool DebugUiFixture.watchDialog(String expression, bool accept) from "cdbg_fixture_watch"
+bool DebugUiFixture.noBreakMenus() from "cdbg_fixture_no_break_menus"
+bool DebugUiFixture.disabled(int line) from "cdbg_fixture_disabled"
 
 class DebugChecks {
     Cdbg ui
@@ -136,14 +140,19 @@ class DebugChecks {
         mode = System.Process().getEnv("CDBG_TEST_MODE")
         ui = Cdbg()
         ui.activate()
+        String previousConsole = ui.console.text()
         ui.consume("~\"fragment")
-        require(ui.console.text().equals(""), "incomplete record buffered")
+        require(ui.console.text().equals(previousConsole), "incomplete record buffered")
         ui.consume("ed\\n\"\n")
-        require(ui.console.text().equals("fragmented\n"), "fragmented record reassembled")
+        require(ui.console.text().equals(format("{}fragmented\n", previousConsole)), "fragmented record reassembled")
         deadline = Time.Clock().monotonicMilliseconds() + 20000u
         if (mode.equals("ui") || mode.equals("context")) {
             require(ui.sourceTabs.pageCount() == 1 && ui.source.text().startsWith("No source"),
                 "source area starts with a placeholder page")
+        }
+        if (mode.equals("context")) {
+            require(DebugUiFixture().shortcut("F9") && ui.status.text().contains("Load a target"),
+                "unloaded shortcut gives clear status without manipulating breakpoints")
         }
         ui.loadTarget(System.Process().getEnv("CDBG_TEST_TARGET"))
         Gtk.Application().post(_self().tick)
@@ -247,9 +256,9 @@ class DebugChecks {
             stage = 9
         }
         if (stage == 9 && ui.loaded && !ui.hasRun && idle() && ui.sourceTabs.pageCount() == 2) {
-            require(ui.breaks.text().equals("") && ui.failure.equals("") &&
+            require(ui.breaks.text().contains("#1") && ui.failure.equals("") &&
                 DebugUiFixture().closeButtons() == 2 && ui.source.text().contains("counter"),
-                "File > Load Executable starts a fresh session with DWARF tabs")
+                "File > Load Executable starts a fresh session with saved breakpoints and DWARF tabs")
             DebugUiFixture().choose(notes)
             ui.menu.activateItem(ui.openItem)
             stage = 10
@@ -268,13 +277,97 @@ class DebugChecks {
     }
     DebugChecks _self()
     bool idle() { return ui.active == null && ui.requests.length == 0 }
+    bool persistenceTick() {
+        if (!ui.loaded || !idle()) { return true }
+        String path = System.Process().getEnv("CDBG_TEST_SOURCE")
+        int line = System.Process().getEnv("CDBG_TEST_LINE").toInt()
+        if (mode.equals("state-save")) {
+            if (stage == 0) {
+                require(ui.showSource(path, format("{}", line)), "source for saved breakpoint")
+                ui.menu.activateItem(ui.toggleBreakItem)
+                stage = 1
+                return true
+            }
+            if (stage == 1) {
+                require(ui.breakpointLocations.length == 1, "saved breakpoint resolves")
+                ui.menu.activateItem(ui.toggleEnableItem)
+                stage = 2
+                return true
+            }
+            require(DebugUiFixture().disabled(line), "saving disabled breakpoint")
+            if (stage == 2) {
+                ui.window.setDefaultSize(980, 680)
+                ui.body.setPosition(420)
+                ui.inspection.setCurrentPage(4)
+                if (System.Process().getEnv("CDBG_TEST_MAXIMIZE").equals("true")) {
+                    ui.window.setMaximized(true)
+                }
+                stage = 3
+                return true
+            }
+            if (System.Process().getEnv("CDBG_TEST_MAXIMIZE").equals("true") && !ui.window.maximized()) {
+                return true
+            }
+            ui.body.setPosition(420)
+        } else {
+            require(ui.failure.equals(""), "restore failure does not fail session")
+            if (mode.equals("state-restore")) {
+                if (System.Process().getEnv("CDBG_TEST_MAXIMIZE").equals("true") &&
+                    !ui.window.maximized()) { return true }
+                require(ui.breakpointLocations.length == 1, "breakpoint restored after real relaunch")
+                require(ui.showSource(path, format("{}", line)) && DebugUiFixture().disabled(line),
+                    "restored disabled breakpoint has gray mark")
+                require(ui.window.defaultWidth() == 980 && ui.window.defaultHeight() == 680 &&
+                    ui.body.position() == 420 && ui.inspection.currentPage() == 4,
+                    format("window geometry and layout restored: {}x{} pane {} tab {}, state {}",
+                        ui.window.defaultWidth(), ui.window.defaultHeight(), ui.body.position(),
+                        ui.inspection.currentPage(), ui.stateText))
+                require(Gtk.Config().value(ui.stateText, "", "maximized").equals(
+                    format("b{}", System.Process().getEnv("CDBG_TEST_MAXIMIZE"))),
+                    "maximized state saved and restored")
+                require(ui.stateTarget.equals(System.FileSystem().absolutePath(
+                    System.Process().getEnv("CDBG_TEST_TARGET"))), "canonical target persistence key")
+            } else {
+                if (mode.equals("state-stale")) {
+                    require(ui.breakpointLocations.length == 1 && !DebugUiFixture().disabled(line) &&
+                        ui.console.text().contains("Stale breakpoint") &&
+                        ui.console.text().contains("Could not restore"),
+                        "stale and unresolvable locations skipped; valid breakpoint restored")
+                } else { if (mode.equals("state-conflict")) {
+                    System.File changed = System.File(ui.statePath, "w")
+                    String external = "version = 1\nexternal = true\n"
+                    require(changed.write(external) == external.length, "external state edit written")
+                    changed.close()
+                } else { if (mode.equals("state-clamped")) {
+                    require(ui.stateNumber("width", 1100, 640, 3840) == 3840 &&
+                        ui.window.defaultWidth() >= 640 && ui.window.defaultWidth() <= 3840 &&
+                        ui.window.defaultHeight() == 400 &&
+                        ui.body.position() >= 100 && ui.body.position() <= 3740 &&
+                        ui.inspection.currentPage() == 5, "out-of-range layout values clamped")
+                } else {
+                    require(ui.breakpointLocations.length == 0 &&
+                        ui.window.defaultWidth() >= 640 && ui.window.defaultWidth() <= 1100 &&
+                        ui.window.defaultHeight() == 760 &&
+                        ui.inspection.currentPage() == 0 && !ui.stateWritable,
+                        format("corrupt defaults: {}x{} tab {} writable {} locations {}",
+                            ui.window.defaultWidth(), ui.window.defaultHeight(), ui.inspection.currentPage(),
+                            ui.stateWritable, ui.breakpointLocations.length))
+                } } }
+            }
+        }
+        ui.window.close()
+        require(ui.closed && ui.process == null, "persistent session quit cleans GDB")
+        print("true")
+        return false
+    }
     bool contextTick() {
         String path = System.Process().getEnv("CDBG_TEST_SOURCE")
         String helper = System.FileSystem().join(System.FileSystem().dirname(path), "context_helper.c")
         if (stage == 0 && ui.loaded && idle()) {
             require(DebugUiFixture().compact(), "main window has no breakpoint/watch/frame rows or End Session")
             ui.showSource(path, "")
-            if (!DebugUiFixture().lineClick("", 7, "Add Breakpoint")) { return true }
+            if (!DebugUiFixture().lineClick("", 7, "")) { return true }
+            ui.menu.activateItem(ui.toggleBreakItem)
             require(ui.source.line() == 7, format("source context click positions cursor at line 7, got {}",
                 ui.source.line()))
             stage = 1
@@ -283,13 +376,16 @@ class DebugChecks {
             require(ui.breaks.text().contains("#1") && DebugUiFixture().marks("context.c", 7) == 1,
                 "resolved file:line breakpoint has a colored mark and icon")
             require(ui.source.line() == 7, "adding marks retains source cursor")
-            if (!DebugUiFixture().lineClick("", 7, "Delete Breakpoint")) { return true }
+            require(DebugUiFixture().shortcut("F9"), "F9 clears clicked breakpoint")
             stage = 2
         }
         if (stage == 2 && idle()) {
             require(ui.breaks.text().equals("") && DebugUiFixture().marks("context.c", 7) == 0,
                 "source context delete removes breakpoint and marker")
-            if (!DebugUiFixture().lineClick("", 7, "Add Breakpoint")) { return true }
+            require(DebugUiFixture().shortcut("<Control>F9") &&
+                ui.status.text().equals("No breakpoint at the current source line"),
+                "enable/disable without a breakpoint reports clear status")
+            require(DebugUiFixture().shortcut("F9"), "F9 sets clicked breakpoint")
             stage = 3
         }
         if (stage == 3 && idle()) {
@@ -302,12 +398,26 @@ class DebugChecks {
             require(ui.breaks.text().contains("#3") && DebugUiFixture().marks("context.c", 3) == 1 &&
                 DebugUiFixture().marks("context_helper.c", 2) == 1,
                 "multiple GDB breakpoint locations marked in all source tabs")
-            if (!DebugUiFixture().lineClick("Breakpoints", 2, "Delete Breakpoint")) { return true }
-            require(ui.breaks.hasSelection() && ui.breaks.selectedText().contains("#3"),
-                "breakpoint context click highlights the selected entry")
+            ui.showSource(path, "3")
+            if (!DebugUiFixture().lineClick("", 3, "")) { return true }
+            ui.menu.activateItem(ui.toggleEnableItem)
             stage = 5
         }
         if (stage == 5 && idle()) {
+            require(DebugUiFixture().disabled(3), format("multiple breakpoint disabled with gray mark: {}",
+                ui.breaks.text()))
+            require(ui.showSource(helper, "2") && DebugUiFixture().disabled(2),
+                "disabling parent updates every multiple location")
+            if (!DebugUiFixture().lineClick("", 2, "")) { return true }
+            require(DebugUiFixture().shortcut("<Control>F9"), "Ctrl+F9 enables multi-location breakpoint")
+            stage = 50
+        }
+        if (stage == 50 && idle()) {
+            require(!DebugUiFixture().disabled(2), "Ctrl+F9 restores enabled-state mark")
+            require(DebugUiFixture().shortcut("F9"), "F9 clears entire multi-location breakpoint")
+            stage = 51
+        }
+        if (stage == 51 && idle()) {
             require(!ui.breaks.text().contains("#3") && ui.breaks.text().contains("#2") &&
                 DebugUiFixture().marks("context.c", 3) == 0 &&
                 DebugUiFixture().marks("context_helper.c", 2) == 0 &&
@@ -317,6 +427,7 @@ class DebugChecks {
             require(DebugUiFixture().closeTab("context.c"), "close marked source tab")
             require(ui.showSource(path, "") && DebugUiFixture().marks("context.c", 7) == 1,
                 "reopened tab inherits breakpoint marks")
+            require(DebugUiFixture().noBreakMenus(), "obsolete source and Breakpoints context menus absent")
             if (!DebugUiFixture().lineClick("Watches", 1, "Add Watch...")) { return true }
             require(DebugUiFixture().watchDialog("ignored", false) && ui.expressions.length == 0,
                 "parented watch dialog Cancel adds nothing")
@@ -376,9 +487,23 @@ class DebugChecks {
             stage = 13
         }
         if (stage == 13 && ui.loaded && idle()) {
-            require(ui.breaks.text().equals("") && DebugUiFixture().marks("context.c", 7) == 0 &&
+            require(ui.breaks.text().contains("#1") && DebugUiFixture().marks("context.c", 7) == 1 &&
                 DebugUiFixture().marks("context_helper.c", 2) == 0 && !ui.hasRun,
-                "fresh load clears breakpoint markers in rebuilt tabs")
+                "fresh load restores saved breakpoint markers")
+            ui.showSource(path, "5")
+            ui.menu.activateItem(ui.toggleBreakItem)
+            stage = 14
+            return true
+        }
+        if (stage == 14 && idle()) {
+            require(DebugUiFixture().marks("context.c", 6) == 1 && ui.source.line() == 5,
+                "non-executable line resolves to nearby code without moving cursor")
+            require(DebugUiFixture().shortcut("F9"), "F9 clears breakpoint from its original requested line")
+            stage = 15
+        }
+        if (stage == 15 && idle()) {
+            require(DebugUiFixture().marks("context.c", 6) == 0 && ui.breakpointLocations.length == 1,
+                "relocated breakpoint toggle clears instead of creating duplicates")
             require(ui.failure.equals(""), ui.failure)
             ui.window.close()
             require(ui.closed && ui.process == null && ui.terminal == null && ui.pollToken == 0 &&
@@ -390,6 +515,10 @@ class DebugChecks {
     }
     void tick() {
         require(Time.Clock().monotonicMilliseconds() < deadline, "session deadline")
+        if (mode.startsWith("state-")) {
+            if (persistenceTick()) { Gtk.Application().post(_self().tick) }
+            return
+        }
         if (mode.equals("ui")) {
             if (uiTick()) { Gtk.Application().post(_self().tick) }
             return
@@ -830,6 +959,91 @@ def main() -> None:
                     assert "cdbg:" in result.stderr, result.stderr
         binary_smoke(args.executable.resolve(), cw_source, args.compiler, args.gdb,
                      args.xvfb, work, env)
+
+        def state_run(mode: str, target: Path, debug_source: Path, line: int,
+                      state_env: dict[str, str]) -> None:
+            with headless(args.xvfb, work, state_env) as gtk_env:
+                gtk_env.update(CDBG_TEST_MODE=mode, CDBG_TEST_TARGET=str(target),
+                               CDBG_TEST_SOURCE=str(debug_source), CDBG_TEST_LINE=str(line),
+                               CDBG_COMPILER=str(args.compiler), CDBG_GDB=args.gdb,
+                               CDBG_TEST_MAXIMIZE="false")
+                # Exercise real maximize/restore when a test WM is available.
+                wm = shutil.which("xfwm4")
+                manager = None
+                with (work / "wm.log").open("w") as log:
+                    try:
+                        if wm and mode in ("state-save", "state-restore"):
+                            manager_env = dict(gtk_env)
+                            manager_env.pop("SESSION_MANAGER", None)
+                            manager = subprocess.Popen(
+                                [wm, "--sm-client-disable", "--replace", "--compositor=off"], env=manager_env,
+                                                       stdout=log, stderr=log)
+                            time.sleep(0.4)
+                            assert manager.poll() is None, (work / "wm.log").read_text()
+                            gtk_env["CDBG_TEST_MAXIMIZE"] = "true"
+                        result = invoke([str(binary)], work, gtk_env, timeout=45)
+                        assert result.returncode == 0 and result.stdout == "true", (
+                            mode, result.returncode, result.stdout, result.stderr)
+                        if mode in ("state-save", "state-restore", "state-clamped"):
+                            assert not result.stderr, result.stderr
+                        else:
+                            assert "cdbg state:" in result.stderr, result.stderr
+                            assert "CRITICAL" not in result.stderr, result.stderr
+                    finally:
+                        if manager:
+                            manager.terminate()
+                            manager.wait(timeout=10)
+
+        native_alias = work / "native symlink"
+        native_alias.symlink_to(c_binary)
+        for name, target, debug_source, line in (
+            ("native", native_alias, c_source, 7), ("cwhip", cw_source, cw_source, 10)
+        ):
+            state_env = environment(work / ("state-" + name))
+            state_run("state-save", target, debug_source, line, state_env)
+            state_file = Path(state_env["XDG_CONFIG_HOME"]) / "cdbg/state.toml"
+            assert state_file.is_file()
+            import tomllib
+            saved = tomllib.loads(state_file.read_text())
+            assert str(target.resolve()) in saved, saved
+            assert saved[str(target.resolve())]["points"][0]["enabled"] is False
+            assert "target" not in saved, "Temporary compiled executable must not be a state key"
+            state_run("state-restore", target, debug_source, line, state_env)
+            assert not (Path(state_env["HOME"]) / ".config/cdbg").exists(), (
+                "XDG_CONFIG_HOME should take precedence over HOME")
+
+        stale_env = environment(work / "state-stale")
+        stale_file = Path(stale_env["XDG_CONFIG_HOME"]) / "cdbg/state.toml"
+        stale_file.parent.mkdir()
+        import json
+        stale_file.write_text("version = 1\n[" + json.dumps(str(c_binary.resolve())) +
+            "]\npoints = [\n{ file = " + json.dumps(str(c_source)) +
+            ', line = 7, enabled = true },\n{ file = ' + json.dumps(str(work / "vanished.c")) +
+            ', line = 1, enabled = false },\n{ file = ' + json.dumps(str(work / "notes.txt")) +
+            ", line = 999, enabled = true },\n]\n")
+        state_run("state-stale", c_binary, c_source, 7, stale_env)
+        corrupt_env = environment(work / "state-corrupt")
+        corrupt_file = Path(corrupt_env["XDG_CONFIG_HOME"]) / "cdbg/state.toml"
+        corrupt_file.parent.mkdir()
+        corrupt_file.write_text("invalid [ TOML")
+        state_run("state-corrupt", c_binary, c_source, 7, corrupt_env)
+        assert corrupt_file.read_text() == "invalid [ TOML", "Corrupt state should not be overwritten"
+        conflict_env = environment(work / "state-conflict")
+        state_run("state-conflict", c_binary, c_source, 7, conflict_env)
+        conflict_file = Path(conflict_env["XDG_CONFIG_HOME"]) / "cdbg/state.toml"
+        assert conflict_file.read_text() == "version = 1\nexternal = true\n", (
+            "Atomic save must not overwrite another writer")
+        clamped_env = environment(work / "state-clamped")
+        clamped_file = Path(clamped_env["XDG_CONFIG_HOME"]) / "cdbg/state.toml"
+        clamped_file.parent.mkdir()
+        clamped_file.write_text(
+            "version = 1\nwidth = 99999\nheight = 0\npane = 9999\ninspector = 99\nmaximized = false\n")
+        state_run("state-clamped", c_binary, c_source, 7, clamped_env)
+        # Exercise HOME fallback without ever referring to the user's real home.
+        fallback_env = environment(work / "state-fallback")
+        fallback_env.pop("XDG_CONFIG_HOME")
+        state_run("state-save", c_binary, c_source, 7, fallback_env)
+        assert (Path(fallback_env["HOME"]) / ".config/cdbg/state.toml").is_file()
 
 
 if __name__ == "__main__":

@@ -33,7 +33,8 @@ session ends or the window closes.
 The **File** menu separates the two kinds of file:
 
 - **Load Executable…** opens a file chooser and starts a fresh GDB session for
-  the chosen executable: breakpoints are cleared and the target is prepared but
+  the chosen executable: the old GDB breakpoint IDs are cleared, saved
+  breakpoints for that target are restored, and the target is prepared but
   not run. Its source tabs come from the readable source paths in its debug
   information. A command-line `.cw` target is compiled first, as above.
 - **Open Source Code…** opens a text file in a read-only source tab without
@@ -60,16 +61,25 @@ launched in cdbg's current working directory.
 
 ## Controls and inspection
 
-1. Load an executable (or start cdbg with a source/executable). Right-click a
-   source line and choose **Add Breakpoint**. The clicked file and line are
-   passed to GDB as an MI-quoted location. For the example above, line 10 stops
-   before the method call. **Delete Breakpoint** on a source line removes its
-   breakpoint(s). In the **Breakpoints** tab, click or right-click an entry to
-   highlight it, then use **Delete Breakpoint** in its context menu.
+1. Load an executable (or start cdbg with a source/executable). Click a source
+   line and choose **Breakpoint > Set/Clear Breakpoint** (F9). This sets a
+   breakpoint when none exists there, otherwise clears its breakpoint(s).
+   **Breakpoint > Enable/Disable Breakpoint** (Ctrl+F9) toggles their enabled
+   state; if no breakpoint exists at the line, the status says so.
+   Both commands use the cursor line of the active source tab, require a loaded,
+   paused target and use MI-quoted file:line locations. The menu items are
+   disabled without a ready target/source; shortcuts explain unavailable actions
+   in the status line. For the example above, line 10 stops before the method call.
+   Multi-location breakpoint actions affect the parent breakpoint and all its
+   locations. If GDB relocates a non-executable line to nearby code, toggling
+   again at the original requested line still clears that breakpoint.
+   The old source and Breakpoints-tab action popovers are removed;
+   normal read-only text selection/copy remains available.
    Breakpoint lines have a red-tinted background and a gutter icon, distinct
    from the current-line highlight; disabled breakpoints are gray. Marks follow
    GDB's resolved locations, including multiple locations, and remain in sync
-   when tabs close/reopen. Restart preserves them; a fresh load clears them.
+   when tabs close/reopen. Restart preserves them; a fresh load restores the
+   chosen target's saved locations and enabled states.
 2. **Run / Continue**, **Step Into**, **Step Over**, **Step Out** and **Pause**
    use GDB's run/continue/step/next/finish/interrupt commands. Controls reflect
    running versus stopped state. **File > Load Executable…** ends the old GDB
@@ -118,6 +128,32 @@ The GUI polls the async process with a bounded 10 ms wait, processing up to 64
 events per callback. Each output history is limited to 64 KiB and an individual MI
 record to 1 MiB.
 
+## Saved state
+
+`$XDG_CONFIG_HOME/cdbg/state.toml`, or `~/.config/cdbg/state.toml` when
+`XDG_CONFIG_HOME` is unset, stores breakpoint locations/enabled states per
+canonical executable path. For `cdbg file.cw`, the key is the canonical source
+path, never the temporary compiled executable. Symlink aliases share a key.
+Resolved locations are saved as file:line entries; multi-location groups are
+restored as individual file:line breakpoints rather than recreating a function
+breakpoint. Watches remain memory-only.
+
+Snapshots are written atomically after breakpoint changes and on Quit, using
+private file permissions and a content/ETag guard against concurrent changes.
+Restore occurs after GDB accepts the target. Invalid, missing or unresolvable
+locations are skipped with a Debugger Console/stderr diagnostic; the session
+continues. Up to 256 resolved locations per target and a 256 KiB state file are
+supported; limits are reported rather than silently ignored.
+
+Quit also saves window width/height, maximized state, the source/inspector
+divider position and selected inspector tab. Startup clamps size to 640–3840
+by 400–2160, the divider to 100 through width minus 100, and the inspector index
+to 0–5; GTK may further constrain dimensions to the available screen.
+Notebook headers scroll when necessary, so tab titles do not force the divider
+away from its saved position. Malformed/unreadable state falls back to defaults,
+logs a diagnostic and disables saving to preserve the original file for repair.
+Invalid individual layout values use defaults; out-of-range numbers are clamped.
+
 ## Boundaries
 
 Only local launch is supported: no remote debugging, attach, DAP, LLDB,
@@ -133,9 +169,8 @@ pretty-printers. Those objects therefore appear as pointers/opaque types rather
 than an expandable Cwhip object tree. Step Into may enter compiler/runtime
 helpers; use Step Out or file:line breakpoints to return to source. LLDB/DAP and
 richer Cwhip object inspection are follow-up work, not implemented features.
-Gutter-click breakpoint toggles remain future work. Source/Breakpoints context
-actions, the Watches context dialog, tab borders and source-tab close icons
-are implemented.
+Gutter-click breakpoint toggles remain future work. The Breakpoint menu,
+Watches context dialog, tab borders and source-tab close icons are implemented.
 
 ## Checks
 
@@ -163,10 +198,15 @@ menus, file chooser, Ctrl+F/Ctrl+Q shortcuts and Find dialog: failed opens
 unchanged, Load Executable versus Open Source Code, Find Next/Previous with
 wraparound and not-found, tab close/reopen-on-stop without duplicates, and tab
 borders/close icons.
-Further live interaction checks exercise capture-phase source context clicks,
-line-based add/delete, highlighted Breakpoints deletion, styled source marks
-for resolved/multiple GDB locations and reopened tabs, watch dialog Add/Cancel
+Further live interaction checks exercise source clicks, both Breakpoint menu
+items and F9/Ctrl+F9, enabled/disabled source marks for resolved/multiple GDB
+locations and reopened tabs, absence of the old action popovers, watch dialog Add/Cancel
 and evaluation failures, stack single-click navigation, and Step Over returning
 to frame zero's actual next line. They also check the absence of the removed
-controls, marker preservation on Restart, clearing on fresh load, and complete
-Quit cleanup.
+controls, marker preservation on Restart/restoration on fresh load, and complete
+Quit cleanup. Real quit/relaunch checks cover executable and `.cw` keys,
+canonical symlink keys, disabled states, window/layout restoration, stale and
+corrupt state, range clamping, and isolated HOME/XDG paths including HOME fallback.
+An external-edit check verifies that atomic saving does not overwrite another writer.
+When `xfwm4` is available the private test display also verifies actual
+maximization/restore; its session management is disabled.

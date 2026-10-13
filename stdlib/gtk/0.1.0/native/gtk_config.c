@@ -91,6 +91,20 @@ static toml_table_t *config_section(toml_table_t *root, const char *section) {
     return *section ? toml_table_in(root, section) : root;
 }
 
+int64_t cwhip_gtk_config_array_size(void *self, void *text, void *section_text, void *key_text) {
+    (void)self;
+    char error[256] = "";
+    toml_table_t *root = config_parse(text, error);
+    char *section = text_copy(section_text), *key = text_copy(key_text);
+    toml_table_t *table = root ? config_section(root, section) : NULL;
+    toml_array_t *array = table ? toml_array_in(table, key) : NULL;
+    int64_t size = array ? toml_array_nelem(array) : -1;
+    toml_free(root);
+    g_free(section);
+    g_free(key);
+    return size;
+}
+
 /* Tagged values keep conversion/type validation in the Cwhip model. */
 void *cwhip_gtk_config_value(void *self, void *text, void *section_text, void *key_text) {
     (void)self;
@@ -394,6 +408,35 @@ void cwhip_gtk_config_save(void *self, void *path_text, void *text, void *expect
 
 static void config_finish_shutdown(void) {
     while (config_saves) g_main_context_iteration(main_context, TRUE);
+}
+
+/* Bounded state snapshots must finish before the last window is destroyed. */
+void *cwhip_gtk_config_save_now(void *self, void *path_text, void *text, void *expected_text) {
+    (void)self;
+    require_live();
+    char *path = text_copy(path_text), *contents = text_copy(text);
+    char *expected = text_copy(expected_text), *old = NULL, *etag = NULL;
+    GFile *file = g_file_new_for_path(path);
+    GError *error = NULL;
+    gsize length = 0;
+    bool loaded = g_file_load_contents(file, NULL, &old, &length, &etag, &error);
+    if (error && g_error_matches(error, G_IO_ERROR, G_IO_ERROR_NOT_FOUND) && !*expected)
+        g_clear_error(&error);
+    if (!error && loaded && (length != strlen(expected) || memcmp(old, expected, length)))
+        error = g_error_new_literal(G_IO_ERROR, G_IO_ERROR_WRONG_ETAG,
+                                   "Settings changed on disk; restart before saving");
+    if (!error)
+        g_file_replace_contents(file, contents, strlen(contents), etag, FALSE,
+            G_FILE_CREATE_PRIVATE | G_FILE_CREATE_REPLACE_DESTINATION, NULL, NULL, &error);
+    void *result = config_string(error ? error->message : "");
+    g_clear_error(&error);
+    g_object_unref(file);
+    g_free(path);
+    g_free(contents);
+    g_free(expected);
+    g_free(old);
+    g_free(etag);
+    return result;
 }
 
 void *cwhip_gtk_keyboard_normalize(void *self, void *text) {

@@ -8,7 +8,9 @@ namespace Gtk {
         String merge(String original, String updates)
         String remove(String text, String section, String key)
         String item(String text, String section, String key, int index, String field)
+        int arraySize(String text, String section, String key)
         void save(String path, String text, String expected, callback<void(String)> result)
+        String saveNow(String path, String text, String expected)
     }
     String Config.validate(String text) from "cwhip_gtk_config_validate"
     String Config.fileStatus(String path) from "cwhip_gtk_config_file_status"
@@ -19,8 +21,10 @@ namespace Gtk {
     String Config.remove(String text, String section, String key) from "cwhip_gtk_config_remove"
     String Config.item(String text, String section, String key, int index, String field)
         from "cwhip_gtk_config_item"
+    int Config.arraySize(String text, String section, String key) from "cwhip_gtk_config_array_size"
     void Config.save(String path, String text, String expected, callback<void(String)> result)
         from "cwhip_gtk_config_save"
+    String Config.saveNow(String path, String text, String expected) from "cwhip_gtk_config_save_now"
 
     class Keyboard {
         String normalize(String trigger)
@@ -159,6 +163,8 @@ namespace Gtk {
         Window _windowSelf()
         bool _bindShortcut(int token, String trigger, callback<void()> action)
         bool _hasShortcut(int token, String trigger)
+        bool _maximized(int token)
+        void _maximize(int token, bool enabled)
         public:
         Window(String title) { super Widget(1, title, 0, 0) }
         void setTitle(String title) { _setText(title) }
@@ -166,6 +172,8 @@ namespace Gtk {
         void setDefaultSize(int width, int height) { _sizeWindow(width, height) }
         int defaultWidth() { return _defaultWidth() }
         int defaultHeight() { return _defaultHeight() }
+        bool maximized() { return _maximized(_widgetToken()) }
+        void setMaximized(bool enabled) { _maximize(_widgetToken(), enabled) }
         void setTransientFor(Window parent) {
             _setTransientFor(parent._widgetToken())
         }
@@ -369,6 +377,7 @@ namespace Gtk {
         Notebook _notebookSelf()
         void _closable(int token, int child, String title, callback<void()> close)
         void _bordered(int token)
+        void _scrollable(int token, bool enabled)
         public:
         Notebook() { super Widget(9, "", 0, 0) }
         void appendPage(Widget child, String title) {
@@ -379,6 +388,7 @@ namespace Gtk {
         }
         // Draws a border around every tab label, as closable pages already do.
         void setBorderedTabs() { _bordered(_widgetToken()) }
+        void setScrollable(bool enabled) { _scrollable(_widgetToken(), enabled) }
         int currentPage() { return _notebookCurrent(_widgetToken()) }
         void setCurrentPage(int page) { _notebookSetCurrent(_widgetToken(), page) }
         int pageCount() { return _notebookCount(_widgetToken()) }
@@ -496,9 +506,12 @@ namespace Gtk {
     void Notebook._closable(int token, int child, String title, callback<void()> close)
         from "cwhip_gtk_notebook_closable"
     void Notebook._bordered(int token) from "cwhip_gtk_notebook_bordered"
+    void Notebook._scrollable(int token, bool enabled) from "cwhip_gtk_notebook_scrollable"
     bool Window._bindShortcut(int token, String trigger, callback<void()> action)
         from "cwhip_gtk_window_bind_shortcut"
     bool Window._hasShortcut(int token, String trigger) from "cwhip_gtk_window_has_shortcut"
+    bool Window._maximized(int token) from "cwhip_gtk_window_maximized"
+    void Window._maximize(int token, bool enabled) from "cwhip_gtk_window_maximize"
     bool SignalConnection._disconnect(int token) from "cwhip_gtk_connection_disconnect"
     bool SignalConnection._connected(int token) from "cwhip_gtk_connected"
     int Widget._create(int kind, String text, int orientation, int spacing, callback<void()> root)
