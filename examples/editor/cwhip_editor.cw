@@ -147,8 +147,10 @@ class CwhipSettings {
             error(format("Could not read {}: {}", legacy, presence))
             return
         }
-        System.File file = System.File(legacy, "r")
-        if (!file.isOpen()) {
+        System.File file = null
+        try {
+            file = System.File(legacy, "r")
+        } except(Exception) {
             error(format("Could not read {}", legacy))
             return
         }
@@ -246,8 +248,10 @@ class CwhipSettings {
             error("Settings must be a regular TOML file no larger than 64 KiB")
             return
         }
-        System.File file = System.File(path, "r")
-        if (!file.isOpen()) {
+        System.File file = null
+        try {
+            file = System.File(path, "r")
+        } except(Exception) {
             error(format("Could not read settings: {}", System.System().lastError()))
             return
         }
@@ -661,8 +665,10 @@ class CwhipProject {
             readError = format("{} must be a regular file no larger than {} KiB", path, limit / 1024)
             return ""
         }
-        System.File file = System.File(path, "r")
-        if (!file.isOpen()) {
+        System.File file = null
+        try {
+            file = System.File(path, "r")
+        } except(Exception) {
             readError = format("Could not read {}: {}", path, System.System().lastError())
             return ""
         }
@@ -2023,8 +2029,10 @@ class CwhipEditor {
                 preferencesMessage.setText("Settings save failed: current settings must be a regular file no larger than 64 KiB")
                 return false
             }
-            System.File file = System.File(settings.path, "r")
-            if (!file.isOpen()) {
+            System.File file = null
+            try {
+                file = System.File(settings.path, "r")
+            } except(Exception) {
                 preferencesMessage.setText("Settings save failed: cannot read current settings")
                 return false
             }
@@ -2887,8 +2895,10 @@ class CwhipEditor {
             reportOpenFailure(format("Open failed: {} is not a regular file", requestedPath), false)
             return null
         }
-        System.File input = System.File(absolutePath, "r")
-        if (!input.isOpen()) {
+        System.File input = null
+        try {
+            input = System.File(absolutePath, "r")
+        } except(Exception) {
             showError("Open failed: ", requestedPath)
             reportOpenFailure(status.text(), false)
             return null
@@ -3065,8 +3075,10 @@ class CwhipEditor {
             index = index + 1
         }
         if (settings.stripTrailingSpaces) { document.stripTrailingSpaces() }
-        System.File output = System.File(absoluteDestination, "w")
-        if (!output.isOpen()) {
+        System.File output = null
+        try {
+            output = System.File(absoluteDestination, "w")
+        } except(Exception) {
             showError("Save failed: ", absoluteDestination)
             return false
         }
@@ -3873,11 +3885,16 @@ class CwhipEditor {
         closeCurrentDocument()
         savePendingClose()
         bool saved = false
-        System.File savedFile = System.File(document.path, "r")
-        if (savedFile.isOpen()) {
-            String savedContents = savedFile.readAll()
-            saved = savedContents.contains("String name = \"Cwhip language\"")
-            savedFile.close()
+        System.File savedFile = null
+        try {
+            savedFile = System.File(document.path, "r")
+            if (savedFile.isOpen()) {
+                String savedContents = savedFile.readAll()
+                saved = savedContents.contains("String name = \"Cwhip language\"")
+                savedFile.close()
+            }
+        } except(Exception) {
+            saved = false
         }
         bool savedTabClosed = documents.length == 1 && notebook.pageCount() == 1
         bool closeProtected = !requestClose()

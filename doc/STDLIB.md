@@ -71,12 +71,14 @@ bool setEnv(String name, String value)
 
 `System` forwards `argc`, `argv`, `arg`, `exit`, `abort`, and `getEnv`, and
 also provides `StandardIO io()`, `String lastError()`, `File open(String path,
-String mode)`, and `bool exists(String path)`. An invalid `arg` index and an
+String mode)`, and `bool exists(String path)`. Calling `open(path, mode)`
+raises `Exception` if the file cannot be opened. An invalid `arg` index and an
 unset environment variable produce an empty string. `setEnv` reports success
 as a boolean and records native failures in `lastError()`.
 
 `Sys.File` can be constructed with `File(String path, String mode)` or
-obtained from `Sys.System().open`. Its methods are:
+obtained from `Sys.System().open`. Constructing `File(path, mode)` or calling
+`open(path, mode)` raises `Exception` if the file cannot be opened. Its methods are:
 
 ```text
 String path()
@@ -102,8 +104,8 @@ string/list or the operation's failure value and set `lastError()`.
 `write`/`writeLine` return the number of bytes written (including the newline
 for `writeLine` when successful); failed writes may return a partial count.
 `seek` returns zero on success and `-1` on failure; `tell` returns the
-position, capped at the signed 64-bit `int` range, or `-1`. `File` records whether the
-initial open succeeded; close it explicitly.
+position, capped at the signed 64-bit `int` range, or `-1`. `isOpen()` indicates
+whether the file is currently open (false after `close()`); close it explicitly.
 
 `Sys.FileSystem` provides:
 

@@ -29,8 +29,14 @@ class AliasError : Exception {
 }
 
 start {
-    sys.File missing("/definitely/not/a/cwhip/dir/file.txt", "r")
-    print(missing.isOpen())
+    bool opened = false
+    try {
+        sys.File missing("/definitely/not/a/cwhip/dir/file.txt", "r")
+        opened = missing.isOpen()
+    } except(Exception) {
+        opened = false
+    }
+    print(opened)
 
     try {
         raise(Exception(sys.System().lastError()))

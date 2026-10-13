@@ -49,7 +49,14 @@ namespace System {
             _path = path
             _mode = mode
             _fp = Runtime().fileOpen(path, mode)
-            _isOpen = _fp != null
+            if (_fp == null) {
+                String err = System().lastError()
+                if (err == "") {
+                    err = "failed to open file"
+                }
+                raise(Exception(format("Cannot open file '{}': {}", path, err)))
+            }
+            _isOpen = true
         }
 
         String path() {

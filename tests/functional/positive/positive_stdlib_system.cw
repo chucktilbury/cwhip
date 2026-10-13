@@ -8,21 +8,13 @@ start {
     print(process.setEnv("CWHIP_STDLIB_TEST", "value"))
     print(process.getEnv("CWHIP_STDLIB_TEST").equals("value"))
 
-    Sys.File file = Sys.File("sample.txt", "r")
-    print(file.path().equals("sample.txt"))
-    print(file.mode().equals("r"))
-    print(file.isOpen() == false)
-    print(file.eof() == false)
-    print(file.read(1).length == 0)
-    print(file.readAll().length == 0)
-    print(file.readLine().length == 0)
-    print(file.readLines().length == 0)
-    print(file.write("data") == 0)
-    print(file.writeLine("line") == 0)
-    print(file.seek(0, 0) == -1)
-    print(file.tell() == -1)
-    file.flush()
-    file.close()
+    bool fileRaised = false
+    try {
+        Sys.File file = Sys.File("sample.txt", "r")
+    } except(Exception) {
+        fileRaised = true
+    }
+    print(fileRaised)
 
     Sys.FileSystem fileSystem = Sys.FileSystem()
     print(fileSystem.exists("."))
@@ -43,8 +35,13 @@ start {
     print(system.argc() == process.argc())
     print(system.argv().length == process.argc())
     print(system.arg(0).equals(process.arg(0)))
-    Sys.File opened = system.open("sample.txt", "r")
-    print(opened.isOpen() == false)
+    bool openedRaised = false
+    try {
+        Sys.File opened = system.open("sample.txt", "r")
+    } except(Exception) {
+        openedRaised = true
+    }
+    print(openedRaised)
     print(system.exists("."))
     print(system.getEnv("CWHIP_STDLIB_TEST").equals("value"))
 }
