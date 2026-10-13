@@ -60,23 +60,38 @@ launched in cdbg's current working directory.
 
 ## Controls and inspection
 
-1. Load an executable (or start cdbg with a source/executable). Enter a **function** or **file:line** and click
-   **Add**. For the example above, `examples/debugger.cw:10` stops before the
-   method call; absolute file paths are also accepted. Breakpoints have numeric
-   IDs shown in the Breakpoints pane; **Delete ID** removes one.
+1. Load an executable (or start cdbg with a source/executable). Right-click a
+   source line and choose **Add Breakpoint**. The clicked file and line are
+   passed to GDB as an MI-quoted location. For the example above, line 10 stops
+   before the method call. **Delete Breakpoint** on a source line removes its
+   breakpoint(s). In the **Breakpoints** tab, click or right-click an entry to
+   highlight it, then use **Delete Breakpoint** in its context menu.
+   Breakpoint lines have a red-tinted background and a gutter icon, distinct
+   from the current-line highlight; disabled breakpoints are gray. Marks follow
+   GDB's resolved locations, including multiple locations, and remain in sync
+   when tabs close/reopen. Restart preserves them; a fresh load clears them.
 2. **Run / Continue**, **Step Into**, **Step Over**, **Step Out** and **Pause**
    use GDB's run/continue/step/next/finish/interrupt commands. Controls reflect
-   running versus stopped state. **End Session** stops GDB and its owned process
-   group; **File > Load Executable…** starts a fresh session. **Restart** stops the current inferior
+   running versus stopped state. **File > Load Executable…** ends the old GDB
+   process group and starts a fresh session. **Restart** stops the current inferior
    and runs the already loaded executable from the beginning, preserving
    breakpoints, watches and arguments. It works while running, stopped or after
    exit; it does not recompile source. Restart cdbg with the `.cw` path, or load
    a rebuilt executable, after changing the source.
 3. At each stop the source location/current line, Locals / Arguments, Stack,
-   and Watches are refreshed. Enter an expression such as `counter` and click
-   **Watch**; out-of-scope/evaluation errors are displayed alongside that
-   expression. Enter a stack-frame number and **Select Frame** to inspect that
-   frame's source, variables and watches.
+   and Watches are refreshed. Right-click the **Watches** tab and choose
+   **Add Watch…**. The parented dialog has an expression entry and **Add** /
+   **Cancel** buttons. Out-of-scope/evaluation errors are displayed alongside
+   the expression.
+4. Single-click a **Stack** entry to inspect that frame's source, locals and
+   watches. This browses the stack without executing. Step/continue operations
+   restore the actual execution frame (frame zero) first, and the next stop
+   brings the source view back to the executing file and line.
+
+There are no breakpoint/watch/frame entry rows or End Session button in the
+main window. **Quit** (or closing the window) stops GDB and its owned inferior,
+closes the output PTY and dialogs, cancels polling, and removes temporary
+compiler outputs.
 
 Source files occupy separate notebook tabs. Debug-info sources are opened on
 load, and stopping in another file opens/selects its tab without duplicates.
@@ -118,9 +133,9 @@ pretty-printers. Those objects therefore appear as pointers/opaque types rather
 than an expandable Cwhip object tree. Step Into may enter compiler/runtime
 helpers; use Step Out or file:line breakpoints to return to source. LLDB/DAP and
 richer Cwhip object inspection are follow-up work, not implemented features.
-Also planned, not implemented in this iteration: gutter-click breakpoint toggles
-and right-click actions on Watches/Breakpoints. (Tab borders and source-tab
-close icons are implemented.)
+Gutter-click breakpoint toggles remain future work. Source/Breakpoints context
+actions, the Watches context dialog, tab borders and source-tab close icons
+are implemented.
 
 ## Checks
 
@@ -148,3 +163,10 @@ menus, file chooser, Ctrl+F/Ctrl+Q shortcuts and Find dialog: failed opens
 unchanged, Load Executable versus Open Source Code, Find Next/Previous with
 wraparound and not-found, tab close/reopen-on-stop without duplicates, and tab
 borders/close icons.
+Further live interaction checks exercise capture-phase source context clicks,
+line-based add/delete, highlighted Breakpoints deletion, styled source marks
+for resolved/multiple GDB locations and reopened tabs, watch dialog Add/Cancel
+and evaluation failures, stack single-click navigation, and Step Over returning
+to frame zero's actual next line. They also check the absence of the removed
+controls, marker preservation on Restart, clearing on fresh load, and complete
+Quit cleanup.

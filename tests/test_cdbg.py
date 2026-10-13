@@ -43,6 +43,17 @@ start {
     test.require(parser.valid && parser.data.text.equals(input), "quoting roundtrip")
     parser.parse("1^done,values=[]")
     test.require(parser.valid && parser.data.field("values").values.length == 0, "empty list")
+    parser.parse("1^done,bkpt={number=\"3\",addr=\"<MULTIPLE>\"},{number=\"3.1\",line=\"7\"},{number=\"3.2\",line=\"9\"}")
+    test.require(parser.valid && parser.data.field("bkpt").field("locations").values.length == 2 &&
+        (parser.data.field("bkpt").field("locations").values[1] as MiValue).field("line").text.equals("9"),
+        "legacy GDB unlabelled multiple breakpoint locations")
+    parser.parse("=breakpoint-modified,bkpt={number=\"3\",locations=[{number=\"3.1\",line=\"7\"}]}")
+    test.require(parser.valid && parser.data.field("bkpt").field("locations").values.length == 1,
+        "nested multiple breakpoint locations")
+    parser.parse("1^done,bkpt={number=\"3\"},{number=\"4.1\"}")
+    test.require(!parser.valid, "unrelated unlabelled tuple rejected")
+    parser.parse("1^done,other={number=\"3\"},{number=\"3.1\"}")
+    test.require(!parser.valid, "unlabelled tuple outside bkpt rejected")
     parser.parse("1^done,values=[{name=\"x\"},]")
     test.require(!parser.valid, "trailing comma rejected")
     parser.parse("1^done,msg=\"unfinished")
@@ -82,6 +93,10 @@ class DebugUiFixture {
     bool findClick(String name)
     bool shortcut(String trigger)
     void choose(String path)
+    bool compact()
+    bool lineClick(String pane, int line, String action)
+    int marks(String file, int line)
+    bool watchDialog(String expression, bool accept)
 }
 bool DebugUiFixture.alert() from "cdbg_fixture_alert"
 bool DebugUiFixture.panes() from "cdbg_fixture_panes"
@@ -97,6 +112,10 @@ bool DebugUiFixture.findVisible() from "cdbg_fixture_find_visible"
 bool DebugUiFixture.findClick(String name) from "cdbg_fixture_find_click"
 bool DebugUiFixture.shortcut(String trigger) from "cdbg_fixture_shortcut"
 void DebugUiFixture.choose(String path) from "cdbg_fixture_choose"
+bool DebugUiFixture.compact() from "cdbg_fixture_compact"
+bool DebugUiFixture.lineClick(String pane, int line, String action) from "cdbg_fixture_line_click"
+int DebugUiFixture.marks(String file, int line) from "cdbg_fixture_marks"
+bool DebugUiFixture.watchDialog(String expression, bool accept) from "cdbg_fixture_watch"
 
 class DebugChecks {
     Cdbg ui
@@ -122,7 +141,7 @@ class DebugChecks {
         ui.consume("ed\\n\"\n")
         require(ui.console.text().equals("fragmented\n"), "fragmented record reassembled")
         deadline = Time.Clock().monotonicMilliseconds() + 20000u
-        if (mode.equals("ui")) {
+        if (mode.equals("ui") || mode.equals("context")) {
             require(ui.sourceTabs.pageCount() == 1 && ui.source.text().startsWith("No source"),
                 "source area starts with a placeholder page")
         }
@@ -195,9 +214,8 @@ class DebugChecks {
                 ui.sourceTabs.pageCount() == 1 && DebugUiFixture().closeButtons() == 1,
                 "close icons remove tabs")
             require(ui.loaded && ui.process != null, "closing tabs keeps the debug session")
-            ui.breakpoint.setText(format("{}:{}", System.Process().getEnv("CDBG_TEST_SOURCE"),
+            ui.addBreakpoint(format("{}:{}", System.Process().getEnv("CDBG_TEST_SOURCE"),
                 System.Process().getEnv("CDBG_TEST_LINE")))
-            ui.addBreakpoint()
             stage = 5
         }
         if (stage == 5 && idle()) { ui.resume()
@@ -250,10 +268,134 @@ class DebugChecks {
     }
     DebugChecks _self()
     bool idle() { return ui.active == null && ui.requests.length == 0 }
+    bool contextTick() {
+        String path = System.Process().getEnv("CDBG_TEST_SOURCE")
+        String helper = System.FileSystem().join(System.FileSystem().dirname(path), "context_helper.c")
+        if (stage == 0 && ui.loaded && idle()) {
+            require(DebugUiFixture().compact(), "main window has no breakpoint/watch/frame rows or End Session")
+            ui.showSource(path, "")
+            if (!DebugUiFixture().lineClick("", 7, "Add Breakpoint")) { return true }
+            require(ui.source.line() == 7, format("source context click positions cursor at line 7, got {}",
+                ui.source.line()))
+            stage = 1
+        }
+        if (stage == 1 && idle()) {
+            require(ui.breaks.text().contains("#1") && DebugUiFixture().marks("context.c", 7) == 1,
+                "resolved file:line breakpoint has a colored mark and icon")
+            require(ui.source.line() == 7, "adding marks retains source cursor")
+            if (!DebugUiFixture().lineClick("", 7, "Delete Breakpoint")) { return true }
+            stage = 2
+        }
+        if (stage == 2 && idle()) {
+            require(ui.breaks.text().equals("") && DebugUiFixture().marks("context.c", 7) == 0,
+                "source context delete removes breakpoint and marker")
+            if (!DebugUiFixture().lineClick("", 7, "Add Breakpoint")) { return true }
+            stage = 3
+        }
+        if (stage == 3 && idle()) {
+            require(ui.breaks.text().contains("#2") && DebugUiFixture().marks("context.c", 7) == 1,
+                "source breakpoint restored")
+            ui.addBreakpoint("shared_point")
+            stage = 4
+        }
+        if (stage == 4 && idle()) {
+            require(ui.breaks.text().contains("#3") && DebugUiFixture().marks("context.c", 3) == 1 &&
+                DebugUiFixture().marks("context_helper.c", 2) == 1,
+                "multiple GDB breakpoint locations marked in all source tabs")
+            if (!DebugUiFixture().lineClick("Breakpoints", 2, "Delete Breakpoint")) { return true }
+            require(ui.breaks.hasSelection() && ui.breaks.selectedText().contains("#3"),
+                "breakpoint context click highlights the selected entry")
+            stage = 5
+        }
+        if (stage == 5 && idle()) {
+            require(!ui.breaks.text().contains("#3") && ui.breaks.text().contains("#2") &&
+                DebugUiFixture().marks("context.c", 3) == 0 &&
+                DebugUiFixture().marks("context_helper.c", 2) == 0 &&
+                DebugUiFixture().marks("context.c", 7) == 1,
+                "selected breakpoint deletion clears every child marker, not other breakpoints")
+            ui.showSource(path, "")
+            require(DebugUiFixture().closeTab("context.c"), "close marked source tab")
+            require(ui.showSource(path, "") && DebugUiFixture().marks("context.c", 7) == 1,
+                "reopened tab inherits breakpoint marks")
+            if (!DebugUiFixture().lineClick("Watches", 1, "Add Watch...")) { return true }
+            require(DebugUiFixture().watchDialog("ignored", false) && ui.expressions.length == 0,
+                "parented watch dialog Cancel adds nothing")
+            stage = 6
+        }
+        if (stage == 6) {
+            if (!DebugUiFixture().lineClick("Watches", 1, "Add Watch...")) { return true }
+            require(DebugUiFixture().watchDialog("counter", true), "watch dialog Add accepts expression")
+            stage = 7
+        }
+        if (stage == 7) {
+            if (!DebugUiFixture().lineClick("Watches", 1, "Add Watch...")) { return true }
+            require(DebugUiFixture().watchDialog("not_in_scope", true), "watch dialog accepts unknown expression")
+            require(ui.expressions.length == 2, "watch expressions retained")
+            ui.resume()
+            stage = 8
+        }
+        if (stage == 8 && ui.stopCount > 0 && !ui.running && idle()) {
+            require(ui.source.line() == 7 && ui.source.text().contains("int main") &&
+                ui.watches.text().contains("counter = 21") &&
+                ui.watches.text().contains("not_in_scope = <"),
+                "dialog watches evaluate at stop, including out-of-scope errors")
+            require(DebugUiFixture().marks("context.c", 7) == 1, "stop retains distinct breakpoint marking")
+            stops = ui.stopCount
+            ui.restart()
+            stage = 9
+        }
+        if (stage == 9 && ui.stopCount > stops && !ui.running && idle()) {
+            require(DebugUiFixture().marks("context.c", 7) == 1 && ui.breaks.text().contains("#2"),
+                "Restart retains breakpoint state and marks")
+            stops = ui.stopCount
+            ui.stepInto()
+            stage = 10
+        }
+        if (stage == 10 && ui.stopCount > stops && !ui.running && idle()) {
+            require(ui.source.text().contains("int doubled") && ui.source.line() == 5,
+                "execution stops inside helper")
+            stops = ui.stopCount
+            if (!DebugUiFixture().lineClick("Stack", 2, "")) { return true }
+            stage = 11
+        }
+        if (stage == 11 && idle()) {
+            require(ui.selectedFrame == 1 && ui.source.text().contains("int main") &&
+                ui.source.line() == 7 && ui.locals.text().contains("counter = 21") &&
+                ui.watches.text().contains("counter = 21") && ui.stopCount == stops,
+                "single stack click navigates caller and refreshes inspection without execution")
+            ui.stepOver()
+            stage = 12
+        }
+        if (stage == 12 && ui.stopCount > stops && !ui.running && idle()) {
+            require(ui.selectedFrame == 0 && ui.source.text().contains("int doubled") &&
+                ui.source.line() == 6 && ui.locals.text().contains("doubled = 42"),
+                "Step Over restores actual execution frame and returns to helper's next line")
+            require(ui.showSource(path, "") && DebugUiFixture().marks("context.c", 7) == 1,
+                "switching files keeps markers")
+            ui.loadTarget(System.Process().getEnv("CDBG_TEST_TARGET"))
+            stage = 13
+        }
+        if (stage == 13 && ui.loaded && idle()) {
+            require(ui.breaks.text().equals("") && DebugUiFixture().marks("context.c", 7) == 0 &&
+                DebugUiFixture().marks("context_helper.c", 2) == 0 && !ui.hasRun,
+                "fresh load clears breakpoint markers in rebuilt tabs")
+            require(ui.failure.equals(""), ui.failure)
+            ui.window.close()
+            require(ui.closed && ui.process == null && ui.terminal == null && ui.pollToken == 0 &&
+                ui.watchWindow.disposed(), "Quit cleans GDB, output transport, watch dialog and polling")
+            print("true")
+            return false
+        }
+        return true
+    }
     void tick() {
         require(Time.Clock().monotonicMilliseconds() < deadline, "session deadline")
         if (mode.equals("ui")) {
             if (uiTick()) { Gtk.Application().post(_self().tick) }
+            return
+        }
+        if (mode.equals("context")) {
+            if (contextTick()) { Gtk.Application().post(_self().tick) }
             return
         }
         if (mode.equals("missing") || mode.equals("compile-error") || mode.equals("invalid-target") ||
@@ -277,9 +419,8 @@ class DebugChecks {
             require(DebugUiFixture().panes(), "all text panes read-only without Emoji hint")
             if (mode.equals("scroll")) {
                 if (stage == 0 && ui.loaded && idle()) {
-                    ui.breakpoint.setText(format("{}:{}", System.Process().getEnv("CDBG_TEST_SOURCE"),
+                    ui.addBreakpoint(format("{}:{}", System.Process().getEnv("CDBG_TEST_SOURCE"),
                         System.Process().getEnv("CDBG_TEST_LINE")))
-                    ui.addBreakpoint()
                     stage = 1
                 }
                 if (stage == 1 && idle()) { ui.resume()
@@ -349,17 +490,14 @@ class DebugChecks {
                 if (mode.equals("native")) {
                     require(ui.sourceTabs.pageCount() == 2, "multiple source files have tabs")
                 }
-                ui.breakpoint.setText(format("{}:{}", System.Process().getEnv("CDBG_TEST_SOURCE"),
+                ui.addBreakpoint(format("{}:{}", System.Process().getEnv("CDBG_TEST_SOURCE"),
                     System.Process().getEnv("CDBG_TEST_LINE")))
-                ui.addBreakpoint()
                 stage = 1
             }
             if (stage == 1 && idle()) {
                 require(ui.breaks.text().contains("#1"), "breakpoint listed")
-                ui.watch.setText("counter")
-                ui.addWatch()
-                ui.watch.setText("not_in_scope")
-                ui.addWatch()
+                ui.addWatch("counter")
+                ui.addWatch("not_in_scope")
                 ui.resume()
                 stage = 2
             }
@@ -372,10 +510,8 @@ class DebugChecks {
                 require(ui.watches.text().contains("counter = 21") &&
                     ui.watches.text().contains("not_in_scope = <"), "watches and evaluation failure")
                 require(ui.stack.text().contains("#0"), "stack")
-                ui.watch.setText("counter + 1")
-                ui.addWatch()
-                ui.frameNumber.setText("0")
-                ui.selectFrame()
+                ui.addWatch("counter + 1")
+                ui.selectFrame("0")
                 stage = 3
             }
             if (stage == 3 && idle()) {
@@ -411,8 +547,7 @@ class DebugChecks {
                 stage = 6
             }
             if (stage == 6 && ui.stopCount > stops && !ui.running && idle()) {
-                ui.breakpointNumber.setText("1")
-                ui.deleteBreakpoint()
+                ui.deleteBreakpoint("1")
                 stage = 7
             }
             if (stage == 7 && idle()) {
@@ -597,7 +732,7 @@ def main() -> None:
         terminal = work / "terminal.o"
         gtk_flags = subprocess.check_output(
             ["pkg-config", "--cflags", "gtk4", "gtksourceview-5"], text=True).split()
-        subprocess.run([args.clang, "-c", str(root / "tests/cdbg_ui_fixture.c"),
+        subprocess.run([args.clang, "-g", "-c", str(root / "tests/cdbg_ui_fixture.c"),
                         "-I", str(root / "include"), *gtk_flags, "-o", str(fixture)], check=True)
         subprocess.run([args.clang, "-c", str(args.source.parent / "terminal.c"),
                         "-I", str(root / "include"), "-o", str(terminal)], check=True)
@@ -608,6 +743,19 @@ def main() -> None:
         c_source.write_text(C_FIXTURE)
         c_binary = work / "native target"
         subprocess.run([args.clang, "-g", "-O0", str(c_source), "-o", str(c_binary)], check=True)
+        context_source = work / "context.c"
+        context_source.write_text(
+            "int helper(int value);\nstatic int shared_point(int value) {\n return value + 1;\n}\n"
+            "int main(void) {\n int counter = 21;\n counter = helper(counter);\n"
+            " return counter == shared_point(41) ? 0 : 1;\n}\n")
+        context_helper = work / "context_helper.c"
+        context_helper.write_text(
+            "static int shared_point(int value) {\n return value + 1;\n}\n"
+            "int helper(int value) {\n int doubled = value * 2;\n"
+            " return doubled + shared_point(0) - 1;\n}\n")
+        context_binary = work / "context target"
+        subprocess.run([args.clang, "-g", "-O0", str(context_source), str(context_helper),
+                        "-o", str(context_binary)], check=True)
         stripped_binary = work / "no debug info"
         subprocess.run([args.clang, str(c_source), "-o", str(stripped_binary)], check=True)
         (work / "notes.txt").write_text("alpha\nneedle one\nbeta\nneedle two\n")
@@ -652,6 +800,7 @@ def main() -> None:
             ("scroll", scroll_binary, scroll_source, "123"),
             ("cancel", loop_binary, loop_source, "1"),
             ("ui", c_binary, c_source, "7"),
+            ("context", context_binary, context_source, "7"),
         ):
             with headless(args.xvfb, work, env) as gtk_env:
                 gtk_env.update(CDBG_TEST_MODE=mode, CDBG_TEST_TARGET=str(target),
@@ -675,7 +824,7 @@ def main() -> None:
                     lines = [line for line in result.stderr.splitlines() if line]
                     assert len(lines) == 4 and all(line.startswith("cdbg: ") for line in lines), (
                         result.stderr)
-                elif mode in ("native", "cwhip", "relative-cwhip", "no-source", "cancel", "scroll"):
+                elif mode in ("native", "cwhip", "relative-cwhip", "no-source", "cancel", "scroll", "context"):
                     assert not result.stderr, result.stderr
                 else:
                     assert "cdbg:" in result.stderr, result.stderr

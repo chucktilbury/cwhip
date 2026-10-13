@@ -50,6 +50,11 @@ namespace GtkSource {
                         bool numbers, bool wrap, bool highlight)
         int _changed(int token, callback<void()> action)
         int _cursorMoved(int token, callback<void()> action)
+        void _lineSelection(int token, bool enabled)
+        int _lineActivated(int token, callback<void(int)> action)
+        void _markStyle(int token, String category, String icon, String color)
+        void _lineMark(int token, String category, int line)
+        void _clearMarks(int token, String category)
         public:
         // Search option bits; add them together to combine options.
         enum { CASE_SENSITIVE = 1, WHOLE_WORDS = 2, IN_SELECTION = 4, BACKWARD = 8 }
@@ -122,6 +127,13 @@ namespace GtkSource {
         int onCursorMoved(callback<void()> action) {
             return _cursorMoved(_widgetToken(), action)
         }
+        void setLineSelection(bool enabled) { _lineSelection(_widgetToken(), enabled) }
+        int onLineActivated(callback<void(int)> action) { return _lineActivated(_widgetToken(), action) }
+        void setMarkStyle(String category, String icon, String background) {
+            _markStyle(_widgetToken(), category, icon, background)
+        }
+        void addLineMark(String category, int line) { _lineMark(_widgetToken(), category, line) }
+        void clearLineMarks(String category) { _clearMarks(_widgetToken(), category) }
     }
 
     void View._setText(int token, String text) from "cwhip_gtk_source_view_set_text"
@@ -174,4 +186,11 @@ namespace GtkSource {
         from "cwhip_gtk_source_view_changed"
     int View._cursorMoved(int token, callback<void()> action)
         from "cwhip_gtk_source_view_cursor_moved"
+    void View._lineSelection(int token, bool enabled) from "cwhip_gtk_source_view_line_selection"
+    int View._lineActivated(int token, callback<void(int)> action)
+        from "cwhip_gtk_source_view_line_activated"
+    void View._markStyle(int token, String category, String icon, String color)
+        from "cwhip_gtk_source_view_mark_style"
+    void View._lineMark(int token, String category, int line) from "cwhip_gtk_source_view_line_mark"
+    void View._clearMarks(int token, String category) from "cwhip_gtk_source_view_clear_marks"
 }

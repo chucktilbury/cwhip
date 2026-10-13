@@ -125,7 +125,10 @@ to persist window size.
 `Entry.setEditable(false)` keeps selection/copy and programmatic updates available.
 `ContextMenu` attaches a secondary-button popover to its owner and accepts a
 single content widget (usually a Box of actions/check buttons); owner disposal
-tears it down. `appendClosablePage` adds a bordered title/close-icon tab, invoking
+tears it down. Its capture-phase gesture suppresses the owner's default popup.
+For text views it positions the cursor at the clicked line before opening;
+views with line selection enabled select that whole line instead.
+`appendClosablePage` adds a bordered title/close-icon tab, invoking
 the supplied callback without automatically removing the page.
 `setBorderedTabs()` applies the same tab border to every page of a notebook.
 `Window.bindShortcut` installs a window-wide shortcut (GTK trigger syntax such
@@ -363,6 +366,31 @@ notifications, which occur after GTK has updated its undo manager.
 one edit; query current state rather than counting emissions. Each returned
 connection token disconnects the whole grouped subscription. These methods
 share the normal GUI-thread lifetime rules.
+
+Read-only line-oriented interactions and source marks are also supported:
+
+```text
+void setLineSelection(bool enabled)
+int onLineActivated(callback<void(int)> action)
+void setMarkStyle(String category, String icon, String background)
+void addLineMark(String category, int line)
+void clearLineMarks(String category)
+```
+
+`onLineActivated` handles a primary single click in the capture phase, positions
+the cursor (or selects the line when `setLineSelection(true)`), and reports the
+one-based line number. Double clicks retain normal text selection behavior.
+The returned signal token can be disconnected; widget disposal disconnects
+controller callbacks and releases their receivers, including during invocation.
+`setLineSelection` also applies to a text view's `ContextMenu` right click.
+These APIs do not turn arbitrary text views into list models.
+
+Source marks use GtkSourceView categories, with a GTK icon name and CSS-parsable
+background color configured by `setMarkStyle`. Marks display in the gutter and
+color the marked line without modifying its text or cursor. `addLineMark` uses
+one-based lines, deduplicates marks in that category at a line, and ignores lines
+beyond the buffer's end. `clearLineMarks` removes only that category. Empty
+categories, invalid colors and nonpositive lines are programming errors.
 
 `configure(String font, int size, int tabs, bool spaces, bool numbers, bool wrap,
 bool highlight)` applies a per-view font family/point size, tab width,

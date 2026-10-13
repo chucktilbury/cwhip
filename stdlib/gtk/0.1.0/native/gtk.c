@@ -685,6 +685,13 @@ static void widget_dispose(WidgetRecord *r) {
         g_clear_object(&r->menu);
     }
     disconnect_object(G_OBJECT(widget));
+    GListModel *controllers = gtk_widget_observe_controllers(widget);
+    for (guint i = 0; i < g_list_model_get_n_items(controllers); ++i) {
+        GObject *controller = g_list_model_get_item(controllers, i);
+        disconnect_object(controller);
+        g_object_unref(controller);
+    }
+    g_object_unref(controllers);
     g_object_set_data(G_OBJECT(widget), "cwhip-tab-css", NULL);
 #ifdef CWHIP_GTK_SOURCEVIEW
     if (GTK_SOURCE_IS_VIEW(widget))
@@ -1478,10 +1485,31 @@ void cwhip_gtk_grid_attach(void *self, int64_t token, int64_t child, int64_t col
     cr->parent = pr;
 }
 
+static int text_click_line(GtkWidget *widget, double x, double y) {
+    GtkTextView *view = GTK_TEXT_VIEW(widget);
+    int bx, by;
+    gtk_text_view_window_to_buffer_coords(view, GTK_TEXT_WINDOW_WIDGET, x, y, &bx, &by);
+    GtkTextIter start, end;
+    gtk_text_view_get_iter_at_location(view, &start, bx, by);
+    int line = gtk_text_iter_get_line(&start);
+    gtk_text_iter_set_line_offset(&start, 0);
+    GtkTextBuffer *buffer = gtk_text_view_get_buffer(view);
+    if (g_object_get_data(G_OBJECT(widget), "cwhip-line-selection")) {
+        end = start;
+        gtk_text_iter_forward_to_line_end(&end);
+        gtk_text_buffer_select_range(buffer, &start, &end);
+    } else {
+        gtk_text_buffer_place_cursor(buffer, &start);
+    }
+    return line + 1;
+}
+
 static void context_pressed(GtkGestureClick *gesture, int count, double x, double y,
                             gpointer data) {
     (void)count;
     GtkPopover *popover = data;
+    GtkWidget *owner_widget = gtk_event_controller_get_widget(GTK_EVENT_CONTROLLER(gesture));
+    if (GTK_IS_TEXT_VIEW(owner_widget)) text_click_line(owner_widget, x, y);
     GdkRectangle point = { (int)x, (int)y, 1, 1 };
     gtk_popover_set_pointing_to(popover, &point);
     gtk_popover_popup(popover);
@@ -1499,6 +1527,7 @@ void cwhip_gtk_context_menu_bind(void *self, int64_t token, int64_t owner_token)
     gtk_widget_set_parent(menu, owner_widget);
     cr->parent = pr;
     GtkGesture *gesture = gtk_gesture_click_new();
+    gtk_event_controller_set_propagation_phase(GTK_EVENT_CONTROLLER(gesture), GTK_PHASE_CAPTURE);
     gtk_gesture_single_set_button(GTK_GESTURE_SINGLE(gesture), GDK_BUTTON_SECONDARY);
     g_signal_connect_object(gesture, "pressed", G_CALLBACK(context_pressed), menu, 0);
     gtk_widget_add_controller(owner_widget, GTK_EVENT_CONTROLLER(gesture));
@@ -1651,6 +1680,84 @@ int64_t cwhip_gtk_source_view_cursor_moved(void *self, int64_t token, void *call
                                         callback, "callback<void()>");
     connect_state(connection, "notify::has-selection");
     return connection;
+}
+
+void cwhip_gtk_source_view_line_selection(void *self, int64_t token, bool enabled) {
+    (void)self;
+    source_buffer(token);
+    g_object_set_data(G_OBJECT(widget_live(token)), "cwhip-line-selection",
+                      enabled ? GINT_TO_POINTER(1) : NULL);
+}
+
+static void source_line_pressed(GtkGestureClick *gesture, int count, double x, double y,
+                                gpointer data) {
+    if (count != 1) return;
+    Connection *connection = data;
+    int acquired = signal_enter(connection);
+    GtkWidget *widget = gtk_event_controller_get_widget(GTK_EVENT_CONTROLLER(gesture));
+    int line = text_click_line(widget, x, y);
+    gtk_gesture_set_state(GTK_GESTURE(gesture), GTK_EVENT_SEQUENCE_CLAIMED);
+    typedef void (*Adapter)(CwhipCallbackContext *, int64_t);
+    ((Adapter)cwhip_callback_adapter(connection->context))(connection->context, line);
+    signal_leave(connection, acquired);
+}
+
+int64_t cwhip_gtk_source_view_line_activated(void *self, int64_t token, void *callback) {
+    (void)self;
+    source_buffer(token);
+    GtkWidget *widget = widget_live(token);
+    GtkGesture *gesture = gtk_gesture_click_new();
+    gtk_gesture_single_set_button(GTK_GESTURE_SINGLE(gesture), GDK_BUTTON_PRIMARY);
+    gtk_event_controller_set_propagation_phase(GTK_EVENT_CONTROLLER(gesture), GTK_PHASE_CAPTURE);
+    int64_t connection = connect_signal(G_OBJECT(gesture), "pressed",
+        G_CALLBACK(source_line_pressed), callback, "callback<void(int)>");
+    gtk_widget_add_controller(widget, GTK_EVENT_CONTROLLER(gesture));
+    return connection;
+}
+
+void cwhip_gtk_source_view_mark_style(void *self, int64_t token, void *category_text,
+                                     void *icon_text, void *color_text) {
+    (void)self;
+    source_buffer(token);
+    char *category = text_copy(category_text), *icon = text_copy(icon_text);
+    char *color = text_copy(color_text);
+    GdkRGBA rgba;
+    if (!*category || !gdk_rgba_parse(&rgba, color)) fatal("invalid source mark style");
+    GtkSourceMarkAttributes *attributes = gtk_source_mark_attributes_new();
+    gtk_source_mark_attributes_set_icon_name(attributes, icon);
+    gtk_source_mark_attributes_set_background(attributes, &rgba);
+    gtk_source_view_set_mark_attributes(GTK_SOURCE_VIEW(widget_live(token)), category, attributes, 10);
+    gtk_source_view_set_show_line_marks(GTK_SOURCE_VIEW(widget_live(token)), TRUE);
+    g_object_unref(attributes);
+    g_free(category);
+    g_free(icon);
+    g_free(color);
+}
+
+void cwhip_gtk_source_view_line_mark(void *self, int64_t token, void *category_text, int64_t line) {
+    (void)self;
+    GtkSourceBuffer *buffer = source_buffer(token);
+    char *category = text_copy(category_text);
+    if (!*category || line < 1 || line > G_MAXINT) fatal("invalid source mark");
+    if (line <= gtk_text_buffer_get_line_count(GTK_TEXT_BUFFER(buffer))) {
+        GtkTextIter iter;
+        gtk_text_buffer_get_iter_at_line(GTK_TEXT_BUFFER(buffer), &iter, line - 1);
+        GSList *marks = gtk_source_buffer_get_source_marks_at_line(buffer, line - 1, category);
+        if (!marks) gtk_source_buffer_create_source_mark(buffer, NULL, category, &iter);
+        g_slist_free(marks);
+    }
+    g_free(category);
+}
+
+void cwhip_gtk_source_view_clear_marks(void *self, int64_t token, void *category_text) {
+    (void)self;
+    GtkSourceBuffer *buffer = source_buffer(token);
+    char *category = text_copy(category_text);
+    if (!*category) fatal("invalid source mark category");
+    GtkTextIter start, end;
+    gtk_text_buffer_get_bounds(GTK_TEXT_BUFFER(buffer), &start, &end);
+    gtk_source_buffer_remove_source_marks(buffer, &start, &end, category);
+    g_free(category);
 }
 
 bool cwhip_gtk_source_view_bind_shortcut(void *self, int64_t token, void *trigger_text,

@@ -165,7 +165,7 @@ static char *text_arg(void *text) {
     const char *bytes;
     uint64_t length;
     cwhip_string_bytes(text, &bytes, &length);
-    return g_strndup(bytes, length);
+    return length ? g_strndup(bytes, length) : g_strdup("");
 }
 
 /* Every source and inspector tab is drawn with the bordered tab style. */
@@ -383,4 +383,137 @@ void cdbg_fixture_choose(void *self, void *path) {
     chosen_path = text_arg(path);
     chooser_attempts = 0;
     g_timeout_add(500, answer_chooser, NULL);
+}
+
+bool cdbg_fixture_compact(void *self) {
+    (void)self;
+    GtkWidget *window = GTK_WIDGET(debugger_window());
+    return window && !find_type(window, GTK_TYPE_ENTRY) &&
+        !button_labeled(window, "End Session") &&
+        !button_labeled(window, "Select Frame") && !button_labeled(window, "Delete ID");
+}
+
+static GtkTextView *inspector_view(const char *title) {
+    GtkWidget *notebook = notebook_at(1);
+    if (!notebook) return NULL;
+    for (int i = 0; i < gtk_notebook_get_n_pages(GTK_NOTEBOOK(notebook)); ++i) {
+        GtkWidget *page = gtk_notebook_get_nth_page(GTK_NOTEBOOK(notebook), i);
+        if (g_strcmp0(gtk_notebook_get_tab_label_text(GTK_NOTEBOOK(notebook), page), title) == 0) {
+            gtk_notebook_set_current_page(GTK_NOTEBOOK(notebook), i);
+            GtkWidget *view = find_type(page, GTK_TYPE_TEXT_VIEW);
+            return view ? GTK_TEXT_VIEW(view) : NULL;
+        }
+    }
+    return NULL;
+}
+
+/* Drive the real capture-phase click controller at a displayed text line. */
+bool cdbg_fixture_line_click(void *self, void *pane, int64_t line, void *action) {
+    (void)self;
+    char *title = text_arg(pane), *label = text_arg(action);
+    GtkTextView *view = *title ? inspector_view(title) : source_view();
+    g_free(title);
+    if (!view || !gtk_widget_get_mapped(GTK_WIDGET(view))) {
+        g_free(label);
+        return false;
+    }
+    GtkTextIter iter;
+    gtk_text_buffer_get_iter_at_line(gtk_text_view_get_buffer(view), &iter, line - 1);
+    GdkRectangle rect;
+    gtk_text_view_get_iter_location(view, &iter, &rect);
+    int x, y;
+    gtk_text_view_buffer_to_window_coords(view, GTK_TEXT_WINDOW_WIDGET,
+        rect.x + 2, rect.y + rect.height / 2, &x, &y);
+    GtkTextIter hit;
+    gtk_text_view_get_iter_at_location(view, &hit, rect.x + 2, rect.y + rect.height / 2);
+    if (gtk_text_iter_get_line(&hit) != line - 1) {
+        g_free(label);
+        return false;
+    }
+    guint button = *label ? GDK_BUTTON_SECONDARY : GDK_BUTTON_PRIMARY;
+    GtkGesture *match = NULL;
+    GListModel *controllers = gtk_widget_observe_controllers(GTK_WIDGET(view));
+    for (guint i = 0; !match && i < g_list_model_get_n_items(controllers); ++i) {
+        GtkEventController *controller = g_list_model_get_item(controllers, i);
+        if (GTK_IS_GESTURE_CLICK(controller) &&
+            gtk_event_controller_get_propagation_phase(controller) == GTK_PHASE_CAPTURE &&
+            gtk_gesture_single_get_button(GTK_GESTURE_SINGLE(controller)) == button)
+            match = GTK_GESTURE(g_object_ref(controller));
+        g_object_unref(controller);
+    }
+    g_object_unref(controllers);
+    bool activated = false;
+    if (match) {
+        g_object_ref(view);
+        g_signal_emit_by_name(match, "pressed", 1, (double)x, (double)y);
+        if (*label) {
+            GtkWidget *popover = find_type(GTK_WIDGET(view), GTK_TYPE_POPOVER);
+            GtkWidget *item = popover ? button_labeled(popover, label) : NULL;
+            if (item && gtk_widget_get_visible(popover)) {
+                g_signal_emit_by_name(item, "clicked");
+                activated = true;
+            }
+        } else activated = true;
+        g_object_unref(view);
+        g_object_unref(match);
+    }
+    g_free(label);
+    return activated;
+}
+
+int64_t cdbg_fixture_marks(void *self, void *filename, int64_t line) {
+    (void)self;
+    char *name = text_arg(filename);
+    GtkWidget *notebook = notebook_at(0);
+    int64_t count = 0;
+    for (int i = 0; notebook && i < gtk_notebook_get_n_pages(GTK_NOTEBOOK(notebook)); ++i) {
+        GtkWidget *tab = tab_label(notebook, i);
+        GtkWidget *label = GTK_IS_BOX(tab) ? gtk_widget_get_first_child(tab) : tab;
+        if (!GTK_IS_LABEL(label) || g_strcmp0(gtk_label_get_text(GTK_LABEL(label)), name)) continue;
+        GtkWidget *page = gtk_notebook_get_nth_page(GTK_NOTEBOOK(notebook), i);
+        GtkSourceView *view = GTK_SOURCE_VIEW(find_type(page, GTK_SOURCE_TYPE_VIEW));
+        GtkSourceBuffer *buffer = GTK_SOURCE_BUFFER(gtk_text_view_get_buffer(GTK_TEXT_VIEW(view)));
+        GSList *marks = gtk_source_buffer_get_source_marks_at_line(buffer, line - 1, NULL);
+        for (GSList *item = marks; item; item = item->next) {
+            const char *category = gtk_source_mark_get_category(item->data);
+            GtkSourceMarkAttributes *style = gtk_source_view_get_mark_attributes(view, category, NULL);
+            GdkRGBA background;
+            if ((g_strcmp0(category, "breakpoint") == 0 ||
+                 g_strcmp0(category, "disabled-breakpoint") == 0) &&
+                gtk_source_view_get_show_line_marks(view) && style &&
+                gtk_source_mark_attributes_get_background(style, &background) &&
+                gtk_source_mark_attributes_get_icon_name(style))
+                ++count;
+        }
+        g_slist_free(marks);
+    }
+    g_free(name);
+    return count;
+}
+
+static GtkWindow *watch_dialog(void) {
+    GListModel *windows = gtk_window_get_toplevels();
+    GtkWindow *found = NULL;
+    for (guint i = 0; !found && i < g_list_model_get_n_items(windows); ++i) {
+        GtkWindow *window = g_list_model_get_item(windows, i);
+        if (gtk_window_get_transient_for(window) == debugger_window() &&
+            g_strcmp0(gtk_window_get_title(window), "Add Watch") == 0 &&
+            gtk_widget_get_visible(GTK_WIDGET(window)))
+            found = window;
+        g_object_unref(window);
+    }
+    return found;
+}
+
+bool cdbg_fixture_watch(void *self, void *expression, bool accept) {
+    (void)self;
+    GtkWindow *dialog = watch_dialog();
+    GtkWidget *entry = dialog ? find_type(GTK_WIDGET(dialog), GTK_TYPE_ENTRY) : NULL;
+    GtkWidget *button = dialog ? button_labeled(GTK_WIDGET(dialog), accept ? "Add" : "Cancel") : NULL;
+    if (!entry || !button) return false;
+    char *text = text_arg(expression);
+    gtk_editable_set_text(GTK_EDITABLE(entry), text);
+    g_free(text);
+    g_signal_emit_by_name(button, "clicked");
+    return !gtk_widget_get_visible(GTK_WIDGET(dialog));
 }
