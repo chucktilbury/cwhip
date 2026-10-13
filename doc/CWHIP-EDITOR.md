@@ -495,6 +495,6 @@ Run the editor-specific headless cases and existing GTK integration checks:
 
 ```sh
 ctest --test-dir build-cwhip \
-  -R '^(cwhip_editor_binary|cwhip_editor_shortcuts|cwhip_editor_preferences|cwhip_editor_dialogs|cwhip_example_editor_cwhip_editor\\.cw|cwhip_editor_default_shortcuts|cwhip_editor_project|cwhip_project_explorer|cwhip_gtk|cwhip_gtk_bindings)$' \
+  -R '^(cwhip_editor_binary|cwhip_editor_shortcuts|cwhip_editor_preferences_[a-z]+|cwhip_editor_dialogs|cwhip_example_editor_cwhip_editor\\.cw|cwhip_editor_default_shortcuts|cwhip_editor_project_[a-z]+|cwhip_project_explorer|cwhip_gtk|cwhip_gtk_bindings)$' \
   --output-on-failure
 ```

@@ -433,6 +433,11 @@ def digest(root):
             for p in sorted(root.rglob("*")) if p.is_file() and ".cwhip" not in p.parts}
 
 
+# Groups that build on the project saved by "create" repeat it as their setup;
+# the "session" group owns it for reporting purposes.
+GROUPS = ("session", "switching", "lifecycle", "invalid")
+
+
 def main():
     parser = argparse.ArgumentParser()
     for name in ("--compiler", "--include", "--native", "--source", "--work", "--cmake"):
@@ -440,7 +445,11 @@ def main():
     parser.add_argument("--clang", required=True)
     parser.add_argument("--sanitize", default="")
     parser.add_argument("--xvfb", required=True)
+    parser.add_argument("--group", choices=GROUPS)
     args = parser.parse_args()
+
+    def selected(group):
+        return args.group is None or args.group == group
     version = re.search(r"project\(cwhip VERSION ([0-9.]+)", args.cmake.read_text()).group(1)
     args.work.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(dir=args.work, prefix="project-") as directory:
@@ -522,115 +531,121 @@ def main():
             text = re.split(r'^\[\"?project\"?\]', text, flags=re.M)[0]
             settings.write_text(text + f'[project]\nreopen_last = {str(reopen).lower()}\nlast_root = "{root}"\n')
 
-        run("create")
-        config = toml(proj / ".cwhip/project.toml")
-        assert config["version"] == 1 and config["project"]["name"] == "Demo", config
-        assert config["explorer"]["exclude"] == ["build", "*.log"], config
-        assert "tab_width" not in config.get("editor", {}), "inherited setting persisted"
-        state = toml(proj / ".cwhip/workspace.toml")["workspace"]
-        assert state["active"] == "a.cw", state
-        assert state["files"] == [{"path": "a.cw", "line": 2, "column": 3}], state
-        assert state["expanded"] == ["sub"], state
-        assert state["window_width"] == 980 and state["window_height"] == 720, state
-        assert state["explorer_width"] == 300, state
-        assert toml(settings)["editor"]["tab_width"] == 5
-        assert digest(proj) == before, "source files changed"
-        assert (proj / ".cwhip/project.toml").stat().st_mode & 0o777 == 0o600
+        def create():
+            run("create")
+            config = toml(proj / ".cwhip/project.toml")
+            assert config["version"] == 1 and config["project"]["name"] == "Demo", config
+            assert config["explorer"]["exclude"] == ["build", "*.log"], config
+            assert "tab_width" not in config.get("editor", {}), "inherited setting persisted"
+            state = toml(proj / ".cwhip/workspace.toml")["workspace"]
+            assert state["active"] == "a.cw", state
+            assert state["files"] == [{"path": "a.cw", "line": 2, "column": 3}], state
+            assert state["expanded"] == ["sub"], state
+            assert state["window_width"] == 980 and state["window_height"] == 720, state
+            assert state["explorer_width"] == 300, state
+            assert toml(settings)["editor"]["tab_width"] == 5
+            assert digest(proj) == before, "source files changed"
+            assert (proj / ".cwhip/project.toml").stat().st_mode & 0o777 == 0o600
 
-        run("restore", "proj")
-        assert toml(settings)["project"] == {"reopen_last": True, "last_root": str(proj)}, settings.read_text()
-        run("cli", "other.txt")
-        run("reopen")
-        assert toml(settings)["project"] == {"reopen_last": False, "last_root": ""}
-        remember(False, proj)
-        run("reopen-off")
-        remember(True, case / "gone")
-        run("missing")
-        remember(False, "")
+        if selected("session"):
+            create()
+            run("restore", "proj")
+            assert toml(settings)["project"] == {"reopen_last": True, "last_root": str(proj)}, settings.read_text()
+            run("cli", "other.txt")
+            run("reopen")
+            assert toml(settings)["project"] == {"reopen_last": False, "last_root": ""}
+            remember(False, proj)
+            run("reopen-off")
+            remember(True, case / "gone")
+            run("missing")
+            remember(False, "")
 
-        broken = case / "broken"
-        sources(broken)
-        (broken / ".cwhip").mkdir()
-        (broken / ".cwhip/project.toml").write_text("version = [\n")
-        run("bad-config", "broken")
-        assert (broken / ".cwhip/project.toml").read_text() == "version = [\n"
+            run("about")
 
-        escape = case / "escape"
-        sources(escape)
-        (escape / ".cwhip").mkdir()
-        (escape / ".cwhip/project.toml").write_text('version = 1\n[project]\nname = "Escape"\n')
-        bad_state = 'version = 1\n[workspace]\nfiles = [{ path = "../proj/a.cw", line = 1, column = 1 }]\n'
-        (escape / ".cwhip/workspace.toml").write_text(bad_state)
-        run("bad-workspace", "escape")
-        assert (escape / ".cwhip/workspace.toml").read_text() == bad_state
+        if selected("switching"):
+            create()
+            proj2 = case / "proj2"
+            sources(proj2, ("readme.txt",))
+            (proj2 / ".cwhip").mkdir()
+            (proj2 / ".cwhip/project.toml").write_text('version = 1\n[project]\nname = "Second"\n')
+            (proj2 / ".cwhip/workspace.toml").write_text(
+                'version = 1\n[workspace]\nactive = "readme.txt"\nfiles = [{ path = "readme.txt", line = 1, column = 1 }]\n')
+            run("dirty-switch", "proj")
+            assert (proj / "a.cw").read_text() == "class A {\n    int value = 1\n}\n", "discarded edit saved"
+            assert digest(proj) == before
+            assert (proj2 / "readme.txt").read_text() == "readme.txt\n"
+            assert toml(proj2 / ".cwhip/workspace.toml")["workspace"]["files"][0]["path"] == "readme.txt"
 
-        if os.getuid() != 0:
-            locked = case / "locked"
-            sources(locked)
-            (locked / ".cwhip").mkdir()
-            (locked / ".cwhip/project.toml").write_text('version = 1\n[project]\nname = "Locked"\n')
-            (locked / ".cwhip").chmod(0o500)
-            try:
-                run("write-failure", "locked")
-            finally:
-                (locked / ".cwhip").chmod(0o700)
-            assert not (locked / ".cwhip/workspace.toml").exists()
+            original = {p.name: p.read_bytes() for p in (proj / ".cwhip").iterdir()}
+            copy = case / "copy"
+            sources(copy)
+            taken = case / "taken"
+            sources(taken)
+            (taken / ".cwhip").mkdir()
+            (taken / ".cwhip/project.toml").write_text('version = 1\n[project]\nname = "Taken"\n')
+            run("save-as", "proj")
+            assert {p.name: p.read_bytes() for p in (proj / ".cwhip").iterdir()} == original, "Save As changed original"
+            copied = toml(copy / ".cwhip/project.toml")
+            assert copied["project"]["name"] == "Demo" and copied["explorer"]["exclude"] == ["build", "*.log"]
+            copied_state = toml(copy / ".cwhip/workspace.toml")["workspace"]
+            original_files = toml(proj / ".cwhip/workspace.toml")["workspace"]["files"]
+            assert [f["path"] for f in original_files] == ["a.cw"], original_files
+            assert copied_state["files"] == original_files, copied_state
+            assert copied_state["expanded"] == [], "expansion for folders missing in target kept"
+            assert toml(taken / ".cwhip/project.toml")["project"]["name"] == "Demo"
+            assert not (copy / "sub").exists() and digest(proj) == before
 
-        proj2 = case / "proj2"
-        sources(proj2, ("readme.txt",))
-        (proj2 / ".cwhip").mkdir()
-        (proj2 / ".cwhip/project.toml").write_text('version = 1\n[project]\nname = "Second"\n')
-        (proj2 / ".cwhip/workspace.toml").write_text(
-            'version = 1\n[workspace]\nactive = "readme.txt"\nfiles = [{ path = "readme.txt", line = 1, column = 1 }]\n')
-        run("dirty-switch", "proj")
-        assert (proj / "a.cw").read_text() == "class A {\n    int value = 1\n}\n", "discarded edit saved"
-        assert digest(proj) == before
-        assert (proj2 / "readme.txt").read_text() == "readme.txt\n"
-        assert toml(proj2 / ".cwhip/workspace.toml")["workspace"]["files"][0]["path"] == "readme.txt"
+            run("switch-scan", "proj")
+            assert toml(proj2 / ".cwhip/workspace.toml")["version"] == 1
+        if selected("lifecycle"):
+            create()
+            (proj / ".cwhip/notes.txt").write_text("keep\n")
+            remember(True, proj)
+            run("delete")
+            assert not (proj / ".cwhip/project.toml").exists() and not (proj / ".cwhip/workspace.toml").exists()
+            assert (proj / ".cwhip/notes.txt").read_text() == "keep\n", "unknown metadata removed"
+            assert digest(proj) == before, "delete touched sources"
+            assert toml(settings)["project"]["last_root"] == ""
+        if selected("invalid"):
+            broken = case / "broken"
+            sources(broken)
+            (broken / ".cwhip").mkdir()
+            (broken / ".cwhip/project.toml").write_text("version = [\n")
+            run("bad-config", "broken")
+            assert (broken / ".cwhip/project.toml").read_text() == "version = [\n"
 
-        original = {p.name: p.read_bytes() for p in (proj / ".cwhip").iterdir()}
-        copy = case / "copy"
-        sources(copy)
-        taken = case / "taken"
-        sources(taken)
-        (taken / ".cwhip").mkdir()
-        (taken / ".cwhip/project.toml").write_text('version = 1\n[project]\nname = "Taken"\n')
-        run("save-as", "proj")
-        assert {p.name: p.read_bytes() for p in (proj / ".cwhip").iterdir()} == original, "Save As changed original"
-        copied = toml(copy / ".cwhip/project.toml")
-        assert copied["project"]["name"] == "Demo" and copied["explorer"]["exclude"] == ["build", "*.log"]
-        copied_state = toml(copy / ".cwhip/workspace.toml")["workspace"]
-        original_files = toml(proj / ".cwhip/workspace.toml")["workspace"]["files"]
-        assert [f["path"] for f in original_files] == ["a.cw"], original_files
-        assert copied_state["files"] == original_files, copied_state
-        assert copied_state["expanded"] == [], "expansion for folders missing in target kept"
-        assert toml(taken / ".cwhip/project.toml")["project"]["name"] == "Demo"
-        assert not (copy / "sub").exists() and digest(proj) == before
+            escape = case / "escape"
+            sources(escape)
+            (escape / ".cwhip").mkdir()
+            (escape / ".cwhip/project.toml").write_text('version = 1\n[project]\nname = "Escape"\n')
+            bad_state = 'version = 1\n[workspace]\nfiles = [{ path = "../proj/a.cw", line = 1, column = 1 }]\n'
+            (escape / ".cwhip/workspace.toml").write_text(bad_state)
+            run("bad-workspace", "escape")
+            assert (escape / ".cwhip/workspace.toml").read_text() == bad_state
 
-        run("switch-scan", "proj")
-        assert toml(proj2 / ".cwhip/workspace.toml")["version"] == 1
+            if os.getuid() != 0:
+                locked = case / "locked"
+                sources(locked)
+                (locked / ".cwhip").mkdir()
+                (locked / ".cwhip/project.toml").write_text('version = 1\n[project]\nname = "Locked"\n')
+                (locked / ".cwhip").chmod(0o500)
+                try:
+                    run("write-failure", "locked")
+                finally:
+                    (locked / ".cwhip").chmod(0o700)
+                assert not (locked / ".cwhip/workspace.toml").exists()
 
-        (proj / ".cwhip/notes.txt").write_text("keep\n")
-        remember(True, proj)
-        run("delete")
-        assert not (proj / ".cwhip/project.toml").exists() and not (proj / ".cwhip/workspace.toml").exists()
-        assert (proj / ".cwhip/notes.txt").read_text() == "keep\n", "unknown metadata removed"
-        assert digest(proj) == before, "delete touched sources"
-        assert toml(settings)["project"]["last_root"] == ""
-
-        run("about")
-
-        legacy = case / "legacy"
-        sources(legacy)
-        (legacy / ".tweed").mkdir()
-        old_project = 'version = 1\n[project]\nname = "Old project"\n'
-        old_workspace = 'version = 1\n[workspace]\n'
-        (legacy / ".tweed/project.toml").write_text(old_project)
-        (legacy / ".tweed/workspace.toml").write_text(old_workspace)
-        run("old-metadata")
-        assert (legacy / ".tweed/project.toml").read_text() == old_project
-        assert (legacy / ".tweed/workspace.toml").read_text() == old_workspace
-        assert not (legacy / ".cwhip").exists()
+            legacy = case / "legacy"
+            sources(legacy)
+            (legacy / ".tweed").mkdir()
+            old_project = 'version = 1\n[project]\nname = "Old project"\n'
+            old_workspace = 'version = 1\n[workspace]\n'
+            (legacy / ".tweed/project.toml").write_text(old_project)
+            (legacy / ".tweed/workspace.toml").write_text(old_workspace)
+            run("old-metadata")
+            assert (legacy / ".tweed/project.toml").read_text() == old_project
+            assert (legacy / ".tweed/workspace.toml").read_text() == old_workspace
+            assert not (legacy / ".cwhip").exists()
 
 
 if __name__ == "__main__":

@@ -436,6 +436,9 @@ class PreferencesChecks {
 """
 
 
+GROUPS = ("ui", "migration", "save", "invalid")
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--compiler", type=Path, required=True)
@@ -446,7 +449,11 @@ def main():
     parser.add_argument("--work", type=Path, required=True)
     parser.add_argument("--sanitize", default="")
     parser.add_argument("--xvfb", required=True)
+    parser.add_argument("--group", choices=GROUPS)
     args = parser.parse_args()
+
+    def selected(group):
+        return args.group is None or args.group == group
     args.work.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(dir=args.work, prefix="preferences-") as directory:
         work = Path(directory).resolve()
@@ -528,57 +535,61 @@ def main():
                 assert old_shortcuts.read_text() == "<Control><Alt>e=save\n"
             return path
 
-        original = 'version = 1\n[unrelated]\nkeep = ["one", "two"]\n[editor]\nextra = { nested = true }\n'
-        saved = run("ui", original)
-        data = tomllib.loads(saved.read_text())
-        assert data["unrelated"]["keep"] == ["one", "two"]
-        assert data["editor"]["extra"] == {"nested": True}
-        assert data["editor"]["font_size"] == 18 and data["editor"]["tab_width"] == 3
-        assert data["keyboard"]["save"] == "<Control><Alt>e"
-        run("reload", saved.read_text())
-        usability = run("usability")
-        focus = tomllib.loads(usability.read_text())
-        assert focus["editor"]["save_on_tab_loss"] is True
-        assert focus["editor"]["save_on_window_loss"] is True
-        assert focus["project"]["reopen_last"] is True
-        run("focus-reload", usability.read_text())
-        legacy = run("legacy", legacy="<Control><Alt>e=save\n")
-        migrated = tomllib.loads(legacy.read_text())
-        assert migrated["keyboard"]["save"] == "<Control><Alt>e"
-        assert migrated["keyboard"]["close"] == ""
-        run("old-settings")
-        run("old-shortcuts")
-        run("precedence", 'version = 1\n[keyboard]\nsave = "<Control><Alt>e"\n', legacy="broken legacy\n")
-        run("save-failure")
-        run("async-save-failure")
-        run("shutdown-saving")
-        run("teardown-pending")
-        conflict = run("async-save-conflict", "version = 1\n")
-        assert conflict.read_text() == "version = 1\n"
-        coalesced = run("coalesced-save-failure")
-        assert tomllib.loads(coalesced.read_text())["editor"]["font_size"] == 18
-        external = run("external-change", "version = 1\n")
-        assert external.read_text() == "version = [\n"
-        if os.getuid() != 0:
-            run("invalid-read", "version = 1\n", expected="Could not read")
-        for mode in ("quit-saving", "fallback"):
-            path = run(mode)
-            assert tomllib.loads(path.read_text())["editor"]["font_size"] == 20
-        for name, config, expected in (
-            ("syntax", "version = [\n", "Malformed"),
-            ("scalar", "version = 1\nunknown = not_toml\n", "Malformed"),
-            ("nul", 'version = 1\n[keyboard]\nsave = "\\u0000"\n', "Malformed"),
-            ("binary", "version = 1\n\0", "Malformed"),
-            ("version", "version = 99\n", "version"),
-            ("type", 'version = 1\n[editor]\nfont_size = "large"\n', "integer"),
-            ("range", "version = 1\n[editor]\ntab_width = 17\n", "1 to 16"),
-            ("focus-type", 'version = 1\n[editor]\nsave_on_tab_loss = "yes"\n', "boolean"),
-            ("table", "version = 1\neditor = []\n", "table"),
-            ("trigger", 'version = 1\n[keyboard]\nsave = "invalid syntax"\n', "Invalid"),
-            ("conflict", 'version = 1\n[keyboard]\nsave = "<Control>q"\n', "conflicts"),
-            ("command", 'version = 1\n[keyboard]\nunknown = "<Control>u"\n', "Unknown"),
-        ):
-            run("invalid-" + name, config, expected=expected)
+        if selected("ui"):
+            original = 'version = 1\n[unrelated]\nkeep = ["one", "two"]\n[editor]\nextra = { nested = true }\n'
+            saved = run("ui", original)
+            data = tomllib.loads(saved.read_text())
+            assert data["unrelated"]["keep"] == ["one", "two"]
+            assert data["editor"]["extra"] == {"nested": True}
+            assert data["editor"]["font_size"] == 18 and data["editor"]["tab_width"] == 3
+            assert data["keyboard"]["save"] == "<Control><Alt>e"
+            run("reload", saved.read_text())
+            usability = run("usability")
+            focus = tomllib.loads(usability.read_text())
+            assert focus["editor"]["save_on_tab_loss"] is True
+            assert focus["editor"]["save_on_window_loss"] is True
+            assert focus["project"]["reopen_last"] is True
+            run("focus-reload", usability.read_text())
+        if selected("migration"):
+            legacy = run("legacy", legacy="<Control><Alt>e=save\n")
+            migrated = tomllib.loads(legacy.read_text())
+            assert migrated["keyboard"]["save"] == "<Control><Alt>e"
+            assert migrated["keyboard"]["close"] == ""
+            run("old-settings")
+            run("old-shortcuts")
+            run("precedence", 'version = 1\n[keyboard]\nsave = "<Control><Alt>e"\n', legacy="broken legacy\n")
+        if selected("save"):
+            run("save-failure")
+            run("async-save-failure")
+            run("shutdown-saving")
+            run("teardown-pending")
+            conflict = run("async-save-conflict", "version = 1\n")
+            assert conflict.read_text() == "version = 1\n"
+            coalesced = run("coalesced-save-failure")
+            assert tomllib.loads(coalesced.read_text())["editor"]["font_size"] == 18
+            external = run("external-change", "version = 1\n")
+            assert external.read_text() == "version = [\n"
+            if os.getuid() != 0:
+                run("invalid-read", "version = 1\n", expected="Could not read")
+            for mode in ("quit-saving", "fallback"):
+                path = run(mode)
+                assert tomllib.loads(path.read_text())["editor"]["font_size"] == 20
+        if selected("invalid"):
+            for name, config, expected in (
+                ("syntax", "version = [\n", "Malformed"),
+                ("scalar", "version = 1\nunknown = not_toml\n", "Malformed"),
+                ("nul", 'version = 1\n[keyboard]\nsave = "\\u0000"\n', "Malformed"),
+                ("binary", "version = 1\n\0", "Malformed"),
+                ("version", "version = 99\n", "version"),
+                ("type", 'version = 1\n[editor]\nfont_size = "large"\n', "integer"),
+                ("range", "version = 1\n[editor]\ntab_width = 17\n", "1 to 16"),
+                ("focus-type", 'version = 1\n[editor]\nsave_on_tab_loss = "yes"\n', "boolean"),
+                ("table", "version = 1\neditor = []\n", "table"),
+                ("trigger", 'version = 1\n[keyboard]\nsave = "invalid syntax"\n', "Invalid"),
+                ("conflict", 'version = 1\n[keyboard]\nsave = "<Control>q"\n', "conflicts"),
+                ("command", 'version = 1\n[keyboard]\nunknown = "<Control>u"\n', "Unknown"),
+            ):
+                run("invalid-" + name, config, expected=expected)
 
 
 if __name__ == "__main__":

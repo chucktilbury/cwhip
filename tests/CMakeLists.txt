@@ -477,25 +477,33 @@ if(CWHIP_GTK_SOURCEVIEW AND CWHIP_GTK_TESTS)
         --work "${CMAKE_CURRENT_BINARY_DIR}/editor-dialogs"
         --sanitize "${CWHIP_SANITIZER_LIST}" --xvfb "${CWHIP_XVFB_EXECUTABLE}")
     set_tests_properties(cwhip_editor_dialogs PROPERTIES LABELS "examples;gtk" TIMEOUT 120)
-    add_test(NAME cwhip_editor_preferences
-        COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/test_cwhip_preferences.py"
-        --compiler "$<TARGET_FILE:cwhip>" --clang "${CWHIP_CLANG_EXECUTABLE}"
-        --include "${CMAKE_CURRENT_SOURCE_DIR}/../include"
-        --native "${CMAKE_CURRENT_SOURCE_DIR}/../stdlib/gtk/0.1.0/native"
-        --source "${example_directory}/editor/cwhip_editor.cw"
-        --work "${CMAKE_CURRENT_BINARY_DIR}/cwhip-preferences"
-        --sanitize "${CWHIP_SANITIZER_LIST}" --xvfb "${CWHIP_XVFB_EXECUTABLE}")
-    set_tests_properties(cwhip_editor_preferences PROPERTIES LABELS "examples;gtk" TIMEOUT 300)
-    add_test(NAME cwhip_editor_project
-        COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/test_cwhip_project.py"
-        --compiler "$<TARGET_FILE:cwhip>" --clang "${CWHIP_CLANG_EXECUTABLE}"
-        --include "${CMAKE_CURRENT_SOURCE_DIR}/../include"
-        --native "${CMAKE_CURRENT_SOURCE_DIR}/../stdlib/gtk/0.1.0/native"
-        --source "${example_directory}/editor/cwhip_editor.cw"
-        --cmake "${CMAKE_CURRENT_SOURCE_DIR}/../CMakeLists.txt"
-        --work "${CMAKE_CURRENT_BINARY_DIR}/cwhip-project"
-        --sanitize "${CWHIP_SANITIZER_LIST}" --xvfb "${CWHIP_XVFB_EXECUTABLE}")
-    set_tests_properties(cwhip_editor_project PROPERTIES LABELS "examples;gtk" TIMEOUT 300)
+    # Each group compiles its own editor and uses its own work directory so
+    # the groups can run in parallel.
+    foreach(group IN ITEMS ui migration save invalid)
+        add_test(NAME cwhip_editor_preferences_${group}
+            COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/test_cwhip_preferences.py"
+            --compiler "$<TARGET_FILE:cwhip>" --clang "${CWHIP_CLANG_EXECUTABLE}"
+            --include "${CMAKE_CURRENT_SOURCE_DIR}/../include"
+            --native "${CMAKE_CURRENT_SOURCE_DIR}/../stdlib/gtk/0.1.0/native"
+            --source "${example_directory}/editor/cwhip_editor.cw"
+            --work "${CMAKE_CURRENT_BINARY_DIR}/cwhip-preferences-${group}"
+            --group ${group}
+            --sanitize "${CWHIP_SANITIZER_LIST}" --xvfb "${CWHIP_XVFB_EXECUTABLE}")
+        set_tests_properties(cwhip_editor_preferences_${group} PROPERTIES LABELS "examples;gtk" TIMEOUT 300)
+    endforeach()
+    foreach(group IN ITEMS session switching lifecycle invalid)
+        add_test(NAME cwhip_editor_project_${group}
+            COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/test_cwhip_project.py"
+            --compiler "$<TARGET_FILE:cwhip>" --clang "${CWHIP_CLANG_EXECUTABLE}"
+            --include "${CMAKE_CURRENT_SOURCE_DIR}/../include"
+            --native "${CMAKE_CURRENT_SOURCE_DIR}/../stdlib/gtk/0.1.0/native"
+            --source "${example_directory}/editor/cwhip_editor.cw"
+            --cmake "${CMAKE_CURRENT_SOURCE_DIR}/../CMakeLists.txt"
+            --work "${CMAKE_CURRENT_BINARY_DIR}/cwhip-project-${group}"
+            --group ${group}
+            --sanitize "${CWHIP_SANITIZER_LIST}" --xvfb "${CWHIP_XVFB_EXECUTABLE}")
+        set_tests_properties(cwhip_editor_project_${group} PROPERTIES LABELS "examples;gtk" TIMEOUT 300)
+    endforeach()
     add_test(NAME cwhip_editor_default_shortcuts
         COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/test_examples.py"
         --compiler "$<TARGET_FILE:cwhip>" --examples "${example_directory}"
