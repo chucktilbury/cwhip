@@ -251,8 +251,7 @@ static void state_notified(GObject *object, GParamSpec *property, gpointer data)
 static void cursor_moved(GtkTextBuffer *buffer, GtkTextIter *location,
                          GtkTextMark *mark, gpointer data) {
     (void)location;
-    if (mark != gtk_text_buffer_get_insert(buffer) &&
-        mark != gtk_text_buffer_get_selection_bound(buffer)) return;
+    if (mark != gtk_text_buffer_get_insert(buffer)) return;
     Connection *connection = data;
     int acquired = signal_enter(connection);
     typedef void (*Adapter)(CwhipCallbackContext *);
@@ -1705,6 +1704,10 @@ static gboolean auto_pair_key(GtkEventControllerKey *controller, guint keyval, g
     if (!g_object_get_data(G_OBJECT(widget), AUTO_PAIR_ENABLED)) return FALSE;
     if (!gtk_text_view_get_editable(GTK_TEXT_VIEW(widget))) return FALSE;
     if (state & (GDK_CONTROL_MASK | GDK_SUPER_MASK | GDK_META_MASK)) return FALSE;
+    gunichar c = gdk_keyval_to_unicode(keyval);
+    if (keyval != GDK_KEY_BackSpace &&
+        c != '(' && c != ')' && c != '[' && c != ']' &&
+        c != '{' && c != '}' && c != '"' && c != '\'') return FALSE;
     GtkTextBuffer *buffer = gtk_text_view_get_buffer(GTK_TEXT_VIEW(widget));
     GtkTextIter start, end;
     bool selected = gtk_text_buffer_get_selection_bounds(buffer, &start, &end);
@@ -1722,7 +1725,6 @@ static gboolean auto_pair_key(GtkEventControllerKey *controller, guint keyval, g
         gtk_text_buffer_end_user_action(buffer);
         return TRUE;
     }
-    gunichar c = gdk_keyval_to_unicode(keyval);
     if (!c) return FALSE;
     bool closing = c == ')' || c == ']' || c == '}' || c == '"' || c == '\'';
     if (closing && !selected && next == c) {

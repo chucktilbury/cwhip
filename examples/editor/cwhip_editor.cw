@@ -1034,6 +1034,7 @@ class EditorDocument {
     GtkSource.View view
     Gtk.ScrolledWindow scroller
     String path
+    String baseName
     list shortcuts
     bool shortcutConflict
     int shortcutRevision
@@ -1042,6 +1043,10 @@ class EditorDocument {
 
     EditorDocument(String filePath, String contents) {
         path = filePath
+        baseName = ""
+        if (!path.equals("")) {
+            baseName = System.FileSystem().basename(path)
+        }
         shortcuts = []
         shortcutConflict = false
         automaticSaveError = ""
@@ -1060,10 +1065,19 @@ class EditorDocument {
         scroller.setChild(view.widget())
     }
 
+    void updatePath(String newPath) {
+        path = newPath
+        if (!path.equals("")) {
+            baseName = System.FileSystem().basename(path)
+        } else {
+            baseName = ""
+        }
+    }
+
     String tabTitle() {
         String title = "Untitled"
-        if (!path.equals("")) {
-            title = System.FileSystem().basename(path)
+        if (!baseName.equals("")) {
+            title = baseName
         }
         if (view.modified()) {
             title.append("*")
@@ -1462,6 +1476,7 @@ class CwhipEditor {
     Gtk.Entry configureExcludes
     list overrideRows
     Gtk.Label configureMessage
+    bool hasAutomaticSaveErrors
 
     void activate() {
         if (window != null) {
@@ -1497,6 +1512,7 @@ class CwhipEditor {
         presented = false
         confirmOp = ""
         overrideRows = []
+        hasAutomaticSaveErrors = false
         settings = CwhipSettings()
         int commandIndex = 0
         while (commandIndex < settings.commands.length) {
@@ -2517,6 +2533,7 @@ class CwhipEditor {
         }
         documents = []
         focusedDocument = null
+        hasAutomaticSaveErrors = false
         changingDocuments = false
     }
 
@@ -3102,11 +3119,12 @@ class CwhipEditor {
         if (!document.path.equals(absoluteDestination)) {
             document.view.setLanguage(GtkSource.Content().languageFor(absoluteDestination))
         }
-        document.path = absoluteDestination
+        document.updatePath(absoluteDestination)
         rememberRecent(absoluteDestination)
         document.view.markSaved()
         refreshTab(document)
         document.automaticSaveError = ""
+        hasAutomaticSaveErrors = recomputeAutomaticSaveErrors()
         status.setText(format("Saved{}", automaticSaveErrors()))
         project.fileSaved(absoluteDestination)
         updateMenu()
@@ -3405,7 +3423,6 @@ class CwhipEditor {
         if (document != null) {
             refreshTab(document)
         }
-        updateStatusText()
         updateEditActions()
     }
 
@@ -3438,11 +3455,13 @@ class CwhipEditor {
         automaticSaving = true
         if (!writeDocument(document, document.path)) {
             document.automaticSaveError = format("Automatic {}", status.text())
+            hasAutomaticSaveErrors = true
         }
         automaticSaving = false
     }
 
     String automaticSaveErrors() {
+        if (!hasAutomaticSaveErrors) { return "" }
         String errors = ""
         int index = 0
         while (index < documents.length) {
@@ -3453,6 +3472,18 @@ class CwhipEditor {
             index = index + 1
         }
         return errors
+    }
+
+    bool recomputeAutomaticSaveErrors() {
+        int index = 0
+        while (index < documents.length) {
+            EditorDocument document = documents[index] as EditorDocument
+            if (!document.automaticSaveError.equals("")) {
+                return true
+            }
+            index = index + 1
+        }
+        return false
     }
 
     void windowFocusChanged(bool active) {
@@ -3707,6 +3738,9 @@ class CwhipEditor {
                 documents = remaining
                 focusedDocument = currentDocument()
                 changingDocuments = false
+                if (hasAutomaticSaveErrors) {
+                    hasAutomaticSaveErrors = recomputeAutomaticSaveErrors()
+                }
                 if (pendingCloseDocument == document) {
                     pendingCloseDocument = null
                 }
