@@ -5,21 +5,23 @@
 This is an implementation history for the author of a book about Cwhip and
 the process of developing it, not a release-by-release compatibility contract.
 It consolidates the complete, non-shallow Git history reachable from
-[`f81a155`](https://github.com/chucktilbury/cwhip/commit/f81a155a808883e144fb2135b8ba57b5b56c15e5)
-(`GC performance optimizations`, October 13, 2026), beginning with
+[`0450d9b`](https://github.com/chucktilbury/cwhip/commit/0450d9bcef1c0d16dc4c417f3c3b562741611bbb)
+(`Formatted variables`, October 14, 2026), beginning with
 [`a948573`](https://github.com/chucktilbury/cwhip/commit/a948573f4d7ecc726783634468370e61e67a42ba)
-(`initial commit`, September 28, 2026). The cutoff contains **191 commits**,
-including branch work and merges, rather than only first-parent history.
+(`initial commit`, September 28, 2026). The previous cutoff contained **191
+commits**, including branch work and merges, rather than only first-parent
+history. This update covers **203 commits** through the current cutoff.
 
 The narrative groups repeated fixes, documentation synchronization, and merge
 commits into milestones. The appendix retains every original commit subject,
 including spelling, and uses Git author dates in their recorded time zones.
-Its oldest-first order follows `git log --reverse f81a155`; merges remain
+Its oldest-first order follows `git log --reverse 0450d9b`; merges remain
 separate traceability records, not additional implementations of a feature.
 Historical names and syntax describe the project at the time, not necessarily
 the current language. Performance results below are supplied reports from
 implementation sessions, not measurements inferred from commit messages or
-rerun while writing this document. Planned work is explicitly separated.
+rerun while writing this document. The GUI milestone below is framed as a
+proof of concept and compiler-testing tool, not a production IDE/debugger.
 
 ## Implemented milestones
 
@@ -176,17 +178,53 @@ These are historical validation reports, not a new validation of this checkout.
 Startup readiness, benchmark throughput, and instruction counts are distinct
 workloads/metrics: their gains must not be conflated or multiplied.
 
-## Planned work, not implemented in this history
+### October 13-14: GUI proof of concept and compiler-debugging workflow
 
-Plans discussed beyond this cutoff include renaming the editor to **cedit**
-and building a **KDbg-inspired cdbg** with breakpoints, locals, watches, and
-step-into/over/out, initially for local launch. These are intentions, not
-features delivered by the 191 commits below.
+The editor was renamed from `cwhip-editor` to **cedit**, while retaining its
+existing settings, project/workspace data, application ID, and launcher
+handshake so the rename does not move or rewrite user data.
+
+A separate **cdbg** application became a working local GDB/MI2 prototype. It
+can launch a native executable or compile a Cwhip source file with `cwhip -g`,
+restart the loaded target, and open source files in distinct tabs. Find Next
+and Find Previous, menus, and parented dialogs support source navigation and
+debugger setup. Breakpoint menu actions set/clear and enable/disable
+breakpoints; resolved breakpoints have source gutter markers, and per-project
+`.cdbg.toml` state preserves them. Setup configures arguments and an optional
+temporary break-at-start breakpoint. The inferior's stdout/stderr is collected
+through a local PTY and kept apart from the GDB/compiler console, with Program
+Output clear/copy controls. Breakpoints, watches, stack display, single-click
+frame selection, and source/locals navigation provide a practical
+compiler-debugging loop.
+
+Two stepping problems had different causes and fixes. Compiler-generated
+dispatch thunks could leave GDB without useful function bounds at method
+returns; the compiler change removes no-op thunks and tail-transfers
+receiver-adjustment thunks. Separately, a UI step press could be lost while
+post-stop locals/stack/watch refreshes were in flight; the debugger now discards
+stale refresh work and issues one execution command per accepted step.
+
+The final change in this history adds friendly locals and watch summaries plus
+a separate Runtime Values view that preserves GDB types and raw values. The
+embedded value inspector requires Python-enabled GDB with `gdb.MICommand`.
+Scalar and string values and list/dict/buffer summaries are bounded; unknown
+runtime tags remain explicit, while classes show type, field count, and address
+but not members because the compiler currently emits forward declarations
+rather than member DWARF.
+
+These GUI tools are a proof of concept and a way to test the compiler, not a
+finished production IDE or debugger. The debugger supports local GDB only:
+there is no attach, remote debugging, LLDB, or DAP support, and its output PTY
+does not provide interactive inferior stdin or terminal emulation. Gutter-click
+breakpoint toggling and richer class-member inspection remain future work.
 
 ## Complete chronological commit appendix
 
 Dates are Git author dates. Each hash links to the original commit. Subjects
 are reproduced verbatim; repeated fixes, merges, and the revert are retained.
+The appendix contains all 203 commits, in oldest-first order as in
+`git log --reverse 0450d9b`; merges remain separate traceability records, not
+additional implementations of a feature.
 
 | Date | Commit | Original subject |
 | --- | --- | --- |
@@ -381,3 +419,15 @@ are reproduced verbatim; repeated fixes, merges, and the revert are retained.
 | 2026-10-13 | [02f4e0e](https://github.com/chucktilbury/cwhip/commit/02f4e0e) | GC performance |
 | 2026-10-13 | [58c60b5](https://github.com/chucktilbury/cwhip/commit/58c60b5) | Merge branch 'chucktilbury-fix-gc-bound-editor-startup' |
 | 2026-10-13 | [f81a155](https://github.com/chucktilbury/cwhip/commit/f81a155) | GC performance optimizations |
+| 2026-10-13 | [55400bf](https://github.com/chucktilbury/cwhip/commit/55400bf) | Create changelog |
+| 2026-10-13 | [f10550c](https://github.com/chucktilbury/cwhip/commit/f10550c) | Merge branch 'chucktilbury-cwhip-project-changelog' |
+| 2026-10-13 | [e8bfabc](https://github.com/chucktilbury/cwhip/commit/e8bfabc) | Change editor name and prototype the debugger |
+| 2026-10-13 | [112a2a8](https://github.com/chucktilbury/cwhip/commit/112a2a8) | Fix source load issue |
+| 2026-10-13 | [f615b0c](https://github.com/chucktilbury/cwhip/commit/f615b0c) | Usability changes |
+| 2026-10-13 | [31fac96](https://github.com/chucktilbury/cwhip/commit/31fac96) | Usability features |
+| 2026-10-13 | [a8cff8b](https://github.com/chucktilbury/cwhip/commit/a8cff8b) | Usability features |
+| 2026-10-13 | [71deed4](https://github.com/chucktilbury/cwhip/commit/71deed4) | Debugger usability |
+| 2026-10-13 | [3d9b62e](https://github.com/chucktilbury/cwhip/commit/3d9b62e) | Usage clarifications |
+| 2026-10-13 | [f668f04](https://github.com/chucktilbury/cwhip/commit/f668f04) | Duplicate stepping thunks |
+| 2026-10-13 | [00ac422](https://github.com/chucktilbury/cwhip/commit/00ac422) | Step button missing steps |
+| 2026-10-14 | [0450d9b](https://github.com/chucktilbury/cwhip/commit/0450d9b) | Formatted variables |
