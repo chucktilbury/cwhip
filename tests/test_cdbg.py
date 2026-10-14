@@ -1,6 +1,7 @@
 """Real Cwhip GTK debugger, MI grammar, local GDB sessions and failure teardown."""
 
 import argparse
+import os
 from pathlib import Path
 import shutil
 import subprocess
@@ -72,6 +73,24 @@ start {
         i = i + 1 }
     parser.parse(deep)
     test.require(!parser.valid, "depth bounded")
+    ArgumentList args = ArgumentList()
+    test.require(args.parse("one  \"two words\" '' \"\" it\\'s 'a \"q\"' \"x\\\"y\\\\z\" caf\\é"),
+        "shell-like arguments parse")
+    test.require(args.values.length == 8 && (args.values[0] as String).equals("one") &&
+        (args.values[1] as String).equals("two words") && (args.values[2] as String).equals("") &&
+        (args.values[3] as String).equals("") && (args.values[4] as String).equals("it's") &&
+        (args.values[5] as String).equals("a \"q\"") && (args.values[6] as String).equals("x\"y\\z") &&
+        (args.values[7] as String).equals("café"), "argument values, quotes and empty strings")
+    String shown = args.display(args.values)
+    ArgumentList again = ArgumentList()
+    test.require(again.parse(shown) && again.display(again.values).equals(shown) &&
+        again.values.length == 8 && (again.values[4] as String).equals("it's"), "display round-trips")
+    test.require(!args.parse("ok \"unterminated") && args.error.equals("unterminated quote") &&
+        args.values.length == 0, "unterminated quote rejected")
+    test.require(!args.parse("ok trailing\\") && args.error.equals("trailing backslash"),
+        "trailing backslash rejected")
+    test.require(args.parse("  ") && args.values.length == 0, "blank arguments")
+    test.require(parser.quote("a \"b\"\\").equals("\"a \\\"b\\\"\\\\\""), "MI argument quoting")
     print("true")
 }
 '''
@@ -99,6 +118,8 @@ class DebugUiFixture {
     bool watchDialog(String expression, bool accept)
     bool noBreakMenus()
     bool disabled(int line)
+    bool setup(int startState, String arguments, String action)
+    bool clipboard(String expected)
 }
 bool DebugUiFixture.alert() from "cdbg_fixture_alert"
 bool DebugUiFixture.panes() from "cdbg_fixture_panes"
@@ -120,6 +141,8 @@ int DebugUiFixture.marks(String file, int line) from "cdbg_fixture_marks"
 bool DebugUiFixture.watchDialog(String expression, bool accept) from "cdbg_fixture_watch"
 bool DebugUiFixture.noBreakMenus() from "cdbg_fixture_no_break_menus"
 bool DebugUiFixture.disabled(int line) from "cdbg_fixture_disabled"
+bool DebugUiFixture.setup(int startState, String arguments, String action) from "cdbg_fixture_setup"
+bool DebugUiFixture.clipboard(String expected) from "cdbg_fixture_clipboard"
 
 class DebugChecks {
     Cdbg ui
@@ -338,6 +361,36 @@ class DebugChecks {
                     String external = "version = 1\nexternal = true\n"
                     require(changed.write(external) == external.length, "external state edit written")
                     changed.close()
+                } else { if (mode.equals("state-global")) {
+                    require(ui.breakpointLocations.length == 0 && ui.stateWritable &&
+                        ui.console.text().contains("is ignored; settings now live in") &&
+                        ui.statePath.endsWith("/.cdbg.toml"), "global state ignored, not imported")
+                } else { if (mode.equals("state-unwritable")) {
+                    if (stage == 0) {
+                        require(ui.showSource(path, format("{}", line)), "source for unwritable test")
+                        ui.menu.activateItem(ui.toggleBreakItem)
+                        stage = 1
+                        return true
+                    }
+                    if (stage == 1) {
+                        require(ui.breakpointLocations.length == 1 &&
+                            ui.console.text().contains("Settings not saved to") &&
+                            ui.status.text().contains("Settings not saved"),
+                            "unwritable directory reported; breakpoint still installed")
+                        stops = ui.stopCount
+                        ui.resume()
+                        stage = 2
+                        return true
+                    }
+                    if (ui.stopCount == stops || ui.running) { return true }
+                    if (ui.status.text().startsWith("Stopped at start:")) {
+                        stops = ui.stopCount
+                        ui.resume()
+                        return true
+                    }
+                    require(ui.location.contains(format(":{} (", line)) &&
+                        ui.console.text().split("Settings not saved to").length == 2,
+                        "debugging continues; diagnostic reported once")
                 } else { if (mode.equals("state-clamped")) {
                     require(ui.stateNumber("width", 1100, 640, 3840) == 3840 &&
                         ui.window.defaultWidth() >= 640 && ui.window.defaultWidth() <= 3840 &&
@@ -352,7 +405,7 @@ class DebugChecks {
                         format("corrupt defaults: {}x{} tab {} writable {} locations {}",
                             ui.window.defaultWidth(), ui.window.defaultHeight(), ui.inspection.currentPage(),
                             ui.stateWritable, ui.breakpointLocations.length))
-                } } }
+                } } } } }
             }
         }
         ui.window.close()
@@ -513,8 +566,165 @@ class DebugChecks {
         }
         return true
     }
+    bool stoppedAt(String line) {
+        return ui.stopCount > stops && !ui.running && idle() && ui.location.contains(format(":{} (", line))
+    }
+    // Real Cwhip -g line breakpoints set via F9/menu must stop the inferior,
+    // not merely paint a mark; Break at start, Setup, arguments and the
+    // Program Output menu are exercised on the same live session.
+    bool breaksTick() {
+        String path = System.Process().getEnv("CDBG_TEST_SOURCE")
+        String args = "one \"two words\" '' \"it's\""
+        String output = "arg[1]=<one>\narg[2]=<two words>\narg[3]=<>\narg[4]=<it's>\ncwhip-output:42\n"
+        if (stage == 0 && ui.loaded && idle()) {
+            require(ui.failure.equals(""), ui.failure)
+            if (mode.equals("breaks")) {
+                require(ui.breakAtStart && ui.arguments.length == 0 && ui.breakpointLocations.length == 0,
+                    "fresh local configuration breaks at start with no arguments")
+                ui.menu.activateItem(ui.setupItem)
+                require(!DebugUiFixture().setup(-1, "bad \"quote", "Apply") &&
+                    ui.setupStatus.text().contains("Invalid arguments: unterminated quote") &&
+                    ui.arguments.length == 0, "invalid arguments rejected; dialog stays open")
+                require(DebugUiFixture().setup(1, args, "Apply"), "valid Setup applies and closes")
+                require(ui.arguments.length == 4 && (ui.arguments[1] as String).equals("two words") &&
+                    (ui.arguments[2] as String).equals("") && (ui.arguments[3] as String).equals("it's") &&
+                    ui.status.text().contains("next Run"), "arguments parsed with shell quoting")
+                ui.menu.activateItem(ui.setupItem)
+                require(DebugUiFixture().setup(0, "changed", "Cancel") && ui.breakAtStart &&
+                    ui.arguments.length == 4, "Cancel changes nothing")
+                ui.showSource(path, "")
+                require(DebugUiFixture().lineClick("", 4, "") && DebugUiFixture().shortcut("F9"), "F9 line 4")
+                stage = 1
+            } else {
+                require(ui.breakpointLocations.length == 3 && ui.arguments.length == 4 && ui.breakAtStart,
+                    "breakpoints, arguments and Break at start restored from .cdbg.toml")
+                ui.menu.activateItem(ui.setupItem)
+                require(DebugUiFixture().setup(0, args, "Apply") && !ui.breakAtStart, "Break at start off")
+                ui.resume()
+                stage = 20
+            }
+            return true
+        }
+        if (stage == 1 && idle()) {
+            require(DebugUiFixture().lineClick("", 19, ""), "click line 19")
+            ui.menu.activateItem(ui.toggleBreakItem)
+            stage = 2
+        }
+        if (stage == 2 && idle()) {
+            require(DebugUiFixture().lineClick("", 8, "") && DebugUiFixture().shortcut("F9"), "F9 line 8")
+            stage = 3
+        }
+        if (stage == 3 && idle()) {
+            require(ui.breakpointLocations.length == 3 && ui.breaks.text().contains("enabled installed") &&
+                ui.breaks.text().contains("hits 0") && ui.breaks.text().contains("in cwhip.Counter.unused"),
+                format("three installed line breakpoints listed: {}", ui.breaks.text()))
+            stops = ui.stopCount
+            ui.resume()
+            stage = 4
+        }
+        if (stage == 4 && stoppedAt("11")) {
+            require(ui.status.text().startsWith("Stopped at start:") && !ui.breaks.text().contains("temporary") &&
+                ui.console.text().contains("Break at start: temporary breakpoint at breaks.cw:11 (main)"),
+                "Break at start stops on the start line and its temporary breakpoint is consumed")
+            stops = ui.stopCount
+            ui.resume()
+            stage = 5
+        }
+        if (stage == 5 && stoppedAt("4")) {
+            require(!ui.breaks.text().contains("temporary") && ui.breaks.text().contains("hits 1"),
+                "F9 breakpoint in a method stops the program")
+            stops = ui.stopCount
+            ui.resume()
+            stage = 6
+        }
+        if (stage == 6 && stoppedAt("19")) {
+            stops = ui.stopCount
+            ui.resume()
+            stage = 7
+        }
+        if (stage == 7 && !ui.hasRun && !ui.running && idle() && ui.programOutput.text().equals(output)) {
+            require(ui.console.text().contains("Not reached during this run: #") &&
+                ui.console.text().contains(":8 in cwhip.Counter.unused") &&
+                ui.console.text().contains("(that code did not execute)") &&
+                ui.console.text().split("Not reached during this run").length == 2 &&
+                ui.status.text().contains("1 breakpoint(s) not reached"), "uncalled breakpoint reported")
+            require(DebugUiFixture().lineClick("Program Output", 1, "Copy All") &&
+                DebugUiFixture().clipboard(output) && !ui.programOutput.hasSelection(), "Copy All")
+            require(ui.programOutput.findWith("arg[2]=<two words>", 0) && ui.programOutput.hasSelection(),
+                "select output text")
+            stage = 70
+            return true
+        }
+        // Let the text layout settle before clicking at a line position.
+        if (stage == 70) {
+            if (!DebugUiFixture().lineClick("Program Output", 2, "Copy")) { return true }
+            require(ui.programOutput.hasSelection(), "right-click inside the selection keeps it for Copy")
+            require(DebugUiFixture().clipboard("arg[2]=<two words>"), "Copy copies only the selection")
+            require(DebugUiFixture().lineClick("Program Output", 1, "Clear") &&
+                ui.programOutput.text().equals("") && ui.loaded, "Clear empties only the displayed output")
+            stops = ui.stopCount
+            ui.restart()
+            stage = 8
+        }
+        if (stage == 8 && stoppedAt("11")) {
+            stops = ui.stopCount
+            ui.restart()
+            stage = 9
+        }
+        if (stage == 9 && stoppedAt("11")) {
+            require(ui.console.text().split("Break at start: temporary").length == 4 &&
+                !ui.breaks.text().contains("temporary") && ui.breakpointLocations.length == 3,
+                format("one start breakpoint per run, none left over: {}", ui.breaks.text()))
+            stops = ui.stopCount
+            ui.resume()
+            stage = 10
+        }
+        if (stage == 10 && stoppedAt("4")) { stops = ui.stopCount
+            ui.resume()
+            stage = 11 }
+        if (stage == 11 && stoppedAt("19")) { stops = ui.stopCount
+            ui.resume()
+            stage = 12 }
+        if (stage == 12 && !ui.hasRun && !ui.running && idle() && ui.programOutput.text().equals(output)) {
+            ui.menu.activateItem(ui.quitItem)
+            require(ui.closed && ui.process == null, "Quit cleans GDB")
+            print("true")
+            return false
+        }
+        if (stage == 20 && stoppedAt("4")) {
+            require(!ui.status.text().contains("start"), "Break at start disabled: first stop is line 4")
+            stops = ui.stopCount
+            ui.menu.activateItem(ui.setupItem)
+            require(DebugUiFixture().setup(1, "only", "Apply") && ui.hasRun && !ui.running &&
+                ui.stopCount == stops && ui.location.contains(":4 ("), "Apply does not restart the program")
+            ui.menu.activateItem(ui.setupItem)
+            require(DebugUiFixture().setup(0, args, "Apply"), "restore setup")
+            ui.restart()
+            stage = 21
+        }
+        if (stage == 21 && stoppedAt("4")) {
+            require(!ui.breaks.text().contains("temporary"), "restart with start off adds no start breakpoint")
+            stops = ui.stopCount
+            ui.resume()
+            stage = 22
+        }
+        if (stage == 22 && stoppedAt("19")) { stops = ui.stopCount
+            ui.resume()
+            stage = 23 }
+        if (stage == 23 && !ui.hasRun && !ui.running && idle() && ui.programOutput.text().endsWith(output)) {
+            ui.window.close()
+            require(ui.closed && ui.process == null, "close cleans GDB")
+            print("true")
+            return false
+        }
+        return true
+    }
     void tick() {
         require(Time.Clock().monotonicMilliseconds() < deadline, "session deadline")
+        if (mode.startsWith("breaks")) {
+            if (breaksTick()) { Gtk.Application().post(_self().tick) }
+            return
+        }
         if (mode.startsWith("state-")) {
             if (persistenceTick()) { Gtk.Application().post(_self().tick) }
             return
@@ -755,6 +965,29 @@ int main(void) {
 }
 """
 
+BREAKS_FIXTURE = """\
+import system
+class Counter {
+    int double(int value) {
+        int doubled = value * 2
+        return doubled
+    }
+    int unused(int value) {
+        return value + 1
+    }
+}
+start {
+    Counter worker = Counter()
+    int counter = worker.double(21)
+    int i = 1
+    while (i < System.Process().argc()) {
+        print(format("arg[{}]=<{}>\\n", i, System.Process().arg(i)))
+        i = i + 1
+    }
+    print(format("cwhip-output:{}\\n", counter))
+}
+"""
+
 CW_FIXTURE = """\
 class Counter {
     int double(int value) {
@@ -914,6 +1147,8 @@ def main() -> None:
             "\n" * 150)
         scroll_binary = work / "scroll"
         subprocess.run([args.clang, "-g", "-O0", str(scroll_source), "-o", str(scroll_binary)], check=True)
+        # Legacy modes share one local settings file, without Break at start.
+        (work / ".cdbg.toml").write_text("version = 1\nbreak_at_start = false\n")
         for mode, target, debug_source, line in (
             ("native", c_binary, c_source, "7"),
             ("cwhip", cw_source, cw_source, "10"),
@@ -961,7 +1196,8 @@ def main() -> None:
                      args.xvfb, work, env)
 
         def state_run(mode: str, target: Path, debug_source: Path, line: int,
-                      state_env: dict[str, str]) -> None:
+                      state_env: dict[str, str], cwd: Path) -> None:
+            cwd.mkdir(exist_ok=True)
             with headless(args.xvfb, work, state_env) as gtk_env:
                 gtk_env.update(CDBG_TEST_MODE=mode, CDBG_TEST_TARGET=str(target),
                                CDBG_TEST_SOURCE=str(debug_source), CDBG_TEST_LINE=str(line),
@@ -981,10 +1217,11 @@ def main() -> None:
                             time.sleep(0.4)
                             assert manager.poll() is None, (work / "wm.log").read_text()
                             gtk_env["CDBG_TEST_MAXIMIZE"] = "true"
-                        result = invoke([str(binary)], work, gtk_env, timeout=45)
+                        result = invoke([str(binary)], cwd, gtk_env, timeout=45)
                         assert result.returncode == 0 and result.stdout == "true", (
                             mode, result.returncode, result.stdout, result.stderr)
-                        if mode in ("state-save", "state-restore", "state-clamped"):
+                        if mode in ("state-save", "state-restore", "state-clamped", "state-global",
+                                    "breaks", "breaks-restore"):
                             assert not result.stderr, result.stderr
                         else:
                             assert "cdbg state:" in result.stderr, result.stderr
@@ -994,57 +1231,92 @@ def main() -> None:
                             manager.terminate()
                             manager.wait(timeout=10)
 
+        import json
+        import tomllib
         native_alias = work / "native symlink"
         native_alias.symlink_to(c_binary)
         for name, target, debug_source, line in (
             ("native", native_alias, c_source, 7), ("cwhip", cw_source, cw_source, 10)
         ):
             state_env = environment(work / ("state-" + name))
-            state_run("state-save", target, debug_source, line, state_env)
-            state_file = Path(state_env["XDG_CONFIG_HOME"]) / "cdbg/state.toml"
+            local = work / ("local-" + name)
+            state_run("state-save", target, debug_source, line, state_env, local)
+            state_file = local / ".cdbg.toml"
             assert state_file.is_file()
-            import tomllib
             saved = tomllib.loads(state_file.read_text())
             assert str(target.resolve()) in saved, saved
             assert saved[str(target.resolve())]["points"][0]["enabled"] is False
             assert "target" not in saved, "Temporary compiled executable must not be a state key"
-            state_run("state-restore", target, debug_source, line, state_env)
-            assert not (Path(state_env["HOME"]) / ".config/cdbg").exists(), (
-                "XDG_CONFIG_HOME should take precedence over HOME")
+            state_run("state-restore", target, debug_source, line, state_env, local)
+            assert not (Path(state_env["XDG_CONFIG_HOME"]) / "cdbg").exists(), "No global state written"
+            assert not (Path(state_env["HOME"]) / ".config/cdbg").exists(), "No HOME state written"
 
         stale_env = environment(work / "state-stale")
-        stale_file = Path(stale_env["XDG_CONFIG_HOME"]) / "cdbg/state.toml"
-        stale_file.parent.mkdir()
-        import json
-        stale_file.write_text("version = 1\n[" + json.dumps(str(c_binary.resolve())) +
+        stale_dir = work / "local-stale"
+        stale_dir.mkdir()
+        (stale_dir / ".cdbg.toml").write_text("version = 1\n[" + json.dumps(str(c_binary.resolve())) +
             "]\npoints = [\n{ file = " + json.dumps(str(c_source)) +
             ', line = 7, enabled = true },\n{ file = ' + json.dumps(str(work / "vanished.c")) +
             ', line = 1, enabled = false },\n{ file = ' + json.dumps(str(work / "notes.txt")) +
             ", line = 999, enabled = true },\n]\n")
-        state_run("state-stale", c_binary, c_source, 7, stale_env)
+        state_run("state-stale", c_binary, c_source, 7, stale_env, stale_dir)
         corrupt_env = environment(work / "state-corrupt")
-        corrupt_file = Path(corrupt_env["XDG_CONFIG_HOME"]) / "cdbg/state.toml"
-        corrupt_file.parent.mkdir()
+        corrupt_dir = work / "local-corrupt"
+        corrupt_dir.mkdir()
+        corrupt_file = corrupt_dir / ".cdbg.toml"
         corrupt_file.write_text("invalid [ TOML")
-        state_run("state-corrupt", c_binary, c_source, 7, corrupt_env)
+        state_run("state-corrupt", c_binary, c_source, 7, corrupt_env, corrupt_dir)
         assert corrupt_file.read_text() == "invalid [ TOML", "Corrupt state should not be overwritten"
         conflict_env = environment(work / "state-conflict")
-        state_run("state-conflict", c_binary, c_source, 7, conflict_env)
-        conflict_file = Path(conflict_env["XDG_CONFIG_HOME"]) / "cdbg/state.toml"
-        assert conflict_file.read_text() == "version = 1\nexternal = true\n", (
+        conflict_dir = work / "local-conflict"
+        state_run("state-conflict", c_binary, c_source, 7, conflict_env, conflict_dir)
+        assert (conflict_dir / ".cdbg.toml").read_text() == "version = 1\nexternal = true\n", (
             "Atomic save must not overwrite another writer")
         clamped_env = environment(work / "state-clamped")
-        clamped_file = Path(clamped_env["XDG_CONFIG_HOME"]) / "cdbg/state.toml"
-        clamped_file.parent.mkdir()
-        clamped_file.write_text(
+        clamped_dir = work / "local-clamped"
+        clamped_dir.mkdir()
+        (clamped_dir / ".cdbg.toml").write_text(
             "version = 1\nwidth = 99999\nheight = 0\npane = 9999\ninspector = 99\nmaximized = false\n")
-        state_run("state-clamped", c_binary, c_source, 7, clamped_env)
-        # Exercise HOME fallback without ever referring to the user's real home.
-        fallback_env = environment(work / "state-fallback")
-        fallback_env.pop("XDG_CONFIG_HOME")
-        state_run("state-save", c_binary, c_source, 7, fallback_env)
-        assert (Path(fallback_env["HOME"]) / ".config/cdbg/state.toml").is_file()
-
+        state_run("state-clamped", c_binary, c_source, 7, clamped_env, clamped_dir)
+        # An old global XDG file is reported but never imported or modified.
+        global_env = environment(work / "state-global")
+        global_file = Path(global_env["XDG_CONFIG_HOME"]) / "cdbg/state.toml"
+        global_file.parent.mkdir()
+        global_text = ("version = 1\n[" + json.dumps(str(c_binary.resolve())) + "]\npoints = [\n{ file = " +
+                       json.dumps(str(c_source)) + ", line = 7, enabled = true },\n]\n")
+        global_file.write_text(global_text)
+        global_dir = work / "local-global"
+        state_run("state-global", c_binary, c_source, 7, global_env, global_dir)
+        assert global_file.read_text() == global_text, "global state must stay unchanged"
+        local_global = tomllib.loads((global_dir / ".cdbg.toml").read_text())
+        assert not local_global.get(str(c_binary.resolve()), {}).get("points"), local_global
+        # An unwritable working directory: debugging continues, nothing is saved.
+        unwritable_env = environment(work / "state-unwritable")
+        unwritable_dir = work / "local-unwritable"
+        unwritable_dir.mkdir()
+        unwritable_dir.chmod(0o555)
+        try:
+            if not os.access(unwritable_dir, os.W_OK):
+                state_run("state-unwritable", c_binary, c_source, 7, unwritable_env, unwritable_dir)
+                assert not list(unwritable_dir.iterdir()), "no settings file in unwritable directory"
+        finally:
+            unwritable_dir.chmod(0o755)
+        # Real Cwhip -g line breakpoints from F9/menu stop the program; Setup,
+        # arguments and Break at start persist across a real quit and relaunch.
+        breaks_source = work / "breaks.cw"
+        breaks_source.write_text(BREAKS_FIXTURE)
+        breaks_env = environment(work / "state-breaks")
+        breaks_dir = work / "local-breaks"
+        state_run("breaks", breaks_source, breaks_source, 4, breaks_env, breaks_dir)
+        saved = tomllib.loads((breaks_dir / ".cdbg.toml").read_text())
+        entry = saved[str(breaks_source.resolve())]
+        assert entry["break_at_start"] is True and entry["arguments"] == "one 'two words' '' 'it'\\''s'", entry
+        assert sorted(point["line"] for point in entry["points"]) == [4, 8, 19], entry
+        assert all(point["enabled"] for point in entry["points"]), entry
+        state_run("breaks-restore", breaks_source, breaks_source, 4, breaks_env, breaks_dir)
+        entry = tomllib.loads((breaks_dir / ".cdbg.toml").read_text())[str(breaks_source.resolve())]
+        assert entry["break_at_start"] is False and len(entry["points"]) == 3, entry
+        assert not (Path(breaks_env["XDG_CONFIG_HOME"]) / "cdbg").exists(), "No global state written"
 
 if __name__ == "__main__":
     main()

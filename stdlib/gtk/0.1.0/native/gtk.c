@@ -1504,12 +1504,26 @@ static int text_click_line(GtkWidget *widget, double x, double y) {
     return line + 1;
 }
 
+/* A context click inside the current selection keeps it, so menu actions
+   such as Copy operate on what the user selected. */
+static bool click_in_selection(GtkWidget *widget, double x, double y) {
+    GtkTextView *view = GTK_TEXT_VIEW(widget);
+    GtkTextIter start, end, hit;
+    if (!gtk_text_buffer_get_selection_bounds(gtk_text_view_get_buffer(view), &start, &end))
+        return false;
+    int bx, by;
+    gtk_text_view_window_to_buffer_coords(view, GTK_TEXT_WINDOW_WIDGET, x, y, &bx, &by);
+    gtk_text_view_get_iter_at_location(view, &hit, bx, by);
+    return gtk_text_iter_in_range(&hit, &start, &end);
+}
+
 static void context_pressed(GtkGestureClick *gesture, int count, double x, double y,
                             gpointer data) {
     (void)count;
     GtkPopover *popover = data;
     GtkWidget *owner_widget = gtk_event_controller_get_widget(GTK_EVENT_CONTROLLER(gesture));
-    if (GTK_IS_TEXT_VIEW(owner_widget)) text_click_line(owner_widget, x, y);
+    if (GTK_IS_TEXT_VIEW(owner_widget) && !click_in_selection(owner_widget, x, y))
+        text_click_line(owner_widget, x, y);
     GdkRectangle point = { (int)x, (int)y, 1, 1 };
     gtk_popover_set_pointing_to(popover, &point);
     gtk_popover_popup(popover);

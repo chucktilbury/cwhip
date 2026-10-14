@@ -22,7 +22,10 @@ fails with a clear missing-GUI dependency message.
 
 `cdbg [SOURCE.cw|EXECUTABLE [-- ARGS...]]` opens the GUI in the foreground;
 arguments after the target are passed individually to the inferior, without a
-shell. A `.cw` command-line target is compiled
+shell. Command-line arguments override the target's saved Setup arguments for
+that command-line session (including Restart) but are not saved; applying Setup
+replaces them, and a later File > Load Executable uses the saved arguments.
+A `.cw` command-line target is compiled
 asynchronously using `cwhip -g` to an owned temporary executable. Compilation
 errors appear in a parented modal dialog, the status line, Debugger Console and
 stderr; user source/output files
@@ -73,6 +76,16 @@ launched in cdbg's current working directory.
    Multi-location breakpoint actions affect the parent breakpoint and all its
    locations. If GDB relocates a non-executable line to nearby code, toggling
    again at the original requested line still clears that breakpoint.
+   The **Breakpoints** tab lists each breakpoint as
+   `#N enabled|disabled installed file:line in FUNCTION hits COUNT`, with
+   `pending … (not yet installed)` for locations GDB could not yet resolve and
+   `(multiple locations)` for multi-location parents. GDB errors (for example
+   "No compiled code" for a line without code) appear in the status line,
+   Debugger Console and stderr. When the program exits, each enabled breakpoint
+   whose hit count did not change during that run is listed in the Debugger
+   Console as "Not reached during this run … (that code did not execute)", and
+   the exit status counts them. A breakpoint in a method that the program never
+   calls is installed correctly but cannot stop it.
    The old source and Breakpoints-tab action popovers are removed;
    normal read-only text selection/copy remains available.
    Breakpoint lines have a red-tinted background and a gutter icon, distinct
@@ -88,12 +101,33 @@ launched in cdbg's current working directory.
    breakpoints, watches and arguments. It works while running, stopped or after
    exit; it does not recompile source. Restart cdbg with the `.cw` path, or load
    a rebuilt executable, after changing the source.
-3. At each stop the source location/current line, Locals / Arguments, Stack,
+3. **Debug > Setup…** opens a dialog parented to the main window with
+   **Break at start** (on by default for a new configuration), a program
+   **Arguments** field, and **Apply** / **Cancel**. Arguments use shell-like
+   quoting without running a shell: whitespace separates words, `'…'` is
+   literal, `"…"` allows `\"`, `\\`, `\$` and `` \` `` escapes, an unquoted
+   backslash escapes the next character, and `''` or `""` is an empty
+   argument. Each argument is MI-quoted separately for `-exec-arguments`.
+   Malformed input (unterminated quote, trailing backslash) is reported in the
+   dialog and leaves the previous arguments and session unchanged. Apply never
+   restarts a running program; the settings take effect at the next Run from a
+   not-started target, Restart or Load. Cancel changes nothing. With no target
+   loaded, Apply sets this directory's default Break at start.
+
+   Break at start inserts a temporary GDB breakpoint on the entry symbol for each
+   new run, so it never accumulates duplicates and is not saved with the user's
+   breakpoints. For Cwhip programs the entry symbol is the generated `main`
+   function, which is the program's `start { … }` block, so it stops on the
+   `start {` line; the status reads "Stopped at start". For native programs it
+   stops in `main()`. If the executable has no entry symbol (for example a
+   stripped binary), the Debugger Console reports "Break at start unavailable"
+   and the program runs without it. cdbg sets no other automatic breakpoint.
+4. At each stop the source location/current line, Locals / Arguments, Stack,
    and Watches are refreshed. Right-click the **Watches** tab and choose
    **Add Watch…**. The parented dialog has an expression entry and **Add** /
    **Cancel** buttons. Out-of-scope/evaluation errors are displayed alongside
    the expression.
-4. Single-click a **Stack** entry to inspect that frame's source, locals and
+5. Single-click a **Stack** entry to inspect that frame's source, locals and
    watches. This browses the stack without executing. Step/continue operations
    restore the actual execution frame (frame zero) first, and the next stop
    brings the source view back to the executing file and line.
@@ -120,6 +154,10 @@ order through an owned local pseudo-terminal set with GDB's `-inferior-tty-set`.
 Inferior output cannot be mistaken for GDB/MI records. Terminal newline conversion
 is disabled; terminal escape sequences are displayed as text, not interpreted.
 Invalid UTF-8 uses replacement characters and NUL bytes are displayed as `\0`.
+Right-click **Program Output** for **Clear**, **Copy** (the current selection)
+and **Copy All**. Clear only discards the displayed history: the program keeps
+running and later output is appended. Right-clicking inside a selection keeps
+it, and normal keyboard selection/Ctrl+C copy remains available.
 Watch expressions persist in memory between loads but not across application
 restarts. GDB command/result records use numeric correlation tokens, a bounded
 queue and a structured parser for nested tuples/lists and C-string escapes;
@@ -128,37 +166,68 @@ The GUI polls the async process with a bounded 10 ms wait, processing up to 64
 events per callback. Each output history is limited to 64 KiB and an individual MI
 record to 1 MiB.
 
-## Saved state
+## Saved settings
 
-`$XDG_CONFIG_HOME/cdbg/state.toml`, or `~/.config/cdbg/state.toml` when
-`XDG_CONFIG_HOME` is unset, stores breakpoint locations/enabled states per
-canonical executable path. For `cdbg file.cw`, the key is the canonical source
-path, never the temporary compiled executable. Symlink aliases share a key.
-Resolved locations are saved as file:line entries; multi-location groups are
-restored as individual file:line breakpoints rather than recreating a function
-breakpoint. Watches remain memory-only.
+Settings live in `.cdbg.toml` in the directory cdbg runs in (the debugger and
+inferior working directory), so each project keeps its own breakpoints:
 
-Snapshots are written atomically after breakpoint changes and on Quit, using
-private file permissions and a content/ETag guard against concurrent changes.
-Restore occurs after GDB accepts the target. Invalid, missing or unresolvable
-locations are skipped with a Debugger Console/stderr diagnostic; the session
-continues. Up to 256 resolved locations per target and a 256 KiB state file are
-supported; limits are reported rather than silently ignored.
+```toml
+version = 1
+break_at_start = true          # directory default for targets without Setup
+width = 1100
+height = 760
+maximized = false
+pane = 600
+inspector = 0
+
+["/abs/path/program.cw"]       # canonical executable, or .cw for cdbg file.cw
+break_at_start = false
+arguments = "one 'two words' ''"
+points = [
+{ file = "/abs/path/program.cw", line = 4, enabled = true },
+]
+```
+
+Target tables are keyed by canonical executable path; for `cdbg file.cw` the
+key is the canonical source path, never the temporary compiled executable.
+Symlink aliases share a key. Resolved locations are saved as file:line entries;
+multi-location groups are restored as individual file:line breakpoints rather
+than recreating a function breakpoint. A target's `break_at_start` and
+`arguments` are written only after Setup is applied for it. Watches remain
+memory-only.
+
+Earlier versions used a global `$XDG_CONFIG_HOME/cdbg/state.toml` (or
+`~/.config/cdbg/state.toml`). That file is now neither read nor modified, so
+breakpoints from other projects are never imported. When it exists, the
+Debugger Console notes that it is ignored. To migrate, copy the wanted
+`["/target"]` tables (and layout keys) by hand into the project's
+`.cdbg.toml`.
+
+Snapshots are written atomically after breakpoint/Setup changes and on Quit,
+using private file permissions and a content/ETag guard against concurrent
+changes. If the directory is not writable, the status line, Debugger Console
+and stderr report "Settings not saved to …" (once per distinct error) and
+debugging continues; Setup reports that settings were not saved. Restore occurs
+after GDB accepts the target. Invalid, missing or unresolvable locations are
+skipped with a Debugger Console/stderr diagnostic; the session continues. Up to
+256 resolved locations per target and a 256 KiB file are supported; limits are
+reported rather than silently ignored.
 
 Quit also saves window width/height, maximized state, the source/inspector
 divider position and selected inspector tab. Startup clamps size to 640–3840
 by 400–2160, the divider to 100 through width minus 100, and the inspector index
 to 0–5; GTK may further constrain dimensions to the available screen.
 Notebook headers scroll when necessary, so tab titles do not force the divider
-away from its saved position. Malformed/unreadable state falls back to defaults,
-logs a diagnostic and disables saving to preserve the original file for repair.
-Invalid individual layout values use defaults; out-of-range numbers are clamped.
+away from its saved position. A malformed/unreadable file falls back to
+defaults, logs a diagnostic and disables saving to preserve the original file
+for repair. Invalid individual values use defaults; out-of-range numbers are
+clamped; invalid saved arguments are ignored with a diagnostic.
 
 ## Boundaries
 
 Only local launch is supported: no remote debugging, attach, DAP, LLDB,
-multitarget sessions, thread-selection UI, disassembly, register view, or saved
-debug configurations yet. Inferior interactive stdin/terminal emulation is not
+multitarget sessions, thread-selection UI, disassembly, register view, or
+environment/working-directory settings yet. Inferior interactive stdin/terminal emulation is not
 provided: the output PTY supplies no user input, so programs waiting on stdin
 must be paused/ended. The stack view is capped at 31 frames. Watch expressions use GDB's
 expression language and may have side effects.
@@ -206,7 +275,17 @@ to frame zero's actual next line. They also check the absence of the removed
 controls, marker preservation on Restart/restoration on fresh load, and complete
 Quit cleanup. Real quit/relaunch checks cover executable and `.cw` keys,
 canonical symlink keys, disabled states, window/layout restoration, stale and
-corrupt state, range clamping, and isolated HOME/XDG paths including HOME fallback.
+corrupt state, range clamping, local `.cdbg.toml` per working directory, an
+ignored (unchanged, not imported) global XDG file and an unwritable directory.
+A Cwhip `-g` regression sets line breakpoints with F9 and the Breakpoint menu in
+a method and in `start`, and checks that the running program actually stops at
+start, then in the method, then at the later line; that an uncalled method's
+breakpoint is reported as not reached; Setup Apply/Cancel and invalid quoting;
+arguments with spaces, quotes and an empty string reaching the program; Program
+Output Copy, Copy All (via the real clipboard) and Clear followed by new output;
+Restart without duplicate start breakpoints; and a real relaunch restoring
+breakpoints, arguments and Break at start off (first stop in the method; Apply
+while stopped does not restart).
 An external-edit check verifies that atomic saving does not overwrite another writer.
 When `xfwm4` is available the private test display also verifies actual
 maximization/restore; its session management is disabled.

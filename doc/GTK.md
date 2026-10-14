@@ -130,7 +130,9 @@ The window manager may apply this request asynchronously.
 single content widget (usually a Box of actions/check buttons); owner disposal
 tears it down. Its capture-phase gesture suppresses the owner's default popup.
 For text views it positions the cursor at the clicked line before opening;
-views with line selection enabled select that whole line instead.
+views with line selection enabled select that whole line instead. A right
+click inside an existing text selection keeps the selection (so a Copy action
+copies it).
 `appendClosablePage` adds a bordered title/close-icon tab, invoking
 the supplied callback without automatically removing the page.
 `setBorderedTabs()` applies the same tab border to every page of a notebook.

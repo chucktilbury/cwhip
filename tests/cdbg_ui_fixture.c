@@ -2,6 +2,7 @@
 #include <gtk/gtk.h>
 #include <gtksourceview/gtksource.h>
 #include <math.h>
+#include <stdio.h>
 #include <string.h>
 
 static GtkWindow *debugger_window(void) {
@@ -418,6 +419,19 @@ static GtkTextView *inspector_view(const char *title) {
     return NULL;
 }
 
+/* The visible popover holding the labelled item; GtkTextView may own other
+   (hidden) popovers once text has been selected. */
+static GtkWidget *menu_popover(GtkWidget *widget, const char *label) {
+    if (GTK_IS_POPOVER(widget) && gtk_widget_get_visible(widget) && button_labeled(widget, label))
+        return widget;
+    for (GtkWidget *child = gtk_widget_get_first_child(widget); child;
+         child = gtk_widget_get_next_sibling(child)) {
+        GtkWidget *found = menu_popover(child, label);
+        if (found) return found;
+    }
+    return NULL;
+}
+
 /* Drive the real capture-phase click controller at a displayed text line. */
 bool cdbg_fixture_line_click(void *self, void *pane, int64_t line, void *action) {
     (void)self;
@@ -458,9 +472,9 @@ bool cdbg_fixture_line_click(void *self, void *pane, int64_t line, void *action)
         g_object_ref(view);
         g_signal_emit_by_name(match, "pressed", 1, (double)x, (double)y);
         if (*label) {
-            GtkWidget *popover = find_type(GTK_WIDGET(view), GTK_TYPE_POPOVER);
+            GtkWidget *popover = menu_popover(GTK_WIDGET(view), label);
             GtkWidget *item = popover ? button_labeled(popover, label) : NULL;
-            if (item && gtk_widget_get_visible(popover)) {
+            if (item) {
                 g_signal_emit_by_name(item, "clicked");
                 activated = true;
             }
@@ -514,13 +528,13 @@ bool cdbg_fixture_disabled(void *self, int64_t line) {
     return found;
 }
 
-static GtkWindow *watch_dialog(void) {
+static GtkWindow *dialog_titled(const char *title) {
     GListModel *windows = gtk_window_get_toplevels();
     GtkWindow *found = NULL;
     for (guint i = 0; !found && i < g_list_model_get_n_items(windows); ++i) {
         GtkWindow *window = g_list_model_get_item(windows, i);
         if (gtk_window_get_transient_for(window) == debugger_window() &&
-            g_strcmp0(gtk_window_get_title(window), "Add Watch") == 0 &&
+            g_strcmp0(gtk_window_get_title(window), title) == 0 &&
             gtk_widget_get_visible(GTK_WIDGET(window)))
             found = window;
         g_object_unref(window);
@@ -530,7 +544,7 @@ static GtkWindow *watch_dialog(void) {
 
 bool cdbg_fixture_watch(void *self, void *expression, bool accept) {
     (void)self;
-    GtkWindow *dialog = watch_dialog();
+    GtkWindow *dialog = dialog_titled("Add Watch");
     GtkWidget *entry = dialog ? find_type(GTK_WIDGET(dialog), GTK_TYPE_ENTRY) : NULL;
     GtkWidget *button = dialog ? button_labeled(GTK_WIDGET(dialog), accept ? "Add" : "Cancel") : NULL;
     if (!entry || !button) return false;
@@ -539,4 +553,44 @@ bool cdbg_fixture_watch(void *self, void *expression, bool accept) {
     g_free(text);
     g_signal_emit_by_name(button, "clicked");
     return !gtk_widget_get_visible(GTK_WIDGET(dialog));
+}
+
+/* Drive the real Setup dialog: start < 0 leaves the checkbox alone. Returns
+   true when the dialog is hidden after the button click. */
+bool cdbg_fixture_setup(void *self, int64_t start, void *arguments, void *action) {
+    (void)self;
+    GtkWindow *dialog = dialog_titled("Setup");
+    GtkWidget *check = dialog ? find_type(GTK_WIDGET(dialog), GTK_TYPE_CHECK_BUTTON) : NULL;
+    GtkWidget *entry = dialog ? find_type(GTK_WIDGET(dialog), GTK_TYPE_ENTRY) : NULL;
+    char *label = text_arg(action);
+    GtkWidget *button = dialog ? button_labeled(GTK_WIDGET(dialog), label) : NULL;
+    g_free(label);
+    if (!check || !entry || !button) return false;
+    if (start >= 0) gtk_check_button_set_active(GTK_CHECK_BUTTON(check), start != 0);
+    char *text = text_arg(arguments);
+    gtk_editable_set_text(GTK_EDITABLE(entry), text);
+    g_free(text);
+    g_signal_emit_by_name(button, "clicked");
+    return !gtk_widget_get_visible(GTK_WIDGET(dialog));
+}
+
+static void clipboard_done(GObject *source, GAsyncResult *result, gpointer data) {
+    char **text = data;
+    *text = gdk_clipboard_read_text_finish(GDK_CLIPBOARD(source), result, NULL);
+    if (!*text) *text = g_strdup("");
+}
+
+/* Read the real display clipboard and compare it with the expected text. */
+bool cdbg_fixture_clipboard(void *self, void *expected) {
+    (void)self;
+    char *text = NULL, *want = text_arg(expected);
+    GdkClipboard *clipboard = gdk_display_get_clipboard(gdk_display_get_default());
+    gdk_clipboard_read_text_async(clipboard, NULL, clipboard_done, &text);
+    gint64 deadline = g_get_monotonic_time() + 5 * G_USEC_PER_SEC;
+    while (!text && g_get_monotonic_time() < deadline) g_main_context_iteration(NULL, TRUE);
+    bool same = text && g_strcmp0(text, want) == 0;
+    if (!same) fprintf(stderr, "clipboard '%s' expected '%s'\n", text ? text : "(none)", want);
+    g_free(text);
+    g_free(want);
+    return same;
 }
