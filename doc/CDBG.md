@@ -123,7 +123,7 @@ launched in cdbg's current working directory.
    stripped binary), the Debugger Console reports "Break at start unavailable"
    and the program runs without it. cdbg sets no other automatic breakpoint.
 4. At each stop the source location/current line, Locals / Arguments, Stack,
-   and Watches are refreshed. Right-click the **Watches** tab and choose
+   and Watches are refreshed. Right-click the **Watches (Cwhip / Native)** tab and choose
    **Add Watch…**. The parented dialog has an expression entry and **Add** /
    **Cancel** buttons. Out-of-scope/evaluation errors are displayed alongside
    the expression.
@@ -131,6 +131,46 @@ launched in cdbg's current working directory.
    watches. This browses the stack without executing. Step/continue operations
    restore the actual execution frame (frame zero) first, and the next stop
    brings the source view back to the executing file and line.
+
+### Cwhip values and runtime values
+
+**Locals / Arguments (Cwhip / Native)** and **Watches (Cwhip / Native)** use
+the same read-only inspector. **Runtime Values** separately retains both
+groups' GDB type names and raw values, including watch expressions and errors.
+All three views follow the selected stack frame and refresh at each stop.
+Native/runtime C frames keep GDB's native formatting; a native pointer is not
+treated as a Cwhip object merely because of its address.
+
+In Cwhip frames, identified by source-file DWARF and named DWARF types:
+
+- `int`, `unsigned`, `float` and `bool` have scalar values (`true`/`false`
+  for booleans); null object references show `null`.
+- `String` shows quoted UTF-8 contents with escaped quotes, backslashes and
+  control characters, including embedded NUL. Invalid UTF-8 bytes are escaped.
+- `list` and `dict` show their length and up to eight entries; `buffer` shows
+  its length and up to 256 bytes in hexadecimal. Runtime-tagged integer,
+  unsigned, float, boolean and String entries are decoded. Nested containers
+  are bounded to two levels; other tags remain explicitly labeled runtime tags.
+- Classes show their DWARF type, runtime field count and address with
+  **members unavailable**. The compiler currently emits forward declarations,
+  not member DWARF: the inspector does not invent field offsets. `any`/`type`
+  structures and opaque handles are not decoded.
+
+The helper uses named runtime struct DWARF, not guessed memory offsets, and
+never calls inferior functions. Missing runtime DWARF, unreadable memory,
+optimized-out/unavailable values and out-of-scope expressions are reported
+explicitly. Reads are bounded to 256 bytes per string/buffer, eight children
+per container, two container levels and 64 locals; raw formatting is bounded
+to eight elements/two levels and 4096 characters per value. Truncation is
+marked. Watches support read-only identifiers, member/index access and
+arithmetic, not calls, assignments or increment/decrement. This is GDB's
+expression syntax, not a full Cwhip expression evaluator.
+
+The inspector is embedded in cdbg and requires Python-enabled GDB with
+`gdb.MICommand` (validated with GDB 16.3). If unavailable, the Debugger Console
+reports the limitation; debugging and raw native locals remain usable, but
+watches explicitly report that the value inspector is unavailable.
+No compiler, ABI or runtime behavior changes are needed for these summaries.
 
 Each Step Into, Step Over or Step Out activation sends one GDB execution
 command, including after browsing a caller. The focused toolbar buttons also
@@ -250,13 +290,14 @@ Only local launch is supported: no remote debugging, attach, DAP, LLDB,
 multitarget sessions, thread-selection UI, disassembly, register view, or
 environment/working-directory settings yet. Inferior interactive stdin/terminal emulation is not
 provided: the output PTY supplies no user input, so programs waiting on stdin
-must be paused/ended. The stack view is capped at 31 frames. Watch expressions use GDB's
-expression language and may have side effects.
+must be paused/ended. The stack view is capped at 31 frames. Watches use the
+read-only subset of GDB expressions described above; calls and mutations are
+rejected and inferior function calls are disabled in the session.
 
 Cwhip's current DWARF exposes scalar locals/arguments and pointer-backed class
-values; it does not yet describe full class member layouts or provide language
-pretty-printers. Those objects therefore appear as pointers/opaque types rather
-than an expandable Cwhip object tree. Step Into may enter compiler/runtime
+values; it does not yet describe full class member layouts. cdbg provides the
+bounded String/container/class summaries described above, not an expandable
+Cwhip object tree. Step Into may enter compiler/runtime
 helpers; use Step Out or file:line breakpoints to return to source. LLDB/DAP and
 richer Cwhip object inspection are follow-up work, not implemented features.
 Gutter-click breakpoint toggles remain future work. The Breakpoint menu,
@@ -275,6 +316,14 @@ real local GDB launch, source compilation with `-g`, source locations,
 breakpoints, stepping, locals, watches, stack-frame selection, errors and
 teardown under a private GTK display/session bus. Missing GDB is reported
 explicitly at configuration time rather than counted as a passing GUI test.
+The value regression compiles real Cwhip `-g` code and compares the exact local
+and watch representations for scalars, escaped/non-ASCII Strings, null, classes,
+lists, dictionaries, buffers and truncated Strings. It checks separate raw
+types/values, refresh after stepping/frame selection, rejected calls/mutations,
+out-of-scope watches and native/runtime-frame behavior. Formatter checks run
+inside real GDB for unreadable pointers, unknown runtime tags, native-pointer
+fallback and escaping; a real optimized native frame verifies `<optimized out>`,
+and the optimized/unavailable branches also have isolated checks.
 Load-time source checks cover source paths (including relative paths), executables
 with DWARF, and explicit missing-debug-source feedback. Restart checks cover
 stopped, running and exited targets, retained breakpoints/watches, and cleanup

@@ -516,8 +516,8 @@ if(CWHIP_GTK_SOURCEVIEW AND CWHIP_GTK_TESTS)
 endif()
 
 if(CWHIP_GTK_SOURCEVIEW)
-    add_executable(cdbg_terminal_test test_cdbg_terminal.c
-        "${CMAKE_CURRENT_SOURCE_DIR}/../tools/cdbg/terminal.c")
+    add_executable(cdbg_terminal_test test_cdbg_terminal.c)
+    target_link_libraries(cdbg_terminal_test PRIVATE cdbg_terminal)
     target_include_directories(cdbg_terminal_test PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../include")
     target_compile_options(cdbg_terminal_test PRIVATE -UNDEBUG)
     add_test(NAME cdbg_terminal COMMAND cdbg_terminal_test)

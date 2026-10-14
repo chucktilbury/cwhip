@@ -167,6 +167,7 @@ class DebugChecks {
     }
     bool steppingTick() {
         if (stage == 0 && ui.loaded && idle()) {
+            ui.addWatch("counter")
             stage = 1
         }
         if (stage == 1 && idle()) {
@@ -194,6 +195,9 @@ class DebugChecks {
             if (stage == 6) {
                 stepped("RuntimeGc.c", System.Process().getEnv("CDBG_RUNTIME_ENTRY").toInt())
                 require(ui.location.contains("cwhip_gc_require_alive"), "step enters real runtime")
+                require(ui.watches.text().contains("counter = <") &&
+                    !ui.locals.text().contains("fields; members unavailable"),
+                    "native frame keeps native values and reports out-of-scope Cwhip watches")
                 previousPc = ui.stopAddress
                 stops = ui.stopCount
                 ui.execute("-exec-step-instruction", "Step Instruction")
@@ -295,6 +299,9 @@ class DebugChecks {
         if (stage == 31 && idle()) {
             require(ui.selectedFrame == 1 && ui.location.contains("stepping.cw:10"),
                 "stack click browses caller")
+            require(ui.locals.text().contains("counter = 21") && ui.watches.text().contains("counter = 21") &&
+                ui.runtimeValues.text().contains("counter : int = 21"),
+                "caller selection refreshes friendly and runtime values together")
             singleStep("Step Over", false)
             stage = 8
         }
@@ -336,6 +343,67 @@ class DebugChecks {
                 "browse caller after method breakpoint")
             singleStep("Step Into", true)
             stage = 20
+        }
+        return true
+    }
+    bool valuesTick() {
+        if (stage == 0 && ui.loaded && idle()) {
+            require(ui.valueInspector && ui.inspection.pageCount() == 7, "value inspector and Runtime Values tab")
+            ui.addBreakpoint(format("{}:19", System.Process().getEnv("CDBG_TEST_SOURCE")))
+            list names = ["counter", "positive", "truth", "fraction", "message", "missing",
+                "worker", "items", "mapping", "bytes", "longText", "not_in_scope",
+                "counter = 0", "print(counter)"]
+            int i = 0
+            while (i < names.length) {
+                ui.addWatch(names[i] as String)
+                i = i + 1
+            }
+            stage = 1
+        }
+        if (stage == 1 && idle()) { ui.resume()
+            stage = 2 }
+        if (stage == 2 && ui.stopCount > 0 && !ui.running && idle()) {
+            String text = ui.locals.text()
+            require(text.contains("counter = 21") && text.contains("positive = 42") &&
+                text.contains("truth = true") && text.contains("fraction = 1.5"),
+                format("Cwhip primitive values: {}", text))
+            require(text.contains("message = \"") && text.contains("café") &&
+                text.contains("\\n") && text.contains("\\\""), format("escaped Unicode String: {}", text))
+            require(text.contains("missing = null") && text.contains("members unavailable"),
+                format("null and honest class summary: {}", text))
+            require(text.contains("items = list[9] {21, true, \"hello\", list[2] {1, list[2] <depth limit>}") &&
+                text.contains("7} … <truncated>") &&
+                text.contains("mapping = dict[1] {\"key\": 42}") &&
+                text.contains("bytes = buffer[3] {01 02 ff}") &&
+                text.contains("<truncated; 300 bytes>"), format("bounded containers/String: {}", text))
+            list rows = text.split("\n")
+            int i = 0
+            while (i < rows.length) {
+                String row = rows[i] as String
+                if (!row.equals("")) { require(ui.watches.text().contains(row), format("same local/watch formatter: {}", row)) }
+                i = i + 1
+            }
+            require(ui.watches.text().contains("not_in_scope = <") &&
+                ui.runtimeValues.text().contains("message : struct String * = 0x") &&
+                ui.runtimeValues.text().contains("Watches (GDB types and raw values)") &&
+                ui.runtimeValues.text().contains("not_in_scope = <"), "raw types/values and watch error retained")
+            require(ui.watches.text().contains("counter = 0 = <") &&
+                ui.watches.text().contains("print(counter) = <"), "mutating/calling watches refused without changing counter")
+            singleStep("Step Over", false)
+            stage = 3
+        }
+        if (stage == 3 && ui.stopCount > stops && !ui.running && idle()) {
+            require(ui.locals.text().contains("counter = 22") && ui.watches.text().contains("counter = 22") &&
+                ui.runtimeValues.text().contains("counter : int = 22"), "all representations update after step")
+            ui.selectFrame("0")
+            stage = 4
+        }
+        if (stage == 4 && idle()) {
+            require(ui.locals.text().contains("counter = 22") && ui.watches.text().contains("counter = 22"),
+                "frame selection preserves shared values")
+            ui.quit()
+            print("true")
+            return false
         }
         return true
     }
@@ -584,7 +652,7 @@ class DebugChecks {
                         ui.window.defaultWidth() >= 640 && ui.window.defaultWidth() <= 3840 &&
                         ui.window.defaultHeight() == 400 &&
                         ui.body.position() >= 100 && ui.body.position() <= 3740 &&
-                        ui.inspection.currentPage() == 5, "out-of-range layout values clamped")
+                        ui.inspection.currentPage() == 6, "out-of-range layout values clamped")
                 } else {
                     require(ui.breakpointLocations.length == 0 &&
                         ui.window.defaultWidth() >= 640 && ui.window.defaultWidth() <= 1100 &&
@@ -669,18 +737,18 @@ class DebugChecks {
             require(ui.showSource(path, "") && DebugUiFixture().marks("context.c", 7) == 1,
                 "reopened tab inherits breakpoint marks")
             require(DebugUiFixture().noBreakMenus(), "obsolete source and Breakpoints context menus absent")
-            if (!DebugUiFixture().lineClick("Watches", 1, "Add Watch...")) { return true }
+            if (!DebugUiFixture().lineClick("Watches (Cwhip / Native)", 1, "Add Watch...")) { return true }
             require(DebugUiFixture().watchDialog("ignored", false) && ui.expressions.length == 0,
                 "parented watch dialog Cancel adds nothing")
             stage = 6
         }
         if (stage == 6) {
-            if (!DebugUiFixture().lineClick("Watches", 1, "Add Watch...")) { return true }
+            if (!DebugUiFixture().lineClick("Watches (Cwhip / Native)", 1, "Add Watch...")) { return true }
             require(DebugUiFixture().watchDialog("counter", true), "watch dialog Add accepts expression")
             stage = 7
         }
         if (stage == 7) {
-            if (!DebugUiFixture().lineClick("Watches", 1, "Add Watch...")) { return true }
+            if (!DebugUiFixture().lineClick("Watches (Cwhip / Native)", 1, "Add Watch...")) { return true }
             require(DebugUiFixture().watchDialog("not_in_scope", true), "watch dialog accepts unknown expression")
             require(ui.expressions.length == 2, "watch expressions retained")
             ui.resume()
@@ -781,8 +849,7 @@ class DebugChecks {
                 require(DebugUiFixture().setup(0, "changed", "Cancel") && ui.breakAtStart &&
                     ui.arguments.length == 4, "Cancel changes nothing")
                 ui.showSource(path, "")
-                require(DebugUiFixture().lineClick("", 4, "") && DebugUiFixture().shortcut("F9"), "F9 line 4")
-                stage = 1
+                stage = 100
             } else {
                 require(ui.breakpointLocations.length == 3 && ui.arguments.length == 4 && ui.breakAtStart,
                     "breakpoints, arguments and Break at start restored from .cdbg.toml")
@@ -792,6 +859,10 @@ class DebugChecks {
                 stage = 20
             }
             return true
+        }
+        if (stage == 100 && DebugUiFixture().lineClick("", 4, "")) {
+            require(DebugUiFixture().shortcut("F9"), "F9 line 4")
+            stage = 1
         }
         if (stage == 1 && idle()) {
             require(DebugUiFixture().lineClick("", 19, ""), "click line 19")
@@ -909,6 +980,10 @@ class DebugChecks {
     }
     void tick() {
         require(Time.Clock().monotonicMilliseconds() < deadline, "session deadline")
+        if (mode.equals("values")) {
+            if (valuesTick()) { Gtk.Application().post(_self().tick) }
+            return
+        }
         if (mode.equals("stepping")) {
             if (steppingTick()) { Gtk.Application().post(_self().tick) }
             return
@@ -1039,7 +1114,8 @@ class DebugChecks {
                     "current source line highlighted")
                 require(ui.locals.text().contains("counter = 21"), "DWARF scalar local")
                 require(ui.watches.text().contains("counter = 21") &&
-                    ui.watches.text().contains("not_in_scope = <"), "watches and evaluation failure")
+                    ui.watches.text().contains("not_in_scope = <"), format("watches and evaluation failure: {} / {}",
+                        ui.watches.text(), ui.console.text()))
                 require(ui.stack.text().contains("#0"), "stack")
                 ui.addWatch("counter + 1")
                 ui.selectFrame("0")
@@ -1212,6 +1288,65 @@ start {
 }
 """
 
+VALUES_FIXTURE = r'''class Counter {
+    int value
+}
+start {
+    int counter = 21
+    unsigned positive = 42u
+    bool truth = true
+    float fraction = 1.5
+    String message = "café\n\"quoted\"\\path"
+    String missing = null
+    Counter worker = Counter()
+    list items = [21, true, "hello", [1, [2, [3]]], 4, 5, 6, 7, 8]
+    dict mapping = {"key": 42}
+    buffer bytes = buffer[1, 2, 255]
+    String longText = ""
+    while (longText.length < 300) {
+        longText.append("a")
+    }
+    counter = counter + 1
+    print(counter)
+}
+'''
+
+VALUE_CHECKS = r'''
+import gdb
+scope = {}
+exec(open(SCRIPT, encoding="utf-8").read(), scope)
+friendly, inspect = scope["friendly"], scope["inspect"]
+value = gdb.parse_and_eval("message")
+assert friendly(value, True) == '"café\\n\\"quoted\\"\\\\path"'
+assert friendly(value, False) == scope["raw"](value)  # native frames never decode Cwhip pointers
+assert friendly(gdb.parse_and_eval("missing"), True) == "null"
+bad = gdb.Value(1).cast(value.type)
+assert "<unreadable:" in inspect("bad", bad, True)["friendly"]
+assert "<members unavailable" not in friendly(value, True)
+for expression in ["counter = 1", "counter++", "fn()", "(*fn)()", "p[0]()", "counter;continue", "(String *)1"]:
+    try:
+        scope["safe_expression"](expression)
+    except (gdb.error, gdb.GdbError):
+        pass
+    else:
+        raise AssertionError(expression)
+for expression in ["counter + 1", "counter", "(counter + 1) * 2", "items[0]", "p->field"]:
+    scope["safe_expression"](expression)
+assert scope["quoted"](b'a\x00"\n\\\xff') == '"a\\u0000\\"\\n\\\\\\\\xff"'
+# Exercise explicit optimized/unavailable branches independently of GDB's
+# platform-dependent ability to rematerialize optimized native locals.
+class Optimized:
+    is_optimized_out = True
+assert friendly(Optimized(), True) == "<optimized out>"
+class Unavailable:
+    is_optimized_out = False
+    is_unavailable = True
+assert friendly(Unavailable(), True) == "<unavailable>"
+assert friendly(gdb.parse_and_eval("worker"), True).startswith("Counter <1 fields; members unavailable")
+assert scope["dynamic"](gdb.parse_and_eval("(CwhipArrayValue){10,0,0,0}"), 0).startswith("<runtime tag 10:")
+print("VALUE_CHECKS_PASS")
+'''
+
 # Record the real process boundary, not a simulated MI transport. Only GDB's
 # stdin/stdout are proxied; the inferior still uses cdbg's separate PTY.
 MI_TRACE = r'''
@@ -1331,8 +1466,10 @@ def main() -> None:
             ["pkg-config", "--cflags", "gtk4", "gtksourceview-5"], text=True).split()
         subprocess.run([args.clang, "-g", "-c", str(root / "tests/cdbg_ui_fixture.c"),
                         "-I", str(root / "include"), *gtk_flags, "-o", str(fixture)], check=True)
+        subprocess.run([sys.executable, str(args.source.parent / "embed_values.py"),
+                        str(args.source.parent / "values.py"), str(work / "values.h")], check=True)
         subprocess.run([args.clang, "-c", str(args.source.parent / "terminal.c"),
-                        "-I", str(root / "include"), "-o", str(terminal)], check=True)
+                        "-I", str(root / "include"), "-I", str(work), "-o", str(terminal)], check=True)
         compile_program(args.compiler, source, binary, work, env, [fixture, terminal])
         (work / "helper.c").write_text(
             "int helper(int value) {\n    int doubled = value * 2;\n    return doubled;\n}\n")
@@ -1368,6 +1505,42 @@ def main() -> None:
         subprocess.run([args.clang, "-g", "-O0", str(loop_source), "-o", str(loop_binary)], check=True)
         cw_source = work / "target with spaces.cw"
         cw_source.write_text(CW_FIXTURE)
+        values_source = work / "values.cw"
+        values_source.write_text(VALUES_FIXTURE)
+        values_binary = work / "values"
+        result = invoke([str(args.compiler), str(values_source), "-g", "-o", str(values_binary)], work, env)
+        assert result.returncode == 0, result.stderr
+        value_checks = work / "value-checks.py"
+        value_checks.write_text("SCRIPT = " + repr(str(args.source.parent.resolve() / "values.py")) +
+                                "\n" + VALUE_CHECKS)
+        value_result = invoke([args.gdb, "-q", "-nx", "--batch", str(values_binary),
+                               "-ex", "set host-charset UTF-8",
+                               "-ex", f"break {values_source}:19", "-ex", "run",
+                               "-ex", f"source {value_checks}"], work, env)
+        assert value_result.returncode == 0 and "VALUE_CHECKS_PASS" in value_result.stdout, value_result
+        optimized_source = work / "optimized.c"
+        optimized_source.write_text(
+            "extern int puts(const char *); volatile int input = 42;\n"
+            "__attribute__((noinline)) void snapshot(void) {\n"
+            " int removed = input;\n"
+            " volatile int marker = 0; puts(\"checkpoint\");\n"
+            " marker++;\n"
+            " marker++;\n"
+            "}\nint main(void) { snapshot(); return 0; }\n")
+        optimized_binary = work / "optimized"
+        subprocess.run([args.clang, "-g", "-O2", str(optimized_source), "-o", str(optimized_binary)], check=True)
+        optimized_checks = work / "optimized-checks.py"
+        optimized_checks.write_text(
+            "import gdb\nscope = {}\nexec(open(" +
+            repr(str(args.source.parent.resolve() / "values.py")) + ").read(), scope)\n"
+            "value = gdb.selected_frame().read_var('removed')\n"
+            "assert value.is_optimized_out, str(value)\n"
+            "assert scope['inspect']('removed', value, False)['friendly'] == '<optimized out>'\n"
+            "print('OPTIMIZED_CHECK_PASS')\n")
+        optimized_result = invoke([args.gdb, "-q", "-nx", "--batch", str(optimized_binary),
+                                   "-ex", f"break {optimized_source}:6", "-ex", "run",
+                                   "-ex", f"source {optimized_checks}"], work, env)
+        assert optimized_result.returncode == 0 and "OPTIMIZED_CHECK_PASS" in optimized_result.stdout, optimized_result
         bad_source = work / "bad.cw"
         bad_source.write_text("start { missing_symbol() }\n")
         binary_source = work / "binary.cw"
@@ -1385,6 +1558,7 @@ def main() -> None:
         # Legacy modes share one local settings file, without Break at start.
         (work / ".cdbg.toml").write_text("version = 1\nbreak_at_start = false\n")
         for mode, target, debug_source, line in (
+            ("values", values_source, values_source, "19"),
             ("native", c_binary, c_source, "7"),
             ("cwhip", cw_source, cw_source, "10"),
             ("relative-cwhip", Path(cw_source.name), cw_source, "10"),
@@ -1423,7 +1597,7 @@ def main() -> None:
                     lines = [line for line in result.stderr.splitlines() if line]
                     assert len(lines) == 4 and all(line.startswith("cdbg: ") for line in lines), (
                         result.stderr)
-                elif mode in ("native", "cwhip", "relative-cwhip", "no-source", "cancel", "scroll", "context"):
+                elif mode in ("values", "native", "cwhip", "relative-cwhip", "no-source", "cancel", "scroll", "context"):
                     assert not result.stderr, result.stderr
                 else:
                     assert "cdbg:" in result.stderr, result.stderr

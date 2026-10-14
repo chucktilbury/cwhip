@@ -11,7 +11,14 @@ set(cdbg_project "${CMAKE_CURRENT_BINARY_DIR}/cdbg-project")
 file(GLOB_RECURSE cdbg_inputs CONFIGURE_DEPENDS "${cdbg_source}/*")
 file(MAKE_DIRECTORY "${cdbg_project}/home" "${cdbg_project}/xdg")
 add_library(cdbg_terminal OBJECT EXCLUDE_FROM_ALL "${cdbg_source}/terminal.c")
-target_include_directories(cdbg_terminal PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../include")
+add_custom_command(
+    OUTPUT "${cdbg_project}/values.h"
+    COMMAND "${Python3_EXECUTABLE}" "${cdbg_source}/embed_values.py"
+        "${cdbg_source}/values.py" "${cdbg_project}/values.h"
+    DEPENDS "${cdbg_source}/embed_values.py" "${cdbg_source}/values.py"
+    VERBATIM)
+target_sources(cdbg_terminal PRIVATE "${cdbg_project}/values.h")
+target_include_directories(cdbg_terminal PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../include" "${cdbg_project}")
 set(cdbg_environment
     "${CMAKE_COMMAND}" -E env
     --unset=CWHIP_PACKAGE_PATH --unset=CWHIP_MODULE_REGISTRY --unset=CWHIP_MODULE_DIR
