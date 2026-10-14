@@ -132,6 +132,11 @@ add_test(NAME cwhip-pkg_cli
         --compiler "$<TARGET_FILE:cwhip>"
 )
 
+add_test(NAME cwhip_developer_setup
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/test_setup.py"
+        --cmake "${CMAKE_COMMAND}")
+set_tests_properties(cwhip_developer_setup PROPERTIES LABELS setup TIMEOUT 180)
+
 add_test(NAME cwhip_multi_input_compiler
     COMMAND "${CMAKE_COMMAND}"
         "-DCOMPILER=$<TARGET_FILE:cwhip>"

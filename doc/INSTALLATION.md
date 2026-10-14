@@ -39,6 +39,79 @@ cmake --build /tmp/cwhip-compiler-build
 The root build places the compiler and test executables in `bin/` and the
 front-end archive in `lib/libcwhip_frontend.a`.
 
+## Developer shell
+
+Installation (`cmake --install`, below) puts a relocatable `cwhip` tree under a
+prefix for users. Development of this checkout does not need installation:
+`scripts/setup` configures the checkout and starts a project shell whose
+`PATH` uses this checkout's freshly staged tools. It is an optional
+convenience for bash; it installs no packages, never builds, commits or pushes
+by itself, and leaves the shell you started it from unchanged.
+
+```sh
+~/Src/cwhip/scripts/setup             # debug (the default)
+~/Src/cwhip/scripts/setup release -DCWHIP_GTK=OFF -DCWHIP_GTK_SOURCEVIEW=OFF
+```
+
+`scripts/setup [debug|release|profile] [--build-dir DIR] [--submodules]
+[-DNAME=VALUE...] [-- CMAKE_ARGS...]` works from any directory; it finds the
+checkout from its own location (symlinks and paths with spaces are fine).
+`debug`, `release`, and `profile` select `CMAKE_BUILD_TYPE` `Debug`, `Release`,
+and `RelWithDebInfo`. It runs
+`cmake -S <checkout> -B <checkout>/build -DCMAKE_BUILD_TYPE=...
+-DCMAKE_EXPORT_COMPILE_COMMANDS=ON` with the given `-D` options and any
+arguments after `--` (for example `-- -G Ninja`). A new build directory
+defaults to `clang`/`clang++`; an existing cache keeps its compilers, and
+explicit `-DCMAKE_C_COMPILER`/`-DCMAKE_CXX_COMPILER` options always win. GUI
+support uses the normal [GTK auto-detection](#cedit-and-optional-gtk-packages)
+rather than being forced on; pass `-DCWHIP_GTK=OFF -DCWHIP_GTK_SOURCEVIEW=OFF`
+for a compiler-only configuration. `--build-dir` (relative to the current
+directory) and `-DCWHIP_STAGE_PREFIX=DIR` select separate configurations.
+Git submodules are only updated with `--submodules`.
+
+If CMake (or a required tool such as Clang) is missing or configuration fails,
+setup prints the error and exits nonzero without starting a shell. Otherwise
+it starts `bash -i` with `.project_env`, which:
+
+- sources `~/.bashrc` when it exists, then restores the project settings;
+- exports `_PROJECT_NAME` (`cwhip`, or `$_PROJECT_` if set), `_PROJECT_LOC`
+  (checkout), `_BUILD_TYPE`, `_PROJECT_BUILD_DIR`, and `_PROJECT_STAGE_PREFIX`
+  (the configured `CWHIP_STAGE_PREFIX`, by default the checkout);
+- puts `<stage-prefix>/bin` (`cwhip`, `cwhip-pkg`, and built `cedit`/`cdbg`)
+  and the checkout's `scripts/` first on `PATH` without duplicate entries;
+- unsets `CWHIP_HOME`, `CWHIP_RUNTIME_DIR`, `CWHIP_INCLUDE_DIR`,
+  `CWHIP_BUILTIN_DIR`, and `CWHIP_STDLIB_MODULE_DIR`, so the staged compiler
+  finds its own staged resources instead of an installed or stale tree
+  (`CWHIP_MODULE_DIR` and `CC` are left alone; check with `cwhip --print-paths`);
+- prefixes the prompt with `cwhip(Debug):`, and changes to the build directory.
+
+Inside the shell, `build [TARGET...]` and `rebuild [TARGET...]` run
+`cmake --build "$_PROJECT_BUILD_DIR" --parallel 12` (with `--clean-first` for
+`rebuild`); for example `build`, then optionally `build cedit cdbg`. Outside a
+project shell they build the current directory. `clean` removes the
+checkout's default `bin/`, `build/`, `lib/`, `share/`, and `doc/out/`. Until
+the first `build`, `cwhip` on `PATH` is whatever else is installed; setup
+prints a note in that case. The shell defines Git shortcuts `status`, `add`
+(`git add .` at the checkout root), `commit`, `push`, and `all` (add, commit,
+and push); these run only when typed and leave the current directory unchanged.
+`dbg TARGET [ARGS...]` opens [cdbg](CDBG.md) (`cdbg TARGET -- ARGS...`) when it
+is built, otherwise falls back to `kdbg` (arguments joined into one `-a`
+string); a bare name is looked up in the staged `bin/`. Neither debugger is
+needed to run setup.
+
+To use the checkout's tools on a separate project, start the shell and change
+directory there; the staged tools stay first on `PATH`:
+
+```sh
+~/Src/cwhip/scripts/setup
+build
+cd ~/Src/cwhip_scratch
+cwhip hello.cw
+```
+
+Type `exit` to return to the original shell. Starting setup again inside a
+project shell is refused; exit first, then run it with another mode.
+
 ## cedit and optional GTK packages
 
 The separate [cdbg local debugger prototype](CDBG.md) uses the same GUI

@@ -1,30 +1,135 @@
 #!/usr/bin/env bash
-# This script is used to set up the environment so that the cross compiler is
-# the default version of GCC in the path. The Makefile uses these vars to find
-# things like the compiler and its libraries.
+# Start a project shell for developing this cwhip checkout.
+#
+# Usage: scripts/setup [debug|release|profile] [--build-dir DIR] [--submodules]
+#                      [-DNAME=VALUE ...] [-- CMAKE_ARGS...]
+#
+# The checkout is configured with CMake first; only when that succeeds is a new
+# interactive bash started with .project_env, which puts this checkout's staged
+# binaries and scripts first on PATH. Type `exit` to return to the original
+# shell, which is never modified. See doc/INSTALLATION.md#developer-shell.
 
-case "${1:-debug}" in
-    debug) export _BUILD_TYPE=Debug ;;
-    release) export _BUILD_TYPE=Release ;;
-    profile) export _BUILD_TYPE=RelWithDebInfo ;;
-    *)
-        echo "Build type must be debug, release, or profile." >&2
-        exit 2
-        ;;
+if [[ "${BASH_SOURCE[0]}" != "$0" ]]; then
+    echo "error: run scripts/setup as a command; do not source it." >&2
+    return 2
+fi
+
+set -u
+
+usage() {
+    sed -n '4,5p' "${BASH_SOURCE[0]}" | sed 's/^# //'
+}
+
+die() {
+    echo "setup: error: $*" >&2
+    exit "${_setup_status:-1}"
+}
+
+mode=
+build_dir=
+submodules=0
+cmake_args=()
+while (($#)); do
+    case "$1" in
+        debug | release | profile)
+            [[ -z "$mode" ]] || { _setup_status=2 die "build type given twice: '$mode' and '$1'."; }
+            mode=$1
+            ;;
+        --build-dir)
+            if (($# < 2)) || [[ -z "$2" ]]; then
+                _setup_status=2 die "--build-dir requires a directory."
+            fi
+            build_dir=$2
+            shift
+            ;;
+        --build-dir=*)
+            build_dir=${1#--build-dir=}
+            [[ -n "$build_dir" ]] || { _setup_status=2 die "--build-dir requires a directory."; }
+            ;;
+        --submodules) submodules=1 ;;
+        -h | --help)
+            usage
+            exit 0
+            ;;
+        --)
+            shift
+            cmake_args+=("$@")
+            break
+            ;;
+        -D?*) cmake_args+=("$1") ;;
+        *)
+            echo "Build type must be debug, release, or profile." >&2
+            usage >&2
+            exit 2
+            ;;
+    esac
+    shift
+done
+
+case "${mode:-debug}" in
+    debug) build_type=Debug ;;
+    release) build_type=Release ;;
+    profile) build_type=RelWithDebInfo ;;
 esac
 
-if [ -z "$_PROJECT_NAME" ]; then
-    if [ -f $PWD/.project_env ]; then
-        git submodule update --init --recursive
-        if [ -z "$_PROJECT_" ]; then
-            export _PROJECT_=cwhip
-        fi
-        export _PROJECT_NAME=$_PROJECT_
-        export _PROJECT_LOC=`pwd`
-        bash --init-file <(echo "source $PWD/.project_env")
-    else
-        echo "Cannot find .project_env. in current directory. "
-    fi
-else
-    echo "Project is already initialized. If this is an error, then restart the shell."
+if [[ -n "${_PROJECT_LOC:-}" || -n "${_PROJECT_NAME:-}" ]]; then
+    die "Project is already initialized (${_PROJECT_NAME:-?} at ${_PROJECT_LOC:-?}). Type 'exit' to leave that shell first."
 fi
+
+# Resolve symlinks so a linked setup command still finds its own checkout.
+script=${BASH_SOURCE[0]}
+while [[ -L "$script" ]]; do
+    link_dir=$(cd -P -- "$(dirname -- "$script")" && pwd) || die "cannot locate the setup script."
+    script=$(readlink -- "$script") || die "cannot resolve '$script'."
+    [[ "$script" == /* ]] || script=$link_dir/$script
+done
+script_dir=$(cd -- "$(dirname -- "$script")" && pwd -P) || die "cannot locate the setup script."
+root=$(cd -- "$script_dir/.." && pwd -P) || die "cannot locate the project root."
+[[ -f "$root/.project_env" && -f "$root/CMakeLists.txt" ]] ||
+    die "cannot find .project_env and CMakeLists.txt in '$root'."
+
+if [[ -z "$build_dir" ]]; then
+    build_dir=$root/build
+elif [[ "$build_dir" != /* ]]; then
+    build_dir=$PWD/$build_dir
+fi
+
+command -v cmake >/dev/null 2>&1 || die "cmake was not found on PATH; install CMake 3.16 or newer."
+
+if ((submodules)); then
+    command -v git >/dev/null 2>&1 || die "git was not found on PATH (required by --submodules)."
+    echo "setup: updating git submodules in $root"
+    git -C "$root" submodule update --init --recursive || die "git submodule update failed."
+fi
+
+configure=(cmake -S "$root" -B "$build_dir" "-DCMAKE_BUILD_TYPE=$build_type"
+    -DCMAKE_EXPORT_COMPILE_COMMANDS=ON)
+# Clang is the default for new build directories only; an existing cache keeps
+# its compilers, and explicit -DCMAKE_C(XX)_COMPILER arguments always win.
+if [[ ! -f "$build_dir/CMakeCache.txt" ]]; then
+    [[ " ${cmake_args[*]-} " == *" -DCMAKE_C_COMPILER"[:=]* ]] || configure+=(-DCMAKE_C_COMPILER=clang)
+    [[ " ${cmake_args[*]-} " == *" -DCMAKE_CXX_COMPILER"[:=]* ]] || configure+=(-DCMAKE_CXX_COMPILER=clang++)
+fi
+configure+=("${cmake_args[@]}")
+
+echo "setup: configuring $build_type build in $build_dir"
+"${configure[@]}"
+_setup_status=$?
+if ((_setup_status != 0)); then
+    die "CMake configuration failed (exit $_setup_status); no project shell was started."
+fi
+
+stage_prefix=
+if [[ -f "$build_dir/CMakeCache.txt" ]]; then
+    stage_prefix=$(sed -n 's/^CWHIP_STAGE_PREFIX:[A-Z]*=//p' "$build_dir/CMakeCache.txt" | head -n 1)
+fi
+[[ -n "$stage_prefix" ]] || stage_prefix=$root
+[[ "$stage_prefix" == /* ]] || stage_prefix=$root/$stage_prefix
+
+export _BUILD_TYPE=$build_type
+export _PROJECT_NAME=${_PROJECT_:-cwhip}
+export _PROJECT_LOC=$root
+export _PROJECT_BUILD_DIR=$build_dir
+export _PROJECT_STAGE_PREFIX=$stage_prefix
+
+exec bash --init-file "$root/.project_env" -i

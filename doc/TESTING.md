@@ -192,8 +192,10 @@ sudo apt-get install -y build-essential cmake clang llvm python3 git gdb
 
 LLVM supplies `opt` and `llvm-dwarfdump` for IR and debug-info checks; the
 compiler itself does not link the LLVM C++ API. Python must be at least 3.11
-(as supplied by current Ubuntu). `scripts/setup` is an optional developer
-shell helper, not a dependency installer. Mirror CI with the commands above,
+(as supplied by current Ubuntu). `scripts/setup` is an optional
+[developer shell](INSTALLATION.md#developer-shell) helper, not a dependency
+installer; `cwhip_developer_setup` (label `setup`) tests it with an isolated
+`HOME`, stubbed tools, and one real compiler-only CMake configure. Mirror CI with the commands above,
 `-DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++`, and a private
 `HOME`/`XDG_CONFIG_HOME` when invoking CTest.
 
