@@ -59,6 +59,14 @@ case so CMake discovers it; no central test list needs editing.
 
 ## Unit and CLI tests
 
+`cwhip_developer_setup` runs `test_setup.py` for `scripts/setup`,
+`.project_env`, and the `build`/`rebuild`/`clean` helpers. It copies them to a
+temporary checkout path with spaces, uses an isolated `HOME`, stubs CMake, Git
+and debuggers, and drives the interactive project shell through stdin so it
+exits at EOF. It also configures the real source tree once into a temporary
+compiler-only build directory. Run it directly with
+`python3 tests/test_setup.py [--cmake "$(command -v cmake)"]`.
+
 With GTK tests enabled, `cedit_project_explorer` drives the actual cedit model,
 native parented folder chooser and GTK tree activation under private Xvfb/dbus
 and isolated HOME/XDG directories. It covers lazy expansion, duplicate focus,
