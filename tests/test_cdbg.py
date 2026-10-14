@@ -178,7 +178,7 @@ class DebugChecks {
             singleStep("Step Over", false)
             stage = 3
         }
-        if (stage >= 3 && stage <= 22 && ui.stopCount > stops && !ui.running && idle()) {
+        if (stage >= 3 && stage <= 23 && ui.stopCount > stops && !ui.running && idle()) {
             if (stage == 3) {
                 stepped("stepping.cw", 8)
                 singleStep("Step Over", true)
@@ -196,7 +196,7 @@ class DebugChecks {
                 require(ui.location.contains("cwhip_gc_require_alive"), "step enters real runtime")
                 previousPc = ui.stopAddress
                 stops = ui.stopCount
-                ui.execute("-exec-step-instruction")
+                ui.execute("-exec-step-instruction", "Step Instruction")
                 stage = 60
                 return true
             }
@@ -265,7 +265,10 @@ class DebugChecks {
             }
             if (stage == 20) {
                 stepped("stepping.cw", 4)
-                singleStep("Step Out", true)
+                // Browse the caller and press Step Out while that frame
+                // selection is still in flight; execution must use frame 0.
+                stage = 200
+                return true
             }
             if (stage == 21) {
                 stepped("stepping.cw", 10)
@@ -273,6 +276,12 @@ class DebugChecks {
             }
             if (stage == 22) {
                 stepped("stepping.cw", 11)
+                singleStep("Step Over", false)
+                stage = 230
+                return true
+            }
+            if (stage == 23) {
+                stepped("stepping.cw", 13)
                 ui.quit()
                 require(ui.closed && ui.process == null, "stepping test shutdown")
                 print("true")
@@ -301,6 +310,23 @@ class DebugChecks {
                 "real same-line runtime stop displays changed PC, without an automatic extra step")
             singleStep("Step Over", true)
             stage = 7
+        }
+        // Press immediately after the stop, before the post-stop refresh has
+        // completed (it is restarted here if GDB already answered it).
+        if (stage == 230 && ui.stopCount > stops && !ui.running) {
+            stepped("stepping.cw", 12)
+            if (idle()) { ui.refresh() }
+            require(!idle(), "refresh is pending at the press")
+            singleStep("Step Over", false)
+            require(DebugUiFixture().step("Step Over", false), "second press reaches the control")
+            require(ui.status.text().contains("Step Over ignored: the previous execution command is still pending"),
+                "extra press before *running is reported, not sent")
+            stage = 23
+        }
+        if (stage == 200 && DebugUiFixture().lineClick("Stack", 2, "")) {
+            require(!idle(), "frame selection is pending at the press")
+            singleStep("Step Out", true)
+            stage = 21
         }
         if (stage == 190) {
             if (DebugUiFixture().lineClick("Stack", 2, "")) { stage = 191 }
@@ -1435,7 +1461,12 @@ def main() -> None:
                         if line.startswith("> ")]
             steps = [line for line in commands
                      if any(command in line for command in ("-exec-next", "-exec-step", "-exec-finish"))]
-            assert len(steps) == 19, (steps, transcript)
+            assert len(steps) == 21, (steps, transcript)
+            browse = max(i for i, line in enumerate(commands) if line.endswith("-stack-select-frame 1"))
+            after = [line.lstrip("0123456789") for line in commands[browse + 1:]]
+            finish = after.index("-exec-finish")
+            assert "-stack-select-frame 0" in after[:finish] and not any(
+                line.startswith("-exec-") for line in after[:finish]), commands[browse:]
             assert "-stack-select-frame 0" in transcript, transcript
             assert transcript.count('reason="function-finished"') == 3, transcript
 

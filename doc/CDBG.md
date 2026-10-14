@@ -135,6 +135,12 @@ launched in cdbg's current working directory.
 Each Step Into, Step Over or Step Out activation sends one GDB execution
 command, including after browsing a caller. The focused toolbar buttons also
 support GTK keyboard activation; there are no dedicated step-key shortcuts.
+Run/Continue and the step buttons stay enabled while the post-stop
+locals/stack/watch refresh is still running: a press discards the queued
+refresh requests, ignores the reply to one already sent, restores frame 0 if a
+caller was browsed, and then sends the command. Only one execution command may
+be outstanding; a second press before GDB reports `*running`/`*stopped` is not
+sent and the status line says it was ignored.
 The stopped status includes GDB's stop reason and program counter. Consecutive
 stops at the same file/line/function explicitly say **same source line** and
 show the previous PC. A return can legitimately land back on the caller's call
@@ -307,7 +313,10 @@ stack navigation. It checks exact source lines and one stop per activation,
 including actual `RuntimeGc.c` steps, method returns and consecutive caller
 lines. A real instruction-level same-line runtime stop verifies the PC/reason
 display without automatically skipping it. Its raw GDB stdin/stdout transcript
-is retained in the test work directory as `stepping.mi`.
+It also presses Step Over while the post-stop refresh is still pending,
+presses it again before `*running` (one `-exec-next` is sent and the status
+reports the ignored press), and presses Step Out while a stack-frame browse is
+in flight (frame 0 is restored first). is retained in the test work directory as `stepping.mi`.
 An external-edit check verifies that atomic saving does not overwrite another writer.
 When `xfwm4` is available the private test display also verifies actual
 maximization/restore; its session management is disabled.
