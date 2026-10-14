@@ -71,7 +71,8 @@ std::string CodeGenerator::debugType(const std::string& type) {
 std::string CodeGenerator::debugBeginFunction(const SourceLocation& location,
                                                const std::string& name,
                                                const std::string& symbol,
-                                               const std::string& returnType) {
+                                               const std::string& returnType,
+                                               bool artificial) {
     if (!debug_) return {};
     const auto file = debugFile(location.file);
     const auto signature = debugNode("!DISubroutineType(types: !{" +
@@ -81,6 +82,7 @@ std::string CodeGenerator::debugBeginFunction(const SourceLocation& location,
         ", scope: " + file + ", file: " + file +
         ", line: " + std::to_string(location.line) + ", type: " + signature +
         ", scopeLine: " + std::to_string(location.line) +
+        (artificial ? ", flags: DIFlagArtificial | DIFlagThunk" : "") +
         ", spFlags: DISPFlagDefinition, unit: " + debugUnit_ + ")");
     debugScopes_.clear();
     debugLocations_.clear();

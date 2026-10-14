@@ -274,6 +274,9 @@ if(DEBUG_INFO)
     if(NOT ir_text MATCHES "!DICompileUnit")
         message(FATAL_ERROR "Generated LLVM IR contains no DWARF compile-unit metadata")
     endif()
+    if(ir_text MATCHES "define private [^\n]*@cwhip.thunk.Number.root.")
+        message(FATAL_ERROR "Unnecessary Number receiver thunk obscures source-level stepping")
+    endif()
 
     find_program(OPT_EXECUTABLE NAMES opt-22 opt)
     if(NOT OPT_EXECUTABLE)
@@ -311,6 +314,28 @@ if(DEBUG_INFO)
     else()
         get_filename_component(debugger_name "${DEBUGGER_EXECUTABLE}" NAME)
         if(debugger_name MATCHES "^gdb")
+            execute_process(
+                COMMAND "${DEBUGGER_EXECUTABLE}" --batch --quiet --nx
+                    -ex "set pagination off"
+                    -ex "break ${SOURCE}:3"
+                    -ex run
+                    -ex next
+                    -ex next
+                    -ex bt
+                    -ex next
+                    "${OUTPUT}"
+                RESULT_VARIABLE stepping_result
+                OUTPUT_VARIABLE stepping_stdout
+                ERROR_VARIABLE stepping_stderr
+            )
+            if(NOT stepping_result EQUAL 0 OR
+               NOT stepping_stdout MATCHES "${debug_fixture_name}:12" OR
+               NOT stepping_stdout MATCHES "13[\t ]+answer = answer \\+ 1" OR
+               stepping_stdout MATCHES "in \\?\\?" OR
+               stepping_stderr MATCHES "Cannot find bounds")
+                message(FATAL_ERROR
+                    "DWARF method return/next did not reach caller lines 12 and 13:\n${stepping_stdout}\n${stepping_stderr}")
+            endif()
             execute_process(
                 COMMAND "${DEBUGGER_EXECUTABLE}" --batch --quiet --nx
                     -ex "set pagination off"

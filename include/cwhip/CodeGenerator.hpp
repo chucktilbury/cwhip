@@ -64,9 +64,17 @@ private:
 
     void emitClassTypesAndMetadata(const Program& program);
     void emitClassMethods(const Program& program);
+    struct MethodImplementation {
+        const ClassDeclaration* owner;
+        const MethodDeclaration* method;
+        std::vector<std::string> path;
+    };
+    MethodImplementation methodImplementation(const ClassDeclaration& owner,
+        const std::vector<std::string>& viewPath, const ClassDeclaration& view,
+        const MethodDeclaration& slot) const;
     std::string debugBeginFunction(const SourceLocation& location,
                                    const std::string& name, const std::string& symbol,
-                                   const std::string& returnType);
+                                   const std::string& returnType, bool artificial = false);
     std::string debugDeclaration(const std::string& name, const std::string& type,
                                  const std::string& pointer,
                                  const SourceLocation& location, unsigned argument = 0);

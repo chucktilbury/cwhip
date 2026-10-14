@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 import shutil
 import subprocess
+import sys
 import tempfile
 import time
 
@@ -120,6 +121,7 @@ class DebugUiFixture {
     bool disabled(int line)
     bool setup(int startState, String arguments, String action)
     bool clipboard(String expected)
+    bool step(String name, bool keyboard)
 }
 bool DebugUiFixture.alert() from "cdbg_fixture_alert"
 bool DebugUiFixture.panes() from "cdbg_fixture_panes"
@@ -143,6 +145,7 @@ bool DebugUiFixture.noBreakMenus() from "cdbg_fixture_no_break_menus"
 bool DebugUiFixture.disabled(int line) from "cdbg_fixture_disabled"
 bool DebugUiFixture.setup(int startState, String arguments, String action) from "cdbg_fixture_setup"
 bool DebugUiFixture.clipboard(String expected) from "cdbg_fixture_clipboard"
+bool DebugUiFixture.step(String name, bool keyboard) from "cdbg_fixture_step"
 
 class DebugChecks {
     Cdbg ui
@@ -151,6 +154,165 @@ class DebugChecks {
     unsigned deadline
     String mode
     String oldPid
+    String previousPc
+    void singleStep(String name, bool keyboard) {
+        stops = ui.stopCount
+        require(DebugUiFixture().step(name, keyboard), format("{} control ready", name))
+    }
+    void stepped(String file, int line) {
+        require(ui.stopCount == stops + 1, "one activation produces exactly one stop")
+        require(ui.location.contains(file) && ui.source.line() == line,
+            format("single step reaches {}:{}, got {}", file, line, ui.location))
+        require(ui.status.text().contains("PC 0x"), "stop displays actual program counter")
+    }
+    bool steppingTick() {
+        if (stage == 0 && ui.loaded && idle()) {
+            stage = 1
+        }
+        if (stage == 1 && idle()) {
+            ui.resume()
+            stage = 2
+        }
+        if (stage == 2 && ui.stopCount == 1 && !ui.running && idle()) {
+            require(ui.atStart && ui.source.line() == 7, "Break at start stop")
+            singleStep("Step Over", false)
+            stage = 3
+        }
+        if (stage >= 3 && stage <= 22 && ui.stopCount > stops && !ui.running && idle()) {
+            if (stage == 3) {
+                stepped("stepping.cw", 8)
+                singleStep("Step Over", true)
+            }
+            if (stage == 4) {
+                stepped("stepping.cw", 9)
+                singleStep("Step Over", false)
+            }
+            if (stage == 5) {
+                stepped("stepping.cw", 10)
+                singleStep("Step Into", false)
+            }
+            if (stage == 6) {
+                stepped("RuntimeGc.c", System.Process().getEnv("CDBG_RUNTIME_ENTRY").toInt())
+                require(ui.location.contains("cwhip_gc_require_alive"), "step enters real runtime")
+                previousPc = ui.stopAddress
+                stops = ui.stopCount
+                ui.execute("-exec-step-instruction")
+                stage = 60
+                return true
+            }
+            if (stage == 7) {
+                stepped("RuntimeGc.c", System.Process().getEnv("CDBG_RUNTIME_CALL").toInt())
+                ui.inspection.setCurrentPage(1)
+                stage = 30
+                return true
+            }
+            if (stage == 8) {
+                stepped("RuntimeGc.c", System.Process().getEnv("CDBG_RUNTIME_CALL").toInt() + 1)
+                singleStep("Step Out", true)
+            }
+            if (stage == 9) {
+                stepped("stepping.cw", 10)
+                require(ui.status.text().contains("function-finished"), "return reason is visible")
+                singleStep("Step Into", true)
+            }
+            if (stage == 10) {
+                stepped("stepping.cw", 2)
+                singleStep("Step Over", false)
+            }
+            if (stage == 11) {
+                stepped("stepping.cw", 3)
+                singleStep("Step Over", true)
+            }
+            if (stage == 12) {
+                stepped("stepping.cw", 4)
+                singleStep("Step Over", false)
+            }
+            if (stage == 13) {
+                stepped("stepping.cw", 11)
+                require(!ui.stack.text().contains("thunk") && !ui.location.contains("??"),
+                    "method return never stops in anonymous dispatch thunk")
+                singleStep("Step Over", true)
+            }
+            if (stage == 14) {
+                stepped("stepping.cw", 12)
+                singleStep("Step Over", false)
+            }
+            if (stage == 15) {
+                stepped("stepping.cw", 13)
+                ui.breakAtStart = false
+                ui.addBreakpoint(format("{}:3", System.Process().getEnv("CDBG_TEST_SOURCE")))
+                stage = 150
+                return true
+            }
+            if (stage == 16) {
+                stepped("stepping.cw", 3)
+                singleStep("Step Out", false)
+            }
+            if (stage == 17) {
+                stepped("stepping.cw", 10)
+                singleStep("Step Over", true)
+            }
+            if (stage == 18) {
+                stepped("stepping.cw", 11)
+                stops = ui.stopCount
+                ui.restart()
+            }
+            if (stage == 19) {
+                stepped("stepping.cw", 3)
+                ui.inspection.setCurrentPage(1)
+                stage = 190
+                return true
+            }
+            if (stage == 20) {
+                stepped("stepping.cw", 4)
+                singleStep("Step Out", true)
+            }
+            if (stage == 21) {
+                stepped("stepping.cw", 10)
+                singleStep("Step Over", false)
+            }
+            if (stage == 22) {
+                stepped("stepping.cw", 11)
+                ui.quit()
+                require(ui.closed && ui.process == null, "stepping test shutdown")
+                print("true")
+                return false
+            }
+            stage = stage + 1
+        }
+        if (stage == 30) {
+            if (DebugUiFixture().lineClick("Stack", 2, "")) { stage = 31 }
+        }
+        if (stage == 31 && idle()) {
+            require(ui.selectedFrame == 1 && ui.location.contains("stepping.cw:10"),
+                "stack click browses caller")
+            singleStep("Step Over", false)
+            stage = 8
+        }
+        if (stage == 150 && idle()) {
+            stops = ui.stopCount
+            ui.restart()
+            stage = 16
+        }
+        if (stage == 60 && ui.stopCount > stops && !ui.running && idle()) {
+            stepped("RuntimeGc.c", System.Process().getEnv("CDBG_RUNTIME_ENTRY").toInt())
+            require(!ui.stopAddress.equals(previousPc) &&
+                ui.status.text().contains("same source line (previous PC"),
+                "real same-line runtime stop displays changed PC, without an automatic extra step")
+            singleStep("Step Over", true)
+            stage = 7
+        }
+        if (stage == 190) {
+            if (DebugUiFixture().lineClick("Stack", 2, "")) { stage = 191 }
+        }
+        if (stage == 191 && idle()) {
+            require(ui.selectedFrame == 1 && ui.location.contains("stepping.cw:10"),
+                "browse caller after method breakpoint")
+            singleStep("Step Into", true)
+            stage = 20
+        }
+        return true
+    }
     void require(bool condition, String label) {
         if (!condition) {
             System.StandardIO().writeErrorLine(format("FAIL {} stage {}: {} ({})",
@@ -721,6 +883,10 @@ class DebugChecks {
     }
     void tick() {
         require(Time.Clock().monotonicMilliseconds() < deadline, "session deadline")
+        if (mode.equals("stepping")) {
+            if (steppingTick()) { Gtk.Application().post(_self().tick) }
+            return
+        }
         if (mode.startsWith("breaks")) {
             if (breaksTick()) { Gtk.Application().post(_self().tick) }
             return
@@ -1003,6 +1169,49 @@ start {
 }
 """
 
+STEPPING_FIXTURE = """\
+class Counter {
+    int double(int value) {
+        int doubled = value * 2
+        return doubled
+    }
+}
+start {
+    Counter worker = Counter()
+    int counter = 21
+    counter = worker.double(counter)
+    counter = counter + 1
+    counter = counter + 2
+    print(format("result:{}", counter))
+}
+"""
+
+# Record the real process boundary, not a simulated MI transport. Only GDB's
+# stdin/stdout are proxied; the inferior still uses cdbg's separate PTY.
+MI_TRACE = r'''
+import os
+import subprocess
+import sys
+import threading
+p = subprocess.Popen([os.environ["CDBG_REAL_GDB"], *sys.argv[1:]],
+                     stdin=subprocess.PIPE, stdout=subprocess.PIPE)
+with open(os.environ["CDBG_MI_TRACE"], "wb", buffering=0) as trace:
+    def forward():
+        for line in sys.stdin.buffer:
+            trace.write(b"> " + line)
+            try:
+                p.stdin.write(line)
+                p.stdin.flush()
+            except BrokenPipeError:
+                break
+    threading.Thread(target=forward, daemon=True).start()
+    for line in p.stdout:
+        trace.write(b"< " + line)
+        sys.stdout.buffer.write(line)
+        sys.stdout.buffer.flush()
+sys.exit(p.wait())
+'''
+
 
 def compile_program(compiler: Path, source: Path, output: Path, work: Path,
                     env: dict[str, str], objects: list[Path] | None = None) -> None:
@@ -1194,6 +1403,41 @@ def main() -> None:
                     assert "cdbg:" in result.stderr, result.stderr
         binary_smoke(args.executable.resolve(), cw_source, args.compiler, args.gdb,
                      args.xvfb, work, env)
+
+        stepping_work = work / "stepping-work"
+        stepping_work.mkdir()
+        stepping_source = stepping_work / "stepping.cw"
+        stepping_source.write_text(STEPPING_FIXTURE)
+        proxy = work / "trace-gdb"
+        proxy.write_text(f"#!{sys.executable}\n" + MI_TRACE)
+        proxy.chmod(0o700)
+        trace = work / "stepping.mi"
+        runtime_lines = (root / "src/RuntimeGc.c").read_text().splitlines()
+        entry = next(i for i, line in enumerate(runtime_lines, 1)
+                     if line.startswith("void cwhip_gc_require_alive("))
+        runtime_entry = next(i for i in range(entry, entry + 8)
+                             if "if (object == NULL)" in runtime_lines[i - 1])
+        runtime_call = next(i for i in range(entry, entry + 12)
+                            if "HeapNode *node = find_containing_object" in runtime_lines[i - 1])
+        with headless(args.xvfb, work, env) as gtk_env:
+            gtk_env.update(CDBG_TEST_MODE="stepping", CDBG_TEST_TARGET=str(stepping_source),
+                           CDBG_TEST_SOURCE=str(stepping_source), CDBG_COMPILER=str(args.compiler),
+                           CDBG_GDB=str(proxy), CDBG_REAL_GDB=args.gdb, CDBG_MI_TRACE=str(trace),
+                           CDBG_RUNTIME_ENTRY=str(runtime_entry), CDBG_RUNTIME_CALL=str(runtime_call))
+            result = invoke([str(binary)], stepping_work, gtk_env, timeout=45)
+            transcript = trace.read_text() if trace.exists() else "(no MI trace)"
+            # Keep the last live transcript available even when the temp test
+            # directory is removed, including on assertion failure.
+            (args.work / "stepping.mi").write_text(transcript)
+            assert result.returncode == 0 and result.stdout == "true" and not result.stderr, (
+                result, transcript)
+            commands = [line.split(" ", 1)[1] for line in transcript.splitlines()
+                        if line.startswith("> ")]
+            steps = [line for line in commands
+                     if any(command in line for command in ("-exec-next", "-exec-step", "-exec-finish"))]
+            assert len(steps) == 19, (steps, transcript)
+            assert "-stack-select-frame 0" in transcript, transcript
+            assert transcript.count('reason="function-finished"') == 3, transcript
 
         def state_run(mode: str, target: Path, debug_source: Path, line: int,
                       state_env: dict[str, str], cwd: Path) -> None:

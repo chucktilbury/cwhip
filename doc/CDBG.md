@@ -132,6 +132,21 @@ launched in cdbg's current working directory.
    restore the actual execution frame (frame zero) first, and the next stop
    brings the source view back to the executing file and line.
 
+Each Step Into, Step Over or Step Out activation sends one GDB execution
+command, including after browsing a caller. The focused toolbar buttons also
+support GTK keyboard activation; there are no dedicated step-key shortcuts.
+The stopped status includes GDB's stop reason and program counter. Consecutive
+stops at the same file/line/function explicitly say **same source line** and
+show the previous PC. A return can legitimately land back on the caller's call
+line, and runtime C code can have multiple instruction positions on one line;
+cdbg does not auto-step past these stops. Step Into may enter runtime checks
+before a Cwhip method, whereas Step Over stays at the current call depth.
+
+Use freshly compiled `-g` targets: the compiler now avoids no-op dispatch
+thunks and tail-transfers receiver-adjustment thunks, so method returns do not
+land in anonymous dispatch frames with missing GDB function bounds. Restart
+alone does not rebuild an already loaded executable.
+
 There are no breakpoint/watch/frame entry rows or End Session button in the
 main window. **Quit** (or closing the window) stops GDB and its owned inferior,
 closes the output PTY and dialogs, cancels polling, and removes temporary
@@ -286,6 +301,13 @@ Output Copy, Copy All (via the real clipboard) and Clear followed by new output;
 Restart without duplicate start breakpoints; and a real relaunch restoring
 breakpoints, arguments and Break at start off (first stop in the method; Apply
 while stopped does not restart).
+The stepping regression drives each toolbar button by click and focused GTK
+keyboard activation, starting at Break at start, a method breakpoint and after
+stack navigation. It checks exact source lines and one stop per activation,
+including actual `RuntimeGc.c` steps, method returns and consecutive caller
+lines. A real instruction-level same-line runtime stop verifies the PC/reason
+display without automatically skipping it. Its raw GDB stdin/stdout transcript
+is retained in the test work directory as `stepping.mi`.
 An external-edit check verifies that atomic saving does not overwrite another writer.
 When `xfwm4` is available the private test display also verifies actual
 maximization/restore; its session management is disabled.

@@ -261,6 +261,21 @@ static GtkWidget *button_labeled(GtkWidget *widget, const char *label) {
     return NULL;
 }
 
+bool cdbg_fixture_step(void *self, void *name, bool keyboard) {
+    (void)self;
+    GtkWindow *window = debugger_window();
+    char *label = text_arg(name);
+    GtkWidget *button = window ? button_labeled(GTK_WIDGET(window), label) : NULL;
+    g_free(label);
+    if (!button || !gtk_widget_is_sensitive(button)) return false;
+    if (keyboard) {
+        gtk_widget_grab_focus(button);
+        return gtk_widget_activate(button);
+    }
+    g_signal_emit_by_name(button, "clicked");
+    return true;
+}
+
 /* Find dialog layout: one text entry plus Find Next, Find Previous and Close. */
 bool cdbg_fixture_find_click(void *self, void *name) {
     (void)self;

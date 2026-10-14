@@ -170,13 +170,18 @@ void CodeGenerator::emitClassTypesAndMetadata(const Program& program) {
                 for (std::size_t index = 0; index < methods.size(); ++index) {
                     if (index != 0) metadataGlobals_ += ", ";
                     const auto methodName = internString(methods[index]->name);
-                    const auto thunk = "@cwhip.thunk." + owner.name + "." +
-                                       subobjectTag(view.first, owner) + "." +
-                                       std::to_string(index);
+                    const auto implementation = methodImplementation(owner, view.first,
+                        *view.second, *methods[index]);
+                    // Only adjusted receivers need a dispatch frame; a no-op
+                    // thunk would otherwise obscure stepping into the method.
+                    const auto entryPoint = implementation.method && implementation.path == view.first
+                        ? methodSymbol(implementation.owner->name, *implementation.method)
+                        : "@cwhip.thunk." + owner.name + "." +
+                          subobjectTag(view.first, owner) + "." + std::to_string(index);
                     metadataGlobals_ += "%CwhipMethodMeta { ptr " + methodName +
                                         ", i64 " +
                                         std::to_string(methods[index]->name.size()) +
-                                        ", ptr " + thunk + " }";
+                                        ", ptr " + entryPoint + " }";
                 }
                 metadataGlobals_ += "]\n";
             }
@@ -374,6 +379,32 @@ void CodeGenerator::emitMethod(const ClassDeclaration& owner,
     currentMethod_ = nullptr;
 }
 
+CodeGenerator::MethodImplementation CodeGenerator::methodImplementation(
+    const ClassDeclaration& owner, const std::vector<std::string>& viewPath,
+    const ClassDeclaration& view, const MethodDeclaration& slot) const {
+    std::vector<std::pair<const ClassDeclaration*, std::vector<std::string>>>
+        candidates{{&owner, {}}};
+    std::vector<std::string> candidatePath;
+    for (const auto& baseName : viewPath) {
+        candidatePath.push_back(baseName);
+        candidates.emplace_back(classes_.at(baseName), candidatePath);
+    }
+    for (const auto& nested : subobjects(view)) {
+        auto nestedPath = viewPath;
+        nestedPath.insert(nestedPath.end(), nested.first.begin(), nested.first.end());
+        if (!nestedPath.empty()) candidates.emplace_back(nested.second, std::move(nestedPath));
+    }
+    for (const auto& candidate : candidates) {
+        for (const auto& method : candidate.first->methods) {
+            if (method.name == slot.name && sameParameterTypes(method, slot) &&
+                !method.constructor && !method.destructor) {
+                return {candidate.first, &method, candidate.second};
+            }
+        }
+    }
+    return {nullptr, nullptr, {}};
+}
+
 void CodeGenerator::emitClassMethods(const Program& program) {
     std::string functions;
     std::string finalizers;
@@ -400,37 +431,13 @@ void CodeGenerator::emitClassMethods(const Program& program) {
         for (const auto& view : subobjects(dynamicOwner)) {
             const auto slots = methodSlots(*view.second);
             for (std::size_t slotIndex = 0; slotIndex < slots.size(); ++slotIndex) {
-                std::vector<std::pair<const ClassDeclaration*, std::vector<std::string>>>
-                    candidates{{&dynamicOwner, {}}};
-                auto candidatePath = std::vector<std::string>{};
-                for (const auto& baseName : view.first) {
-                    candidatePath.push_back(baseName);
-                    candidates.emplace_back(classes_.at(baseName), candidatePath);
-                }
-                for (const auto& nested : subobjects(*view.second)) {
-                    auto nestedPath = view.first;
-                    nestedPath.insert(nestedPath.end(), nested.first.begin(),
-                                      nested.first.end());
-                    if (nestedPath.empty()) continue;
-                    candidates.emplace_back(nested.second, std::move(nestedPath));
-                }
-                const MethodDeclaration* implementation = nullptr;
-                const ClassDeclaration* implementationOwner = nullptr;
-                std::vector<std::string> implementationPath;
-                for (const auto& candidate : candidates) {
-                    for (const auto& method : candidate.first->methods) {
-                        if (method.name == slots[slotIndex]->name &&
-                            sameParameterTypes(method, *slots[slotIndex]) &&
-                            !method.constructor && !method.destructor) {
-                            implementation = &method;
-                            implementationOwner = candidate.first;
-                            implementationPath = candidate.second;
-                            break;
-                        }
-                    }
-                    if (implementation != nullptr) break;
-                }
+                const auto resolved = methodImplementation(dynamicOwner, view.first,
+                    *view.second, *slots[slotIndex]);
+                const auto* implementation = resolved.method;
+                const auto* implementationOwner = resolved.owner;
+                const auto& implementationPath = resolved.path;
                 if (implementation == nullptr || implementationOwner == nullptr) continue;
+                if (implementationPath == view.first) continue;
                 const auto thunkName = "@cwhip.thunk." + dynamicOwner.name + "." +
                                        subobjectTag(view.first, dynamicOwner) + "." +
                                        std::to_string(slotIndex);
@@ -443,8 +450,13 @@ void CodeGenerator::emitClassMethods(const Program& program) {
                 }
                 const auto rootAddress = "%root.addr";
                 const std::string root = "%root";
+                auto thunkLocation = implementation->location;
+                const auto thunkDebug = debugBeginFunction(thunkLocation,
+                    thunkName.substr(1), thunkName, implementation->returnType, true);
+                thunkLocation.line = 0;
+                thunkLocation.column = 0;
                 std::string thunk = "define private " + returnType + " " + thunkName + "(" +
-                                    signature + ") {\nentry:\n"
+                                    signature + ")" + thunkDebug + " {\nentry:\n"
                                     "  " + rootAddress +
                                     " = getelementptr inbounds %Class." + view.second->name +
                                     ", ptr %this, i32 0, i32 1\n"
@@ -459,17 +471,23 @@ void CodeGenerator::emitClassMethods(const Program& program) {
                     thunk += "  %impl.this = getelementptr i8, ptr " +
                              implementationAddress + ", i64 0\n";
                 }
+                // A receiver-adjustment thunk has no work after forwarding.
+                // Tail-transfer so stepping/returning never lands in an
+                // anonymous frame without source or function bounds.
                 if (implementation->returnType == "void") {
-                    thunk += "  call void " + methodSymbol(implementationOwner->name,
+                    thunk += "  musttail call void " + methodSymbol(implementationOwner->name,
                                                            *implementation) +
                              "(" + callArguments + ")\n  ret void\n}\n\n";
                 } else {
-                    thunk += "  %result = call " + returnType + " " +
+                    thunk += "  %result = musttail call " + returnType + " " +
                              methodSymbol(implementationOwner->name, *implementation) +
                              "(" + callArguments + ")\n  ret " + returnType +
                              " %result\n}\n\n";
                 }
-                functions += thunk;
+                // Line zero describes compiler machinery, not an extra
+                // stoppable source statement. Bounds still let GDB follow
+                // the tail jump into the source-level implementation.
+                functions += debugAnnotate(thunk, thunkLocation);
             }
         }
     }

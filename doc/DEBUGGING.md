@@ -19,6 +19,15 @@ class fields are not necessarily shown as source-level members. This is
 ordinary debugger support for the generated executable, not an IDE-specific
 debugger integration.
 
+Stepping follows GDB/LLDB's source-level rules: Step Into may enter runtime C
+checks before a Cwhip method, and returning can stop on the caller's existing
+call line. Distinct instruction positions on one source line are not
+necessarily a lost step. No-op virtual-dispatch thunks are omitted; necessary
+receiver-adjustment thunks tail-transfer to the implementation and carry
+artificial/trampoline DWARF metadata with line-zero instructions. This keeps
+method returns out of anonymous dispatch frames without function bounds.
+Rebuild older executables with `-g` to pick up this compiler change.
+
 For compiler tracing, use `-t`/`--trace` with `scanner`, `parser`, `ast`, or
 `symbols`; targets can be comma-separated or repeated. AST and symbol-table
 traces go to standard output. `-v` increases compiler verbosity, with `-vv`
