@@ -3,6 +3,7 @@
 import os
 from pathlib import Path
 import subprocess
+import shutil
 
 
 def environment(work: Path) -> dict[str, str]:
@@ -10,9 +11,11 @@ def environment(work: Path) -> dict[str, str]:
     for key in list(env):
         if key.startswith("CWHIP_") or key in ("CC", "DESTDIR"):
             del env[key]
-    for key, directory in (("HOME", "home"), ("XDG_CONFIG_HOME", "xdg")):
+    for key, directory in (("HOME", "home"), ("XDG_CONFIG_HOME", "xdg"),
+                           ("XDG_DATA_HOME", "data"), ("XDG_CACHE_HOME", "cache"),
+                           ("XDG_STATE_HOME", "state"), ("XDG_RUNTIME_DIR", "runtime")):
         path = work / directory
-        path.mkdir(parents=True, exist_ok=True)
+        path.mkdir(mode=0o700, parents=True, exist_ok=True)
         env[key] = str(path)
     env["LC_ALL"] = "C"
     return env
@@ -22,6 +25,14 @@ def invoke(command: list[str], work: Path, env: dict[str, str],
            stdin: str = "", timeout: int = 30) -> subprocess.CompletedProcess[str]:
     result = subprocess.run(command, cwd=work, env=env, input=stdin,
                             text=True, capture_output=True, timeout=timeout)
+    if result.returncode == 0 and Path(command[0]).name == "cwhip" and "-o" in command and "-c" not in command:
+        # Ad-hoc test executables need the same sidecars as installed applications.
+        resources = Path(command[0]).resolve().parent.parent / "share/cwhip/modules/sourceview"
+        if resources.is_dir():
+            output = Path(command[command.index("-o") + 1])
+            if not output.is_absolute():
+                output = work / output
+            shutil.copytree(resources, output.parent / "share/cwhip/modules/sourceview", dirs_exist_ok=True)
     if any(marker in result.stderr for marker in
            ("AddressSanitizer", "UndefinedBehaviorSanitizer", "runtime error:")):
         raise AssertionError(f"Instrumentation failure:\n{result.stderr}")

@@ -1,5 +1,9 @@
 # Cwhip compiler
 
+External projects can consume the [installed, relocatable CMake SDK](doc/CMAKE-SDK.md)
+without a compiler checkout. The complete prefix, not just its executables,
+is the supported prototype distribution boundary. compiler
+
 Cwhip is a statically typed language with classes, inheritance, managed strings
 and collections, exceptions, and native bindings. The name comes from the
 coachwhip snake: fast and nonvenomous, a fitting image for a small, nimble
