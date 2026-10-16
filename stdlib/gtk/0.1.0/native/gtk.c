@@ -400,18 +400,27 @@ static void application_initialize(const char *id, bool scheduler) {
     GPtrArray *paths = g_ptr_array_new();
     for (size_t i = 0; existing_paths && existing_paths[i]; ++i)
         g_ptr_array_add(paths, (gpointer)existing_paths[i]);
-    if (g_file_test(CWHIP_GTK_SOURCEVIEW_SOURCE_LANG_DIR, G_FILE_TEST_IS_DIR))
-        g_ptr_array_add(paths, (gpointer)CWHIP_GTK_SOURCEVIEW_SOURCE_LANG_DIR);
-    if (g_file_test(CWHIP_GTK_SOURCEVIEW_INSTALL_LANG_DIR, G_FILE_TEST_IS_DIR))
-        g_ptr_array_add(paths, (gpointer)CWHIP_GTK_SOURCEVIEW_INSTALL_LANG_DIR);
+    gchar *executable = g_file_read_link("/proc/self/exe", NULL);
+    gchar *bin = executable ? g_path_get_dirname(executable) : NULL;
+    gchar *languages = bin ? g_build_filename(bin, "..", "share", "cwhip",
+        "modules", "sourceview", "0.1.0", "language-specs", NULL) : NULL;
+    if (bin && !g_file_test(languages, G_FILE_TEST_IS_DIR)) {
+        g_free(languages);
+        languages = g_build_filename(bin, "share", "cwhip", "modules",
+            "sourceview", "0.1.0", "language-specs", NULL);
+    }
+    if (languages && g_file_test(languages, G_FILE_TEST_IS_DIR))
+        g_ptr_array_add(paths, languages);
     g_ptr_array_add(paths, NULL);
     registered_languages = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, NULL);
-    register_languages(CWHIP_GTK_SOURCEVIEW_SOURCE_LANG_DIR);
-    register_languages(CWHIP_GTK_SOURCEVIEW_INSTALL_LANG_DIR);
+    if (languages) register_languages(languages);
     source_language_manager = gtk_source_language_manager_new();
     gtk_source_language_manager_set_search_path(source_language_manager,
                                                  (const char **)paths->pdata);
     g_ptr_array_unref(paths);
+    g_free(languages);
+    g_free(bin);
+    g_free(executable);
 #endif
     owner = pthread_self();
     initialized = true;

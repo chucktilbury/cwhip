@@ -1,5 +1,10 @@
 # Build and installation
 
+For source-independent external CMake projects and whole-prefix relocation,
+see [the installed SDK contract](CMAKE-SDK.md). The compiler's integrated
+application targets below are legacy development examples, not the
+standalone cedit/cdbg projects.
+
 The compiler uses CMake and requires Clang on `PATH` to compile and link its
 generated LLVM IR. The project uses C11 and C++17. Building and running
 `cwhip-pkg` also requires Python 3.11 or newer; installing packages requires

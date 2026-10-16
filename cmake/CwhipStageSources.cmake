@@ -1,0 +1,8 @@
+include("${inventory}")
+file(REMOVE_RECURSE "${output_dir}")
+foreach(input IN LISTS inputs)
+    file(RELATIVE_PATH relative "${source_dir}" "${input}")
+    get_filename_component(parent "${output_dir}/${relative}" DIRECTORY)
+    file(MAKE_DIRECTORY "${parent}")
+    file(COPY_FILE "${input}" "${output_dir}/${relative}")
+endforeach()

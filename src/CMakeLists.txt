@@ -105,6 +105,10 @@ add_library(cwhip_runtime STATIC RuntimeGc.c RuntimeStdlib.c RuntimeOS.c Runtime
     RuntimeProcessAsync.c
     RuntimeDemoShims.c RuntimeThreads.c)
 target_link_libraries(cwhip_runtime PUBLIC cwhip_headers Threads::Threads)
+if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+    # The standalone debugger reads runtime type layouts without runtime sources.
+    target_compile_options(cwhip_runtime PRIVATE -g)
+endif()
 set_target_properties(cwhip_runtime PROPERTIES
     ARCHIVE_OUTPUT_DIRECTORY "${CWHIP_STAGE_RUNTIME_DIRECTORY}"
     LIBRARY_OUTPUT_DIRECTORY "${CWHIP_STAGE_RUNTIME_DIRECTORY}"
@@ -160,10 +164,7 @@ if(CWHIP_GTK)
     if(CWHIP_GTK_SOURCEVIEW)
         pkg_check_modules(GTK_SOURCEVIEW REQUIRED IMPORTED_TARGET gtksourceview-5)
         target_link_libraries(cwhip_gtk_native PRIVATE PkgConfig::GTK_SOURCEVIEW)
-        target_compile_definitions(cwhip_gtk_native PRIVATE
-            CWHIP_GTK_SOURCEVIEW=1
-            CWHIP_GTK_SOURCEVIEW_SOURCE_LANG_DIR="${CWHIP_SOURCE_STDLIB_DIRECTORY}/sourceview/0.1.0/language-specs"
-            CWHIP_GTK_SOURCEVIEW_INSTALL_LANG_DIR="${CMAKE_INSTALL_FULL_DATADIR}/cwhip/modules/sourceview/0.1.0/language-specs")
+        target_compile_definitions(cwhip_gtk_native PRIVATE CWHIP_GTK_SOURCEVIEW=1)
         set(CWHIP_GTK_SOURCEVIEW_MANIFEST
             "${CMAKE_CURRENT_BINARY_DIR}/gtk-sourceview-cwhip-package.toml")
         configure_file(
@@ -305,3 +306,19 @@ install(FILES ${CWHIP_RUNTIME_HEADERS} DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/
 install(FILES ${CWHIP_BUILTIN_SOURCES} DESTINATION "${CMAKE_INSTALL_DATADIR}/cwhip/builtin")
 install(DIRECTORY "${CWHIP_STAGE_MODULE_DIRECTORY}/"
     DESTINATION "${CMAKE_INSTALL_DATADIR}/cwhip/modules")
+
+include(CMakePackageConfigHelpers)
+set(CWHIP_SDK_CMAKE_DIRECTORY "${CMAKE_INSTALL_LIBDIR}/cmake/Cwhip")
+configure_package_config_file(
+    "${CMAKE_CURRENT_SOURCE_DIR}/../cmake/CwhipConfig.cmake.in"
+    "${CMAKE_CURRENT_BINARY_DIR}/CwhipConfig.cmake"
+    INSTALL_DESTINATION "${CWHIP_SDK_CMAKE_DIRECTORY}"
+    PATH_VARS CMAKE_INSTALL_BINDIR CMAKE_INSTALL_LIBDIR
+        CMAKE_INSTALL_INCLUDEDIR CMAKE_INSTALL_DATADIR)
+write_basic_package_version_file("${CMAKE_CURRENT_BINARY_DIR}/CwhipConfigVersion.cmake"
+    VERSION "${PROJECT_VERSION}" COMPATIBILITY ExactVersion)
+install(FILES "${CMAKE_CURRENT_BINARY_DIR}/CwhipConfig.cmake"
+    "${CMAKE_CURRENT_BINARY_DIR}/CwhipConfigVersion.cmake"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../cmake/CwhipApplication.cmake"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../cmake/CwhipStageSources.cmake"
+    DESTINATION "${CWHIP_SDK_CMAKE_DIRECTORY}")
