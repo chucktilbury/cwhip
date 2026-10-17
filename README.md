@@ -1,5 +1,9 @@
 # Cwhip compiler
 
+New to Cwhip? Start with the [getting started guide](doc/GETTING_STARTED.md)
+for a source-first SDK install, a working project, language basics, packages,
+and the optional standalone editor/debugger.
+
 External projects can consume the [installed, relocatable CMake SDK](doc/CMAKE-SDK.md)
 without a compiler checkout. The complete prefix, not just its executables,
 is the supported prototype distribution boundary. compiler
