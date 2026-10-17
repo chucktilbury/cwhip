@@ -118,3 +118,7 @@ in [`stdlib/README.md`](stdlib/README.md); its public APIs are in
 
 These are brief feature summaries, not a substitute for the references linked
 above.
+
+## License
+
+This project is licensed under the MIT License. See [LICENSE](LICENSE).
