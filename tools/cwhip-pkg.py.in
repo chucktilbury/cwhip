@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import functools
 import hashlib
+import http.client
 import os
 from pathlib import Path, PurePosixPath
 import re
@@ -13,7 +14,13 @@ import shutil
 import stat
 import subprocess
 import sys
+import tarfile
 import tempfile
+import urllib.error
+import urllib.parse
+import urllib.request
+import zipfile
+import zlib
 
 if sys.version_info < (3, 11):
     print("cwhip-pkg: error[PKG0002]: Python 3.11 or newer is required", file=sys.stderr)
@@ -26,6 +33,10 @@ STDLIB_DIRECTORY = (
     Path(__file__).resolve().parent / "@CWHIP_PKG_STDLIB_RELATIVE_PATH@"
 ).resolve()
 PREFIX_STDLIB_RELATIVE_PATH = Path("@CWHIP_PKG_PREFIX_STDLIB_RELATIVE_PATH@")
+SDK_PREFIX = (Path(__file__).resolve().parent / "@CWHIP_PKG_PREFIX_RELATIVE_PATH@").resolve()
+TEMPLATE_MAX_DOWNLOAD = 32 * 1024 * 1024
+TEMPLATE_MAX_SIZE = 128 * 1024 * 1024
+TEMPLATE_MAX_ENTRIES = 10000
 VERSION_PATTERN = re.compile(
     r"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)"
     r"(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?"
@@ -987,6 +998,284 @@ def command_list() -> None:
         print(f"{package_name(key)}: locked {entry['version']}; {'not installed' if key in missing else 'installed'}; {entry['repo']}")
 
 
+def doctor_sdk_prefix() -> tuple[Path, str]:
+    override = os.environ.get("CWHIP_SDK")
+    if override:
+        value, origin = override, "CWHIP_SDK"
+    else:
+        config_home = os.environ.get("XDG_CONFIG_HOME")
+        home = os.environ.get("HOME")
+        root = Path(config_home) if config_home else Path(home) / ".config" if home else None
+        if root is not None and not root.is_absolute():
+            raise CwhipkgError("config home must be absolute; set XDG_CONFIG_HOME or HOME to an absolute path",
+                               code="PKG2003")
+        settings = root / "cwhip/settings.toml" if root else None
+        document = {}
+        if settings is not None:
+            try:
+                with settings.open("rb") as stream:
+                    document = tomllib.load(stream)
+            except FileNotFoundError:
+                pass
+            except (OSError, ValueError) as error:
+                raise CwhipkgError(f"cannot read SDK settings {settings}: {error}; repair settings or set CWHIP_SDK",
+                                   code="PKG2003") from error
+        if "sdk_prefix" not in document:
+            return SDK_PREFIX, "prefix beside cwhip-pkg (no SDK override/setting)"
+        value, origin = document["sdk_prefix"], str(settings)
+    if (not isinstance(value, str) or not value or any(c in value for c in "\0\r\n")
+            or not Path(value).is_absolute() or not Path(value).is_dir()):
+        raise CwhipkgError(f"{origin}: SDK prefix must be an absolute existing directory without NUL or line breaks; select a complete SDK",
+                           code="PKG2003")
+    return Path(value), origin
+
+
+def doctor_probe(command: list[str]) -> tuple[bool, str]:
+    try:
+        result = subprocess.run(command, capture_output=True, text=True, check=False,
+                                stdin=subprocess.DEVNULL, timeout=10)
+    except (OSError, subprocess.TimeoutExpired) as error:
+        return False, str(error)
+    detail = (result.stdout + result.stderr).strip()
+    return result.returncode == 0, f"exit {result.returncode}: {detail}"
+
+
+def command_doctor() -> None:
+    failed = False
+
+    def check(label: str, passed: bool, detail: str, remedy: str, *, optional: bool = False) -> None:
+        nonlocal failed
+        status = "PASS" if passed else "WARN" if optional else "FAIL"
+        print(f"{status} {'optional' if optional else 'required'} {label}: {detail}")
+        if not passed:
+            print(f"  Remedy: {remedy}")
+            failed = failed or not optional
+
+    check("Python >=3.11", sys.version_info >= (3, 11), sys.version.split()[0],
+          "install Python 3.11 or newer")
+    try:
+        prefix, origin = doctor_sdk_prefix()
+    except CwhipkgError as error:
+        check("SDK selection", False, str(error), "repair the selected settings file or set CWHIP_SDK")
+        report_error(error.code, str(error))
+    else:
+        check("SDK prefix", prefix.is_dir(), f"{prefix} ({origin})",
+              "build/install the complete SDK or set CWHIP_SDK")
+        resources = {
+            "compiler": prefix / "@CWHIP_RELATIVE_BINDIR@/cwhip",
+            "runtime": prefix / "@CWHIP_RELATIVE_LIBDIR@/cwhip/libcwhip_runtime.a",
+            "runtime header": prefix / "@CWHIP_RELATIVE_INCLUDEDIR@/cwhip/Stdlib.h",
+            "GC header": prefix / "@CWHIP_RELATIVE_INCLUDEDIR@/cwhip/RuntimeGc.h",
+            "String builtin": prefix / "@CWHIP_RELATIVE_DATADIR@/cwhip/builtin/String.cw",
+            "CMake config": prefix / "@CWHIP_RELATIVE_LIBDIR@/cmake/Cwhip/CwhipConfig.cmake",
+            "CMake version": prefix / "@CWHIP_RELATIVE_LIBDIR@/cmake/Cwhip/CwhipConfigVersion.cmake",
+            "CMake application helper": prefix / "@CWHIP_RELATIVE_LIBDIR@/cmake/Cwhip/CwhipApplication.cmake",
+            "CMake staging helper": prefix / "@CWHIP_RELATIVE_LIBDIR@/cmake/Cwhip/CwhipStageSources.cmake",
+        }
+        for label, path in resources.items():
+            present = path.is_file() and os.access(path, os.R_OK)
+            if label == "compiler":
+                present = present and os.access(path, os.X_OK)
+            check(label, present, str(path), "build and install the complete SDK into this prefix")
+        passed, detail = doctor_probe([str(resources["compiler"]), "--version"])
+        check("compiler startup", passed and detail.startswith("exit 0: cwhip: v"), detail,
+              "rebuild/install a working Cwhip compiler")
+        modules = prefix / PREFIX_STDLIB_RELATIVE_PATH
+        try:
+            packages = discover_standard_modules(modules)
+            required = {"math", "networking", "process", "random", "sql", "sqlite",
+                        "synchronization", "system", "terminal", "time"}
+            missing = sorted(required - packages.keys())
+            check("bundled standard packages", not missing, f"{modules}; missing: {', '.join(missing) or 'none'}",
+                  "reinstall the SDK's standard packages")
+        except (CwhipkgError, OSError) as error:
+            check("bundled standard packages", False, f"{modules}: {error}",
+                  "reinstall the SDK's standard packages")
+    selected = os.environ.get("CC") or "@CWHIP_CLANG_EXECUTABLE@"
+    if not os.environ.get("CC") and shutil.which(selected) is None:
+        print(f"NOTE configured Clang {selected} unavailable; selecting clang via PATH")
+        selected = "clang"
+    for label, command, remedy in (
+        ("Clang/CC", [selected, "--version"], "install Clang or set CC to a Clang driver executable"),
+        ("git", ["git", "--version"], "install git for package installation"),
+        ("CMake >=3.24", ["cmake", "--version"], "install CMake 3.24 or newer for template projects"),
+    ):
+        passed, detail = doctor_probe(command)
+        if label == "Clang/CC":
+            passed = passed and "clang" in detail.lower()
+        if label.startswith("CMake"):
+            match = re.search(r"cmake version (\d+)\.(\d+)", detail)
+            passed = passed and match is not None and tuple(map(int, match.groups())) >= (3, 24)
+        check(label, passed, f"{command[0]}: {detail}", remedy)
+    for package, version in (("gtk4", "4.10"), ("gtksourceview-5", "5")):
+        passed, detail = doctor_probe(["pkg-config", "--print-errors", f"--atleast-version={version}", package])
+        check(package, passed, f">={version}; {detail}",
+              f"install pkg-config and {package} development files for optional GUI app development",
+              optional=True)
+    if failed:
+        raise CwhipkgError("required doctor checks failed; see stdout for checks and remedies", code="PKG2002")
+
+
+def template_path(name: str) -> PurePosixPath:
+    path = PurePosixPath(name)
+    if (path.is_absolute() or ".." in path.parts or "\\" in name
+            or "\0" in name or (path.parts and ":" in path.parts[0])):
+        raise CwhipkgError(f"unsafe template path {name!r}", code="PKG1005")
+    return path
+
+
+def unpack_template(source: Path, output: Path) -> None:
+    count = total = 0
+
+    def copy_entry(name: str, size: int, directory: bool, stream, mode: int) -> None:
+        nonlocal count, total
+        path = template_path(name)
+        count += 1
+        total += size
+        if count > TEMPLATE_MAX_ENTRIES or size < 0 or total > TEMPLATE_MAX_SIZE:
+            raise CwhipkgError("template exceeds entry or expanded-size limit", code="PKG1005")
+        if ".git" in path.parts:
+            return
+        target = output.joinpath(*path.parts)
+        if directory:
+            target.mkdir(parents=True, exist_ok=True)
+        else:
+            target.parent.mkdir(parents=True, exist_ok=True)
+            with target.open("xb") as destination:
+                remaining = size
+                while chunk := stream.read(min(64 * 1024, remaining + 1)):
+                    remaining -= len(chunk)
+                    if remaining < 0:
+                        raise CwhipkgError(f"template entry grew beyond declared size: {name}", code="PKG1005")
+                    destination.write(chunk)
+                if remaining:
+                    raise CwhipkgError(f"truncated template entry: {name}", code="PKG1005")
+            target.chmod(0o755 if mode & 0o111 else 0o644)
+
+    try:
+        if source.is_dir():
+            def walk_error(error: OSError) -> None:
+                raise error
+
+            for root, directories, files in os.walk(source, followlinks=False, onerror=walk_error):
+                directories[:] = [name for name in directories if name != ".git"]
+                for name in directories + files:
+                    path = Path(root) / name
+                    info = path.lstat()
+                    if not stat.S_ISREG(info.st_mode) and not stat.S_ISDIR(info.st_mode):
+                        raise CwhipkgError(f"template links/special files are not allowed: {path}", code="PKG1005")
+                    relative = path.relative_to(source).as_posix()
+                    if path.is_dir():
+                        copy_entry(relative, 0, True, None, info.st_mode)
+                    else:
+                        with path.open("rb") as stream:
+                            copy_entry(relative, info.st_size, False, stream, info.st_mode)
+        elif zipfile.is_zipfile(source):
+            with zipfile.ZipFile(source) as archive:
+                for entry in archive.infolist():
+                    mode = entry.external_attr >> 16
+                    if stat.S_IFMT(mode) not in (0, stat.S_IFREG, stat.S_IFDIR):
+                        raise CwhipkgError(f"template links/special files are not allowed: {entry.filename}", code="PKG1005")
+                    with archive.open(entry) as stream:
+                        copy_entry(entry.filename, entry.file_size, entry.is_dir(), stream, mode)
+        else:
+            with tarfile.open(source, "r:*") as archive:
+                for entry in archive:
+                    if entry.isdir():
+                        copy_entry(entry.name, 0, True, None, entry.mode)
+                    elif entry.isfile():
+                        with archive.extractfile(entry) as stream:
+                            copy_entry(entry.name, entry.size, False, stream, entry.mode)
+                    else:
+                        raise CwhipkgError(f"template links/special files are not allowed: {entry.name}", code="PKG1005")
+    except (tarfile.TarError, zipfile.BadZipFile, zlib.error, RuntimeError, EOFError, OSError) as error:
+        raise CwhipkgError(f"cannot unpack template {source}: {error}", code="PKG1005") from error
+
+
+def rename_template(root: Path, name: str) -> None:
+    cmake = root / "CMakeLists.txt"
+    main_source = root / "src/main.cw"
+    if not cmake.is_file() or not main_source.is_file():
+        raise CwhipkgError("template must contain CMakeLists.txt and src/main.cw", code="PKG1005")
+    cmake_text = cmake.read_text(encoding="utf-8")
+    if not re.search(r"\bproject\s*\(\s*cwhip_template\b", cmake_text) or not re.search(
+            r"\bcwhip_add_program\s*\(\s*hello\b", cmake_text):
+        raise CwhipkgError("unsupported template: expected project(cwhip_template) and cwhip_add_program(hello)",
+                           code="PKG1005")
+    for path in root.rglob("*"):
+        if path.is_file() and (path.name == "CMakeLists.txt" or path.suffix == ".md"):
+            text = path.read_text(encoding="utf-8")
+            text = re.sub(r"\bcwhip_template\b|\bhello\b|\bhello(?=_executable\b)", lambda _: name, text)
+            text = text.replace("CWhip project template", name).replace("Cwhip project template", name)
+            path.write_text(text, encoding="utf-8")
+
+
+def command_new(name: str, directory: str | None, ref: str, source: str | None) -> None:
+    reserved = {"all", "clean", "help", "install", "test", "package", "package_source",
+                "edit_cache", "rebuild_cache", "preinstall", "ZERO_CHECK"}
+    if (not valid_identifier(name) or not name[0].isalpha() or name in reserved
+            or len(name) > 128):
+        raise CwhipkgError("project name must be a non-reserved ASCII identifier starting with a letter (maximum 128 characters)",
+                           code="PKG1003")
+    if not ref or len(ref) > 256 or any(ord(c) < 32 or ord(c) == 127 for c in ref):
+        raise CwhipkgError("template ref must be non-empty without control characters (maximum 256 characters)",
+                           code="PKG0001")
+    destination = Path(directory or name).absolute()
+    if (destination.is_symlink() or (destination.exists() and
+            (not destination.is_dir() or any(destination.iterdir())))):
+        raise CwhipkgError(f"refusing non-empty, non-directory or symlink destination {destination}", code="PKG1004")
+    if not destination.parent.is_dir():
+        raise CwhipkgError(f"destination parent must already exist: {destination.parent}", code="PKG1004")
+    if source:
+        source_path = Path(source).expanduser().resolve()
+        if source_path.is_dir() and destination.resolve().is_relative_to(source_path):
+            raise CwhipkgError("destination must be outside the local template source directory", code="PKG1005")
+    scratch = Path(tempfile.mkdtemp(prefix=".cwhip-new-", dir=destination.parent))
+    try:
+        archive_path = Path(source).expanduser().resolve() if source else scratch / "template.tar.gz"
+        if source is None:
+            url = "https://codeload.github.com/chucktilbury/cwhip-template/tar.gz/" + urllib.parse.quote(ref, safe="")
+            try:
+                with urllib.request.urlopen(url, timeout=30) as response, archive_path.open("wb") as stream:
+                    total = 0
+                    while chunk := response.read(64 * 1024):
+                        total += len(chunk)
+                        if total > TEMPLATE_MAX_DOWNLOAD:
+                            raise CwhipkgError("template download exceeds 32 MiB limit", code="PKG3002")
+                        stream.write(chunk)
+            except (OSError, urllib.error.URLError, http.client.HTTPException) as error:
+                raise CwhipkgError(f"cannot download template ref {ref!r} from {url}: {error}; use --source for offline creation",
+                                   code="PKG3002") from error
+        elif not archive_path.exists():
+            raise CwhipkgError(f"local template source does not exist: {archive_path}", code="PKG1005")
+        if archive_path.is_file() and archive_path.stat().st_size > TEMPLATE_MAX_DOWNLOAD:
+            raise CwhipkgError("template archive exceeds 32 MiB limit", code="PKG1005")
+        extracted = scratch / "extracted"
+        extracted.mkdir()
+        unpack_template(archive_path, extracted)
+        root = extracted
+        entries = list(root.iterdir())
+        if not (root / "CMakeLists.txt").is_file() and len(entries) == 1 and entries[0].is_dir():
+            root = entries[0]
+        try:
+            rename_template(root, name)
+        except UnicodeError as error:
+            raise CwhipkgError(f"template text must be UTF-8: {error}", code="PKG1005") from error
+        # rename only replaces an empty directory; a concurrent non-empty destination is preserved.
+        root.rename(destination)
+    finally:
+        original_error = sys.exception()
+        try:
+            shutil.rmtree(scratch)
+        except OSError as error:
+            report_error("PKG9002", f"cannot remove project staging directory {scratch}: {error}")
+            if original_error is None:
+                raise CwhipkgError(f"project staging cleanup failed: {scratch}", code="PKG9002") from error
+    print(f"Created {name} in {destination} (no Git repository initialized).")
+    print(f"Build: cmake -S {shell_quote(str(destination))} -B {shell_quote(str(destination / 'build'))}")
+    print(f"       cmake --build {shell_quote(str(destination / 'build'))}")
+
+
 def parse_arguments() -> argparse.Namespace:
     parser = DiagnosticArgumentParser(
         prog="cwhip-pkg",
@@ -1006,6 +1295,12 @@ def parse_arguments() -> argparse.Namespace:
     environment = commands.add_parser("env", help="print shell exports to activate this project")
     environment.add_argument("--preferences", metavar="FILE", help="use a TOML preferences file")
     commands.add_parser("list", help="list allowed and installed project modules")
+    commands.add_parser("doctor", help="check SDK and host prerequisites without changing files or using the network")
+    create = commands.add_parser("new", help="download a template archive and create a named project (no Git history)")
+    create.add_argument("name", help="project/executable ASCII identifier starting with a letter")
+    create.add_argument("directory", nargs="?", help="destination (default: ./NAME); parent must exist")
+    create.add_argument("--ref", default="main", help="template branch, tag or commit (default: main)")
+    create.add_argument("--source", metavar="PATH", help="use a local template directory, tar archive or ZIP instead of downloading")
     return parser.parse_args()
 
 
@@ -1022,9 +1317,13 @@ def main() -> int:
             command_env(arguments.preferences)
         elif arguments.command == "list":
             command_list()
+        elif arguments.command == "doctor":
+            command_doctor()
+        elif arguments.command == "new":
+            command_new(arguments.name, arguments.directory, arguments.ref, arguments.source)
     except CwhipkgError as error:
         report_error(error.code, str(error))
-        return 1
+        return 2 if error.code == "PKG0001" else 1
     except OSError as error:
         report_error("PKG1002", str(error))
         return 1

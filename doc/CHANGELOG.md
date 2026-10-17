@@ -25,6 +25,18 @@ proof of concept and compiler-testing tool, not a production IDE/debugger.
 
 ## Implemented milestones
 
+### Unreleased: Package doctor and project creation
+
+`cwhip-pkg doctor` checks the selected SDK and host tools without modifying
+files or using the network, reports actionable per-check remedies, and treats
+GUI development dependencies as optional. SDK settings follow the shared
+`CWHIP_SDK`/XDG/HOME precedence. `cwhip-pkg new NAME [DIRECTORY]` downloads
+the public project template as an archive, supports ref selection and offline
+directory/tar/ZIP sources, validates and stages extraction, renames project
+and executable references, and omits Git history without initializing Git.
+New failure boundaries are registered in [DIAGNOSTICS.md](DIAGNOSTICS.md);
+offline regression coverage includes extraction safety and doctor side effects.
+
 ### Unreleased: Incremental compiler and package diagnostics
 
 Compiler CLI/source reporter and `cwhip-pkg` error boundaries now use tool-local

@@ -11,12 +11,15 @@ import io
 import json
 import os
 from pathlib import Path
+import re
 import shutil
 import subprocess
+import tarfile
 import tempfile
 import tomllib
 import unittest
 from unittest import mock
+import zipfile
 
 
 def run(command: list[str], *, cwd: Path | None = None, env: dict | None = None) -> subprocess.CompletedProcess:
@@ -75,6 +78,7 @@ class CwhipkgTest(unittest.TestCase):
         self.base_environment["cwhip-pkg_TEST_GIT_LOG"] = str(self.git_log)
         self.base_environment.pop("XDG_CONFIG_HOME", None)
         for name in (
+            "CWHIP_SDK",
             "CWHIP_HOME",
             "CWHIP_MODULE_DIR",
             "CWHIP_PACKAGE_PATH",
@@ -196,6 +200,281 @@ class CwhipkgTest(unittest.TestCase):
             self.assertEqual(len(entry["sha256"]), 64)
         verified = self.run_cwhip_pkg("install")
         self.assertEqual(verified.returncode, 0, verified.stderr)
+
+    def make_template(self) -> Path:
+        root = self.root / "template"
+        (root / "src").mkdir(parents=True)
+        (root / "scripts").mkdir()
+        (root / "doc").mkdir()
+        (root / ".git").mkdir()
+        (root / ".git/history").write_text("must not be copied")
+        (root / "CMakeLists.txt").write_text(
+            "cmake_minimum_required(VERSION 3.24)\n"
+            "project(cwhip_template LANGUAGES C)\n"
+            "find_package(Cwhip 0.0.1 EXACT CONFIG REQUIRED)\n"
+            'cwhip_add_program(hello SOURCE "${PROJECT_SOURCE_DIR}/src/main.cw")\n'
+            "get_target_property(hello_executable hello CWHIP_EXECUTABLE)\n"
+            'install(PROGRAMS "${hello_executable}" DESTINATION bin)\n'
+        )
+        (root / "src/main.cw").write_text('start { print("Hello, world!") }\n')
+        (root / "scripts/setup").write_text("#!/bin/sh\nexit 0\n")
+        (root / "scripts/setup").chmod(0o755)
+        (root / "README.md").write_text("# CWhip project template\nRun bin/hello\n")
+        (root / "doc/BUILDING.md").write_text("Build cwhip_template; run bin/hello\n")
+        return root
+
+    def assert_new_project(self, destination: Path) -> None:
+        self.assertFalse((destination / ".git").exists())
+        self.assertIn("project(MyApp LANGUAGES C)", (destination / "CMakeLists.txt").read_text())
+        self.assertIn("cwhip_add_program(MyApp ", (destination / "CMakeLists.txt").read_text())
+        self.assertIn("MyApp_executable MyApp", (destination / "CMakeLists.txt").read_text())
+        self.assertIn("${MyApp_executable}", (destination / "CMakeLists.txt").read_text())
+        self.assertEqual((destination / "README.md").read_text(), "# MyApp\nRun bin/MyApp\n")
+        self.assertEqual((destination / "doc/BUILDING.md").read_text(), "Build MyApp; run bin/MyApp\n")
+        self.assertTrue(os.access(destination / "scripts/setup", os.X_OK))
+        self.assertEqual((destination / "src/main.cw").read_text(), 'start { print("Hello, world!") }\n')
+        self.assertEqual(list(destination.parent.glob(".cwhip-new-*")), [])
+
+    def test_new_directory_and_archives_rename_without_history_or_network(self) -> None:
+        template = self.make_template()
+        tar_path = self.root / "template.tar.gz"
+        zip_path = self.root / "template.zip"
+        with tarfile.open(tar_path, "w:gz") as archive:
+            archive.add(template, arcname="cwhip-template-main")
+        with zipfile.ZipFile(zip_path, "w") as archive:
+            for path in template.rglob("*"):
+                archive.write(path, "cwhip-template-main/" + path.relative_to(template).as_posix())
+        module = self.script_module()
+        for index, source in enumerate((template, tar_path, zip_path)):
+            destination = self.root / f"destination {index}"
+            if index == 1:
+                destination.mkdir()  # An existing empty directory is allowed.
+            with mock.patch.object(module.urllib.request, "urlopen", side_effect=AssertionError("network")), \
+                    mock.patch.object(module.subprocess, "run", side_effect=AssertionError("subprocess")):
+                module.command_new("MyApp", str(destination), "main", str(source))
+            self.assert_new_project(destination)
+        default = self.run_cwhip_pkg("new", "MyApp", "--source", str(template))
+        self.assertEqual(default.returncode, 0, default.stderr)
+        self.assert_new_project(self.project / "MyApp")
+        self.assertIn("no Git repository initialized", default.stdout)
+        self.assertIn("project(cwhip_template", (template / "CMakeLists.txt").read_text())
+
+    def test_new_ref_download_and_transport_failure_are_mocked(self) -> None:
+        template = self.make_template()
+        archive_bytes = io.BytesIO()
+        with tarfile.open(fileobj=archive_bytes, mode="w:gz") as archive:
+            archive.add(template, arcname="template-ref")
+        module = self.script_module()
+        destination = self.root / "downloaded"
+        with mock.patch.object(module.urllib.request, "urlopen",
+                               return_value=io.BytesIO(archive_bytes.getvalue())) as download:
+            module.command_new("MyApp", str(destination), "feature/starter", None)
+        self.assertIn("/tar.gz/feature%2Fstarter", download.call_args.args[0])
+        self.assert_new_project(destination)
+        with mock.patch.object(module.urllib.request, "urlopen", side_effect=OSError("offline")):
+            with self.assertRaises(module.CwhipkgError) as caught:
+                module.command_new("MyApp", str(self.root / "failed"), "main", None)
+        self.assertEqual(caught.exception.code, "PKG3002")
+        self.assertIn("offline", str(caught.exception))
+        self.assertFalse((self.root / "failed").exists())
+        self.assertEqual(list(self.root.glob(".cwhip-new-*")), [])
+        with mock.patch.object(module.urllib.request, "urlopen",
+                               return_value=io.BytesIO(archive_bytes.getvalue())), \
+                mock.patch.object(module, "TEMPLATE_MAX_DOWNLOAD", 1):
+            with self.assertRaises(module.CwhipkgError) as caught:
+                module.command_new("MyApp", str(self.root / "oversized"), "main", None)
+        self.assertEqual(caught.exception.code, "PKG3002")
+        self.assertFalse((self.root / "oversized").exists())
+
+    def test_new_refuses_invalid_names_and_existing_destinations(self) -> None:
+        template = self.make_template()
+        for name in ("../oops", "a-b", "3app", "_app", "int", "test", "all", "a;b", "é", "a" * 129):
+            result = self.run_cwhip_pkg("new", name, "--source", str(template))
+            self.assertEqual(result.returncode, 1, result.stderr)
+            self.assertIn("error[PKG1003]", result.stderr)
+        for destination in (self.project, self.root / "file", self.root / "link"):
+            if destination.name == "file":
+                destination.write_text("preserved")
+            if destination.name == "link":
+                destination.symlink_to(template, target_is_directory=True)
+            result = self.run_cwhip_pkg("new", "MyApp", str(destination), "--source", str(template))
+            self.assertIn("error[PKG1004]", result.stderr)
+        self.assertEqual((self.root / "file").read_text(), "preserved")
+        self.assertTrue((self.project / "cwhip-pkg.lock").is_file())
+        self.assertEqual(list(self.root.glob(".cwhip-new-*")), [])
+
+    def test_new_rejects_unsafe_archives_and_cleans_partial_output(self) -> None:
+        module = self.script_module()
+        for index, (name, kind) in enumerate((
+            ("../escape", "file"), ("/absolute", "file"), ("C:\\escape", "file"),
+            ("root/link", "symlink"), ("root/link", "hardlink"), ("root/fifo", "fifo"),
+        )):
+            source = self.root / f"unsafe{index}.tar"
+            with tarfile.open(source, "w") as archive:
+                good = tarfile.TarInfo("root/partial")
+                good.size = 1
+                archive.addfile(good, io.BytesIO(b"x"))
+                entry = tarfile.TarInfo(name)
+                if kind != "file":
+                    entry.type = {"symlink": tarfile.SYMTYPE, "hardlink": tarfile.LNKTYPE,
+                                  "fifo": tarfile.FIFOTYPE}[kind]
+                    entry.linkname = "../../escape"
+                archive.addfile(entry)
+            destination = self.root / f"unsafe-output{index}"
+            destination.mkdir()
+            result = self.run_cwhip_pkg("new", "MyApp", str(destination), "--source", str(source))
+            self.assertIn("error[PKG1005]", result.stderr)
+            self.assertEqual(list(destination.iterdir()), [])
+        source = self.root / "unsafe.zip"
+        with zipfile.ZipFile(source, "w") as archive:
+            archive.writestr("../escape", "bad")
+        result = self.run_cwhip_pkg("new", "MyApp", str(self.root / "zip-output"), "--source", str(source))
+        self.assertIn("error[PKG1005]", result.stderr)
+        self.assertFalse((self.root / "escape").exists())
+        template = self.make_template()
+        for limit in ("TEMPLATE_MAX_SIZE", "TEMPLATE_MAX_ENTRIES"):
+            with mock.patch.object(module, limit, 1):
+                with self.assertRaises(module.CwhipkgError) as caught:
+                    module.command_new("MyApp", str(self.root / "limited"), "main", str(template))
+            self.assertEqual(caught.exception.code, "PKG1005")
+            self.assertFalse((self.root / "limited").exists())
+        (template / "link").symlink_to(self.project)
+        result = self.run_cwhip_pkg("new", "MyApp", str(self.root / "linked"), "--source", str(template))
+        self.assertIn("error[PKG1005]", result.stderr)
+        self.assertEqual(list(self.root.glob(".cwhip-new-*")), [])
+
+    def test_new_rejects_bad_template_and_missing_parent(self) -> None:
+        template = self.make_template()
+        (template / "CMakeLists.txt").write_text("project(other)\n")
+        destination = self.root / "bad-template"
+        result = self.run_cwhip_pkg("new", "MyApp", str(destination), "--source", str(template))
+        self.assertIn("error[PKG1005]", result.stderr)
+        self.assertFalse(destination.exists())
+        result = self.run_cwhip_pkg("new", "MyApp", str(self.root / "missing/child"), "--source", str(template))
+        self.assertIn("error[PKG1004]", result.stderr)
+        self.assertFalse((self.root / "missing").exists())
+        result = self.run_cwhip_pkg("new", "MyApp", "--ref", "", "--source", str(template))
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("error[PKG0001]", result.stderr)
+
+    def test_new_cleanup_failure_retains_original_error_and_fails_after_publish(self) -> None:
+        module = self.script_module()
+        template = self.make_template()
+        for fail_before_publish in (False, True):
+            stderr = io.StringIO()
+            if fail_before_publish:
+                (template / "CMakeLists.txt").write_text("unsupported")
+            destination = self.root / f"cleanup-{fail_before_publish}"
+            with mock.patch.object(module.shutil, "rmtree", side_effect=OSError("cleanup denied")), \
+                    mock.patch.object(module.sys, "stderr", stderr):
+                with self.assertRaises(module.CwhipkgError) as caught:
+                    module.command_new("MyApp", str(destination), "main", str(template))
+            self.assertEqual(caught.exception.code, "PKG1005" if fail_before_publish else "PKG9002")
+            self.assertIn("error[PKG9002]", stderr.getvalue())
+            self.assertIn("cleanup denied", stderr.getvalue())
+            self.assertEqual(destination.exists(), not fail_before_publish)
+
+    def test_doctor_sdk_selection_precedence_and_settings_validation(self) -> None:
+        module = self.script_module()
+        environment = {"HOME": str(self.root / "home"), "XDG_CONFIG_HOME": str(self.root / "xdg")}
+        settings = self.root / "home/.config/cwhip/settings.toml"
+        settings.parent.mkdir(parents=True)
+        settings.write_text(f"sdk_prefix = {json.dumps(str(self.root))}\n")
+        with mock.patch.dict(os.environ, environment, clear=True):
+            self.assertEqual(module.doctor_sdk_prefix()[0], module.SDK_PREFIX)
+            os.environ["XDG_CONFIG_HOME"] = ""
+            self.assertEqual(module.doctor_sdk_prefix()[0], self.root)
+            for value in ("''", "42", "'relative'", "'/nonexistent/sdk'", "'\\u0000'"):
+                settings.write_text("sdk_prefix = " + value)
+                with self.assertRaises(module.CwhipkgError) as caught:
+                    module.doctor_sdk_prefix()
+                self.assertEqual(caught.exception.code, "PKG2003")
+            settings.write_text("invalid = [")
+            os.environ["CWHIP_SDK"] = str(self.root)
+            os.environ["XDG_CONFIG_HOME"] = "relative"
+            self.assertEqual(module.doctor_sdk_prefix(), (self.root, "CWHIP_SDK"))
+            os.environ.pop("CWHIP_SDK")
+            with self.assertRaises(module.CwhipkgError):
+                module.doctor_sdk_prefix()
+            os.environ["XDG_CONFIG_HOME"] = ""
+            with self.assertRaises(module.CwhipkgError):
+                module.doctor_sdk_prefix()
+            settings.write_text("[editor]\nsdk_prefix = '/ignored'\n")
+            self.assertEqual(module.doctor_sdk_prefix()[0], module.SDK_PREFIX)
+
+    def test_doctor_pass_fail_optional_checks_and_no_side_effects(self) -> None:
+        module = self.script_module()
+        prefix = self.root / "sdk"
+        prefix.mkdir()
+        # Mirror the configured installation directories, including custom libdirs.
+        script = self.args.cwhip_pkg.read_text()
+        for relative in re.findall(r'prefix / "([^"@]+)"', script):
+            path = prefix / relative
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text("fixture")
+            if path.name == "cwhip":
+                path.chmod(0o755)
+        shutil.copytree(module.STDLIB_DIRECTORY, prefix / module.PREFIX_STDLIB_RELATIVE_PATH)
+        output = io.StringIO()
+
+        def probe(command, **kwargs):
+            if command[0] == "pkg-config":
+                return subprocess.CompletedProcess(command, 1, "", "optional packages unavailable")
+            text = ("cwhip: v0.0.1" if Path(command[0]).name == "cwhip" else
+                    "cmake version 3.24.0" if command[0] == "cmake" else
+                    "clang version 22" if command[0] == "chosen-clang" else "git version 2")
+            return subprocess.CompletedProcess(command, 0, text, "")
+
+        def snapshot():
+            return {path.relative_to(self.root).as_posix(): path.read_bytes()
+                    for path in self.root.rglob("*") if path.is_file()}
+
+        before = snapshot()
+        environment = {**self.base_environment, "CWHIP_SDK": str(prefix), "CC": "chosen-clang"}
+        with mock.patch.dict(os.environ, environment, clear=True), \
+                mock.patch.object(module.subprocess, "run", side_effect=probe) as processes, \
+                mock.patch.object(module.urllib.request, "urlopen", side_effect=AssertionError("network")), \
+                mock.patch.object(module.sys, "stdout", output):
+            module.command_doctor()
+            self.assertIn("PASS required", output.getvalue())
+            self.assertIn("WARN optional gtk4", output.getvalue())
+            self.assertEqual(before, snapshot())
+            self.assertIn(["chosen-clang", "--version"], [call.args[0] for call in processes.call_args_list])
+            with mock.patch.object(module, "doctor_probe", return_value=(False, "not found")):
+                with self.assertRaises(module.CwhipkgError) as caught:
+                    module.command_doctor()
+            self.assertEqual(caught.exception.code, "PKG2002")
+            self.assertIn("Remedy:", output.getvalue())
+            with mock.patch.object(module, "discover_standard_modules", return_value={}):
+                with self.assertRaises(module.CwhipkgError):
+                    module.command_doctor()
+            runtime = next(prefix.glob("**/libcwhip_runtime.a"))
+            runtime.unlink()
+            with self.assertRaises(module.CwhipkgError):
+                module.command_doctor()
+            self.assertIn("FAIL required runtime:", output.getvalue())
+        result = self.run_cwhip_pkg("doctor", env={"CWHIP_SDK": "/missing-sdk"})
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("error[PKG2003]", result.stderr)
+        self.assertIn("error[PKG2002]", result.stderr)
+        self.assertNotIn("Traceback", result.stderr)
+
+    def test_doctor_reports_probe_failures_and_does_not_fallback_from_explicit_cc(self) -> None:
+        module = self.script_module()
+        for failure in (FileNotFoundError("missing tool"), subprocess.TimeoutExpired(["tool"], 10)):
+            with mock.patch.object(module.subprocess, "run", side_effect=failure):
+                passed, detail = module.doctor_probe(["tool"])
+            self.assertFalse(passed)
+            self.assertTrue(detail)
+        output = io.StringIO()
+        with mock.patch.dict(os.environ, {**self.base_environment, "CC": "explicit-missing-cc"}, clear=True), \
+                mock.patch.object(module, "doctor_probe", return_value=(False, "tool unavailable")) as probe, \
+                mock.patch.object(module.sys, "stdout", output):
+            with self.assertRaises(module.CwhipkgError):
+                module.command_doctor()
+        self.assertIn(["explicit-missing-cc", "--version"], [call.args[0] for call in probe.call_args_list])
+        self.assertNotIn(["clang", "--version"], [call.args[0] for call in probe.call_args_list])
+        self.assertIn("Remedy:", output.getvalue())
 
     def test_git_failure_diagnostics_retain_both_streams_and_status(self) -> None:
         module = self.script_module()

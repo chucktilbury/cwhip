@@ -8,6 +8,8 @@
 - [Diagnostic contract and code registry](DIAGNOSTICS.md)
 - [Project package search order and user module directory](INSTALLATION.md#project-module-search)
 - [Project package manager (`cwhip-pkg`)](INSTALLATION.md#project-package-manager-cwhip-pkg)
+- [Read-only SDK and host checks (`cwhip-pkg doctor`)](INSTALLATION.md#check-the-sdk-and-host)
+- [Create a project (`cwhip-pkg new`)](INSTALLATION.md#create-a-project)
 - [Package manifests and lockfile schema](PACKAGES.md)
 - [Debugging Cwhip programs](DEBUGGING.md)
 - [Build and run examples](EXAMPLES.md)

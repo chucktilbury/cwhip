@@ -76,6 +76,12 @@ cwhip-pkg add OWNER/REPO --yes
 cwhip src/app.cw
 ```
 
+Use `cwhip-pkg doctor` for read-only SDK/host checks and
+`cwhip-pkg new MyApp` to download the public project template without Git
+history, rename its project/executable, and create a ready-to-build starter.
+`new` supports `--ref` and offline `--source` archives/directories; see
+[project creation](doc/INSTALLATION.md#create-a-project).
+
 No environment activation is needed. The manifest schema is in
 [`doc/PACKAGES.md`](doc/PACKAGES.md), and command behavior is documented in
 [`doc/INSTALLATION.md`](doc/INSTALLATION.md#project-package-manager-cwhip-pkg).

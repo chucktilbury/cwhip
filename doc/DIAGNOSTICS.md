@@ -87,9 +87,16 @@ These broad codes are not yet a promise of per-error classification.
 | PKG0002 | Python version too old, when the script can be parsed | 2 |
 | PKG1001 | Package/project/preferences validation or operation rejected (`CwhipkgError`) | 1 |
 | PKG1002 | Unwrapped filesystem/OS failure at the package command boundary | 1 |
+| PKG1003 | Invalid or reserved new-project name | 1 |
+| PKG1004 | Unsafe/existing project destination or missing destination parent | 1 |
+| PKG1005 | Missing, unsafe, oversized, corrupt or unsupported project template | 1 |
 | PKG2001 | Selected SDK standard package directory missing | 1 |
+| PKG2002 | One or more required doctor checks failed (per-check remedies on stdout) | 1 |
+| PKG2003 | Doctor SDK override/settings selection invalid or unreadable | 1 |
 | PKG3001 | Git missing or Git command failure (with context/status and both captured streams) | 1 |
+| PKG3002 | Template archive download failed or exceeded the transfer limit | 1 |
 | PKG9001 | Rollback could not restore configuration or remove an installed package | Original failure remains nonzero |
+| PKG9002 | New-project staging cleanup failed (staging path retained in diagnostic) | 1 |
 
 ### Coordinated application allocations
 
@@ -160,6 +167,9 @@ on stdout; it does not print an installation-success confirmation. Rollback
 errors are additional diagnostics and do not replace the original failure.
 Git failure detail preserves both captured streams (stdout then stderr);
 relative interleaving cannot be recovered from separate captures.
+`doctor` prints required/optional check results and remedies to stdout; failed
+required checks also emit PKG2002 on stderr. Optional GUI checks do not fail
+the command. Invalid SDK settings additionally emit PKG2003.
 
 Legacy boundaries intentionally retained:
 
