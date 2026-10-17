@@ -25,6 +25,15 @@ proof of concept and compiler-testing tool, not a production IDE/debugger.
 
 ## Implemented milestones
 
+### Unreleased: Relocatable application output directories
+
+The installed CMake SDK helper now accepts explicit executable and GtkSourceView
+resource output directories while preserving the existing `bin` and `share`
+defaults. Its package config exposes `Cwhip_APPLICATION_OUTPUT_DIRECTORIES` so
+consumers can reject older 0.0.1 SDK installs before using the new arguments.
+The SDK documentation describes cache-overridable application `bin`/`lib`
+locations and keeping GUI language resources beside the selected executable.
+
 ### September 28: A compiler foundation and an object model
 
 The initial commit already established the lexer, parser, AST, semantic

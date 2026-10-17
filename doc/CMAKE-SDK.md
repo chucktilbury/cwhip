@@ -42,9 +42,15 @@ has no cross-version compatibility guarantee:
 cmake_minimum_required(VERSION 3.24)
 project(example LANGUAGES C)
 find_package(Cwhip 0.0.1 EXACT CONFIG REQUIRED)
+if(NOT Cwhip_APPLICATION_OUTPUT_DIRECTORIES)
+  message(FATAL_ERROR "This Cwhip SDK lacks application output-directory support")
+endif()
+set(CWHIP_BIN_DIR "${CMAKE_CURRENT_BINARY_DIR}/bin" CACHE PATH "Application executable directory")
+set(CWHIP_LIB_DIR "${CMAKE_CURRENT_BINARY_DIR}/lib" CACHE PATH "Application library directory")
 add_library(native OBJECT native.c)
 target_include_directories(native PRIVATE "${Cwhip_INCLUDE_DIR}")
 cwhip_add_program(hello SOURCE "${CMAKE_CURRENT_SOURCE_DIR}/hello.cw"
+    OUTPUT_DIRECTORY "${CWHIP_BIN_DIR}"
     OBJECTS $<TARGET_OBJECTS:native> DEPENDS native)
 get_target_property(hello_binary hello CWHIP_EXECUTABLE)
 install(PROGRAMS "${hello_binary}" DESTINATION bin)
@@ -61,16 +67,30 @@ cmake --install example-build --prefix /chosen/example
 The config exposes `Cwhip_VERSION`, `Cwhip_PREFIX`, `Cwhip_COMPILER`,
 `Cwhip_PACKAGE_TOOL`, `Cwhip_INCLUDE_DIR`, `Cwhip_RUNTIME_LIBRARY`,
 `Cwhip_BUILTIN_DIR`, `Cwhip_MODULE_DIR`, `Cwhip_CLANG_EXECUTABLE`,
-`Cwhip_GTK` and `Cwhip_SOURCEVIEW`. Missing required resources, unavailable
-Python/Clang, wrong package version or a mismatched compiler executable fail
-configuration. Native bindings include public `cwhip/Stdlib.h`; applications
-do not include compiler implementation or package-private headers.
+`Cwhip_GTK`, `Cwhip_SOURCEVIEW` and `Cwhip_APPLICATION_OUTPUT_DIRECTORIES`.
+Missing required resources, unavailable Python/Clang, wrong package version
+or a mismatched compiler executable fail configuration. Native bindings include
+public `cwhip/Stdlib.h`; applications do not include compiler implementation
+or package-private headers.
 
-`cwhip_add_program(name SOURCE file [OUTPUT_NAME file] [OBJECTS objects...]
-[DEPENDS dependencies...])` creates an ALL custom target with executable
-`<current-binary-dir>/bin/name` (or OUTPUT_NAME). `CWHIP_EXECUTABLE` is its
-path; this is not a CMake native executable target or a custom language
-toolchain file. The helper copies the source file's directory as a private
+`cwhip_add_program(name SOURCE file [OUTPUT_NAME file] [OUTPUT_DIRECTORY dir]
+[OBJECTS objects...] [DEPENDS dependencies...])` creates an ALL custom target
+with executable `<current-binary-dir>/bin/name` by default, or in the supplied
+output directory. `CWHIP_EXECUTABLE` is its path; this is not a CMake native
+executable target or a custom language toolchain file. Consumers that use the
+new `OUTPUT_DIRECTORY` and `RESOURCE_DIRECTORY` arguments must check
+`Cwhip_APPLICATION_OUTPUT_DIRECTORIES` after `find_package`; older installed
+0.0.1 SDKs do not advertise or implement them. Define cache-overridable
+`CWHIP_BIN_DIR` and `CWHIP_LIB_DIR` in the application project, and pass the
+executable directory to `OUTPUT_DIRECTORY`. The library directory is for
+application-owned native libraries; it does not change the compiler SDK's
+runtime-library location. CMake may create native target output directories
+during generation, so if the final `bin` and `lib` directories must not exist
+until a build runs, direct native targets to private build directories and use
+build-time copy commands to stage their outputs in `CWHIP_BIN_DIR` or
+`CWHIP_LIB_DIR`.
+
+The helper copies the source file's directory as a private
 source project and locks the SDK's bundled standard packages with
 `cwhip-pkg init`. It sets private HOME/XDG configuration, clears legacy module
 overrides and selects this SDK's resources/Clang explicitly. There is no
@@ -86,15 +106,21 @@ reconfiguration (a new binary directory is simplest).
 
 ## GUI application resources
 
-Call `cwhip_require_sourceview()` before `cwhip_add_program` to require GUI
-bindings and host development libraries. It creates the
-`cwhip_language_resources` build target and installs the SDK's language
-definitions under `share/cwhip/modules/sourceview/0.1.0/language-specs`.
-Applications install executable files in `bin` and this resource tree in
-the same prefix; move the whole application prefix. GTK native code finds
-these definitions relative to the running executable, never through a
-compiler checkout or configured absolute SDK prefix. Flat test programs can
-instead carry the same `share` tree alongside the executable.
+Call `cwhip_require_sourceview([RESOURCE_DIRECTORY dir])` before
+`cwhip_add_program` to require GUI bindings and host development libraries.
+It creates the `cwhip_language_resources` build target and installs the SDK's
+language definitions under `share/cwhip/modules/sourceview/0.1.0/language-specs`.
+By default, the build copy is under `<current-binary-dir>/share`; when the
+executable directory is overridden, pass a `RESOURCE_DIRECTORY` under the
+parent of that directory so the resource tree remains a sibling of `bin`.
+For example, `${CWHIP_BIN_DIR}/../share/cwhip/modules/sourceview/0.1.0/language-specs`
+places it beside an executable directory named `bin`. Both output directories
+are created by their build targets, not during CMake configuration. Applications
+install executable files in `bin` and this resource tree in the same prefix;
+move the whole application prefix. GTK native code finds these definitions
+relative to the running executable, never through a compiler checkout or
+configured absolute SDK prefix. Flat test programs can instead carry the same
+`share` tree alongside the executable.
 
 Compiler-integrated editor/debugger targets remain legacy development
 examples, not the external application interface. Standalone cedit and cdbg
