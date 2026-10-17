@@ -323,6 +323,70 @@ root with its origin and order.
 
 ## Project package manager (`cwhip-pkg`)
 
+### Check the SDK and host
+
+`cwhip-pkg doctor` performs read-only checks without network access. It prints
+`PASS`/`FAIL` for required checks and `PASS`/`WARN` for optional checks, with
+remedies for failures. Exit status is 0 only if all required checks pass.
+It never creates or changes settings, package locks, or project files.
+
+SDK selection is a non-empty `CWHIP_SDK` override, then the top-level
+`sdk_prefix` in `$XDG_CONFIG_HOME/cwhip/settings.toml`, or
+`$HOME/.config/cwhip/settings.toml` when XDG is unset/empty. A non-empty XDG
+selects the only settings file, with no fallback to HOME. Invalid settings
+fail explicitly; an override bypasses settings. Selected prefixes must be
+absolute existing directories. Without either selection, doctor visibly
+checks the prefix containing its own executable; it does not emulate CMake's
+package search or silently select another installation.
+
+Required checks cover Python >=3.11, the compiler and its startup, runtime,
+public runtime/GC headers, String builtin, bundled standard packages, installed
+CMake config/version/helpers, Clang/`CC`, Git, and CMake >=3.24 (the template's
+minimum). `CC` must name a Clang driver executable, not a shell command;
+otherwise the build-configured Clang is selected, with visible PATH fallback
+if missing. GTK4 >=4.10 and GtkSourceView5 via `pkg-config` are optional GUI
+application-development checks. A staged compiler development tree without
+installed CMake SDK files fails those checks: install the complete prefix for
+external projects. Existing compiler resource overrides are not treated as a
+replacement for a complete SDK.
+
+### Create a project
+
+```sh
+cwhip-pkg new MyApp
+cmake -S MyApp -B MyApp/build
+cmake --build MyApp/build
+./MyApp/bin/MyApp
+```
+
+`new NAME [DIRECTORY]` downloads a tar archive of
+[`chucktilbury/cwhip-template`](https://github.com/chucktilbury/cwhip-template),
+not a Git clone. `--ref BRANCH_OR_TAG_OR_COMMIT` selects a ref (default `main`;
+the template currently has no release tags). Invoking `new` explicitly requests
+this download; it does not require the package installer's `--yes`. The template
+and GitHub service are trusted sources, not a sandbox for arbitrary build code.
+
+For offline creation, use `--source /path/to/template.tar.gz`,
+`--source /path/to/template.zip`, or `--source /path/to/template-directory`.
+This bypasses downloading entirely (`--ref` has no effect on a local source).
+The destination must be outside a local source directory to avoid copying the
+output into itself. Project names are ASCII identifiers starting with a letter,
+at most 128 characters; language keywords and CMake's reserved targets are
+rejected. The CMake project, executable target/references, and template Markdown
+names become NAME; the example source remains intact.
+
+The destination defaults to `./NAME`. Its parent must exist; an existing empty
+directory is allowed, but non-empty directories, files and symlink destinations
+are refused. Extraction rejects traversal, links (including internal links),
+special files and duplicate file entries. Archives are limited to 32 MiB,
+expanded content to 128 MiB, and entries to 10,000. Git metadata is omitted;
+no repository is initialized. Output is staged beside the destination and
+published only after validation/renaming, with partial staging removed on
+failure. The project uses your installed SDK; creation does not build or
+install the SDK or change user settings.
+
+### Manage dependencies
+
 Compiler and package CLI error headers follow the
 [diagnostic contract and code registry](DIAGNOSTICS.md). Diagnostics go to
 stderr, normal results to stdout; usage normally exits 2 and operation failure
