@@ -323,6 +323,12 @@ root with its origin and order.
 
 ## Project package manager (`cwhip-pkg`)
 
+Compiler and package CLI error headers follow the
+[diagnostic contract and code registry](DIAGNOSTICS.md). Diagnostics go to
+stderr, normal results to stdout; usage normally exits 2 and operation failure
+exits 1 (including the documented legacy exceptions in that contract).
+Compiler source-location lines and detailed backend failures remain available.
+
 `cwhip-pkg` is a small project manager and GitHub package installer. The
 compiler remains responsible for compiling and building programs; `cwhip-pkg`
 does not run programs or implement compiler build logic. It is installed beside

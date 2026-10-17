@@ -6,8 +6,26 @@
 #include "cwhip/Diagnostic.hpp"
 
 #include <utility>
+#include <iomanip>
+#include <sstream>
 
 namespace cwhip {
+
+std::string diagnosticPrefix(DiagnosticCode code, DiagnosticSeverity severity) {
+    std::ostringstream output;
+    output << "cwhip: "
+           << (severity == DiagnosticSeverity::Warning ? "warning" : "error")
+           << "[CWHIP" << std::setfill('0') << std::setw(4)
+           << static_cast<int>(code) << "]: ";
+    return output.str();
+}
+
+DriverError::DriverError(DiagnosticCode code, const std::string& message)
+    : std::runtime_error(message), code_(code) {}
+
+DiagnosticCode DriverError::code() const noexcept {
+    return code_;
+}
 
 std::string formatDiagnostic(const SourceLocation& location, const std::string& message) {
     return location.file + ":" + std::to_string(location.line) + ":" +
@@ -19,6 +37,12 @@ DiagnosticError::DiagnosticError(SourceLocation location, const std::string& mes
 
 const SourceLocation& DiagnosticError::location() const noexcept {
     return location_;
+}
+
+void reportDiagnostic(std::ostream& output, const DiagnosticError& diagnostic) {
+    // Keep the legacy source line intact for editors consuming compiler output.
+    output << diagnosticPrefix(DiagnosticCode::Source) << "source compilation failed\n"
+           << diagnostic.what() << '\n';
 }
 
 } // namespace cwhip

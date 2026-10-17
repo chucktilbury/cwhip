@@ -8,9 +8,34 @@
 #include "cwhip/SourceLocation.hpp"
 
 #include <stdexcept>
+#include <ostream>
 #include <string>
 
 namespace cwhip {
+
+enum class DiagnosticCode {
+    Usage = 1,
+    Input = 2,
+    Source = 1001,
+    Sdk = 2001,
+    CompilerSelection = 2002,
+    Backend = 3001,
+    Driver = 9001,
+};
+
+enum class DiagnosticSeverity { Error, Warning };
+
+std::string diagnosticPrefix(DiagnosticCode code,
+                             DiagnosticSeverity severity = DiagnosticSeverity::Error);
+
+class DriverError : public std::runtime_error {
+public:
+    DriverError(DiagnosticCode code, const std::string& message);
+    DiagnosticCode code() const noexcept;
+
+private:
+    DiagnosticCode code_;
+};
 
 class DiagnosticError : public std::runtime_error {
 public:
@@ -23,5 +48,6 @@ private:
 };
 
 std::string formatDiagnostic(const SourceLocation& location, const std::string& message);
+void reportDiagnostic(std::ostream& output, const DiagnosticError& diagnostic);
 
 } // namespace cwhip

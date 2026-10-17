@@ -5,6 +5,7 @@
 - [Cwhip language reference](LANGUAGE-REFERENCE.md)
 - [Bound-method callbacks and native callback ABI](CALLBACKS.md)
 - [Compiler build and installation](INSTALLATION.md)
+- [Diagnostic contract and code registry](DIAGNOSTICS.md)
 - [Project package search order and user module directory](INSTALLATION.md#project-module-search)
 - [Project package manager (`cwhip-pkg`)](INSTALLATION.md#project-package-manager-cwhip-pkg)
 - [Package manifests and lockfile schema](PACKAGES.md)

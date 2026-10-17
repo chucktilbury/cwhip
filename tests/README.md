@@ -59,6 +59,13 @@ case so CMake discovers it; no central test list needs editing.
 
 ## Unit and CLI tests
 
+`cwhip_cli_diagnostics` checks the compiler/package
+[diagnostic contract](../doc/DIAGNOSTICS.md): coded errors, preserved source and
+backend detail, stdout/stderr, exit status, and plain text on redirected output
+and a PTY with/without `NO_COLOR`. `cwhip-pkg_cli` includes offline Git failure
+detail and package rollback checks. Run the targeted checks with
+`ctest --test-dir build --output-on-failure -R 'cwhip_cli_diagnostics|cwhip-pkg_cli'`.
+
 `cwhip_developer_setup` runs `test_setup.py` for `scripts/setup`,
 `.project_env`, and the `build`/`rebuild`/`clean` helpers. It copies them to a
 temporary checkout path with spaces, uses an isolated `HOME`, stubs CMake, Git

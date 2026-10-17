@@ -25,6 +25,18 @@ proof of concept and compiler-testing tool, not a production IDE/debugger.
 
 ## Implemented milestones
 
+### Unreleased: Incremental compiler and package diagnostics
+
+Compiler CLI/source reporter and `cwhip-pkg` error boundaries now use tool-local
+diagnostic codes under the shared [diagnostic contract](DIAGNOSTICS.md).
+Source-location lines remain compatible with existing consumers; backend and
+Git failures retain their details instead of becoming success-shaped summaries.
+Headers are plain text, backend color is disabled for redirected output or
+`NO_COLOR`, and compiler-selection fallback is visible. The installed contract
+records the code registry, application allocations, exit behavior, and remaining
+legacy boundaries. Offline CLI, source reporter, and install checks cover this
+incremental adoption.
+
 ### Unreleased: MIT license
 
 The repository now includes the standard MIT license, with copyright
