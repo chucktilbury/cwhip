@@ -136,6 +136,21 @@ add_test(NAME cwhip_developer_setup
     COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/test_setup.py"
         --cmake "${CMAKE_COMMAND}")
 set_tests_properties(cwhip_developer_setup PROPERTIES LABELS setup TIMEOUT 180)
+add_test(NAME cwhip_sdk_application_output_directories
+    COMMAND "${CMAKE_COMMAND}"
+        "-DSOURCE_DIR=${CMAKE_SOURCE_DIR}"
+        "-DWORK_DIR=${CMAKE_CURRENT_BINARY_DIR}/sdk application output"
+        "-DHELPER=${CMAKE_SOURCE_DIR}/cmake/CwhipApplication.cmake"
+        "-DCOMPILER=$<TARGET_FILE:cwhip>"
+        "-DPACKAGE_TOOL=${CWHIP_RUNTIME_OUTPUT_DIRECTORY}/cwhip-pkg"
+        "-DRUNTIME_LIBRARY=$<TARGET_FILE:cwhip_runtime>"
+        "-DSTAGE_PREFIX=${CWHIP_STAGE_PREFIX}"
+        "-DINCLUDE_DIR=${CMAKE_SOURCE_DIR}/include"
+        "-DBUILTIN_DIR=${CWHIP_STAGE_PREFIX}/${CMAKE_INSTALL_DATADIR}/cwhip/builtin"
+        "-DMODULE_DIR=${CWHIP_STAGE_PREFIX}/${CMAKE_INSTALL_DATADIR}/cwhip/modules"
+        "-DHAS_SOURCEVIEW=${CWHIP_GTK_SOURCEVIEW}"
+        "-DCLANG=${CWHIP_CLANG_EXECUTABLE}"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/CwhipApplicationOutputTest.cmake")
 
 add_test(NAME cwhip_multi_input_compiler
     COMMAND "${CMAKE_COMMAND}"
