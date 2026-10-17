@@ -64,3 +64,12 @@ install(FILES doc/cwhip.1 DESTINATION "${CMAKE_INSTALL_DOCDIR}/doc")
 install(FILES tests/README.md DESTINATION "${CMAKE_INSTALL_DOCDIR}/tests")
 install(FILES stdlib/README.md DESTINATION "${CMAKE_INSTALL_DOCDIR}/stdlib")
 install(FILES doc/cwhip.1 DESTINATION "${CMAKE_INSTALL_MANDIR}/man1")
+
+# Record the real install prefix (not DESTDIR-staged) in the user's settings.toml.
+option(CWHIP_REGISTER_SDK "Record sdk_prefix in settings.toml on install" ON)
+if(CWHIP_REGISTER_SDK)
+    install(CODE "
+        include(\"${CMAKE_SOURCE_DIR}/cmake/CwhipRegisterSdk.cmake\")
+        cwhip_register_sdk(\"\${CMAKE_INSTALL_PREFIX}\")
+    ")
+endif()
