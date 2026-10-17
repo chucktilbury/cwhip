@@ -100,3 +100,9 @@ Initialized projects are checked for `cwhip-pkg.toml` and a generated `cwhip-pkg
 that locks standard modules without listing `String` as a package. Tests use
 isolated HOME/XDG directories and exercise home-package lookup without relying
 on the developer's configuration.
+
+`cwhip_install_path_boundaries` checks canonical source/build containment before
+temporary directories are created, including symlinks and normalized paths.
+Install tests require `TMPDIR` (or `/tmp`) outside both trees; similarly prefixed
+sibling directories such as `cwhip` and `cwhip-workspace` are allowed. Their
+output checks still reject references to the source/build roots or their files.

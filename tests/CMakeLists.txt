@@ -378,6 +378,10 @@ add_test(NAME cwhip_include_max_depth_flag
         "${CMAKE_CURRENT_SOURCE_DIR}/functional/negative/negative_include_max_depth.cw"
 )
 
+add_test(NAME cwhip_install_path_boundaries
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/test_install_paths.py"
+        --cmake "${CMAKE_COMMAND}")
+
 # Install cases need the complete project build, so standalone tests builds skip them.
 if(NOT CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
     file(GLOB install_case_files CONFIGURE_DEPENDS

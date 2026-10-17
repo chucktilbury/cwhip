@@ -7,21 +7,21 @@ foreach(required IN ITEMS BUILD_DIR SOURCE_DIR FIXTURE MODULE_FIXTURE EXPECTED_O
     endif()
 endforeach()
 
+include("${CMAKE_CURRENT_LIST_DIR}/InstallLayoutPaths.cmake")
+
 if(DEFINED ENV{TMPDIR} AND IS_DIRECTORY "$ENV{TMPDIR}")
     set(temporary_root "$ENV{TMPDIR}")
 else()
     set(temporary_root "/tmp")
 endif()
+get_filename_component(temporary_root "${temporary_root}" REALPATH)
 string(RANDOM LENGTH 12 random_suffix)
 set(work_directory "${temporary_root}/cwhip-install-test-${random_suffix}")
-file(REMOVE_RECURSE "${work_directory}")
+require_external_install_directory("${work_directory}")
+if(EXISTS "${work_directory}" OR IS_SYMLINK "${work_directory}")
+    message(FATAL_ERROR "Install test work directory already exists: ${work_directory}")
+endif()
 file(MAKE_DIRECTORY "${work_directory}")
-foreach(forbidden_root IN ITEMS "${SOURCE_DIR}" "${BUILD_DIR}")
-    string(FIND "${work_directory}" "${forbidden_root}" nested_position)
-    if(nested_position EQUAL 0)
-        message(FATAL_ERROR "Install test work directory must be outside ${forbidden_root}")
-    endif()
-endforeach()
 
 set(clean_environment
     --unset=CWHIP_HOME --unset=CWHIP_RUNTIME_DIR --unset=CWHIP_INCLUDE_DIR
@@ -64,16 +64,6 @@ function(require_installed_layout prefix)
     if(cwhip_files_under_include)
         message(FATAL_ERROR "Found .cw files installed under include: ${cwhip_files_under_include}")
     endif()
-endfunction()
-
-function(require_no_tree_references text context)
-    foreach(forbidden_root IN ITEMS "${SOURCE_DIR}" "${BUILD_DIR}")
-        string(FIND "${text}" "${forbidden_root}" reference_position)
-        if(NOT reference_position EQUAL -1)
-            message(FATAL_ERROR
-                "${context} references the source or build tree ${forbidden_root}:\n${text}")
-        endif()
-    endforeach()
 endfunction()
 
 # DESTDIR staging must place every file below DESTDIR.
