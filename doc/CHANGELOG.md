@@ -25,6 +25,11 @@ proof of concept and compiler-testing tool, not a production IDE/debugger.
 
 ## Implemented milestones
 
+### Unreleased: MIT license
+
+The repository now includes the standard MIT license, with copyright
+attribution to Charles Tilbury for 2026.
+
 ### Unreleased: Relocatable application output directories
 
 The installed CMake SDK helper now accepts explicit executable and GtkSourceView
