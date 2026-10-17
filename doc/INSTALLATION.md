@@ -236,6 +236,26 @@ environment alias is supported: rebuild and reinstall the compiler and its
 resources together, and update any resource overrides. `CWHIP_BUILTIN_DIR`
 names the directory containing `String.cw`, not a project package root.
 
+### SDK location setting
+
+A real (non-`DESTDIR`) `cmake --install` records the install prefix as a
+top-level string in `$XDG_CONFIG_HOME/cwhip/settings.toml` (or
+`~/.config/cwhip/settings.toml` when `XDG_CONFIG_HOME` is unset/empty):
+
+```toml
+sdk_prefix = "/usr/local"
+```
+
+The value is the complete install prefix containing `bin/`,
+`lib/cmake/Cwhip`, and the runtime resources, honoring `CMAKE_INSTALL_PREFIX`
+and `cmake --install --prefix`. Parent directories are created, the key is
+replaced in place or added above the first table, and other settings and
+comments are preserved. Failures (relative prefix, no `HOME`, unwritable
+directory, a multi-line `sdk_prefix` value) fail the install. A `DESTDIR`
+install never writes the setting because the staged path is not a runtime
+prefix. Disable the step with `-DCWHIP_REGISTER_SDK=OFF`.
+The `CWHIP_SDK` environment variable overrides the `sdk_prefix` setting.
+
 ## Breaking path changes
 
 Use the `cwhip-pkg` command with a `cwhip-pkg.toml` manifest and
