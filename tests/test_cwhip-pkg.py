@@ -7,6 +7,7 @@ import argparse
 import hashlib
 import importlib.machinery
 import importlib.util
+import io
 import json
 import os
 from pathlib import Path
@@ -195,6 +196,46 @@ class CwhipkgTest(unittest.TestCase):
             self.assertEqual(len(entry["sha256"]), 64)
         verified = self.run_cwhip_pkg("install")
         self.assertEqual(verified.returncode, 0, verified.stderr)
+
+    def test_git_failure_diagnostics_retain_both_streams_and_status(self) -> None:
+        module = self.script_module()
+        failure = subprocess.CalledProcessError(
+            17, ["git"], output="stdout detail\n",
+            stderr="fatal: repository unavailable\n  upstream note\n",
+        )
+        with mock.patch.object(module.subprocess, "run", side_effect=failure):
+            with self.assertRaises(module.CwhipkgError) as caught:
+                module.run_git(["ls-remote"], error_context="could not list package tags")
+        self.assertEqual(caught.exception.code, "PKG3001")
+        self.assertIn("could not list package tags (git exit status 17)", str(caught.exception))
+        self.assertIn("stdout detail\n", str(caught.exception))
+        self.assertIn("fatal: repository unavailable\n  upstream note\n", str(caught.exception))
+        with mock.patch.object(module.subprocess, "run", side_effect=FileNotFoundError):
+            with self.assertRaises(module.CwhipkgError) as caught:
+                module.run_git(["ls-remote"], error_context="could not list package tags")
+        self.assertEqual(caught.exception.code, "PKG3001")
+        self.assertIn("install git", str(caught.exception))
+
+        result = self.run_cwhip_pkg("add", "acme/unmapped", "1.0.0", "--yes")
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("cwhip-pkg: error[PKG3001]: ", result.stderr)
+        self.assertIn("git exit status 1", result.stderr)
+        self.assertIn("test git: unmapped remote", result.stderr)
+        self.assertNotIn("Installed graph", result.stdout)
+        self.assertNotIn("Traceback", result.stderr)
+
+    def test_rollback_diagnostic_does_not_hide_original_failure(self) -> None:
+        module = self.script_module()
+        stderr = io.StringIO()
+        with mock.patch.object(module, "atomic_write",
+                               side_effect=OSError("injected write failure")), \
+                mock.patch.object(module.sys, "stderr", stderr):
+            with self.assertRaisesRegex(OSError, "injected write failure"):
+                module.persist(self.project, self.lock()["packages"], {})
+        self.assertIn("cwhip-pkg: error[PKG9001]: rollback could not restore ",
+                      stderr.getvalue())
+        self.assertIn("cwhip-pkg.lock", stderr.getvalue())
+        self.assertIn("injected write failure", stderr.getvalue())
 
     def test_init_locks_standard_modules_and_keeps_string_inheritance_builtin(self) -> None:
         self.assertEqual(self.project_manifest(), {"schema": 1, "sources": {}})

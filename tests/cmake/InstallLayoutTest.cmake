@@ -52,6 +52,7 @@ function(require_installed_layout prefix)
             "${DATADIR}/cwhip/builtin/String.cw"
             "${DOCDIR}/README.md"
             "${DOCDIR}/CWHIP-LANGUAGE-NOTES.md"
+            "${DOCDIR}/doc/DIAGNOSTICS.md"
             "${MANDIR}/man1/cwhip.1")
         if(NOT EXISTS "${prefix}/${installed_file}")
             message(FATAL_ERROR "Install is missing ${prefix}/${installed_file}")

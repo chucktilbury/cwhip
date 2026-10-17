@@ -4,4 +4,4 @@ set(CASE_NO_SOURCE ON)
 set(CASE_NO_RUN ON)
 set(CASE_ARGUMENTS --package-path old-modules)
 set(CASE_EXPECTED_DIAGNOSTIC
-    [==[cwhip: --package-path is no longer supported; use -M/--module-dir]==])
+    [==[cwhip: error\[CWHIP0001\]: --package-path is no longer supported; use -M/--module-dir]==])

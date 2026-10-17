@@ -14,6 +14,28 @@ namespace {
 using namespace cwhip_test;
 
 const TestGroupRegistration registration{2, {
+        {"CLI diagnostic summary preserves source and upstream notes", [] {
+             const cwhip::DiagnosticError error(
+                 {"detail.cw", 3, 4}, "invalid value\n  value\n  ^\nnote: declared here");
+             std::ostringstream output;
+             cwhip::reportDiagnostic(output, error);
+             require(output.str() ==
+                         "cwhip: error[CWHIP1001]: source compilation failed\n"
+                         "detail.cw:3:4: error: invalid value\n  value\n  ^\n"
+                         "note: declared here\n",
+                     "CLI reporter lost source details");
+             require(error.location().line == 3 && error.location().column == 4,
+                     "CLI reporter changed source location");
+         }},
+        {"CLI diagnostic prefixes", [] {
+             require(cwhip::diagnosticPrefix(cwhip::DiagnosticCode::Usage) ==
+                         "cwhip: error[CWHIP0001]: ",
+                     "usage code was not zero-padded");
+             require(cwhip::diagnosticPrefix(cwhip::DiagnosticCode::CompilerSelection,
+                                             cwhip::DiagnosticSeverity::Warning) ==
+                         "cwhip: warning[CWHIP2002]: ",
+                     "compiler selection warning was not formatted correctly");
+         }},
         {"diagnostic source location", [] {
              try {
                  cwhip::Lexer lexer("start {\n @\n}", "location.cw");

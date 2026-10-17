@@ -131,6 +131,10 @@ add_test(NAME cwhip-pkg_cli
         --cwhip-pkg "${CWHIP_RUNTIME_OUTPUT_DIRECTORY}/cwhip-pkg"
         --compiler "$<TARGET_FILE:cwhip>"
 )
+add_test(NAME cwhip_cli_diagnostics
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/test_cli_diagnostics.py"
+        --compiler "$<TARGET_FILE:cwhip>"
+        --package-tool "${CWHIP_RUNTIME_OUTPUT_DIRECTORY}/cwhip-pkg")
 
 add_test(NAME cwhip_developer_setup
     COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/test_setup.py"

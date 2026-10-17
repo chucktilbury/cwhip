@@ -14,6 +14,11 @@ import stat
 import subprocess
 import sys
 import tempfile
+
+if sys.version_info < (3, 11):
+    print("cwhip-pkg: error[PKG0002]: Python 3.11 or newer is required", file=sys.stderr)
+    raise SystemExit(2)
+
 import tomllib
 
 
@@ -40,6 +45,21 @@ CWHIP_KEYWORDS = {
 
 class CwhipkgError(Exception):
     """An actionable package-manager error."""
+
+    def __init__(self, message: str, *, code: str = "PKG1001") -> None:
+        super().__init__(message)
+        self.code = code
+
+
+def report_error(code: str, message: str) -> None:
+    print(f"cwhip-pkg: error[{code}]: {message}", file=sys.stderr)
+
+
+class DiagnosticArgumentParser(argparse.ArgumentParser):
+    def error(self, message: str) -> None:
+        report_error("PKG0001", message)
+        self.print_usage(sys.stderr)
+        self.exit(2)
 
 
 def valid_identifier(value: object) -> bool:
@@ -241,7 +261,9 @@ def user_modules_directory() -> Path | None:
 def discover_standard_modules(root: Path) -> dict[str, list[str]]:
     if not root.is_dir():
         raise CwhipkgError(
-            f"standard modules are missing from {root}; reinstall cwhip or set up its resources"
+            f"standard packages are missing from {root}; check the SDK prefix "
+            "(CWHIP_HOME) or CWHIP_STDLIB_MODULE_DIR",
+            code="PKG2001",
         )
     modules: dict[str, list[str]] = {}
     for package_dir in sorted(root.iterdir()):
@@ -305,7 +327,7 @@ def parse_github_repository(value: str) -> tuple[str, str, str]:
 def run_git(arguments: list[str], *, error_context: str) -> subprocess.CompletedProcess[str]:
     try:
         result = subprocess.run(
-            ["git", "-c", "core.hooksPath=/dev/null", *arguments],
+            ["git", "-c", "core.hooksPath=/dev/null", "-c", "color.ui=false", *arguments],
             check=True,
             text=True,
             stdout=subprocess.PIPE,
@@ -313,10 +335,17 @@ def run_git(arguments: list[str], *, error_context: str) -> subprocess.Completed
             env={**os.environ, "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": os.devnull},
         )
     except FileNotFoundError as error:
-        raise CwhipkgError("git is required; install git and ensure it is on PATH") from error
+        raise CwhipkgError(
+            "git is required; install git and ensure it is on PATH", code="PKG3001"
+        ) from error
     except subprocess.CalledProcessError as error:
-        details = error.stderr.strip() or error.stdout.strip() or str(error)
-        raise CwhipkgError(f"{error_context}: {details}") from error
+        details = "".join(
+            f"\n{stream}" for stream in (error.stdout, error.stderr) if stream
+        )
+        raise CwhipkgError(
+            f"{error_context} (git exit status {error.returncode}){details}",
+            code="PKG3001",
+        ) from error
     return result
 
 
@@ -811,14 +840,14 @@ def persist(project: Path, packages: dict, staged: dict, manifest_content: str |
                 else:
                     atomic_write(path, original)
             except OSError as error:
-                print(f"cwhip-pkg: rollback could not restore {path}: {error}", file=sys.stderr)
+                report_error("PKG9001", f"rollback could not restore {path}: {error}")
         for path in reversed(created):
             if path.is_dir():
                 if path.name in {entry["version"] for entry in packages.values()}:
                     try:
                         shutil.rmtree(path)
                     except OSError as error:
-                        print(f"cwhip-pkg: rollback could not remove {path}: {error}", file=sys.stderr)
+                        report_error("PKG9001", f"rollback could not remove {path}: {error}")
                 else:
                     try:
                         path.rmdir()
@@ -959,7 +988,7 @@ def command_list() -> None:
 
 
 def parse_arguments() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(
+    parser = DiagnosticArgumentParser(
         prog="cwhip-pkg",
         description="Prepare project modules and environment for the Cwhip compiler.",
     )
@@ -981,9 +1010,6 @@ def parse_arguments() -> argparse.Namespace:
 
 
 def main() -> int:
-    if sys.version_info < (3, 11):
-        print("cwhip-pkg: Python 3.11 or newer is required", file=sys.stderr)
-        return 2
     arguments = parse_arguments()
     try:
         if arguments.command == "init":
@@ -996,8 +1022,11 @@ def main() -> int:
             command_env(arguments.preferences)
         elif arguments.command == "list":
             command_list()
-    except (CwhipkgError, OSError) as error:
-        print(f"cwhip-pkg: {error}", file=sys.stderr)
+    except CwhipkgError as error:
+        report_error(error.code, str(error))
+        return 1
+    except OSError as error:
+        report_error("PKG1002", str(error))
         return 1
     return 0
 

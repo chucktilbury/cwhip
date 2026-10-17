@@ -36,6 +36,9 @@
 
 namespace {
 
+using cwhip::DiagnosticCode;
+using cwhip::diagnosticPrefix;
+
 void addSwitch(cwhip::CommandLine& commandLine, char shortName,
                const std::string& longName, const std::string& name,
                const std::string& description,
@@ -212,13 +215,19 @@ constexpr std::size_t phaseVerbosity = 1;
 constexpr std::size_t pathVerbosity = 2;
 constexpr std::size_t timingVerbosity = 3;
 
-cwhip::ResolvedPath compilerExecutable() {
+cwhip::ResolvedPath compilerExecutable(bool reportFallback = false) {
     if (const auto configuredCompiler = cwhip::processEnvironment("CC")) {
         return {*configuredCompiler, "CC"};
     }
     std::error_code error;
     if (std::filesystem::is_regular_file(CWHIP_CLANG_EXECUTABLE, error)) {
         return {CWHIP_CLANG_EXECUTABLE, "configured at build time"};
+    }
+    if (reportFallback) {
+        std::cerr << diagnosticPrefix(DiagnosticCode::CompilerSelection,
+                                      cwhip::DiagnosticSeverity::Warning)
+                  << "configured compiler " CWHIP_CLANG_EXECUTABLE
+                     " is missing; selecting clang via PATH; set CC to select explicitly\n";
     }
     return {"clang", "PATH lookup; configured " CWHIP_CLANG_EXECUTABLE " is missing"};
 }
@@ -302,14 +311,18 @@ void requireResource(const std::filesystem::path& path, const std::string& descr
                      const std::string& overrideVariable) {
     std::error_code error;
     if (!std::filesystem::exists(path, error)) {
-        throw std::runtime_error(description + " not found: " + path.string() + "; set " +
-                                 overrideVariable + " or CWHIP_HOME, or run --print-paths");
+        throw cwhip::DriverError(
+            DiagnosticCode::Sdk, description + " not found: " + path.string() + "; set " +
+                overrideVariable + " or CWHIP_HOME, or run --print-paths");
     }
 }
 
 int runCompiler(const BuildContext& context, const std::vector<std::string>& arguments,
                 const std::string& operation) {
     std::string command = shellQuote(context.compiler.string());
+    if (std::getenv("NO_COLOR") != nullptr || !isatty(STDERR_FILENO)) {
+        command += " -fno-color-diagnostics";
+    }
     if (CWHIP_COVERAGE &&
         std::find(arguments.begin(), arguments.end(), "-r") == arguments.end()) {
         command += " -fprofile-instr-generate -fcoverage-mapping";
@@ -321,14 +334,17 @@ int runCompiler(const BuildContext& context, const std::vector<std::string>& arg
     }
     for (const auto& argument : arguments) command += " " + shellQuote(argument);
     if (context.verbosity >= pathVerbosity) std::cerr << "[command] " << command << '\n';
+    command += " 1>&2";
     const int status = std::system(command.c_str());
     if (status == -1) {
-        std::cerr << "cwhip: could not start compiler " << context.compiler.string() << '\n';
+        std::cerr << diagnosticPrefix(DiagnosticCode::Backend)
+                  << "could not start compiler " << context.compiler.string() << '\n';
         return 1;
     }
     if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) {
         const int exitCode = WIFEXITED(status) ? WEXITSTATUS(status) : 128;
-        std::cerr << "cwhip: compiler failed to " << operation
+        std::cerr << diagnosticPrefix(DiagnosticCode::Backend)
+                  << "compiler " << context.compiler.string() << " failed to " << operation
                   << " (exit status " << exitCode << ")\n";
         return 1;
     }
@@ -508,14 +524,16 @@ int main(int argc, char** argv) {
     for (int index = 1; index < argc; ++index) arguments.emplace_back(argv[index]);
     for (const auto& argument : arguments) {
         if (argument == "--package-path" || argument.rfind("--package-path=", 0) == 0) {
-            std::cerr << "cwhip: --package-path is no longer supported; use -M/--module-dir\n";
+            std::cerr << diagnosticPrefix(DiagnosticCode::Usage)
+                      << "--package-path is no longer supported; use -M/--module-dir\n";
             return 2;
         }
     }
     try {
         commandLine.parse(arguments);
     } catch (const std::invalid_argument& error) {
-        std::cerr << "cwhip: " << error.what() << '\n' << commandLine.helpText();
+        std::cerr << diagnosticPrefix(DiagnosticCode::Usage)
+                  << error.what() << '\n' << commandLine.helpText();
         return 2;
     }
     if (commandLine.action() == cwhip::CommandLineAction::Help) {
@@ -542,7 +560,8 @@ int main(int argc, char** argv) {
         else if (normalized == "ast") dump = true;
         else if (normalized == "symbols") dumpSymbols = true;
         else {
-            std::cerr << "cwhip: unsupported trace target: " << target
+            std::cerr << diagnosticPrefix(DiagnosticCode::Usage)
+                      << "unsupported trace target: " << target
                       << " (expected scanner, parser, ast, or symbols)\n"
                       << commandLine.helpText();
             return 2;
@@ -555,18 +574,21 @@ int main(int argc, char** argv) {
     std::size_t verbosity = commandLine.count("verbose");
     if (const auto verbosityValue = commandLine.value("verbosity")) {
         if (verbosity != 0) {
-            std::cerr << "cwhip: -v and --verbosity cannot be used together\n";
+            std::cerr << diagnosticPrefix(DiagnosticCode::Usage)
+                      << "-v and --verbosity cannot be used together\n";
             return 2;
         }
         try {
             verbosity = parseNonNegativeInteger(*verbosityValue, "--verbosity");
         } catch (const std::invalid_argument& error) {
-            std::cerr << "cwhip: " << error.what() << '\n' << commandLine.helpText();
+            std::cerr << diagnosticPrefix(DiagnosticCode::Usage)
+                      << error.what() << '\n' << commandLine.helpText();
             return 2;
         }
     }
     if (verbosity > maximumVerbosity) {
-        std::cerr << "cwhip: verbosity level " << verbosity << " exceeds the maximum of "
+        std::cerr << diagnosticPrefix(DiagnosticCode::Usage)
+                  << "verbosity level " << verbosity << " exceeds the maximum of "
                   << maximumVerbosity << '\n';
         return 2;
     }
@@ -576,12 +598,14 @@ int main(int argc, char** argv) {
         maximumIncludeDepth = parseNonNegativeInteger(
             *commandLine.value("max-include-depth"), "--max-include-depth");
     } catch (const std::invalid_argument& error) {
-        std::cerr << "cwhip: " << error.what() << '\n' << commandLine.helpText();
+        std::cerr << diagnosticPrefix(DiagnosticCode::Usage)
+                  << error.what() << '\n' << commandLine.helpText();
         return 2;
     }
     const auto& positionalValues = commandLine.positionalValues();
     if (positionalValues.empty() && !printPaths) {
-        std::cerr << "cwhip: required argument not found: input\n" << commandLine.helpText();
+        std::cerr << diagnosticPrefix(DiagnosticCode::Usage)
+                  << "required argument not found: input\n" << commandLine.helpText();
         return 2;
     }
     const auto requestedOutput = commandLine.value("output").value_or("");
@@ -593,53 +617,64 @@ int main(int argc, char** argv) {
         if (extension == ".cw") sourcePaths.push_back(path);
         else if (extension == ".o" || extension == ".obj") objectPaths.push_back(path);
         else {
-            std::cerr << "cwhip: unsupported input file type: " << path
+            std::cerr << diagnosticPrefix(DiagnosticCode::Usage)
+                      << "unsupported input file type: " << path
                       << " (expected .cw, .cw, .o, or .obj)\n";
             return 2;
         }
         std::ifstream input(path, std::ios::binary);
         if (!input) {
-            std::cerr << "cwhip: cannot open input file: " << path << '\n';
+            std::cerr << diagnosticPrefix(DiagnosticCode::Input)
+                      << "cannot open input file: " << path << '\n';
             return 2;
         }
     }
     const auto& libraryPaths = commandLine.values("library-path");
     const auto& libraries = commandLine.values("library");
     if (compileOnly && !objectPaths.empty()) {
-        std::cerr << "cwhip: -c accepts source inputs only; object files are link inputs\n";
+        std::cerr << diagnosticPrefix(DiagnosticCode::Usage)
+                  << "-c accepts source inputs only; object files are link inputs\n";
         return 2;
     }
     if (compileOnly && (!libraryPaths.empty() || !libraries.empty())) {
-        std::cerr << "cwhip: -L and -l cannot be used with -c\n";
+        std::cerr << diagnosticPrefix(DiagnosticCode::Usage)
+                  << "-L and -l cannot be used with -c\n";
         return 2;
     }
     if (checkOnly && sourcePaths.size() != positionalValues.size()) {
-        std::cerr << "cwhip: --check-only accepts source inputs only\n";
+        std::cerr << diagnosticPrefix(DiagnosticCode::Usage)
+                  << "--check-only accepts source inputs only\n";
         return 2;
     }
     if (checkOnly && compileOnly) {
-        std::cerr << "cwhip: --check-only cannot be used with -c\n";
+        std::cerr << diagnosticPrefix(DiagnosticCode::Usage)
+                  << "--check-only cannot be used with -c\n";
         return 2;
     }
     if (checkOnly && (!requestedOutput.empty() || !irOutput.empty())) {
-        std::cerr << "cwhip: output options cannot be used with --check-only\n";
+        std::cerr << diagnosticPrefix(DiagnosticCode::Usage)
+                  << "output options cannot be used with --check-only\n";
         return 2;
     }
     if (checkOnly && (!libraryPaths.empty() || !libraries.empty())) {
-        std::cerr << "cwhip: -L and -l cannot be used with --check-only\n";
+        std::cerr << diagnosticPrefix(DiagnosticCode::Usage)
+                  << "-L and -l cannot be used with --check-only\n";
         return 2;
     }
     if (compileOnly && sourcePaths.empty()) {
-        std::cerr << "cwhip: -c requires at least one .cw or .cw source input\n";
+        std::cerr << diagnosticPrefix(DiagnosticCode::Usage)
+                  << "-c requires at least one .cw or .cw source input\n";
         return 2;
     }
     if (sourcePaths.empty() && !irOutput.empty()) {
-        std::cerr << "cwhip: --emit-llvm requires at least one .cw or .cw source input\n";
+        std::cerr << diagnosticPrefix(DiagnosticCode::Usage)
+                  << "--emit-llvm requires at least one .cw or .cw source input\n";
         return 2;
     }
     for (const auto& library : libraries) {
         if (library.empty() || library.front() == '-') {
-            std::cerr << "cwhip: -l requires a library name without the -l prefix\n";
+            std::cerr << diagnosticPrefix(DiagnosticCode::Usage)
+                      << "-l requires a library name without the -l prefix\n";
             return 2;
         }
     }
@@ -662,7 +697,7 @@ int main(int argc, char** argv) {
         moduleSearchPaths = cwhip::resolveModuleSearchPaths(moduleRequest, resources,
                                                            cwhip::processEnvironment);
     } catch (const std::exception& error) {
-        std::cerr << "cwhip: " << error.what() << '\n';
+        std::cerr << diagnosticPrefix(DiagnosticCode::Sdk) << error.what() << '\n';
         return 1;
     }
     if (printPaths) {
@@ -673,12 +708,18 @@ int main(int argc, char** argv) {
         writeResolvedPaths(std::cerr, "[paths] ", resources, moduleSearchPaths);
     }
     BuildContext buildContext;
-    buildContext.compiler = compilerExecutable().path;
+    buildContext.compiler = compilerExecutable(!checkOnly).path;
     buildContext.includeDirectory = resources.includeDirectory.path;
     buildContext.runtimeLibrary = resources.runtimeLibrary;
     buildContext.verbosity = verbosity;
 
     std::vector<std::string> temporaryPaths;
+    const auto cleanupTemporaryPaths = [&temporaryPaths] {
+        for (const auto& temporary : temporaryPaths) {
+            std::error_code ignored;
+            std::filesystem::remove(temporary, ignored);
+        }
+    };
     try {
         cwhip::validateModuleSearchPaths(moduleSearchPaths);
         std::optional<PhaseTimer> frontendTimer;
@@ -687,7 +728,8 @@ int main(int argc, char** argv) {
         for (const auto& inputPath : sourcePaths) {
             std::ifstream input(inputPath, std::ios::binary);
             if (!input) {
-                std::cerr << "cwhip: cannot open input file: " << inputPath << '\n';
+                std::cerr << diagnosticPrefix(DiagnosticCode::Input)
+                          << "cannot open input file: " << inputPath << '\n';
                 return 2;
             }
             const std::string source((std::istreambuf_iterator<char>(input)),
@@ -696,7 +738,8 @@ int main(int argc, char** argv) {
             std::error_code pathError;
             const auto canonicalInput = std::filesystem::canonical(inputPath, pathError);
             if (pathError) {
-                std::cerr << "cwhip: cannot resolve input file: " << inputPath << '\n';
+                std::cerr << diagnosticPrefix(DiagnosticCode::Input)
+                          << "cannot resolve input file: " << inputPath << '\n';
                 return 2;
             }
             includedFiles.insert(canonicalInput.string());
@@ -884,10 +927,7 @@ int main(int argc, char** argv) {
                 packageInputs.libraries, libraryPaths, libraries, outputPath, debug);
         }
         backendTimer.reset();
-        for (const auto& temporary : temporaryPaths) {
-            std::error_code ignored;
-            std::filesystem::remove(temporary, ignored);
-        }
+        cleanupTemporaryPaths();
         if (buildResult != 0) return 1;
         if (verbose) {
             std::cerr << "[verbose] semantic analysis succeeded; "
@@ -898,14 +938,16 @@ int main(int argc, char** argv) {
             std::cout << "cwhip: built " << outputPath << '\n';
         }
     } catch (const cwhip::DiagnosticError& diagnostic) {
-        std::cerr << diagnostic.what() << '\n';
+        cwhip::reportDiagnostic(std::cerr, diagnostic);
+        cleanupTemporaryPaths();
+        return 1;
+    } catch (const cwhip::DriverError& error) {
+        std::cerr << diagnosticPrefix(error.code()) << error.what() << '\n';
+        cleanupTemporaryPaths();
         return 1;
     } catch (const std::exception& error) {
-        std::cerr << "cwhip: " << error.what() << '\n';
-        for (const auto& temporary : temporaryPaths) {
-            std::error_code ignored;
-            std::filesystem::remove(temporary, ignored);
-        }
+        std::cerr << diagnosticPrefix(DiagnosticCode::Driver) << error.what() << '\n';
+        cleanupTemporaryPaths();
         return 1;
     }
     return 0;
