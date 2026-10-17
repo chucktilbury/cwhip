@@ -22,7 +22,10 @@ endfunction()
 
 # The prototype SDK is exact-versioned until its language/runtime ABI stabilizes.
 function(cwhip_add_program target)
-    cmake_parse_arguments(APP "" "SOURCE;OUTPUT_NAME" "OBJECTS;DEPENDS" ${ARGN})
+    cmake_parse_arguments(APP "" "SOURCE;OUTPUT_NAME;OUTPUT_DIRECTORY" "OBJECTS;DEPENDS" ${ARGN})
+    if(APP_UNPARSED_ARGUMENTS OR APP_KEYWORDS_MISSING_VALUES)
+        message(FATAL_ERROR "Invalid cwhip_add_program arguments: ${ARGN}")
+    endif()
     if(NOT APP_SOURCE)
         message(FATAL_ERROR "cwhip_add_program(${target}) requires SOURCE")
     endif()
@@ -39,8 +42,14 @@ function(cwhip_add_program target)
     if(generated_source OR NOT EXISTS "${source}")
         message(FATAL_ERROR "cwhip_add_program requires an existing source file outside the binary tree: ${source}")
     endif()
+    if(APP_OUTPUT_DIRECTORY)
+        get_filename_component(output_directory "${APP_OUTPUT_DIRECTORY}" ABSOLUTE
+            BASE_DIR "${CMAKE_CURRENT_BINARY_DIR}")
+    else()
+        set(output_directory "${CMAKE_CURRENT_BINARY_DIR}/bin")
+    endif()
     set(work "${CMAKE_CURRENT_BINARY_DIR}/${target}-project")
-    set(output "${CMAKE_CURRENT_BINARY_DIR}/bin/${APP_OUTPUT_NAME}")
+    set(output "${output_directory}/${APP_OUTPUT_NAME}")
     file(MAKE_DIRECTORY "${work}/home" "${work}/xdg" "${work}/data"
         "${work}/cache" "${work}/state" "${work}/modules")
     _cwhip_collect_sources("${source_dir}" inputs)
@@ -69,7 +78,7 @@ function(cwhip_add_program target)
         DEPENDS "${Cwhip_PACKAGE_TOOL}" ${sdk_inputs} "${work}/inputs.txt"
         VERBATIM)
     add_custom_command(OUTPUT "${output}"
-        COMMAND "${CMAKE_COMMAND}" -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/bin"
+        COMMAND "${CMAKE_COMMAND}" -E make_directory "${output_directory}"
         COMMAND "${CMAKE_COMMAND}" "-Dsource_dir=${source_dir}"
             "-Doutput_dir=${work}/src" "-Dinventory=${work}/source-inputs.cmake"
             -P "${stage_sources}"
@@ -91,6 +100,10 @@ function(cwhip_add_program target)
 endfunction()
 
 function(cwhip_require_sourceview)
+    cmake_parse_arguments(SOURCEVIEW "" "RESOURCE_DIRECTORY" "" ${ARGN})
+    if(SOURCEVIEW_UNPARSED_ARGUMENTS OR SOURCEVIEW_KEYWORDS_MISSING_VALUES)
+        message(FATAL_ERROR "Invalid cwhip_require_sourceview arguments: ${ARGN}")
+    endif()
     if(NOT Cwhip_GTK OR NOT Cwhip_SOURCEVIEW)
         message(FATAL_ERROR "This application requires a Cwhip SDK built with GTK 4 >= 4.10 and GtkSourceView 5")
     endif()
@@ -104,13 +117,19 @@ function(cwhip_require_sourceview)
     endforeach()
     set(languages "${Cwhip_MODULE_DIR}/sourceview/0.1.0/language-specs")
     file(GLOB language_inputs CONFIGURE_DEPENDS "${languages}/*")
-    set(language_output "${CMAKE_CURRENT_BINARY_DIR}/share/cwhip/modules/sourceview/0.1.0/language-specs")
+    if(SOURCEVIEW_RESOURCE_DIRECTORY)
+        get_filename_component(language_output "${SOURCEVIEW_RESOURCE_DIRECTORY}" ABSOLUTE
+            BASE_DIR "${CMAKE_CURRENT_BINARY_DIR}")
+    else()
+        set(language_output
+            "${CMAKE_CURRENT_BINARY_DIR}/share/cwhip/modules/sourceview/0.1.0/language-specs")
+    endif()
     add_custom_command(OUTPUT "${language_output}/cwhip.lang"
         COMMAND "${CMAKE_COMMAND}" -E make_directory "${language_output}"
         COMMAND "${CMAKE_COMMAND}" -E copy_directory "${languages}" "${language_output}"
         DEPENDS ${language_inputs} VERBATIM)
     add_custom_target(cwhip_language_resources ALL DEPENDS "${language_output}/cwhip.lang")
     set_property(DIRECTORY APPEND PROPERTY ADDITIONAL_CLEAN_FILES
-        "${CMAKE_CURRENT_BINARY_DIR}/share/cwhip/modules/sourceview")
+        "${language_output}")
     install(DIRECTORY "${languages}" DESTINATION "share/cwhip/modules/sourceview/0.1.0")
 endfunction()
