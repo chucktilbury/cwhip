@@ -1,5 +1,6 @@
 # Documentation
 
+- [Getting started: install, create a project, edit, build, and debug](GETTING_STARTED.md)
 - [Historical Cwhip language notes](CWHIP-LANGUAGE-NOTES.md)
 - [Cwhip grammar reference](GRAMMAR.md)
 - [Cwhip language reference](LANGUAGE-REFERENCE.md)
