@@ -1,5 +1,5 @@
 # Records the installed SDK prefix as the top-level `sdk_prefix` string in
-# <config-home>/cwhip/settings.toml. Included by the install step; also usable
+# <config-home>/cwhip/sdk.toml. Included by the install step; also usable
 # as `cmake -DCWHIP_SDK_PREFIX=<prefix> -P CwhipRegisterSdk.cmake` (tests).
 #
 # The file is edited line by line so unrelated settings, comments, and
@@ -36,7 +36,7 @@ function(cwhip_register_sdk prefix)
         message(FATAL_ERROR "Cannot record sdk_prefix: config home '${config_home}' is not absolute")
     endif()
     set(settings_directory "${config_home}/cwhip")
-    set(settings_file "${settings_directory}/settings.toml")
+    set(settings_file "${settings_directory}/sdk.toml")
 
     cwhip_toml_basic_string("${prefix}" encoded)
     set(new_line "sdk_prefix = ${encoded}")

@@ -1009,17 +1009,24 @@ def doctor_sdk_prefix() -> tuple[Path, str]:
         if root is not None and not root.is_absolute():
             raise CwhipkgError("config home must be absolute; set XDG_CONFIG_HOME or HOME to an absolute path",
                                code="PKG2003")
-        settings = root / "cwhip/settings.toml" if root else None
+        settings = root / "cwhip/sdk.toml" if root else None
         document = {}
         if settings is not None:
-            try:
-                with settings.open("rb") as stream:
-                    document = tomllib.load(stream)
-            except FileNotFoundError:
-                pass
-            except (OSError, ValueError) as error:
-                raise CwhipkgError(f"cannot read SDK settings {settings}: {error}; repair settings or set CWHIP_SDK",
-                                   code="PKG2003") from error
+            for candidate in (settings, root / "cwhip/settings.toml"):
+                try:
+                    with candidate.open("rb") as stream:
+                        document = tomllib.load(stream)
+                except FileNotFoundError:
+                    # A dangling symlink is a broken selection, not an absent file.
+                    if not candidate.is_symlink():
+                        continue
+                    raise CwhipkgError(f"cannot read SDK configuration {candidate}: dangling symlink; repair it or set CWHIP_SDK",
+                                       code="PKG2003")
+                except (OSError, ValueError) as error:
+                    raise CwhipkgError(f"cannot read SDK configuration {candidate}: {error}; repair it or set CWHIP_SDK",
+                                       code="PKG2003") from error
+                settings = candidate
+                break
         if "sdk_prefix" not in document:
             return SDK_PREFIX, "prefix beside cwhip-pkg (no SDK override/setting)"
         value, origin = document["sdk_prefix"], str(settings)
@@ -1056,7 +1063,7 @@ def command_doctor() -> None:
     try:
         prefix, origin = doctor_sdk_prefix()
     except CwhipkgError as error:
-        check("SDK selection", False, str(error), "repair the selected settings file or set CWHIP_SDK")
+        check("SDK selection", False, str(error), "repair the selected SDK configuration file or set CWHIP_SDK")
         report_error(error.code, str(error))
     else:
         check("SDK prefix", prefix.is_dir(), f"{prefix} ({origin})",

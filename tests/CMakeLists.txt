@@ -445,6 +445,7 @@ if(NOT CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
                 "-DCLANG=${CWHIP_CLANG_EXECUTABLE}"
                 "-DSANITIZER_LIST=${CWHIP_SANITIZER_LIST}"
                 "-DCOVERAGE=${CWHIP_COVERAGE}"
+                "-DREGISTER_SDK=${CWHIP_REGISTER_SDK}"
                 -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/InstallLayoutTest.cmake"
         )
     endforeach()

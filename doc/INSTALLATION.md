@@ -251,8 +251,8 @@ names the directory containing `String.cw`, not a project package root.
 ### SDK location setting
 
 A real (non-`DESTDIR`) `cmake --install` records the install prefix as a
-top-level string in `$XDG_CONFIG_HOME/cwhip/settings.toml` (or
-`~/.config/cwhip/settings.toml` when `XDG_CONFIG_HOME` is unset/empty):
+top-level string in `$XDG_CONFIG_HOME/cwhip/sdk.toml` (or
+`$HOME/.config/cwhip/sdk.toml` when `XDG_CONFIG_HOME` is unset/empty):
 
 ```toml
 sdk_prefix = "/usr/local"
@@ -261,12 +261,20 @@ sdk_prefix = "/usr/local"
 The value is the complete install prefix containing `bin/`,
 `lib/cmake/Cwhip`, and the runtime resources, honoring `CMAKE_INSTALL_PREFIX`
 and `cmake --install --prefix`. Parent directories are created, the key is
-replaced in place or added above the first table, and other settings and
-comments are preserved. Failures (relative prefix, no `HOME`, unwritable
+replaced in place or added above the first table, and other SDK configuration
+and comments are preserved. App preferences in `cwhip/settings.toml` are never
+changed by registration. Failures (relative prefix, no config home, unwritable
 directory, a multi-line `sdk_prefix` value) fail the install. A `DESTDIR`
 install never writes the setting because the staged path is not a runtime
 prefix. Disable the step with `-DCWHIP_REGISTER_SDK=OFF`.
-The `CWHIP_SDK` environment variable overrides the `sdk_prefix` setting.
+The non-empty `CWHIP_SDK` environment variable overrides the `sdk_prefix` setting
+and bypasses configuration parsing. Consumers read legacy `settings.toml` only
+when `sdk.toml` is absent. An existing `sdk.toml` is authoritative: malformed or
+unreadable files and invalid explicit values fail, while a missing key permits
+ordinary discovery without reading legacy preferences. To migrate, reinstall
+or copy just the top-level key to `sdk.toml`; lookups never migrate or rewrite
+either file. Leave `sdk.toml` empty to disable a legacy registration without
+changing preferences. See [SDK selection](GETTING_STARTED.md#sdk-selection-and-configuration).
 
 ## Breaking path changes
 
@@ -343,11 +351,13 @@ remedies for failures. Exit status is 0 only if all required checks pass.
 It never creates or changes settings, package locks, or project files.
 
 SDK selection is a non-empty `CWHIP_SDK` override, then the top-level
-`sdk_prefix` in `$XDG_CONFIG_HOME/cwhip/settings.toml`, or
-`$HOME/.config/cwhip/settings.toml` when XDG is unset/empty. A non-empty XDG
-selects the only settings file, with no fallback to HOME. Invalid settings
-fail explicitly; an override bypasses settings. Selected prefixes must be
-absolute existing directories. Without either selection, doctor visibly
+`sdk_prefix` in `$XDG_CONFIG_HOME/cwhip/sdk.toml`, or
+`$HOME/.config/cwhip/sdk.toml` when XDG is unset/empty. Only if that file is
+absent is legacy `settings.toml` in the same directory read. A non-empty XDG
+must be absolute and selects the only configuration root, with no fallback to
+HOME. Invalid configuration fails explicitly; an override bypasses parsing.
+Selected prefixes must be non-empty absolute existing directories without
+NUL or line breaks. Without any selection, doctor visibly
 checks the prefix containing its own executable; it does not emulate CMake's
 package search or silently select another installation.
 

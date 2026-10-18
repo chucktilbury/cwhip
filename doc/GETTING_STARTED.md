@@ -11,7 +11,7 @@ with a stable cross-version ABI.
 - [What you will install](#what-you-will-install)
 - [Host prerequisites](#host-prerequisites)
 - [Build and install the SDK](#build-and-install-the-sdk)
-- [SDK selection and user settings](#sdk-selection-and-user-settings)
+- [SDK selection and configuration](#sdk-selection-and-configuration)
 - [Create and run your first project](#create-and-run-your-first-project)
 - [Learn the source basics](#learn-the-source-basics)
 - [Edit, compile, and debug](#edit-compile-and-debug)
@@ -146,20 +146,21 @@ GTK options off still needs the GUI rebuild below before it can build cedit/cdbg
 ### Install side effects, staging, and relocation
 
 A normal `cmake --install` records the real install prefix as the top-level
-`sdk_prefix` setting. The installer creates parent configuration directories
-and updates/adds that key while preserving unrelated settings/comments. It does
-not replace the whole file. Registration failures fail the install, even if
-some SDK files have already been copied.
+`sdk_prefix` setting in `cwhip/sdk.toml`, separately from app preferences in
+`cwhip/settings.toml`. The installer creates parent configuration directories
+and updates/adds that key while preserving unrelated SDK configuration/comments.
+It never writes the preferences file. Registration failures fail the install,
+even if some SDK files have already been copied.
 
 | Installation choice | Effect on SDK registration |
 | --- | --- |
 | `cmake --install build` | Records the configured `CMAKE_INSTALL_PREFIX` for the user running the command. |
 | `cmake --install build --prefix /absolute/other-prefix` | Installs there and records that real prefix. |
-| Configure with `-DCWHIP_REGISTER_SDK=OFF` | Installs the SDK without writing user settings; select it explicitly afterwards. |
+| Configure with `-DCWHIP_REGISTER_SDK=OFF` | Installs the SDK without writing SDK configuration; select it explicitly afterwards. |
 | `DESTDIR=/absolute/staging-root cmake --install build` | Creates a staged filesystem tree; deliberately does **not** register it as a usable SDK. |
 
 `DESTDIR` is for packaging/image staging, not a way to select the SDK used by
-your projects. Running installation under `sudo` can target root's settings or
+your projects. Running installation under `sudo` can target root's configuration or
 unintended inherited configuration; use the user-local install here instead.
 For CI or a trial installation, use registration opt-out, or set **both** `HOME`
 and absolute `XDG_CONFIG_HOME` to private directories before installation.
@@ -169,14 +170,16 @@ select the new prefix with `CWHIP_SDK` or update only the `sdk_prefix` key.
 An old setting is not automatically rewritten by moving files. See the
 [installed layout and relocation contract](CMAKE-SDK.md).
 
-## SDK selection and user settings
+## SDK selection and configuration
 
 The template and standalone cedit/cdbg CMake projects select their SDK in this
 order:
 
 1. A non-empty `CWHIP_SDK` environment override.
-2. The top-level string `sdk_prefix` in the selected user settings file.
-3. Normal CMake discovery (`CMAKE_PREFIX_PATH` or `Cwhip_DIR`) when neither
+2. The top-level string `sdk_prefix` in the selected `cwhip/sdk.toml`.
+3. Only if `sdk.toml` is absent, the legacy top-level `sdk_prefix` in
+   `cwhip/settings.toml` in the same configuration directory.
+4. Normal CMake discovery (`CMAKE_PREFIX_PATH` or `Cwhip_DIR`) when no
    selection is present.
 
 For example, temporarily select the complete SDK prefix:
@@ -185,29 +188,37 @@ For example, temporarily select the complete SDK prefix:
 export CWHIP_SDK="$HOME/opt/cwhip"
 ```
 
-The settings location is `$XDG_CONFIG_HOME/cwhip/settings.toml` when
-`XDG_CONFIG_HOME` is non-empty, otherwise `$HOME/.config/cwhip/settings.toml`.
-A non-empty XDG path must be absolute and selects the **only** settings location:
+The SDK configuration is `$XDG_CONFIG_HOME/cwhip/sdk.toml` when
+`XDG_CONFIG_HOME` is non-empty, otherwise `$HOME/.config/cwhip/sdk.toml`.
+A non-empty XDG path must be absolute and selects the **only** configuration root:
 there is no fallback to HOME's file. A normal installation needs an absolute
 config home from XDG or HOME. A consumer without either can still use explicit
 SDK selection or normal CMake discovery.
 
 The relevant setting looks like this; this is a key example, **not a replacement
-settings file**:
+SDK configuration file**:
 
 ```toml
 sdk_prefix = "/absolute/path/to/the/complete/sdk"
 ```
 
-Keep it above any `[table]` headings and preserve other preferences. Explicit
-`CWHIP_SDK` bypasses settings parsing, including a malformed file. Otherwise
-malformed/unreadable settings or an invalid selected prefix stop configuration
-rather than silently choosing another SDK. An explicit selection wins over
-`CMAKE_PREFIX_PATH`. To return to normal discovery, unset `CWHIP_SDK`, remove
-only `sdk_prefix`, and clear a stale `Cwhip_DIR` cache or use a fresh build
-directory.
+Keep it above any `[table]` headings. The value must be a non-empty absolute
+existing directory without NUL or line breaks. Explicit `CWHIP_SDK` bypasses
+configuration parsing, including a malformed file. Otherwise malformed/unreadable
+configuration or an invalid selected prefix stops configuration rather than
+silently choosing another SDK. An existing `sdk.toml` is authoritative: even
+without `sdk_prefix` it prevents legacy fallback and permits normal discovery.
+An explicit selection wins over `CMAKE_PREFIX_PATH`.
 
-`cwhip-pkg doctor` follows the same override/settings choices, but without
+To migrate, reinstall the SDK or copy just the top-level `sdk_prefix` to
+`sdk.toml`; lookup never writes either file or removes the legacy key. New
+registration leaves existing app preferences untouched, and later preference
+rewrites cannot erase it. To return to normal discovery, unset `CWHIP_SDK`,
+leave an empty `sdk.toml` (or remove the key from it), and clear a stale
+`Cwhip_DIR` cache or use a fresh build directory. Deleting `sdk.toml` can
+reactivate a legacy registration.
+
+`cwhip-pkg doctor` follows the same override/configuration choices, but without
 either it checks the prefix containing its own executable, **not** CMake's
 search path. Check `command -v cwhip-pkg` when diagnosing a mismatch.
 
@@ -625,8 +636,8 @@ diagnostic and underlying CMake/Clang/Git/GDB output, not just the last line.
 | --- | --- |
 | `cwhip`/`cwhip-pkg` not found, or the wrong version runs | Put the intended SDK's `bin/` first on PATH. If your shell caches executable locations, refresh its command cache (for Bash, `hash -r`). A settings key does not update PATH. |
 | CMake cannot find Cwhip, doctor fails SDK checks | Select the complete installed prefix, not `bin/`, the source checkout, or a `DESTDIR` image. Verify `lib/cmake/Cwhip` and runtime resources; install the SDK, not just copy an executable. |
-| Selected SDK ignored or stale prefix used | Inspect non-empty `CWHIP_SDK`, the active XDG/HOME settings file, and `Cwhip_DIR` in the build cache. An override/settings selection wins over `CMAKE_PREFIX_PATH`. Reconfigure in a new build directory after SDK changes. |
-| Invalid TOML, relative XDG/prefix, `PKG2003`, install registration failure | Use absolute paths. Preserve the settings file and correct only the relevant top-level key; do not overwrite all preferences. An explicit valid `CWHIP_SDK` bypasses settings for consumers/doctor; install opt-out is a separate CMake option. |
+| Selected SDK ignored or stale prefix used | Inspect non-empty `CWHIP_SDK`, the active XDG/HOME `cwhip/sdk.toml` (legacy `settings.toml` only if absent), and `Cwhip_DIR` in the build cache. An explicit selection wins over `CMAKE_PREFIX_PATH`. Reconfigure in a new build directory after SDK changes. |
+| Invalid TOML, relative XDG/prefix, `PKG2003`, install registration failure | Use absolute paths. Correct the relevant top-level key in the selected SDK configuration; do not overwrite app preferences. An explicit valid `CWHIP_SDK` bypasses configuration parsing for consumers/doctor; install opt-out is a separate CMake option. |
 | Python error or `tomllib` unavailable | Check `python3 --version` is at least 3.11, plus CMake's selected `Python3_EXECUTABLE`. Python must parse the package script before it can issue a coded version diagnostic. |
 | CMake version too old | Use 3.24+ for template/apps/doctor, even if the compiler root configured with 3.16. |
 | Missing Clang, IR compile/link failure (`CWHIP3001`) | Check Clang on PATH, the configured Clang path, and `CC`. `CC` must be a Clang executable, not `gcc` or a command containing flags. Run compilation with `-vv` and retain backend detail. |
