@@ -20,10 +20,21 @@ endfunction()
 set(ENV{DESTDIR} "")
 set(ENV{HOME} "${root}/home")
 set(ENV{XDG_CONFIG_HOME} "")
-set(settings "${root}/home/.config/cwhip/settings.toml")
+set(settings "${root}/home/.config/cwhip/sdk.toml")
+set(preferences "${root}/home/.config/cwhip/settings.toml")
 
 # New file; parent directories are created.
 cwhip_register_sdk("/opt/cwhip")
+expect_file("${settings}" "sdk_prefix = \"/opt/cwhip\"\n")
+if(EXISTS "${preferences}")
+    message(FATAL_ERROR "SDK registration must not create preferences")
+endif()
+
+# Preferences may be replaced by apps, including legacy SDK registrations.
+file(WRITE "${preferences}" "# legacy preferences\nsdk_prefix = \"/old/sdk\"\n[editor]\nsize = 10\n")
+cwhip_register_sdk("/opt/cwhip")
+expect_file("${preferences}" "# legacy preferences\nsdk_prefix = \"/old/sdk\"\n[editor]\nsize = 10\n")
+file(WRITE "${preferences}" "version = 1\n[editor]\nsize = 14\n")
 expect_file("${settings}" "sdk_prefix = \"/opt/cwhip\"\n")
 
 # Explicit prefix update, trailing slash normalised, nothing else changes.
@@ -87,7 +98,7 @@ expect_file("${settings}" "sdk_prefix = \"/opt/we\\\"ird\\\\path\"\n")
 # XDG_CONFIG_HOME wins over HOME.
 set(ENV{XDG_CONFIG_HOME} "${root}/xdg")
 cwhip_register_sdk("/opt/xdg")
-expect_file("${root}/xdg/cwhip/settings.toml" "sdk_prefix = \"/opt/xdg\"\n")
+expect_file("${root}/xdg/cwhip/sdk.toml" "sdk_prefix = \"/opt/xdg\"\n")
 
 # DESTDIR installs never write the setting.
 set(ENV{XDG_CONFIG_HOME} "${root}/xdg-destdir")
@@ -111,5 +122,20 @@ execute_process(COMMAND "${CMAKE_COMMAND}" -E env "XDG_CONFIG_HOME=${root}/block
 if(blocked_result EQUAL 0)
     message(FATAL_ERROR "Unwritable config directory must fail")
 endif()
+set(ENV{XDG_CONFIG_HOME} "${root}/invalid")
+file(MAKE_DIRECTORY "${root}/invalid/cwhip/sdk.toml")
+execute_process(COMMAND "${CMAKE_COMMAND}" "-DCWHIP_SDK_PREFIX=/opt/x" -P "${HELPER}"
+    RESULT_VARIABLE directory_result ERROR_QUIET OUTPUT_QUIET)
+if(directory_result EQUAL 0)
+    message(FATAL_ERROR "Directory at SDK configuration path must fail")
+endif()
+file(REMOVE_RECURSE "${root}/invalid/cwhip/sdk.toml")
+file(WRITE "${root}/invalid/cwhip/sdk.toml" "sdk_prefix = \"\"\"\n/old/prefix\n\"\"\"\n")
+execute_process(COMMAND "${CMAKE_COMMAND}" "-DCWHIP_SDK_PREFIX=/opt/x" -P "${HELPER}"
+    RESULT_VARIABLE multiline_result ERROR_QUIET OUTPUT_QUIET)
+if(multiline_result EQUAL 0)
+    message(FATAL_ERROR "Multi-line SDK prefix must fail without rewriting the file")
+endif()
+expect_file("${root}/invalid/cwhip/sdk.toml" "sdk_prefix = \"\"\"\n/old/prefix\n\"\"\"\n")
 
 file(REMOVE_RECURSE "${root}")

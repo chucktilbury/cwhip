@@ -25,6 +25,15 @@ proof of concept and compiler-testing tool, not a production IDE/debugger.
 
 ## Implemented milestones
 
+### Unreleased: Dedicated SDK configuration
+
+Install registration now writes `cwhip/sdk.toml` instead of app preferences
+in `cwhip/settings.toml`, so preference rewrites cannot erase the registration.
+`cwhip-pkg doctor` honors the dedicated file, falling back to the legacy key only
+when it is absent, without migrating or rewriting either file. A present invalid
+SDK configuration fails explicitly; a non-empty `CWHIP_SDK` still bypasses parsing.
+XDG/HOME selection, staged-install skip, and registration opt-out are unchanged.
+
 ### Unreleased: Package doctor and project creation
 
 `cwhip-pkg doctor` checks the selected SDK and host tools without modifying

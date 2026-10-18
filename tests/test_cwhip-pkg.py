@@ -402,6 +402,90 @@ class CwhipkgTest(unittest.TestCase):
             settings.write_text("[editor]\nsdk_prefix = '/ignored'\n")
             self.assertEqual(module.doctor_sdk_prefix()[0], module.SDK_PREFIX)
 
+    def test_doctor_dedicated_sdk_configuration_is_authoritative_and_read_only(self) -> None:
+        module = self.script_module()
+        environment = {"HOME": str(self.root / "home"), "XDG_CONFIG_HOME": ""}
+        directory = self.root / "home/.config/cwhip"
+        directory.mkdir(parents=True)
+        legacy = directory / "settings.toml"
+        settings = directory / "sdk.toml"
+        legacy.write_text(f"# keep\nsdk_prefix = {json.dumps(str(self.root))}\n")
+        original = legacy.read_bytes()
+        with mock.patch.dict(os.environ, environment, clear=True):
+            self.assertEqual(module.doctor_sdk_prefix(), (self.root, str(legacy)))
+            self.assertFalse(settings.exists())
+            self.assertEqual(legacy.read_bytes(), original)
+            for content in ("", "# no selection\n", "[editor]\nsdk_prefix = '/ignored'\n"):
+                settings.write_text(content)
+                self.assertEqual(module.doctor_sdk_prefix()[0], module.SDK_PREFIX)
+                self.assertEqual(settings.read_text(), content)
+            for content in ("invalid = [", "sdk_prefix = ''", "sdk_prefix = 42",
+                            "sdk_prefix = 'relative'", "sdk_prefix = '/nonexistent/sdk'",
+                            'sdk_prefix = "\\u0000"', 'sdk_prefix = "/tmp\\n"',
+                            'sdk_prefix = "/tmp\\r"'):
+                settings.write_text(content)
+                with self.assertRaises(module.CwhipkgError) as caught:
+                    module.doctor_sdk_prefix()
+                self.assertEqual(caught.exception.code, "PKG2003")
+                self.assertIn(str(settings), str(caught.exception))
+                self.assertEqual(settings.read_text(), content)
+            settings.unlink()
+            settings.mkdir()
+            with self.assertRaises(module.CwhipkgError):
+                module.doctor_sdk_prefix()
+            settings.rmdir()
+            settings.symlink_to(directory / "missing.toml")
+            with self.assertRaises(module.CwhipkgError):
+                module.doctor_sdk_prefix()
+            settings.unlink()
+            settings.write_text("invalid = [")
+            with mock.patch.object(Path, "open", side_effect=PermissionError("read denied")):
+                with self.assertRaises(module.CwhipkgError) as caught:
+                    module.doctor_sdk_prefix()
+            self.assertIn(str(settings), str(caught.exception))
+            self.assertIn("read denied", str(caught.exception))
+            os.environ["CWHIP_SDK"] = str(self.root)
+            self.assertEqual(module.doctor_sdk_prefix(), (self.root, "CWHIP_SDK"))
+            os.environ["CWHIP_SDK"] = ""
+            settings.write_text(f"sdk_prefix = {json.dumps(str(self.project))}\n")
+            legacy.write_text("invalid = [")
+            self.assertEqual(module.doctor_sdk_prefix(), (self.project, str(settings)))
+            xdg = self.root / "xdg"
+            os.environ["XDG_CONFIG_HOME"] = str(xdg)
+            self.assertEqual(module.doctor_sdk_prefix()[0], module.SDK_PREFIX)
+            (xdg / "cwhip").mkdir(parents=True)
+            xdg_settings = xdg / "cwhip/sdk.toml"
+            xdg_settings.write_text(f"sdk_prefix = {json.dumps(str(self.root))}\n")
+            self.assertEqual(module.doctor_sdk_prefix(), (self.root, str(xdg_settings)))
+            self.assertEqual(legacy.read_text(), "invalid = [")
+            os.environ.clear()
+            self.assertEqual(module.doctor_sdk_prefix()[0], module.SDK_PREFIX)
+            os.environ["HOME"] = "relative"
+            with self.assertRaises(module.CwhipkgError):
+                module.doctor_sdk_prefix()
+
+    def test_sdk_registration_survives_app_preference_rewrites(self) -> None:
+        module = self.script_module()
+        directory = self.root / "home/.config/cwhip"
+        directory.mkdir(parents=True)
+        legacy = directory / "settings.toml"
+        legacy.write_text("# preferences\nsdk_prefix = '/old/sdk'\n[editor]\nsize = 12\n")
+        original = legacy.read_bytes()
+        environment = {**self.base_environment, "DESTDIR": "", "XDG_CONFIG_HOME": ""}
+        result = run(["cmake", f"-DCWHIP_SDK_PREFIX={self.root}", "-P",
+                      str(Path(__file__).resolve().parents[1] / "cmake/CwhipRegisterSdk.cmake")],
+                     env=environment)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(legacy.read_bytes(), original)
+        settings = directory / "sdk.toml"
+        registered = settings.read_bytes()
+        with mock.patch.dict(os.environ, environment, clear=True):
+            for preferences in ("version = 1\n[editor]\nsize = 14\n", "invalid = [", ""):
+                legacy.write_text(preferences)
+                self.assertEqual(module.doctor_sdk_prefix(), (self.root, str(settings)))
+                self.assertEqual(settings.read_bytes(), registered)
+                self.assertEqual(legacy.read_text(), preferences)
+
     def test_doctor_pass_fail_optional_checks_and_no_side_effects(self) -> None:
         module = self.script_module()
         prefix = self.root / "sdk"
