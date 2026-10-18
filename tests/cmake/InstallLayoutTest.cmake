@@ -70,17 +70,37 @@ endfunction()
 # DESTDIR staging must place every file below DESTDIR.
 set(destdir "${work_directory}/destdir")
 set(destdir_prefix "/opt/cwhip-install-test")
-run_checked("DESTDIR install" "${CMAKE_COMMAND}" -E env "DESTDIR=${destdir}"
+set(sdk_configuration "${work_directory}/xdg/cwhip/sdk.toml")
+set(preferences "${work_directory}/xdg/cwhip/settings.toml")
+file(MAKE_DIRECTORY "${work_directory}/xdg/cwhip")
+set(original_preferences "# keep app preferences\nsdk_prefix = \"/legacy/sdk\"\n[editor]\nsize = 14\n")
+file(WRITE "${preferences}" "${original_preferences}")
+run_checked("DESTDIR install" "${CMAKE_COMMAND}" -E env ${clean_environment} "DESTDIR=${destdir}"
     "${CMAKE_COMMAND}" --install "${BUILD_DIR}" --prefix "${destdir_prefix}")
 require_installed_layout("${destdir}${destdir_prefix}")
+if(EXISTS "${sdk_configuration}")
+    message(FATAL_ERROR "DESTDIR install registered an SDK")
+endif()
 if(EXISTS "${destdir_prefix}")
     message(FATAL_ERROR "DESTDIR install wrote outside DESTDIR: ${destdir_prefix}")
 endif()
 
 set(prefix "${work_directory}/prefix")
-run_checked("install" "${CMAKE_COMMAND}" -E env --unset=DESTDIR
+run_checked("install" "${CMAKE_COMMAND}" -E env ${clean_environment}
     "${CMAKE_COMMAND}" --install "${BUILD_DIR}" --prefix "${prefix}")
 require_installed_layout("${prefix}")
+if(REGISTER_SDK)
+    file(READ "${sdk_configuration}" registration)
+    if(NOT registration STREQUAL "sdk_prefix = \"${prefix}\"\n")
+        message(FATAL_ERROR "Install did not register its --prefix in sdk.toml: ${registration}")
+    endif()
+elseif(EXISTS "${sdk_configuration}")
+    message(FATAL_ERROR "CWHIP_REGISTER_SDK=OFF install registered an SDK")
+endif()
+file(READ "${preferences}" actual_preferences)
+if(NOT actual_preferences STREQUAL original_preferences)
+    message(FATAL_ERROR "Install changed app preferences")
+endif()
 
 # Relocate the installed tree to prove nothing depends on the install prefix.
 set(relocated_prefix "${work_directory}/relocated")
