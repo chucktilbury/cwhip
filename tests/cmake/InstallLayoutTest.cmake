@@ -70,17 +70,32 @@ endfunction()
 # DESTDIR staging must place every file below DESTDIR.
 set(destdir "${work_directory}/destdir")
 set(destdir_prefix "/opt/cwhip-install-test")
-run_checked("DESTDIR install" "${CMAKE_COMMAND}" -E env "DESTDIR=${destdir}"
+run_checked("DESTDIR install" "${CMAKE_COMMAND}" -E env ${clean_environment} "DESTDIR=${destdir}"
     "${CMAKE_COMMAND}" --install "${BUILD_DIR}" --prefix "${destdir_prefix}")
 require_installed_layout("${destdir}${destdir_prefix}")
+set(settings_file "${work_directory}/xdg/cwhip/settings.toml")
+if(EXISTS "${settings_file}")
+    message(FATAL_ERROR "DESTDIR install must not register an SDK in ${settings_file}")
+endif()
 if(EXISTS "${destdir_prefix}")
     message(FATAL_ERROR "DESTDIR install wrote outside DESTDIR: ${destdir_prefix}")
 endif()
 
 set(prefix "${work_directory}/prefix")
-run_checked("install" "${CMAKE_COMMAND}" -E env --unset=DESTDIR
+run_checked("install" "${CMAKE_COMMAND}" -E env ${clean_environment}
     "${CMAKE_COMMAND}" --install "${BUILD_DIR}" --prefix "${prefix}")
 require_installed_layout("${prefix}")
+if(NOT EXISTS "${settings_file}")
+    message(FATAL_ERROR "Install did not register the actual --prefix in ${settings_file}")
+endif()
+file(READ "${settings_file}" settings_content)
+string(REPLACE "\\" "\\\\" encoded_prefix "${prefix}")
+string(REPLACE "\"" "\\\"" encoded_prefix "${encoded_prefix}")
+if(NOT settings_content STREQUAL "sdk_prefix = \"${encoded_prefix}\"\n")
+    message(FATAL_ERROR
+        "Install registered an unexpected SDK prefix:\n"
+        "actual: ${settings_content}\nexpected: sdk_prefix = \"${encoded_prefix}\"")
+endif()
 
 # Relocate the installed tree to prove nothing depends on the install prefix.
 set(relocated_prefix "${work_directory}/relocated")

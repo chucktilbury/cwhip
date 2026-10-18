@@ -60,10 +60,18 @@ programs, CI, coverage, and fuzzing.
 ## Install
 
 ```sh
-cmake -S . -B build -DCMAKE_INSTALL_PREFIX=/usr/local
+cmake -S . -B build
 cmake --build build
 cmake --install build
 ```
+
+Without an explicit prefix, a fresh compiler/SDK configuration installs to
+`$HOME/opt/cwhip`. Use `-DCMAKE_INSTALL_PREFIX=/usr/local` (or another
+absolute path) to select a different location; for new build directories,
+CMake 3.29 and newer also honors the `CMAKE_INSTALL_PREFIX` environment
+variable. Existing build directories keep their cached prefix on reconfigure.
+An install-time `cmake --install build --prefix /path` overrides the configured
+prefix for that installation.
 
 The installed compiler locates its runtime, builtin, standard modules, and
 documentation relative to its installation prefix. CMake install rules honor

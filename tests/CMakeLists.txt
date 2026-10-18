@@ -211,6 +211,12 @@ add_test(NAME cwhip_register_sdk_settings
         "-DHELPER=${CMAKE_CURRENT_SOURCE_DIR}/../cmake/CwhipRegisterSdk.cmake"
         -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/RegisterSdkTest.cmake"
 )
+add_test(NAME cwhip_install_prefix_defaults
+    COMMAND "${CMAKE_COMMAND}"
+        "-DHELPER=${CMAKE_CURRENT_SOURCE_DIR}/../cmake/CwhipInstallPrefix.cmake"
+        "-DWORK_DIR=${CMAKE_CURRENT_BINARY_DIR}/install-prefix-defaults"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/InstallPrefixTest.cmake"
+)
 add_test(NAME cwhip_cli_version
     COMMAND $<TARGET_FILE:cwhip> --version
 )

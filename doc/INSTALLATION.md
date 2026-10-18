@@ -40,6 +40,9 @@ cmake -S src -B /tmp/cwhip-compiler-build -DCWHIP_GTK=OFF -DCWHIP_GTK_SOURCEVIEW
 cmake --build /tmp/cwhip-compiler-build
 ```
 
+Standalone `src/` configurations use the same fresh install-prefix default;
+they remain separate from the root project's SDK registration step.
+
 `tests/functional/` contains fixtures, not a separate buildable component.
 The root build places the compiler and test executables in `bin/` and the
 front-end archive in `lib/libcwhip_frontend.a`.
@@ -186,13 +189,22 @@ appropriate. See [GTK.md](GTK.md) for linkage, activation and ownership.
 
 ## Install layout and relocation
 
-Configure the installation prefix, build, and install:
+Without an install-prefix override, a fresh compiler/SDK configuration uses
+`$HOME/opt/cwhip`. Configure, build, and install:
 
 ```sh
-cmake -S . -B build -DCMAKE_INSTALL_PREFIX=/usr/local
+cmake -S . -B build
 cmake --build build
 cmake --install build
 ```
+
+Use `-DCMAKE_INSTALL_PREFIX=/absolute/path` to select another prefix, including
+`/usr/local`. For a new build directory, CMake 3.29 and newer also accepts the
+`CMAKE_INSTALL_PREFIX` environment variable. Existing build directories retain
+their cached prefix on reconfigure. An install-time override,
+`cmake --install build --prefix /absolute/path`, applies only to that install.
+When the default is selected, `HOME` must be set to an absolute path;
+configuration fails explicitly otherwise.
 
 For a staged package or image, use `DESTDIR`:
 
