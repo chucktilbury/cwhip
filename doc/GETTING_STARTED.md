@@ -31,12 +31,18 @@ with a stable cross-version ABI.
 | [cwhip-template](https://github.com/chucktilbury/cwhip-template) | A small installed-SDK consumer, used by `cwhip-pkg new`. |
 | [cedit](https://github.com/chucktilbury/cedit) | Optional standalone GTK source editor; not a compiler/debugger integration or semantic language service. |
 | [cdbg](https://github.com/chucktilbury/cdbg) | Optional standalone local GDB/MI debugger; can compile a `.cw` target with debug information or load a built executable. |
+| [cmacros](https://github.com/chucktilbury/cmacros) | Optional standalone command-line macro processor implemented in Cwhip. It processes UTF-8 input independently of the compiler and does not invoke a shell or subprocess. |
 
 Install and retain the **whole SDK prefix**, not just `bin/cwhip`. Host Clang,
 Python, Git, and shared system libraries are not bundled. This guide uses source
 builds; it does not assume binary installers or packaged application releases.
-`cmacros` is planned, not available. `cparsegen` is a bootstrapped placeholder,
-not a functioning parser-generation tool. Neither is needed here.
+`cmacros` has its own build and installation instructions in
+[its build guide](https://github.com/chucktilbury/cmacros/blob/main/doc/BUILD.md);
+the [macro language reference](https://github.com/chucktilbury/cmacros/blob/main/doc/LANGUAGE.md)
+and [examples guide](https://github.com/chucktilbury/cmacros/blob/main/examples/README.md)
+describe its input syntax and runnable examples. It is an optional standalone
+tool, not part of the compiler command or package workflow. `cparsegen` remains
+a bootstrapped placeholder, not a functioning parser-generation tool.
 
 ## Host prerequisites
 
