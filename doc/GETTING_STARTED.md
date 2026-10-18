@@ -86,10 +86,10 @@ compiler-only hello-world route.
 
 ## Build and install the SDK
 
-The following commands run in a POSIX shell. Choose an unused user-owned prefix;
-`$HOME/.local/cwhip` keeps this installation separate from system software and
-requires no `sudo` for build/install. If it already contains another SDK, choose
-a new prefix instead of mixing installations.
+The following commands run in a POSIX shell. A fresh configuration without an
+explicit install prefix uses `$HOME/opt/cwhip`, separate from system software
+and requiring no `sudo` for build/install. If it already contains another SDK,
+choose a new prefix instead of mixing installations.
 
 ```sh
 mkdir -p "$HOME/Src"
@@ -99,7 +99,6 @@ cd cwhip
 
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug \
   -DCWHIP_STAGE_PREFIX="$PWD/build/stage" \
-  -DCMAKE_INSTALL_PREFIX="$HOME/.local/cwhip" \
   -DCMAKE_INSTALL_LIBDIR=lib \
   -DBUILD_TESTING=OFF \
   -DCWHIP_GTK=OFF -DCWHIP_GTK_SOURCEVIEW=OFF
@@ -118,7 +117,7 @@ not needed and are not installed by this compiler install.
 Put the installed tools first on `PATH` for this shell:
 
 ```sh
-export PATH="$HOME/.local/cwhip/bin:$PATH"
+export PATH="$HOME/opt/cwhip/bin:$PATH"
 command -v cwhip
 command -v cwhip-pkg
 cwhip --version
@@ -129,6 +128,14 @@ cwhip-pkg doctor
 To keep that PATH choice across logins, add only the `export PATH=...` line
 to your shell's appropriate startup file, preserving its existing contents.
 An installed `sdk_prefix` setting does not itself modify shell `PATH`.
+
+Pass `-DCMAKE_INSTALL_PREFIX=/absolute/path` to choose another location,
+including `/usr/local`. For a new build directory, CMake 3.29 and newer also
+accepts the `CMAKE_INSTALL_PREFIX` environment variable. Existing build
+directories retain their cached prefix on reconfigure. A per-install
+`cmake --install build --prefix /absolute/path` takes precedence over the
+configured value. Without an explicit prefix or absolute `HOME`, configuration
+fails rather than constructing an invalid default path.
 
 `doctor` is read-only and uses no network. Required checks should all say
 `PASS`; missing optional GTK checks can say `WARN` without failing a
@@ -178,7 +185,7 @@ order:
 For example, temporarily select the complete SDK prefix:
 
 ```sh
-export CWHIP_SDK="$HOME/.local/cwhip"
+export CWHIP_SDK="$HOME/opt/cwhip"
 ```
 
 The SDK configuration is `$XDG_CONFIG_HOME/cwhip/sdk.toml` when

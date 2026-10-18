@@ -107,6 +107,11 @@ Initialized projects are checked for `cwhip-pkg.toml` and a generated `cwhip-pkg
 that locks standard modules without listing `String` as a package. Tests use
 isolated HOME/XDG directories and exercise home-package lookup without relying
 on the developer's configuration.
+The install-prefix test checks the fresh `$HOME/opt/cwhip` default (including
+HOME paths with spaces), explicit and cached prefix preservation, CMake's
+`CMAKE_INSTALL_PREFIX` environment selection where supported, and invalid
+HOME diagnostics. The install-layout test verifies that a real install using
+`--prefix` registers that actual prefix, not the configured default.
 
 `cwhip_install_path_boundaries` checks canonical source/build containment before
 temporary directories are created, including symlinks and normalized paths.
