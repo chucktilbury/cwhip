@@ -532,7 +532,8 @@ bool fixture_editor_no_emoji(void *self) {
 }
 
 static bool preference_views(GtkWidget *widget, int size, int tabs, bool spaces,
-                             bool numbers, bool wrap, bool highlight, unsigned *count) {
+                             bool numbers, bool wrap, bool highlight, bool report,
+                             unsigned *count) {
     if (GTK_SOURCE_IS_VIEW(widget)) {
         ++*count;
         GtkSourceView *view = GTK_SOURCE_VIEW(widget);
@@ -550,7 +551,7 @@ static bool preference_views(GtkWidget *widget, int size, int tabs, bool spaces,
                gtk_source_view_get_show_line_numbers(view) == numbers &&
                (gtk_text_view_get_wrap_mode(GTK_TEXT_VIEW(view)) != GTK_WRAP_NONE) == wrap &&
                gtk_source_view_get_highlight_current_line(view) == highlight;
-        if (!valid)
+        if (!valid && report)
             g_printerr("View settings: size=%d (expected %d), tabs=%u, spaces=%d, numbers=%d, wrap=%d, highlight=%d\n",
                        pango_font_description_get_size(font), expected_size,
                        gtk_source_view_get_tab_width(view),
@@ -562,16 +563,16 @@ static bool preference_views(GtkWidget *widget, int size, int tabs, bool spaces,
     }
     for (GtkWidget *child = gtk_widget_get_first_child(widget); child;
          child = gtk_widget_get_next_sibling(child))
-        if (!preference_views(child, size, tabs, spaces, numbers, wrap, highlight, count)) return false;
+        if (!preference_views(child, size, tabs, spaces, numbers, wrap, highlight, report, count)) return false;
     return true;
 }
 
 bool fixture_preferences_views(void *self, int64_t size, int64_t tabs, bool spaces,
-                               bool numbers, bool wrap, bool highlight) {
+                               bool numbers, bool wrap, bool highlight, bool report) {
     (void)self;
     unsigned count = 0;
     bool valid = preference_views(GTK_WIDGET(editor_window()), (int)size, (int)tabs,
-                                  spaces, numbers, wrap, highlight, &count);
+                                  spaces, numbers, wrap, highlight, report, &count);
     return valid && count > 0;
 }
 

@@ -49,8 +49,19 @@ and now guards the zero-length `memchr` call on their null backing storage.
 
 ## Real GTK 4 interface
 
-The optional suite is enabled explicitly, never as a silently skipped display
-test:
+On a fresh configuration, GTK packages default on when their development
+dependencies are installed; headless GUI tests also default on when Xvfb and
+`dbus-daemon` are found. Thus `make test` in a configured Makefile build directory
+(or `ctest --test-dir build`) includes the legacy `cedit_*` integration tests on
+such hosts. The SDK/application split retained these in-tree examples as
+compiler, runtime and GTK binding coverage; standalone editor tests are owned by
+the editor repository. Labels such as `examples` and `gtk` categorize tests, not
+exclude them from the default suite.
+
+For a compiler-only build, configure with `-DCWHIP_GTK=OFF
+-DCWHIP_GTK_SOURCEVIEW=OFF`. To retain GTK packages but disable headless GUI
+checks, use `-DCWHIP_GTK_TESTS=OFF`. To require the full GUI suite rather than
+auto-detect it:
 
 ```sh
 cmake -S . -B build-gtk -DCWHIP_GTK=ON -DCWHIP_GTK_SOURCEVIEW=ON -DCWHIP_GTK_TESTS=ON \
@@ -93,6 +104,11 @@ The editor example test exercises the Cwhip language definition, text-buffer
 editing/search, undo/redo, document/tab behavior and file operations. The
 shortcut test covers defaults, user mappings and conflicts. Run the complete
 configured suite with `ctest --test-dir build-gtk --output-on-failure`.
+`cedit_preferences_ui` checks actual view properties after editing, creating
+views, reloading and resetting preferences. GTK resolves CSS fonts on a later
+frame, so the fixture yields to the main loop and polls those exact properties
+with a bounded retry count; a persistent mismatch still fails with actual and
+expected font sizes. Sleeping inside one callback does not process a frame.
 `cwhip_gtk_bindings` checks actual chooser accept/cancel and overwrite responses,
 immediate cancellation/parent disposal/shutdown for all four dialog operations,
 prompt GC release of callback receivers, and native weak-ref finalization after
