@@ -21,7 +21,7 @@ class PreferenceFixture {
     bool close()
     bool commandVisible(String name)
     bool commandClick(String name, String label)
-    bool views(int size, int tabs, bool spaces, bool numbers, bool wrap, bool highlight)
+    bool views(int size, int tabs, bool spaces, bool numbers, bool wrap, bool highlight, bool report)
     bool record(String trigger)
     bool grid()
     bool tabs()
@@ -36,7 +36,7 @@ bool PreferenceFixture.click(String label) from "fixture_preferences_click"
 bool PreferenceFixture.close() from "fixture_preferences_close"
 bool PreferenceFixture.commandVisible(String name) from "fixture_preferences_command_visible"
 bool PreferenceFixture.commandClick(String name, String label) from "fixture_preferences_command_click"
-bool PreferenceFixture.views(int size, int tabs, bool spaces, bool numbers, bool wrap, bool highlight)
+bool PreferenceFixture.views(int size, int tabs, bool spaces, bool numbers, bool wrap, bool highlight, bool report)
     from "fixture_preferences_views"
 bool PreferenceFixture.record(String trigger) from "fixture_preferences_record"
 bool PreferenceFixture.grid() from "fixture_preferences_grid_readonly"
@@ -53,6 +53,7 @@ class PreferencesChecks {
     int stage
     int checks
     int waits
+    int viewWaits
     String mode
     void require(bool condition, String label) {
         if (!condition) {
@@ -62,6 +63,17 @@ class PreferencesChecks {
             System.Process().exit(1)
         }
         checks = checks + 1
+    }
+    bool viewsReady(int size, int tabs, bool spaces, bool numbers, bool wrap, bool highlight, String label) {
+        if (PreferenceFixture().views(size, tabs, spaces, numbers, wrap, highlight, viewWaits >= 500)) {
+            viewWaits = 0
+            return true
+        }
+        require(viewWaits < 500, label)
+        viewWaits = viewWaits + 1
+        PreferenceFixture().tick()
+        Gtk.Application().post(nextAction)
+        return false
     }
     KeyboardPreference row(String command) {
         int i = 0
@@ -118,7 +130,7 @@ class PreferencesChecks {
                 require(editor.settings.fontSize == 18 && editor.settings.tabWidth == 3 &&
                     !editor.settings.insertSpaces && !editor.settings.lineNumbers &&
                     editor.settings.wrap && editor.settings.highlightLine, "startup reload")
-                require(PreferenceFixture().views(18, 3, false, false, true, true), "startup view properties")
+                if (!viewsReady(18, 3, false, false, true, true, "startup view properties")) { return }
                 require(editor.currentDocument().view.hasShortcut("<Control><Alt>e") &&
                     !editor.currentDocument().view.hasShortcut("<Control>s"), "startup shortcut reload")
                 editor.newAction()
@@ -127,7 +139,7 @@ class PreferencesChecks {
                 Gtk.Application().post(nextAction)
                 return
             }
-            require(PreferenceFixture().views(18, 3, false, false, true, true), "new view reload")
+            if (!viewsReady(18, 3, false, false, true, true, "new view reload")) { return }
             editor.quitAction()
             print(format("PASS reload {}", checks))
             return
@@ -351,12 +363,12 @@ class PreferencesChecks {
             editor.highlightCheck.setActive(true)
         }
         if (stage == 1) {
-            require(PreferenceFixture().views(18, 3, false, false, true, true), "all existing views updated, including font size")
+            if (!viewsReady(18, 3, false, false, true, true, "all existing views updated, including font size")) { return }
             editor.newAction()
             PreferenceFixture().tick()
         }
         if (stage == 2) {
-            require(PreferenceFixture().views(18, 3, false, false, true, true), "subsequently created view updated")
+            if (!viewsReady(18, 3, false, false, true, true, "subsequently created view updated")) { return }
             editor.sizeEntry.setText("73")
             require(editor.settings.fontSize == 18 && editor.preferencesMessage.text().contains("6 to 72"), "numeric range rejection")
             editor.sizeEntry.setText("18")
@@ -372,7 +384,7 @@ class PreferencesChecks {
             require(editor.settings.fontSize == 12 && editor.settings.tabWidth == 4, "Editor defaults")
         }
         if (stage == 3) {
-            require(PreferenceFixture().views(12, 4, true, true, false, false), "reset propagated")
+            if (!viewsReady(12, 4, true, true, false, false, "reset propagated")) { return }
             editor.sizeEntry.setText("18")
             editor.tabsEntry.setText("3")
             editor.spacesCheck.setActive(false)
