@@ -107,6 +107,27 @@ for `writeLine` when successful); failed writes may return a partial count.
 position, capped at the signed 64-bit `int` range, or `-1`. `isOpen()` indicates
 whether the file is currently open (false after `close()`); close it explicitly.
 
+For binary files, use an `fopen` binary mode such as `"rb"`, `"wb"`, `"ab"`,
+or `"r+b"` and the byte-buffer methods:
+
+```text
+buffer readBytes(int size)
+buffer readAllBytes()
+int writeBytes(buffer data)
+```
+
+`readBytes(size)` reads up to `size` bytes; `readAllBytes()` reads through
+end-of-file. Both return a buffer containing exactly the bytes read, including
+NUL and non-UTF-8 values. A short read at EOF is normal: the partial buffer is
+returned and `lastError()` is empty; `eof()` indicates whether the stream has
+reached EOF. A read error sets `lastError()` and returns any bytes read before
+the error. Negative read sizes return an empty buffer and set `lastError()`.
+`writeBytes` returns the actual byte count; a short or failed write returns the
+partial count and sets `lastError()`. Empty buffers are valid and write zero
+bytes. Closed handles and ordinary I/O failures follow the same `lastError()`
+policy as the text methods. These byte APIs do not decode or validate UTF-8;
+the existing `String` methods retain their text behavior.
+
 `Sys.FileSystem` provides:
 
 ```text
