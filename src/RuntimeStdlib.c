@@ -548,6 +548,102 @@ void *cwhip_file_read_all(void *self, void *handle) {
     return read_all((FILE *)handle);
 }
 
+static void *empty_buffer(void) {
+    return cwhip_buffer_new(0, stdlib_native_file, sizeof(stdlib_native_file) - 1, 0, 0);
+}
+
+void *cwhip_file_read_bytes(void *self, void *handle, int64_t size) {
+    (void)self;
+    if (handle == NULL || size < 0) {
+        cwhip_runtime_set_error(handle == NULL ? EBADF : EINVAL);
+        return empty_buffer();
+    }
+    if ((uint64_t)size > SIZE_MAX) {
+        cwhip_runtime_set_error(EOVERFLOW);
+        return empty_buffer();
+    }
+    if (size == 0) {
+        cwhip_runtime_clear_error();
+        return empty_buffer();
+    }
+
+    uint8_t *bytes = (uint8_t *)malloc((size_t)size);
+    if (bytes == NULL) {
+        cwhip_runtime_set_error(ENOMEM);
+        return empty_buffer();
+    }
+    errno = 0;
+    const size_t count = fread(bytes, 1, (size_t)size, (FILE *)handle);
+    const int read_error = ferror((FILE *)handle) ? (errno == 0 ? EIO : errno) : 0;
+    void *result = cwhip_buffer_new((int64_t)count, stdlib_native_file,
+                                    sizeof(stdlib_native_file) - 1, 0, 0);
+    CwhipBuffer *buffer = (CwhipBuffer *)result;
+    if (count != 0) memcpy(buffer->data, bytes, count);
+    free(bytes);
+    if (read_error != 0) cwhip_runtime_set_error(read_error);
+    else cwhip_runtime_clear_error();
+    return result;
+}
+
+void *cwhip_file_read_all_bytes(void *self, void *handle) {
+    (void)self;
+    if (handle == NULL) {
+        cwhip_runtime_set_error(EBADF);
+        return empty_buffer();
+    }
+
+    uint8_t *bytes = NULL;
+    size_t length = 0;
+    size_t capacity = 0;
+    const uint64_t max_length = SIZE_MAX < (uint64_t)INT64_MAX
+                                   ? (uint64_t)SIZE_MAX
+                                   : (uint64_t)INT64_MAX;
+    uint8_t chunk[16384];
+    int read_error = 0;
+    for (;;) {
+        errno = 0;
+        const size_t count = fread(chunk, 1, sizeof(chunk), (FILE *)handle);
+        if (count != 0) {
+            if ((uint64_t)length > max_length || (uint64_t)count > max_length - length) {
+                read_error = EOVERFLOW;
+                break;
+            }
+            const size_t required = length + count;
+            if (required > capacity) {
+                size_t grown = capacity == 0 ? sizeof(chunk) : capacity;
+                while (grown < required) {
+                    if ((uint64_t)grown > max_length / 2) {
+                        grown = (size_t)max_length;
+                        break;
+                    }
+                    grown *= 2;
+                }
+                uint8_t *grown_bytes = (uint8_t *)realloc(bytes, grown);
+                if (grown_bytes == NULL) {
+                    read_error = ENOMEM;
+                    break;
+                }
+                bytes = grown_bytes;
+                capacity = grown;
+            }
+            memcpy(bytes + length, chunk, count);
+            length += count;
+        }
+        if (count < sizeof(chunk)) {
+            if (ferror((FILE *)handle)) read_error = errno == 0 ? EIO : errno;
+            break;
+        }
+    }
+    void *result = cwhip_buffer_new((int64_t)length, stdlib_native_file,
+                                    sizeof(stdlib_native_file) - 1, 0, 0);
+    CwhipBuffer *buffer = (CwhipBuffer *)result;
+    if (length != 0) memcpy(buffer->data, bytes, length);
+    free(bytes);
+    if (read_error != 0) cwhip_runtime_set_error(read_error);
+    else cwhip_runtime_clear_error();
+    return result;
+}
+
 static int read_line_bytes(FILE *file, char **line, size_t *length) {
     errno = 0;
     size_t capacity = 128;
@@ -648,6 +744,34 @@ int64_t cwhip_file_write(void *self, void *handle, void *data) {
     if (written != length) cwhip_runtime_set_error(errno == 0 ? EIO : errno);
     else cwhip_runtime_clear_error();
     return written > (size_t)INT64_MAX ? INT64_MAX : (int64_t)written;
+}
+
+int64_t cwhip_file_write_bytes(void *self, void *handle, void *data) {
+    (void)self;
+    if (handle == NULL || data == NULL) {
+        cwhip_runtime_set_error(handle == NULL ? EBADF : EINVAL);
+        return 0;
+    }
+    const CwhipBuffer *buffer = (const CwhipBuffer *)data;
+    if (buffer->length > buffer->capacity ||
+        buffer->length > SIZE_MAX ||
+        buffer->length > (uint64_t)INT64_MAX ||
+        (buffer->length != 0 && buffer->data == NULL)) {
+        cwhip_runtime_set_error(buffer->length > SIZE_MAX ||
+                                        buffer->length > (uint64_t)INT64_MAX
+                                    ? EOVERFLOW
+                                    : EINVAL);
+        return 0;
+    }
+    if (buffer->length == 0) {
+        cwhip_runtime_clear_error();
+        return 0;
+    }
+    errno = 0;
+    const size_t written = fwrite(buffer->data, 1, (size_t)buffer->length, (FILE *)handle);
+    if (written != buffer->length) cwhip_runtime_set_error(errno == 0 ? EIO : errno);
+    else cwhip_runtime_clear_error();
+    return (int64_t)written;
 }
 
 int64_t cwhip_file_write_line(void *self, void *handle, void *line) {

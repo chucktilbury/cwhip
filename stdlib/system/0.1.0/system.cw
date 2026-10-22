@@ -3,9 +3,12 @@ namespace System {
         handle fileOpen(String path, String mode)
         String fileRead(handle fp, int size)
         String fileReadAll(handle fp)
+        buffer fileReadBytes(handle fp, int size)
+        buffer fileReadAllBytes(handle fp)
         String fileReadLine(handle fp)
         list fileReadLines(handle fp)
         int fileWrite(handle fp, String data)
+        int fileWriteBytes(handle fp, buffer data)
         int fileWriteLine(handle fp, String line)
         int fileSeek(handle fp, int offset, int whence)
         int fileTell(handle fp)
@@ -83,6 +86,14 @@ namespace System {
             return Runtime().fileReadAll(_fp)
         }
 
+        buffer readBytes(int size) {
+            return Runtime().fileReadBytes(_fp, size)
+        }
+
+        buffer readAllBytes() {
+            return Runtime().fileReadAllBytes(_fp)
+        }
+
         String readLine() {
             return Runtime().fileReadLine(_fp)
         }
@@ -93,6 +104,10 @@ namespace System {
 
         int write(String data) {
             return Runtime().fileWrite(_fp, data)
+        }
+
+        int writeBytes(buffer data) {
+            return Runtime().fileWriteBytes(_fp, data)
         }
 
         int writeLine(String line) {
@@ -205,9 +220,12 @@ namespace System {
     handle Runtime.fileOpen(String path, String mode) from "cwhip_file_open"
     String Runtime.fileRead(handle fp, int size) from "cwhip_file_read"
     String Runtime.fileReadAll(handle fp) from "cwhip_file_read_all"
+    buffer Runtime.fileReadBytes(handle fp, int size) from "cwhip_file_read_bytes"
+    buffer Runtime.fileReadAllBytes(handle fp) from "cwhip_file_read_all_bytes"
     String Runtime.fileReadLine(handle fp) from "cwhip_file_read_line"
     list Runtime.fileReadLines(handle fp) from "cwhip_file_read_lines"
     int Runtime.fileWrite(handle fp, String data) from "cwhip_file_write"
+    int Runtime.fileWriteBytes(handle fp, buffer data) from "cwhip_file_write_bytes"
     int Runtime.fileWriteLine(handle fp, String line) from "cwhip_file_write_line"
     int Runtime.fileSeek(handle fp, int offset, int whence) from "cwhip_file_seek"
     int Runtime.fileTell(handle fp) from "cwhip_file_tell"
