@@ -334,7 +334,7 @@ start {
         index = index + 1
     }
 
-    String weightPath = "build/xor.weights"
+    String weightPath = "xor.weights"
     network.save(weightPath)
     Network restored = Network(dataset.features(), 4)
     if (restored.load(weightPath)) {
