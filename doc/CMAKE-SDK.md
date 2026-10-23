@@ -40,8 +40,9 @@ has no cross-version compatibility guarantee:
 
 ```cmake
 cmake_minimum_required(VERSION 3.24)
-project(example LANGUAGES C)
 find_package(Cwhip 0.0.1 EXACT CONFIG REQUIRED)
+cwhip_apply_application_defaults()
+project(example LANGUAGES C)
 if(NOT Cwhip_APPLICATION_OUTPUT_DIRECTORIES)
   message(FATAL_ERROR "This Cwhip SDK lacks application output-directory support")
 endif()
@@ -56,6 +57,22 @@ get_target_property(hello_binary hello CWHIP_EXECUTABLE)
 install(PROGRAMS "${hello_binary}" DESTINATION bin)
 ```
 
+Call `find_package(Cwhip ...)` and `cwhip_apply_application_defaults()` before
+`project()` and before defining application cache defaults. Doing so lets the
+helper distinguish absent cache entries from explicit empty values. A real
+Cwhip install records its actual install prefix and selected build
+configuration in the `[applications]` table of `sdk.toml`; this helper exposes
+them as `Cwhip_APPLICATION_INSTALL_PREFIX` and
+`Cwhip_APPLICATION_BUILD_TYPE`, and initializes `CMAKE_INSTALL_PREFIX` and
+`CMAKE_BUILD_TYPE` only when they have not already been selected. Explicit
+`-D` values, `CMAKE_INSTALL_PREFIX` and `CMAKE_BUILD_TYPE` environment
+settings, and existing cache choices (including an empty build type) win.
+The defaults apply only when the selected package's `Cwhip_PREFIX` matches the
+registered top-level `sdk_prefix`; selecting a different SDK does not inherit
+another installation's defaults. Multi-configuration generators continue to
+select their build configuration through the normal CMake configuration
+selection.
+
 ```sh
 cmake -S example -B example-build -DCMAKE_PREFIX_PATH=/chosen/relocated-sdk
 cmake --build example-build
@@ -67,7 +84,8 @@ cmake --install example-build --prefix /chosen/example
 The config exposes `Cwhip_VERSION`, `Cwhip_PREFIX`, `Cwhip_COMPILER`,
 `Cwhip_PACKAGE_TOOL`, `Cwhip_INCLUDE_DIR`, `Cwhip_RUNTIME_LIBRARY`,
 `Cwhip_BUILTIN_DIR`, `Cwhip_MODULE_DIR`, `Cwhip_CLANG_EXECUTABLE`,
-`Cwhip_GTK`, `Cwhip_SOURCEVIEW` and `Cwhip_APPLICATION_OUTPUT_DIRECTORIES`.
+`Cwhip_GTK`, `Cwhip_SOURCEVIEW`, `Cwhip_APPLICATION_OUTPUT_DIRECTORIES`,
+`Cwhip_APPLICATION_INSTALL_PREFIX` and `Cwhip_APPLICATION_BUILD_TYPE`.
 Missing required resources, unavailable Python/Clang, wrong package version
 or a mismatched compiler executable fail configuration. Native bindings include
 public `cwhip/Stdlib.h`; applications do not include compiler implementation

@@ -25,7 +25,8 @@ set(preferences "${root}/home/.config/cwhip/settings.toml")
 
 # New file; parent directories are created.
 cwhip_register_sdk("/opt/cwhip")
-expect_file("${settings}" "sdk_prefix = \"/opt/cwhip\"\n")
+expect_file("${settings}"
+    "sdk_prefix = \"/opt/cwhip\"\n\n[applications]\ninstall_prefix = \"/opt/cwhip\"\nbuild_type = \"\"\n")
 if(EXISTS "${preferences}")
     message(FATAL_ERROR "SDK registration must not create preferences")
 endif()
@@ -35,11 +36,13 @@ file(WRITE "${preferences}" "# legacy preferences\nsdk_prefix = \"/old/sdk\"\n[e
 cwhip_register_sdk("/opt/cwhip")
 expect_file("${preferences}" "# legacy preferences\nsdk_prefix = \"/old/sdk\"\n[editor]\nsize = 10\n")
 file(WRITE "${preferences}" "version = 1\n[editor]\nsize = 14\n")
-expect_file("${settings}" "sdk_prefix = \"/opt/cwhip\"\n")
+expect_file("${settings}"
+    "sdk_prefix = \"/opt/cwhip\"\n\n[applications]\ninstall_prefix = \"/opt/cwhip\"\nbuild_type = \"\"\n")
 
 # Explicit prefix update, trailing slash normalised, nothing else changes.
 cwhip_register_sdk("/usr/local/cwhip/")
-expect_file("${settings}" "sdk_prefix = \"/usr/local/cwhip\"\n")
+expect_file("${settings}"
+    "sdk_prefix = \"/usr/local/cwhip\"\n\n[applications]\ninstall_prefix = \"/usr/local/cwhip\"\nbuild_type = \"\"\n")
 
 # Existing settings, comments, tables, arrays, and semicolons are preserved.
 file(WRITE "${settings}"
@@ -53,6 +56,11 @@ fonts = [
 [editor]
 # keep
 size = 12
+
+[applications]
+install_prefix = \"/opt/one\"
+build_type = \"\"
+channel = \"preserve-me\"
 ")
 cwhip_register_sdk("/opt/one")
 expect_file("${settings}"
@@ -68,6 +76,11 @@ sdk_prefix = \"/opt/one\"
 [editor]
 # keep
 size = 12
+
+[applications]
+install_prefix = \"/opt/one\"
+build_type = \"\"
+channel = \"preserve-me\"
 ")
 cwhip_register_sdk("/opt/two")
 expect_file("${settings}"
@@ -83,22 +96,49 @@ sdk_prefix = \"/opt/two\"
 [editor]
 # keep
 size = 12
+
+[applications]
+install_prefix = \"/opt/two\"
+build_type = \"\"
+channel = \"preserve-me\"
+")
+
+# Missing application fields are inserted inside the existing table.
+file(WRITE "${settings}"
+"sdk_prefix = \"/old/sdk\"
+[applications]
+channel = \"keep\"
+[editor]
+size = 1
+")
+cwhip_register_sdk("/opt/table" "Debug")
+expect_file("${settings}"
+"sdk_prefix = \"/opt/table\"
+[applications]
+channel = \"keep\"
+install_prefix = \"/opt/table\"
+build_type = \"Debug\"
+[editor]
+size = 1
 ")
 
 # A file with only tables and no trailing newline gets a top-level key first.
 file(WRITE "${settings}" "[editor]\nsize = 1")
 cwhip_register_sdk("/opt/three")
-expect_file("${settings}" "sdk_prefix = \"/opt/three\"\n\n[editor]\nsize = 1\n")
+expect_file("${settings}"
+    "sdk_prefix = \"/opt/three\"\n\n[editor]\nsize = 1\n\n[applications]\ninstall_prefix = \"/opt/three\"\nbuild_type = \"\"\n")
 
 # TOML escaping of quotes and backslashes.
 file(REMOVE "${settings}")
 cwhip_register_sdk("/opt/we\"ird\\path")
-expect_file("${settings}" "sdk_prefix = \"/opt/we\\\"ird\\\\path\"\n")
+expect_file("${settings}"
+    "sdk_prefix = \"/opt/we\\\"ird\\\\path\"\n\n[applications]\ninstall_prefix = \"/opt/we\\\"ird\\\\path\"\nbuild_type = \"\"\n")
 
 # XDG_CONFIG_HOME wins over HOME.
 set(ENV{XDG_CONFIG_HOME} "${root}/xdg")
 cwhip_register_sdk("/opt/xdg")
-expect_file("${root}/xdg/cwhip/sdk.toml" "sdk_prefix = \"/opt/xdg\"\n")
+expect_file("${root}/xdg/cwhip/sdk.toml"
+    "sdk_prefix = \"/opt/xdg\"\n\n[applications]\ninstall_prefix = \"/opt/xdg\"\nbuild_type = \"\"\n")
 
 # DESTDIR installs never write the setting.
 set(ENV{XDG_CONFIG_HOME} "${root}/xdg-destdir")

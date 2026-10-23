@@ -211,6 +211,12 @@ add_test(NAME cwhip_register_sdk_settings
         "-DHELPER=${CMAKE_CURRENT_SOURCE_DIR}/../cmake/CwhipRegisterSdk.cmake"
         -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/RegisterSdkTest.cmake"
 )
+add_test(NAME cwhip_application_defaults
+    COMMAND "${CMAKE_COMMAND}"
+        "-DWORK_DIR=${CMAKE_CURRENT_BINARY_DIR}/application-defaults"
+        "-DHELPER=${CMAKE_SOURCE_DIR}/cmake/CwhipApplicationDefaults.cmake"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/ApplicationDefaultsTest.cmake"
+)
 add_test(NAME cwhip_install_prefix_defaults
     COMMAND "${CMAKE_COMMAND}"
         "-DHELPER=${CMAKE_CURRENT_SOURCE_DIR}/../cmake/CwhipInstallPrefix.cmake"
@@ -443,6 +449,9 @@ if(NOT CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
                 "-DMANDIR=${CMAKE_INSTALL_MANDIR}"
                 "-DRUNTIME_LIBRARY_NAME=$<TARGET_FILE_NAME:cwhip_runtime>"
                 "-DCLANG=${CWHIP_CLANG_EXECUTABLE}"
+                "-DBUILD_TYPE=${CMAKE_BUILD_TYPE}"
+                "-DEXPECTED_GTK=${CWHIP_GTK}"
+                "-DEXPECTED_SOURCEVIEW=${CWHIP_GTK_SOURCEVIEW}"
                 "-DSANITIZER_LIST=${CWHIP_SANITIZER_LIST}"
                 "-DCOVERAGE=${CWHIP_COVERAGE}"
                 "-DREGISTER_SDK=${CWHIP_REGISTER_SDK}"
