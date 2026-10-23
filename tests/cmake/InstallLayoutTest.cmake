@@ -24,7 +24,7 @@ endif()
 file(MAKE_DIRECTORY "${work_directory}")
 
 set(clean_environment
-    --unset=CWHIP_HOME --unset=CWHIP_RUNTIME_DIR --unset=CWHIP_INCLUDE_DIR
+    --unset=CWHIP_SDK --unset=CWHIP_HOME --unset=CWHIP_RUNTIME_DIR --unset=CWHIP_INCLUDE_DIR
     --unset=CWHIP_BUILTIN_DIR --unset=CWHIP_STDLIB_MODULE_DIR --unset=CWHIP_MODULE_DIR
     --unset=CWHIP_PACKAGE_PATH --unset=CWHIP_MODULE_REGISTRY --unset=DESTDIR
     "HOME=${work_directory}/home" "XDG_CONFIG_HOME=${work_directory}/xdg")
@@ -93,7 +93,10 @@ if(REGISTER_SDK)
     file(READ "${sdk_configuration}" registration)
     string(REPLACE "\\" "\\\\" encoded_prefix "${prefix}")
     string(REPLACE "\"" "\\\"" encoded_prefix "${encoded_prefix}")
-    if(NOT registration STREQUAL "sdk_prefix = \"${encoded_prefix}\"\n")
+    string(CONCAT expected_registration
+        "sdk_prefix = \"${encoded_prefix}\"\n\n[applications]\n"
+        "install_prefix = \"${encoded_prefix}\"\nbuild_type = \"${BUILD_TYPE}\"\n")
+    if(NOT registration STREQUAL expected_registration)
         message(FATAL_ERROR "Install did not register its --prefix in sdk.toml: ${registration}")
     endif()
 elseif(EXISTS "${sdk_configuration}")
@@ -103,6 +106,39 @@ file(READ "${preferences}" actual_preferences)
 if(NOT actual_preferences STREQUAL original_preferences)
     message(FATAL_ERROR "Install changed app preferences")
 endif()
+
+# Discover the installed package and inherit its registered app defaults.
+set(defaults_project "${work_directory}/application-defaults-project")
+set(defaults_build "${work_directory}/application-defaults-build")
+file(MAKE_DIRECTORY "${defaults_project}")
+file(WRITE "${defaults_project}/CMakeLists.txt" [=[
+cmake_minimum_required(VERSION 3.16)
+find_package(Cwhip 0.0.1 EXACT CONFIG REQUIRED)
+cwhip_apply_application_defaults()
+project(installed_application_defaults C)
+if(NOT "${CMAKE_INSTALL_PREFIX}" STREQUAL "${EXPECTED_INSTALL_PREFIX}")
+    message(FATAL_ERROR
+        "Unexpected inherited install prefix: ${CMAKE_INSTALL_PREFIX}; "
+        "registered=${Cwhip_APPLICATION_INSTALL_PREFIX}, selected=${Cwhip_PREFIX}, "
+        "default=${CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT}, "
+        "build-type=${CMAKE_BUILD_TYPE}, env=$ENV{CMAKE_INSTALL_PREFIX}")
+endif()
+if(NOT "${CMAKE_BUILD_TYPE}" STREQUAL "${EXPECTED_BUILD_TYPE}")
+    message(FATAL_ERROR "Unexpected inherited build type: ${CMAKE_BUILD_TYPE}")
+endif()
+if(NOT "${Cwhip_GTK}" STREQUAL "${EXPECTED_GTK}"
+   OR NOT "${Cwhip_SOURCEVIEW}" STREQUAL "${EXPECTED_SOURCEVIEW}")
+    message(FATAL_ERROR
+        "Installed feature metadata differs: GTK=${Cwhip_GTK} (expected ${EXPECTED_GTK}), "
+        "SOURCEVIEW=${Cwhip_SOURCEVIEW} (expected ${EXPECTED_SOURCEVIEW})")
+endif()
+]=])
+run_checked("installed application defaults" "${CMAKE_COMMAND}"
+    -E env ${clean_environment} "${CMAKE_COMMAND}"
+    -S "${defaults_project}" -B "${defaults_build}"
+    "-DCMAKE_PREFIX_PATH=${prefix}"
+    "-DEXPECTED_INSTALL_PREFIX=${prefix}" "-DEXPECTED_BUILD_TYPE=${BUILD_TYPE}"
+    "-DEXPECTED_GTK=${EXPECTED_GTK}" "-DEXPECTED_SOURCEVIEW=${EXPECTED_SOURCEVIEW}")
 
 # Relocate the installed tree to prove nothing depends on the install prefix.
 set(relocated_prefix "${work_directory}/relocated")

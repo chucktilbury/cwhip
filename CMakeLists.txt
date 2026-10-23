@@ -12,7 +12,7 @@ set(CMAKE_C_EXTENSIONS OFF)
 
 include(GNUInstallDirs)
 include(cmake/Instrumentation.cmake)
-option(CWHIP_REGISTER_SDK "Record sdk_prefix in sdk.toml on install" ON)
+option(CWHIP_REGISTER_SDK "Record the installed SDK and application defaults in sdk.toml" ON)
 
 # Root builds stage a developer prefix in the source tree: <source>/bin/cwhip
 # finds its runtime, headers, builtin, and standard modules in sibling
@@ -70,8 +70,14 @@ install(FILES doc/cwhip.1 DESTINATION "${CMAKE_INSTALL_MANDIR}/man1")
 
 # Record the real install prefix (not DESTDIR-staged) separately from preferences.
 if(CWHIP_REGISTER_SDK)
+    get_property(cwhip_multi_config GLOBAL PROPERTY GENERATOR_IS_MULTI_CONFIG)
+    if(cwhip_multi_config)
+        set(cwhip_install_build_type "\${CMAKE_INSTALL_CONFIG_NAME}")
+    else()
+        set(cwhip_install_build_type "${CMAKE_BUILD_TYPE}")
+    endif()
     install(CODE "
         include(\"${CMAKE_SOURCE_DIR}/cmake/CwhipRegisterSdk.cmake\")
-        cwhip_register_sdk(\"\${CMAKE_INSTALL_PREFIX}\")
+        cwhip_register_sdk(\"\${CMAKE_INSTALL_PREFIX}\" \"${cwhip_install_build_type}\")
     ")
 endif()

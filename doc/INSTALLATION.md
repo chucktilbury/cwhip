@@ -267,6 +267,16 @@ changed by registration. Failures (relative prefix, no config home, unwritable
 directory, a multi-line `sdk_prefix` value) fail the install. A `DESTDIR`
 install never writes the setting because the staged path is not a runtime
 prefix. Disable the step with `-DCWHIP_REGISTER_SDK=OFF`.
+
+The same registration also updates `[applications].install_prefix` to the
+actual installed prefix and `[applications].build_type` to the selected Cwhip
+build configuration. External CMake projects can inherit these defaults with
+`find_package(Cwhip ...)` followed by `cwhip_apply_application_defaults()`
+before `project()`; explicit command-line values, CMake environment settings,
+and existing cache choices take precedence. The helper applies registered
+defaults only when the selected `Cwhip_PREFIX` matches the registered
+`sdk_prefix`.
+
 The non-empty `CWHIP_SDK` environment variable overrides the `sdk_prefix` setting
 and bypasses configuration parsing. Consumers read legacy `settings.toml` only
 when `sdk.toml` is absent. An existing `sdk.toml` is authoritative: malformed or

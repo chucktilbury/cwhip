@@ -325,5 +325,6 @@ write_basic_package_version_file("${CMAKE_CURRENT_BINARY_DIR}/CwhipConfigVersion
 install(FILES "${CMAKE_CURRENT_BINARY_DIR}/CwhipConfig.cmake"
     "${CMAKE_CURRENT_BINARY_DIR}/CwhipConfigVersion.cmake"
     "${CMAKE_CURRENT_SOURCE_DIR}/../cmake/CwhipApplication.cmake"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../cmake/CwhipApplicationDefaults.cmake"
     "${CMAKE_CURRENT_SOURCE_DIR}/../cmake/CwhipStageSources.cmake"
     DESTINATION "${CWHIP_SDK_CMAKE_DIRECTORY}")
