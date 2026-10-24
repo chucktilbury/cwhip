@@ -1,41 +1,41 @@
 namespace System {
     class Runtime {
         handle fileOpen(String path, String mode)
-        String fileRead(handle fp, int size)
+        String fileRead(handle fp, int64 size)
         String fileReadAll(handle fp)
-        buffer fileReadBytes(handle fp, int size)
+        buffer fileReadBytes(handle fp, int64 size)
         buffer fileReadAllBytes(handle fp)
         String fileReadLine(handle fp)
         list fileReadLines(handle fp)
-        int fileWrite(handle fp, String data)
-        int fileWriteBytes(handle fp, buffer data)
-        int fileWriteLine(handle fp, String line)
-        int fileSeek(handle fp, int offset, int whence)
-        int fileTell(handle fp)
+        int64 fileWrite(handle fp, String data)
+        int64 fileWriteBytes(handle fp, buffer data)
+        int64 fileWriteLine(handle fp, String line)
+        int64 fileSeek(handle fp, int64 offset, int64 whence)
+        int64 fileTell(handle fp)
         void fileFlush(handle fp)
         void fileClose(handle fp)
         bool fileEof(handle fp)
     }
 
     class Process {
-        int argc()
+        int64 argc()
         list argv()
-        String arg(int index)
-        void exit(int code)
+        String arg(int64 index)
+        void exit(int64 code)
         void abort()
         String getEnv(String name)
         bool setEnv(String name, String value)
     }
 
     class StandardIO {
-        String read(int size)
+        String read(int64 size)
         String readLine()
-        int write(String text)
-        int writeLine(String text)
-        int writeBytes(buffer data)
-        int writeError(String text)
-        int writeErrorLine(String text)
-        int writeErrorBytes(buffer data)
+        int64 write(String text)
+        int64 writeLine(String text)
+        int64 writeBytes(buffer data)
+        int64 writeError(String text)
+        int64 writeErrorLine(String text)
+        int64 writeErrorBytes(buffer data)
         void flush()
         void flushError()
     }
@@ -78,7 +78,7 @@ namespace System {
             return Runtime().fileEof(_fp)
         }
 
-        String read(int size) {
+        String read(int64 size) {
             return Runtime().fileRead(_fp, size)
         }
 
@@ -86,7 +86,7 @@ namespace System {
             return Runtime().fileReadAll(_fp)
         }
 
-        buffer readBytes(int size) {
+        buffer readBytes(int64 size) {
             return Runtime().fileReadBytes(_fp, size)
         }
 
@@ -102,23 +102,23 @@ namespace System {
             return Runtime().fileReadLines(_fp)
         }
 
-        int write(String data) {
+        int64 write(String data) {
             return Runtime().fileWrite(_fp, data)
         }
 
-        int writeBytes(buffer data) {
+        int64 writeBytes(buffer data) {
             return Runtime().fileWriteBytes(_fp, data)
         }
 
-        int writeLine(String line) {
+        int64 writeLine(String line) {
             return Runtime().fileWriteLine(_fp, line)
         }
 
-        int seek(int offset, int whence) {
+        int64 seek(int64 offset, int64 whence) {
             return Runtime().fileSeek(_fp, offset, whence)
         }
 
-        int tell() {
+        int64 tell() {
             return Runtime().fileTell(_fp)
         }
 
@@ -139,7 +139,7 @@ namespace System {
         bool exists(String path)
         bool isFile(String path)
         bool isDir(String path)
-        int fileSize(String path)
+        int64 fileSize(String path)
         bool remove(String path)
         bool rename(String oldPath, String newPath)
         bool copy(String src, String dest)
@@ -163,7 +163,7 @@ namespace System {
     }
 
     class System {
-        int argc() {
+        int64 argc() {
             return Process().argc()
         }
 
@@ -171,11 +171,11 @@ namespace System {
             return Process().argv()
         }
 
-        String arg(int index) {
+        String arg(int64 index) {
             return Process().arg(index)
         }
 
-        void exit(int code)
+        void exit(int64 code)
         void abort()
 
         StandardIO io() {
@@ -197,38 +197,38 @@ namespace System {
         }
     }
 
-    int Process.argc() from "cwhip_system_argc"
+    int64 Process.argc() from "cwhip_system_argc"
     list Process.argv() from "cwhip_system_argv"
-    String Process.arg(int index) from "cwhip_system_arg"
-    void Process.exit(int code) from "cwhip_system_exit"
+    String Process.arg(int64 index) from "cwhip_system_arg"
+    void Process.exit(int64 code) from "cwhip_system_exit"
     void Process.abort() from "cwhip_system_abort"
     String Process.getEnv(String name) from "cwhip_system_getenv"
     bool Process.setEnv(String name, String value) from "cwhip_system_setenv"
     String System.lastError() from "cwhip_system_last_error"
 
-    String StandardIO.read(int size) from "cwhip_stdio_read"
+    String StandardIO.read(int64 size) from "cwhip_stdio_read"
     String StandardIO.readLine() from "cwhip_stdio_read_line"
-    int StandardIO.write(String text) from "cwhip_stdio_write"
-    int StandardIO.writeLine(String text) from "cwhip_stdio_write_line"
-    int StandardIO.writeBytes(buffer data) from "cwhip_stdio_write_bytes"
-    int StandardIO.writeError(String text) from "cwhip_stdio_write_error"
-    int StandardIO.writeErrorLine(String text) from "cwhip_stdio_write_error_line"
-    int StandardIO.writeErrorBytes(buffer data) from "cwhip_stdio_write_error_bytes"
+    int64 StandardIO.write(String text) from "cwhip_stdio_write"
+    int64 StandardIO.writeLine(String text) from "cwhip_stdio_write_line"
+    int64 StandardIO.writeBytes(buffer data) from "cwhip_stdio_write_bytes"
+    int64 StandardIO.writeError(String text) from "cwhip_stdio_write_error"
+    int64 StandardIO.writeErrorLine(String text) from "cwhip_stdio_write_error_line"
+    int64 StandardIO.writeErrorBytes(buffer data) from "cwhip_stdio_write_error_bytes"
     void StandardIO.flush() from "cwhip_stdio_flush"
     void StandardIO.flushError() from "cwhip_stdio_flush_error"
 
     handle Runtime.fileOpen(String path, String mode) from "cwhip_file_open"
-    String Runtime.fileRead(handle fp, int size) from "cwhip_file_read"
+    String Runtime.fileRead(handle fp, int64 size) from "cwhip_file_read"
     String Runtime.fileReadAll(handle fp) from "cwhip_file_read_all"
-    buffer Runtime.fileReadBytes(handle fp, int size) from "cwhip_file_read_bytes"
+    buffer Runtime.fileReadBytes(handle fp, int64 size) from "cwhip_file_read_bytes"
     buffer Runtime.fileReadAllBytes(handle fp) from "cwhip_file_read_all_bytes"
     String Runtime.fileReadLine(handle fp) from "cwhip_file_read_line"
     list Runtime.fileReadLines(handle fp) from "cwhip_file_read_lines"
-    int Runtime.fileWrite(handle fp, String data) from "cwhip_file_write"
-    int Runtime.fileWriteBytes(handle fp, buffer data) from "cwhip_file_write_bytes"
-    int Runtime.fileWriteLine(handle fp, String line) from "cwhip_file_write_line"
-    int Runtime.fileSeek(handle fp, int offset, int whence) from "cwhip_file_seek"
-    int Runtime.fileTell(handle fp) from "cwhip_file_tell"
+    int64 Runtime.fileWrite(handle fp, String data) from "cwhip_file_write"
+    int64 Runtime.fileWriteBytes(handle fp, buffer data) from "cwhip_file_write_bytes"
+    int64 Runtime.fileWriteLine(handle fp, String line) from "cwhip_file_write_line"
+    int64 Runtime.fileSeek(handle fp, int64 offset, int64 whence) from "cwhip_file_seek"
+    int64 Runtime.fileTell(handle fp) from "cwhip_file_tell"
     void Runtime.fileFlush(handle fp) from "cwhip_file_flush"
     void Runtime.fileClose(handle fp) from "cwhip_file_close"
     bool Runtime.fileEof(handle fp) from "cwhip_file_eof"
@@ -236,7 +236,7 @@ namespace System {
     bool FileSystem.exists(String path) from "cwhip_fs_exists"
     bool FileSystem.isFile(String path) from "cwhip_fs_is_file"
     bool FileSystem.isDir(String path) from "cwhip_fs_is_dir"
-    int FileSystem.fileSize(String path) from "cwhip_fs_file_size"
+    int64 FileSystem.fileSize(String path) from "cwhip_fs_file_size"
     bool FileSystem.remove(String path) from "cwhip_fs_remove"
     bool FileSystem.rename(String oldPath, String newPath) from "cwhip_fs_rename"
     bool FileSystem.copy(String src, String dest) from "cwhip_fs_copy"
@@ -256,6 +256,6 @@ namespace System {
 
     list Glob.glob(String pattern) from "cwhip_glob_glob"
 
-    void System.exit(int code) from "cwhip_system_exit"
+    void System.exit(int64 code) from "cwhip_system_exit"
     void System.abort() from "cwhip_system_abort"
 }

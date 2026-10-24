@@ -2,7 +2,7 @@ namespace main {
 
     class Foo {
 
-        int main() {
+        int64 main() {
             print("hello from main\n")
             return 0
         }

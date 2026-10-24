@@ -377,7 +377,7 @@ int main(void) {
     for (int index = 0; index < 64; ++index) {
         char key[8];
         const int key_length = snprintf(key, sizeof(key), "k%02d", index);
-        CwhipArrayValue value = {CWHIP_ARRAY_INTEGER, index, NULL, 0};
+        CwhipArrayValue value = {CWHIP_ARRAY_INT64, index, NULL, 0};
         cwhip_map_set(map, key, (uint64_t)key_length, &value,
                      "runtime-test.cw", 17, 1, 1);
     }
@@ -386,7 +386,7 @@ int main(void) {
         const int key_length = snprintf(key, sizeof(key), "k%02d", index);
         CwhipArrayValue *value = (CwhipArrayValue *)cwhip_map_get(
             map, key, (uint64_t)key_length, "runtime-test.cw", 17, 1, 1);
-        if (value->tag != CWHIP_ARRAY_INTEGER || value->integer != index) {
+        if (value->tag != CWHIP_ARRAY_INT64 || value->integer != index) {
             return fail("hashed map lookup returned the wrong insertion");
         }
     }
@@ -395,7 +395,7 @@ int main(void) {
         map->length != 63) {
         return fail("map removal returned an invalid result or length");
     }
-    CwhipArrayValue tail_value = {CWHIP_ARRAY_INTEGER, 99, NULL, 0};
+    CwhipArrayValue tail_value = {CWHIP_ARRAY_INT64, 99, NULL, 0};
     cwhip_map_set(map, "tail", 4, &tail_value, "runtime-test.cw", 17, 1, 1);
     const CwhipMapEntry *first = (const CwhipMapEntry *)cwhip_map_entry_at(
         map, 20, "runtime-test.cw", 17, 1, 1);

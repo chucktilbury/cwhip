@@ -1,4 +1,5 @@
 [package]
+sdk-abi = "numeric-v2"
 name = "sqlite"
 version = "0.1.0"
 source = "sqlite.cw"

@@ -93,6 +93,7 @@ These broad codes are not yet a promise of per-error classification.
 | PKG2001 | Selected SDK standard package directory missing | 1 |
 | PKG2002 | One or more required doctor checks failed (per-check remedies on stdout) | 1 |
 | PKG2003 | Doctor SDK override/configuration selection invalid or unreadable | 1 |
+| PKG2004 | Package SDK ABI absent or incompatible; migrate source and rebuild native artifacts | 1 |
 | PKG3001 | Git missing or Git command failure (with context/status and both captured streams) | 1 |
 | PKG3002 | Template archive download failed or exceeded the transfer limit | 1 |
 | PKG9001 | Rollback could not restore configuration or remove an installed package | Original failure remains nonzero |

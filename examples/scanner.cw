@@ -12,11 +12,11 @@ namespace scanner {
         }
 
         handle fh
-        int line
-        int col
+        int64 line
+        int64 col
         strg name
         strg err
-        int ch
+        int64 ch
 
         File() {}
 
@@ -43,11 +43,11 @@ namespace scanner {
             }
         }
 
-        int get_char() {
+        int64 get_char() {
             return(ch)
         }
 
-        int consume_char() {
+        int64 consume_char() {
             if(ch != -1) {
                 if(ch == 0x0a) {
                     line += 1
@@ -57,7 +57,7 @@ namespace scanner {
                     col += 1
                 }
 
-                inline(strg err, handle fh, int ch) {
+                inline(strg err, handle fh, int64 ch) {
                     FILE* stream = (FILE*)*fh;
                     *ch = fgetc(stream);
                     *err = cwhip_system_last_error(NULL);
@@ -75,7 +75,7 @@ namespace scanner {
     class FileStack {
 
         list stack 
-        int index
+        int64 index
 
         FileStack() {
             index = -1
@@ -98,7 +98,7 @@ namespace scanner {
             ; Do nothing
         }
 
-        int get_line() { 
+        int64 get_line() {
             if(index >= 0) {
                 return((stack[index] as File).line) 
             }
@@ -107,7 +107,7 @@ namespace scanner {
             }
         }
         
-        int get_col() { 
+        int64 get_col() {
             if(index >= 0) {
                 return((stack[index] as File).col) 
             }
@@ -125,7 +125,7 @@ namespace scanner {
             } 
         }
 
-        int get_char() {
+        int64 get_char() {
             if(index >= 0) {
                 return((stack[index] as File).ch)
             }
@@ -134,13 +134,13 @@ namespace scanner {
             } 
         }
 
-        int consume_char() {
+        int64 consume_char() {
             return((stack[index] as File).consume_char())
         }
 
         void print_char() {
-            int c = get_char()
-            inline(int c) {
+            int64 c = get_char()
+            inline(int64 c) {
                 switch(*c) {
                     case -1:
                         printf("END OF FILE");
@@ -171,7 +171,7 @@ start {
         raise()
     }
 
-    int ch = fstk.get_char()
+    int64 ch = fstk.get_char()
     do {
         fstk.print_char()
         
@@ -187,4 +187,3 @@ start {
 
     print("\n")
 }
-

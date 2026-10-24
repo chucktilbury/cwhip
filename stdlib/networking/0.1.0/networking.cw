@@ -1,25 +1,25 @@
 namespace Networking {
     class Runtime {
-        int socketCreate()
-        bool socketConnect(int fd, String host, int port)
-        int socketSend(int fd, buffer data)
-        int socketSendString(int fd, String data)
-        buffer socketRecv(int fd, int maxBytes)
-        String socketRecvString(int fd, int maxBytes)
-        void socketClose(int fd)
-        void socketSetTimeout(int fd, int milliseconds)
-        int serverBind(String host, int port, int backlog)
-        int serverAccept(int fd)
-        int serverPort(int fd)
-        bool serverListen(int fd, int backlog)
+        int64 socketCreate()
+        bool socketConnect(int64 fd, String host, int64 port)
+        int64 socketSend(int64 fd, buffer data)
+        int64 socketSendString(int64 fd, String data)
+        buffer socketRecv(int64 fd, int64 maxBytes)
+        String socketRecvString(int64 fd, int64 maxBytes)
+        void socketClose(int64 fd)
+        void socketSetTimeout(int64 fd, int64 milliseconds)
+        int64 serverBind(String host, int64 port, int64 backlog)
+        int64 serverAccept(int64 fd)
+        int64 serverPort(int64 fd)
+        bool serverListen(int64 fd, int64 backlog)
     }
 
     class Socket {
         private:
-        int _fd
+        int64 _fd
         bool _connected
         String _host
-        int _port
+        int64 _port
 
         public:
         Socket() {
@@ -29,14 +29,14 @@ namespace Networking {
             _port = 0
         }
 
-        Socket(int fd) {
+        Socket(int64 fd) {
             _fd = fd
             _connected = fd >= 0
             _host = ""
             _port = 0
         }
 
-        bool connect(String host, int port) {
+        bool connect(String host, int64 port) {
             _connected = Runtime().socketConnect(_fd, host, port)
             if (_connected) {
                 _host = host
@@ -45,19 +45,19 @@ namespace Networking {
             return _connected
         }
 
-        int send(buffer data) {
+        int64 send(buffer data) {
             return Runtime().socketSend(_fd, data)
         }
 
-        int sendString(String data) {
+        int64 sendString(String data) {
             return Runtime().socketSendString(_fd, data)
         }
 
-        buffer recv(int maxBytes) {
+        buffer recv(int64 maxBytes) {
             return Runtime().socketRecv(_fd, maxBytes)
         }
 
-        String recvString(int maxBytes) {
+        String recvString(int64 maxBytes) {
             return Runtime().socketRecvString(_fd, maxBytes)
         }
 
@@ -73,11 +73,11 @@ namespace Networking {
             return _connected
         }
 
-        void setTimeout(int milliseconds) {
+        void setTimeout(int64 milliseconds) {
             Runtime().socketSetTimeout(_fd, milliseconds)
         }
 
-        int getPort() {
+        int64 getPort() {
             return _port
         }
 
@@ -88,8 +88,8 @@ namespace Networking {
 
     class ServerSocket {
         private:
-        int _fd
-        int _port
+        int64 _fd
+        int64 _port
 
         public:
         ServerSocket() {
@@ -97,7 +97,7 @@ namespace Networking {
             _port = 0
         }
 
-        bool bind(int port) {
+        bool bind(int64 port) {
             if (_fd >= 0) {
                 Runtime().socketClose(_fd)
             }
@@ -108,7 +108,7 @@ namespace Networking {
             return _fd >= 0
         }
 
-        bool bindAddress(String host, int port) {
+        bool bindAddress(String host, int64 port) {
             if (_fd >= 0) {
                 Runtime().socketClose(_fd)
             }
@@ -119,7 +119,7 @@ namespace Networking {
             return _fd >= 0
         }
 
-        bool listen(int backlog) {
+        bool listen(int64 backlog) {
             return Runtime().serverListen(_fd, backlog)
         }
 
@@ -139,7 +139,7 @@ namespace Networking {
             return _fd >= 0
         }
 
-        int getPort() {
+        int64 getPort() {
             return _port
         }
     }
@@ -149,7 +149,7 @@ namespace Networking {
         String _url
         String _scheme
         String _host
-        int _port
+        int64 _port
         String _path
         String _query
         String _fragment
@@ -165,42 +165,42 @@ namespace Networking {
             _fragment = ""
 
             String rest = urlString
-            int schemeEnd = rest.find("://")
+            int64 schemeEnd = rest.find("://")
             if (schemeEnd >= 0) {
                 _scheme = rest.slice(0, schemeEnd)
                 rest = rest.slice(schemeEnd + 3, rest.length)
             }
 
-            int fragmentStart = rest.find("#")
+            int64 fragmentStart = rest.find("#")
             if (fragmentStart >= 0) {
                 _fragment = rest.slice(fragmentStart + 1, rest.length)
                 rest = rest.slice(0, fragmentStart)
             }
-            int queryStart = rest.find("?")
+            int64 queryStart = rest.find("?")
             if (queryStart >= 0) {
                 _query = rest.slice(queryStart + 1, rest.length)
                 rest = rest.slice(0, queryStart)
             }
 
-            int pathStart = rest.find("/")
+            int64 pathStart = rest.find("/")
             String authority = rest
             if (pathStart >= 0) {
                 authority = rest.slice(0, pathStart)
                 _path = rest.slice(pathStart, rest.length)
             }
 
-            int atSign = authority.find("@")
+            int64 atSign = authority.find("@")
             if (atSign >= 0) {
                 authority = authority.slice(atSign + 1, authority.length)
             }
             if (authority.startsWith("[")) {
-                int bracketEnd = authority.find("]")
+                int64 bracketEnd = authority.find("]")
                 if (bracketEnd >= 0) {
                     _host = authority.slice(1, bracketEnd)
                     if (bracketEnd + 1 < authority.length) {
                         String portText = authority.slice(bracketEnd + 2, authority.length)
                         if (portText.length > 0) {
-                            _port = portText.toInt()
+                            _port = portText.toInt64()
                         }
                     } else {
                         if (_scheme.equals("http")) {
@@ -215,12 +215,12 @@ namespace Networking {
                     _host = authority
                 }
             } else {
-                int colon = authority.find(":")
+                int64 colon = authority.find(":")
                 if (colon >= 0) {
                     _host = authority.slice(0, colon)
                     String portText = authority.slice(colon + 1, authority.length)
                     if (portText.length > 0) {
-                        _port = portText.toInt()
+                        _port = portText.toInt64()
                     }
                 } else {
                     _host = authority
@@ -243,7 +243,7 @@ namespace Networking {
             return _host
         }
 
-        int port() {
+        int64 port() {
             return _port
         }
 
@@ -264,17 +264,17 @@ namespace Networking {
         }
     }
 
-    int Runtime.socketCreate() from "cwhip_net_socket_create"
-    bool Runtime.socketConnect(int fd, String host, int port) from "cwhip_net_socket_connect"
-    int Runtime.socketSend(int fd, buffer data) from "cwhip_net_socket_send"
-    int Runtime.socketSendString(int fd, String data) from "cwhip_net_socket_send_string"
-    buffer Runtime.socketRecv(int fd, int maxBytes) from "cwhip_net_socket_recv"
-    String Runtime.socketRecvString(int fd, int maxBytes) from "cwhip_net_socket_recv_string"
-    void Runtime.socketClose(int fd) from "cwhip_net_socket_close"
-    void Runtime.socketSetTimeout(int fd, int milliseconds) from "cwhip_net_socket_set_timeout"
+    int64 Runtime.socketCreate() from "cwhip_net_socket_create"
+    bool Runtime.socketConnect(int64 fd, String host, int64 port) from "cwhip_net_socket_connect"
+    int64 Runtime.socketSend(int64 fd, buffer data) from "cwhip_net_socket_send"
+    int64 Runtime.socketSendString(int64 fd, String data) from "cwhip_net_socket_send_string"
+    buffer Runtime.socketRecv(int64 fd, int64 maxBytes) from "cwhip_net_socket_recv"
+    String Runtime.socketRecvString(int64 fd, int64 maxBytes) from "cwhip_net_socket_recv_string"
+    void Runtime.socketClose(int64 fd) from "cwhip_net_socket_close"
+    void Runtime.socketSetTimeout(int64 fd, int64 milliseconds) from "cwhip_net_socket_set_timeout"
 
-    int Runtime.serverBind(String host, int port, int backlog) from "cwhip_net_server_bind"
-    int Runtime.serverAccept(int fd) from "cwhip_net_server_accept"
-    int Runtime.serverPort(int fd) from "cwhip_net_server_port"
-    bool Runtime.serverListen(int fd, int backlog) from "cwhip_net_server_listen"
+    int64 Runtime.serverBind(String host, int64 port, int64 backlog) from "cwhip_net_server_bind"
+    int64 Runtime.serverAccept(int64 fd) from "cwhip_net_server_accept"
+    int64 Runtime.serverPort(int64 fd) from "cwhip_net_server_port"
+    bool Runtime.serverListen(int64 fd, int64 backlog) from "cwhip_net_server_listen"
 }

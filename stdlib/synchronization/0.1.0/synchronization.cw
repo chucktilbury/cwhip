@@ -9,7 +9,7 @@ namespace Synchronization {
         bool conditionSignal(handle condition)
         bool conditionBroadcast(handle condition)
         bool conditionRelease(handle condition)
-        handle semaphoreCreate(int initialCount)
+        handle semaphoreCreate(int64 initialCount)
         void semaphoreWait(handle semaphore)
         void semaphoreSignal(handle semaphore)
         void semaphoreRelease(handle semaphore)
@@ -86,7 +86,7 @@ namespace Synchronization {
         handle _native
 
         public:
-        Semaphore(int initialCount) {
+        Semaphore(int64 initialCount) {
             _native = Runtime().semaphoreCreate(initialCount)
         }
 
@@ -115,7 +115,7 @@ namespace Synchronization {
     bool Runtime.conditionSignal(handle condition) from "cwhip_condition_signal"
     bool Runtime.conditionBroadcast(handle condition) from "cwhip_condition_broadcast"
     bool Runtime.conditionRelease(handle condition) from "cwhip_condition_release"
-    handle Runtime.semaphoreCreate(int initialCount) from "cwhip_semaphore_create"
+    handle Runtime.semaphoreCreate(int64 initialCount) from "cwhip_semaphore_create"
     void Runtime.semaphoreWait(handle semaphore) from "cwhip_semaphore_wait"
     void Runtime.semaphoreSignal(handle semaphore) from "cwhip_semaphore_signal"
     void Runtime.semaphoreRelease(handle semaphore) from "cwhip_semaphore_release"

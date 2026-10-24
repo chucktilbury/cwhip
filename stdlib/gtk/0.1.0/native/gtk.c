@@ -1756,7 +1756,7 @@ int64_t cwhip_gtk_source_view_line_activated(void *self, int64_t token, void *ca
     gtk_gesture_single_set_button(GTK_GESTURE_SINGLE(gesture), GDK_BUTTON_PRIMARY);
     gtk_event_controller_set_propagation_phase(GTK_EVENT_CONTROLLER(gesture), GTK_PHASE_CAPTURE);
     int64_t connection = connect_signal(G_OBJECT(gesture), "pressed",
-        G_CALLBACK(source_line_pressed), callback, "callback<void(int)>");
+        G_CALLBACK(source_line_pressed), callback, "callback<void(int64)>");
     gtk_widget_add_controller(widget, GTK_EVENT_CONTROLLER(gesture));
     return connection;
 }

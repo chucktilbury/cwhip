@@ -1,13 +1,13 @@
 namespace Time {
     class Clock {
-        unsigned epochSeconds()
-        unsigned epochMilliseconds()
-        unsigned monotonicMilliseconds()
-        bool sleepMilliseconds(unsigned milliseconds)
+        uint64 epochSeconds()
+        uint64 epochMilliseconds()
+        uint64 monotonicMilliseconds()
+        bool sleepMilliseconds(uint64 milliseconds)
     }
 
-    unsigned Clock.epochSeconds() from "cwhip_time_epoch_seconds"
-    unsigned Clock.epochMilliseconds() from "cwhip_time_epoch_milliseconds"
-    unsigned Clock.monotonicMilliseconds() from "cwhip_time_monotonic_milliseconds"
-    bool Clock.sleepMilliseconds(unsigned milliseconds) from "cwhip_time_sleep_milliseconds"
+    uint64 Clock.epochSeconds() from "cwhip_time_epoch_seconds"
+    uint64 Clock.epochMilliseconds() from "cwhip_time_epoch_milliseconds"
+    uint64 Clock.monotonicMilliseconds() from "cwhip_time_monotonic_milliseconds"
+    bool Clock.sleepMilliseconds(uint64 milliseconds) from "cwhip_time_sleep_milliseconds"
 }

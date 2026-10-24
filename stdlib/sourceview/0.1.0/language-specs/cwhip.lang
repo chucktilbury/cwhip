@@ -31,7 +31,7 @@
       <match>&quot;([^&quot;\\]|\\.)*&quot;</match>
     </context>
     <context id="number" class="number" style-ref="number">
-      <match extended="true">\b[0-9]+(\.[0-9]+)?([uU])?\b</match>
+      <match extended="true">(?&lt;![\w.])(0[xX][0-9a-fA-F]+[uU]?|([0-9]+(\.[0-9]*)?|\.[0-9]+)([eE][+-]?[0-9]+)?(f64|[uU])?)(?!\w)</match>
     </context>
     <context id="keyword" class="keyword" style-ref="keyword">
       <keyword>class</keyword><keyword>namespace</keyword><keyword>import</keyword>
@@ -45,15 +45,20 @@
       <keyword>as</keyword><keyword>is</keyword><keyword>enum</keyword>
       <keyword>callback</keyword><keyword>super</keyword><keyword>null</keyword>
       <keyword>true</keyword><keyword>false</keyword>
+      <keyword>int</keyword><keyword>unsigned</keyword><keyword>float</keyword>
     </context>
     <context id="type" class="type" style-ref="type">
-      <keyword>int</keyword><keyword>unsigned</keyword><keyword>float</keyword>
+      <keyword>int8</keyword><keyword>uint8</keyword>
+      <keyword>int16</keyword><keyword>uint16</keyword>
+      <keyword>int32</keyword><keyword>uint32</keyword>
+      <keyword>int64</keyword><keyword>uint64</keyword>
+      <keyword>fp32</keyword><keyword>fp64</keyword>
       <keyword>bool</keyword><keyword>String</keyword><keyword>list</keyword>
       <keyword>dict</keyword><keyword>buffer</keyword><keyword>handle</keyword>
       <keyword>type</keyword><keyword>void</keyword>
     </context>
     <context id="operators" style-ref="operator">
-      <match>[-+*/%=!&lt;&gt;&amp;|.:]</match>
+      <match>[-+*/%=!&lt;&gt;&amp;|^~.:]</match>
     </context>
   </definitions>
 </language>

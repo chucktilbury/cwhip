@@ -18,12 +18,12 @@
 
 class Payload {
 
-    Payload(int initial) {
+    Payload(int64 initial) {
         print(format("in Payload ctor ({})", initial))
         value = initial
     }
 
-    int read() {
+    int64 read() {
         return(value)
     }
 
@@ -32,7 +32,7 @@ class Payload {
     }
 
     private:
-    int value
+    int64 value
 }
 
 class Root {
@@ -43,7 +43,7 @@ class Root {
         value = 41
     }
 
-    int read() {
+    int64 read() {
         return value
     }
 
@@ -52,7 +52,7 @@ class Root {
     }
 
     private:
-    int value
+    int64 value
 }
 
 class Left : virtual Root {
@@ -82,7 +82,7 @@ class Diamond : Left, Right {
         print("Diamond ctor")
     }
 
-    int read() {
+    int64 read() {
         return 77
     }
 

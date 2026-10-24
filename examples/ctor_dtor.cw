@@ -4,10 +4,10 @@
 
 class FirstBase {
 
-    int bar
-    int foo
+    int64 bar
+    int64 foo
 
-    FirstBase(int n) {
+    FirstBase(int64 n) {
         print("in the FirstBase constructor")
         init()
         foo = n
@@ -35,7 +35,7 @@ class FirstBase {
 
 class SecondBase {
 
-    int foo
+    int64 foo
     SecondBase() {
         print("in the SecondBase constructor")
         foo = 42

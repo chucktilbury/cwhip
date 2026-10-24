@@ -10,7 +10,7 @@ namespace SQLite {
         String _nativeConnectionError(handle connection)
         bool _nativeExecute(handle connection, String sql)
         bool _nativePrepare(handle connection, Statement target, String sql)
-        bool _nativeBusyTimeout(handle connection, int milliseconds)
+        bool _nativeBusyTimeout(handle connection, int64 milliseconds)
         bool _nativeBeginTransaction(handle connection, Transaction target)
 
         public:
@@ -38,7 +38,7 @@ namespace SQLite {
             return result
         }
 
-        bool setBusyTimeout(int milliseconds) {
+        bool setBusyTimeout(int64 milliseconds) {
             if (_native == null) { raise(Exception("SQLite connection is closed")) }
             return _nativeBusyTimeout(_native, milliseconds)
         }
@@ -78,18 +78,18 @@ namespace SQLite {
         private:
         bool _nativeExists()
         bool _nativeFinalize()
-        int _nativeStep()
+        int64 _nativeStep()
         String _nativeStatementError()
-        bool _nativeBindNull(int index)
-        bool _nativeBindInteger(int index, int value)
-        bool _nativeBindReal(int index, float value)
-        bool _nativeBindText(int index, String value)
-        bool _nativeBindBlob(int index, buffer value)
-        int _nativeColumnType(int index)
-        int _nativeColumnInteger(int index)
-        float _nativeColumnReal(int index)
-        String _nativeColumnText(int index)
-        buffer _nativeColumnBlob(int index)
+        bool _nativeBindNull(int64 index)
+        bool _nativeBindInteger(int64 index, int64 value)
+        bool _nativeBindReal(int64 index, fp64 value)
+        bool _nativeBindText(int64 index, String value)
+        bool _nativeBindBlob(int64 index, buffer value)
+        int64 _nativeColumnType(int64 index)
+        int64 _nativeColumnInteger(int64 index)
+        fp64 _nativeColumnReal(int64 index)
+        String _nativeColumnText(int64 index)
+        buffer _nativeColumnBlob(int64 index)
 
         public:
         Statement() {
@@ -103,7 +103,7 @@ namespace SQLite {
             return _nativeStatementError()
         }
 
-        bool bind(int index, SQL.Value value) {
+        bool bind(int64 index, SQL.Value value) {
             if (!_nativeExists()) { raise(Exception("SQLite statement is not prepared or has been finalized")) }
             if (_hasStepped) { raise(Exception("SQLite parameters must be bound before stepping")) }
             if (value.kind() == 0) { return _nativeBindNull(index) }
@@ -117,7 +117,7 @@ namespace SQLite {
         bool step() {
             if (!_nativeExists()) { raise(Exception("SQLite statement is not prepared or has been finalized")) }
             if (_done || _failed) { return false }
-            int status = _nativeStep()
+            int64 status = _nativeStep()
             _hasStepped = true
             _hasRow = status == 1
             _done = status == 0
@@ -137,10 +137,10 @@ namespace SQLite {
             return _failed
         }
 
-        SQL.Value value(int zeroBasedColumnIndex) {
+        SQL.Value value(int64 zeroBasedColumnIndex) {
             if (!_nativeExists()) { raise(Exception("SQLite statement is not prepared or has been finalized")) }
             if (!_hasRow) { raise(Exception("SQLite statement has no current row")) }
-            int kind = _nativeColumnType(zeroBasedColumnIndex)
+            int64 kind = _nativeColumnType(zeroBasedColumnIndex)
             if (kind == 0) { return SQL.Value() }
             if (kind == 1) { return SQL.Value(_nativeColumnInteger(zeroBasedColumnIndex)) }
             if (kind == 2) { return SQL.Value(_nativeColumnReal(zeroBasedColumnIndex)) }
@@ -223,23 +223,23 @@ namespace SQLite {
     String Connection._nativeConnectionError(handle connection) from "cwhip_sqlite_connection_error"
     bool Connection._nativeExecute(handle connection, String sql) from "cwhip_sqlite_execute"
     bool Connection._nativePrepare(handle connection, Statement target, String sql) from "cwhip_sqlite_prepare"
-    bool Connection._nativeBusyTimeout(handle connection, int milliseconds) from "cwhip_sqlite_busy_timeout"
+    bool Connection._nativeBusyTimeout(handle connection, int64 milliseconds) from "cwhip_sqlite_busy_timeout"
     bool Connection._nativeBeginTransaction(handle connection, Transaction target) from "cwhip_sqlite_begin_transaction"
 
     bool Statement._nativeExists() from "cwhip_sqlite_statement_exists"
     bool Statement._nativeFinalize() from "cwhip_sqlite_finalize"
-    int Statement._nativeStep() from "cwhip_sqlite_step"
+    int64 Statement._nativeStep() from "cwhip_sqlite_step"
     String Statement._nativeStatementError() from "cwhip_sqlite_statement_error"
-    bool Statement._nativeBindNull(int index) from "cwhip_sqlite_bind_null"
-    bool Statement._nativeBindInteger(int index, int value) from "cwhip_sqlite_bind_integer"
-    bool Statement._nativeBindReal(int index, float value) from "cwhip_sqlite_bind_real"
-    bool Statement._nativeBindText(int index, String value) from "cwhip_sqlite_bind_text"
-    bool Statement._nativeBindBlob(int index, buffer value) from "cwhip_sqlite_bind_blob"
-    int Statement._nativeColumnType(int index) from "cwhip_sqlite_column_type"
-    int Statement._nativeColumnInteger(int index) from "cwhip_sqlite_column_integer"
-    float Statement._nativeColumnReal(int index) from "cwhip_sqlite_column_real"
-    String Statement._nativeColumnText(int index) from "cwhip_sqlite_column_text"
-    buffer Statement._nativeColumnBlob(int index) from "cwhip_sqlite_column_blob"
+    bool Statement._nativeBindNull(int64 index) from "cwhip_sqlite_bind_null"
+    bool Statement._nativeBindInteger(int64 index, int64 value) from "cwhip_sqlite_bind_integer"
+    bool Statement._nativeBindReal(int64 index, fp64 value) from "cwhip_sqlite_bind_real"
+    bool Statement._nativeBindText(int64 index, String value) from "cwhip_sqlite_bind_text"
+    bool Statement._nativeBindBlob(int64 index, buffer value) from "cwhip_sqlite_bind_blob"
+    int64 Statement._nativeColumnType(int64 index) from "cwhip_sqlite_column_type"
+    int64 Statement._nativeColumnInteger(int64 index) from "cwhip_sqlite_column_integer"
+    fp64 Statement._nativeColumnReal(int64 index) from "cwhip_sqlite_column_real"
+    String Statement._nativeColumnText(int64 index) from "cwhip_sqlite_column_text"
+    buffer Statement._nativeColumnBlob(int64 index) from "cwhip_sqlite_column_blob"
 
     bool Transaction._nativeExists() from "cwhip_sqlite_transaction_exists"
     bool Transaction._nativeActive() from "cwhip_sqlite_transaction_active"

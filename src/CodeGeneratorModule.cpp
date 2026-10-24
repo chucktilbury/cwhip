@@ -673,6 +673,7 @@ void CodeGenerator::emitMain(const Program& program) {
     emitStatements(program.statements);
     const auto body = instructions_;
     instructions_ = debugAnnotate("define i32 @main(i32 %argc, ptr %argv)" + functionDebug + " {\nentry:\n"
+                    "  call void @cwhip_runtime_abi_numeric_v2()\n"
                     "  call void @cwhip_runtime_thread_enter()\n" +
                     "  call void @cwhip_runtime_init_args(i32 %argc, ptr %argv)\n" +
                     entryAllocas_ +
@@ -780,9 +781,6 @@ std::string CodeGenerator::generate(const Program& program,
            << "declare void @cwhip_string_append_bytes(ptr, ptr, i64)\n"
            << "declare void @cwhip_string_format_append(ptr, i64, i64, ptr, i64, ptr, i64, i64, i64)\n"
            << "declare void @cwhip_string_format_spec_append(ptr, i64, i64, ptr, i64, i64, i64, i64, i64, ptr, i64, i64, i64)\n"
-           << "declare i64 @cwhip_string_to_int(ptr, i64, ptr, i64, i64, i64)\n"
-           << "declare i64 @cwhip_string_to_unsigned(ptr, i64, ptr, i64, i64, i64)\n"
-           << "declare double @cwhip_string_to_float(ptr, i64, ptr, i64, i64, i64)\n"
            << "declare void @cwhip_gc_require_alive(ptr, ptr, i64, i64, i64)\n"
            << "declare void @cwhip_value_require_tag(i64, i64, ptr, i64, i64, i64)\n"
            << "declare void @cwhip_value_require_null(i64, ptr, ptr, i64, i64, i64)\n"
@@ -796,6 +794,7 @@ std::string CodeGenerator::generate(const Program& program,
            << "declare void @cwhip_gc_end_construction(ptr)\n"
            << "declare void @cwhip_gc_begin_destroy(ptr, ptr, i64, i64, i64)\n"
            << "declare void @cwhip_gc_end_destroy(ptr)\n"
+           << "declare void @cwhip_runtime_abi_numeric_v2()\n"
            << "declare void @cwhip_runtime_thread_enter()\n"
            << "declare void @cwhip_runtime_thread_exit()\n"
            << "declare void @cwhip_runtime_init_args(i32, ptr)\n"

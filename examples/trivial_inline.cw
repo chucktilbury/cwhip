@@ -1,7 +1,7 @@
 
 class Foo {
 
-    int num
+    int64 num
 
     void setup() {
         num = 123
@@ -14,9 +14,9 @@ class Foo {
         }
     }
 
-    void pnum(int val) {
+    void pnum(int64 val) {
 
-        inline(int val) {
+        inline(int64 val) {
             printf("this is the %lld number\n", (long long)*val);
         }
     }

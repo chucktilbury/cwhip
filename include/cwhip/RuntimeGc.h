@@ -48,16 +48,13 @@ typedef struct CwhipClassMeta {
 
 typedef enum CwhipArrayValueTag {
     CWHIP_ARRAY_INT64 = 1,
-    CWHIP_ARRAY_INTEGER = CWHIP_ARRAY_INT64,
     CWHIP_ARRAY_STRING = 2,
     CWHIP_ARRAY_OBJECT = 3,
     CWHIP_ARRAY_MAP = 4,
     CWHIP_ARRAY_ARRAY = 5,
     CWHIP_ARRAY_BOOLEAN = 6,
     CWHIP_ARRAY_FP64 = 7,
-    CWHIP_ARRAY_FLOAT = CWHIP_ARRAY_FP64,
     CWHIP_ARRAY_UINT64 = 8,
-    CWHIP_ARRAY_UNSIGNED = CWHIP_ARRAY_UINT64,
     CWHIP_ARRAY_BUFFER = 9,
     CWHIP_ARRAY_HANDLE = 10,
     CWHIP_ARRAY_TYPE = 11,
@@ -137,9 +134,21 @@ void cwhip_string_format_append(void *object, uint64_t tag, int64_t integer,
                                uint64_t file_length, uint64_t line, uint64_t column);
 void cwhip_string_append(void *receiver, void *other);
 int32_t cwhip_string_equals(void *receiver, void *other);
-int64_t cwhip_string_method_to_int(void *receiver);
-uint64_t cwhip_string_method_to_unsigned(void *receiver);
-double cwhip_string_method_to_float(void *receiver);
+#define CWHIP_DECLARE_NUMERIC_PARSER(name, ctype) \
+ctype cwhip_string_method_to_##name(void *receiver); \
+ctype cwhip_string_to_##name(const char *data, uint64_t length, const char *file, \
+                            uint64_t file_length, uint64_t line, uint64_t column);
+CWHIP_DECLARE_NUMERIC_PARSER(int8, int8_t)
+CWHIP_DECLARE_NUMERIC_PARSER(uint8, uint8_t)
+CWHIP_DECLARE_NUMERIC_PARSER(int16, int16_t)
+CWHIP_DECLARE_NUMERIC_PARSER(uint16, uint16_t)
+CWHIP_DECLARE_NUMERIC_PARSER(int32, int32_t)
+CWHIP_DECLARE_NUMERIC_PARSER(uint32, uint32_t)
+CWHIP_DECLARE_NUMERIC_PARSER(int64, int64_t)
+CWHIP_DECLARE_NUMERIC_PARSER(uint64, uint64_t)
+CWHIP_DECLARE_NUMERIC_PARSER(fp32, float)
+CWHIP_DECLARE_NUMERIC_PARSER(fp64, double)
+#undef CWHIP_DECLARE_NUMERIC_PARSER
 uint64_t cwhip_string_method_byte_at(void *receiver, int64_t index);
 void *cwhip_string_method_slice(void *receiver, int64_t first, int64_t last);
 void cwhip_string_method_insert(void *receiver, int64_t index, void *other);
@@ -156,21 +165,16 @@ void *cwhip_string_method_to_upper(void *receiver);
 void *cwhip_string_method_to_lower(void *receiver);
 void cwhip_inline_cstr_begin(void);
 void cwhip_inline_cstr_end(void);
+void cwhip_runtime_abi_numeric_v2(void);
 void cwhip_system_exit(void *self, int64_t code);
 void cwhip_system_abort(void *self);
 
-/* String-to-number conversion, backing String methods
- * s.toInt(), s.toUnsigned(), s.toFloat() (see "Strings" in
- * CWHIP-LANGUAGE-NOTES.md). Each parses the *entire* byte range as one
+/* String-to-number conversion declarations above back destination-named
+ * String methods (toInt8 through toUint64, toFp32, toFp64).
+ * Each parses the entire byte range as one
  * value (no leading/trailing whitespace, no partial parses) and raises a
  * catchable, source-located exception on any parse failure or out-of-range
  * value; unsigned conversion additionally rejects a leading '-'. */
-int64_t cwhip_string_to_int(const char *data, uint64_t length, const char *file,
-                           uint64_t file_length, uint64_t line, uint64_t column);
-uint64_t cwhip_string_to_unsigned(const char *data, uint64_t length, const char *file,
-                                 uint64_t file_length, uint64_t line, uint64_t column);
-double cwhip_string_to_float(const char *data, uint64_t length, const char *file,
-                            uint64_t file_length, uint64_t line, uint64_t column);
 
 /* Demonstration C shims for out-of-line native-bound methods now live in
  * their own translation unit; see RuntimeDemoShims.h. */

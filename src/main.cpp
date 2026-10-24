@@ -419,7 +419,7 @@ void writeLinkSidecar(const std::string& objectPath, const LinkInputs& inputs) {
         throw std::runtime_error("cannot write package link metadata: " +
                                  linkSidecarPath(objectPath));
     }
-    output << "CWHIP-LINK 1\n";
+    output << "CWHIP-LINK 2 numeric-v2\n";
     for (const auto& path : inputs.libraryPaths) {
         output << "L " << std::quoted(path) << '\n';
     }
@@ -442,8 +442,10 @@ LinkInputs readLinkSidecars(const std::vector<std::string>& objectPaths) {
             throw std::runtime_error("cannot read package link metadata: " + path);
         }
         std::string line;
-        if (!std::getline(input, line) || line != "CWHIP-LINK 1") {
-            throw std::runtime_error("invalid package link metadata header: " + path);
+        if (!std::getline(input, line) || line != "CWHIP-LINK 2 numeric-v2") {
+            throw cwhip::DriverError(cwhip::DiagnosticCode::Sdk,
+                "incompatible object metadata: " + path +
+                "; expected CWHIP-LINK 2 numeric-v2; rebuild the object with this SDK");
         }
         std::size_t lineNumber = 1;
         while (std::getline(input, line)) {

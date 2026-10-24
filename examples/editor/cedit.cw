@@ -26,8 +26,8 @@ class CommandBinding {
 
 class CeditSettings {
     String fontFamily
-    int fontSize
-    int tabWidth
+    int64 fontSize
+    int64 tabWidth
     bool insertSpaces
     bool lineNumbers
     bool wrap
@@ -44,7 +44,7 @@ class CeditSettings {
     String errors
     bool writable
     bool legacyConflict
-    int shortcutRevision
+    int64 shortcutRevision
 
     CeditSettings() {
         resetEditor()
@@ -113,7 +113,7 @@ class CeditSettings {
     }
 
     CommandBinding command(String id) {
-        int i = 0
+        int64 i = 0
         while (i < commands.length) {
             CommandBinding binding = commands[i] as CommandBinding
             if (binding.id.equals(id)) { return binding }
@@ -127,7 +127,7 @@ class CeditSettings {
         String normalized = binding.normalized
         if (!trigger.equals(binding.trigger)) { normalized = Gtk.Keyboard().normalize(trigger) }
         if (normalized.equals("")) { return format("Invalid shortcut trigger: {}", trigger) }
-        int i = 0
+        int64 i = 0
         while (i < commands.length) {
             CommandBinding other = commands[i] as CommandBinding
             if (other != binding && !other.trigger.equals("") &&
@@ -162,7 +162,7 @@ class CeditSettings {
             return
         }
         // Legacy files replaced the entire default map. Preserve that behavior.
-        int i = 0
+        int64 i = 0
         while (i < commands.length) {
             (commands[i] as CommandBinding).setTrigger("")
             i = i + 1
@@ -205,11 +205,11 @@ class CeditSettings {
         return Gtk.Config().value(original, section, key)
     }
 
-    int integer(String key, int fallback, int minimum, int maximum) {
+    int64 integer(String key, int64 fallback, int64 minimum, int64 maximum) {
         String raw = value("editor", key)
         if (raw.equals("")) { return fallback }
         if (raw.startsWith("i")) {
-            int number = raw.slice(1, raw.length).toInt()
+            int64 number = raw.slice(1, raw.length).toInt64()
             if (number >= minimum && number <= maximum) { return number }
         }
         error(format("editor.{} must be an integer from {} to {}", key, minimum, maximum))
@@ -312,7 +312,7 @@ class CeditSettings {
         stripTrailingSpaces = boolean("strip_trailing_spaces", stripTrailingSpaces)
         autoCompleteBrackets = boolean("auto_complete_brackets", autoCompleteBrackets)
         // Stage the complete map before checking conflicts, allowing swaps.
-        int i = 0
+        int64 i = 0
         while (i < commands.length) {
             CommandBinding binding = commands[i] as CommandBinding
             String raw = value("keyboard", binding.id)
@@ -342,7 +342,7 @@ class CeditSettings {
     }
 
     void resetKeyboard() {
-        int i = 0
+        int64 i = 0
         while (i < commands.length) {
             CommandBinding binding = commands[i] as CommandBinding
             binding.setTrigger(binding.defaultTrigger)
@@ -354,7 +354,7 @@ class CeditSettings {
         String text = format("version = 1\n[editor]\nfont_family = {}\nfont_size = {}\ntab_width = {}\ninsert_spaces = {}\nline_numbers = {}\nwrap = {}\nhighlight_current_line = {}\nsave_on_tab_loss = {}\nsave_on_window_loss = {}\nstrip_trailing_spaces = {}\nauto_complete_brackets = {}\n[keyboard]\n",
             Gtk.Config().quote(fontFamily), fontSize, tabWidth, insertSpaces, lineNumbers, wrap, highlightLine,
             saveOnTabLoss, saveOnWindowLoss, stripTrailingSpaces, autoCompleteBrackets)
-        int i = 0
+        int64 i = 0
         while (i < commands.length) {
             CommandBinding binding = commands[i] as CommandBinding
             text.append(format("{} = {}\n", binding.id, Gtk.Config().quote(binding.trigger)))
@@ -377,11 +377,11 @@ class KeyboardPreference {
     Gtk.Label errorLabel
     callback<void()> applied
     callback<void()> prepareRecord
-    int recording
+    int64 recording
     bool refreshing
 
     KeyboardPreference(CeditSettings model, CommandBinding command, callback<void()> changed,
-                       callback<void()> prepare, Gtk.Grid grid, int index) {
+                       callback<void()> prepare, Gtk.Grid grid, int64 index) {
         settings = model
         binding = command
         applied = changed
@@ -474,9 +474,9 @@ KeyboardPreference KeyboardPreference._self() from "cwhip_gtk_self"
 
 class WorkspaceFile {
     String path
-    int line
-    int column
-    WorkspaceFile(String file, int row, int col) {
+    int64 line
+    int64 column
+    WorkspaceFile(String file, int64 row, int64 col) {
         path = file
         line = row
         column = col
@@ -505,9 +505,9 @@ class CwhipProject {
     bool hasFont
     String fontFamily
     bool hasSize
-    int fontSize
+    int64 fontSize
     bool hasTabs
-    int tabWidth
+    int64 tabWidth
     bool hasSpaces
     bool insertSpaces
     bool hasNumbers
@@ -517,9 +517,9 @@ class CwhipProject {
     bool hasHighlight
     bool highlightLine
     String active
-    int explorerWidth
-    int windowWidth
-    int windowHeight
+    int64 explorerWidth
+    int64 windowWidth
+    int64 windowHeight
     list expanded
     list files
     String readError
@@ -598,7 +598,7 @@ class CwhipProject {
     bool validRelative(String path) {
         if (path.equals("") || path.length > 4096 || path.startsWith("/") || hasControl(path)) { return false }
         list parts = path.split("/")
-        int i = 0
+        int64 i = 0
         while (i < parts.length) {
             String part = parts[i] as String
             if (part.equals("") || part.equals(".") || part.equals("..")) { return false }
@@ -648,7 +648,7 @@ class CwhipProject {
 
     // readMissing: no file; readContent: bytes were read (readError may still
     // report malformed contents).
-    String readMetadata(String path, int limit) {
+    String readMetadata(String path, int64 limit) {
         readError = ""
         readMissing = false
         readContent = false
@@ -698,11 +698,11 @@ class CwhipProject {
         if (!kind.equals("") && !kind.equals("t")) { error(format("{} must be a table", key)) }
     }
 
-    int integer(String key, int minimum, int maximum) {
+    int64 integer(String key, int64 minimum, int64 maximum) {
         String raw = value("editor", key)
         if (raw.equals("")) { return -1 }
         if (raw.startsWith("i")) {
-            int number = raw.slice(1, raw.length).toInt()
+            int64 number = raw.slice(1, raw.length).toInt64()
             if (number >= minimum && number <= maximum) { return number }
         }
         error(format("editor.{} must be an integer from {} to {}", key, minimum, maximum))
@@ -710,7 +710,7 @@ class CwhipProject {
     }
 
     // -1 inherit (absent or invalid), 0 false, 1 true.
-    int boolean(String key) {
+    int64 boolean(String key) {
         String raw = value("editor", key)
         if (raw.equals("")) { return -1 }
         if (raw.equals("btrue")) { return 1 }
@@ -747,7 +747,7 @@ class CwhipProject {
         if (!raw.equals("")) {
             if (!raw.equals("x")) { error("explorer.exclude must be an array of strings") }
             else {
-                int i = 0
+                int64 i = 0
                 String item = Gtk.Config().item(base, "explorer", "exclude", 0, "")
                 while (!item.equals("")) {
                     if (!item.startsWith("s")) { error("explorer.exclude must be an array of strings") }
@@ -773,7 +773,7 @@ class CwhipProject {
                 } else { error(format("editor.font_family: {}", fontProblem)) }
             }
         }
-        int number = integer("font_size", 6, 72)
+        int64 number = integer("font_size", 6, 72)
         hasSize = number > 0
         if (hasSize) { fontSize = number }
         number = integer("tab_width", 1, 16)
@@ -809,20 +809,20 @@ class CwhipProject {
         if (!problem.equals("")) { workspaceError(problem) }
     }
 
-    String wsInteger(String text, String key, int minimum, int maximum) {
+    String wsInteger(String text, String key, int64 minimum, int64 maximum) {
         String raw = Gtk.Config().value(text, "workspace", key)
         if (raw.equals("")) { return "" }
         if (raw.startsWith("i")) {
-            int number = raw.slice(1, raw.length).toInt()
+            int64 number = raw.slice(1, raw.length).toInt64()
             if (number >= minimum && number <= maximum) { return format("{}", number) }
         }
         return format("workspace.{} must be an integer from {} to {}", key, minimum, maximum)
     }
 
-    int wsNumber(String text, String key) {
+    int64 wsNumber(String text, String key) {
         String raw = Gtk.Config().value(text, "workspace", key)
         if (raw.equals("")) { return -1 }
-        return raw.slice(1, raw.length).toInt()
+        return raw.slice(1, raw.length).toInt64()
     }
 
     // Parses workspace TOML; returns "" or the first problem. Any problem
@@ -854,7 +854,7 @@ class CwhipProject {
         windowHeight = wsNumber(text, "window_height")
         raw = Gtk.Config().value(text, "workspace", "expanded")
         if (!raw.equals("") && !raw.equals("x")) { return "workspace.expanded must be an array of paths" }
-        int i = 0
+        int64 i = 0
         String item = Gtk.Config().item(text, "workspace", "expanded", 0, "")
         while (!item.equals("")) {
             if (!item.startsWith("s") || !validRelative(item.slice(1, item.length))) {
@@ -878,8 +878,8 @@ class CwhipProject {
                 resetWorkspace()
                 return "workspace.files entries must be tables with a root-relative path and positive line/column"
             }
-            files.append(WorkspaceFile(path.slice(1, path.length), line.slice(1, line.length).toInt(),
-                column.slice(1, column.length).toInt()))
+            files.append(WorkspaceFile(path.slice(1, path.length), line.slice(1, line.length).toInt64(),
+                column.slice(1, column.length).toInt64()))
             i = i + 1
             item = Gtk.Config().item(text, "workspace", "files", i, "")
         }
@@ -888,13 +888,13 @@ class CwhipProject {
 
     bool validPosition(String raw) {
         if (!raw.startsWith("i")) { return false }
-        int number = raw.slice(1, raw.length).toInt()
+        int64 number = raw.slice(1, raw.length).toInt64()
         return number >= 1 && number <= 100000000
     }
 
     String quotedList(list values) {
         String text = "["
-        int i = 0
+        int64 i = 0
         while (i < values.length) {
             if (i > 0) { text.append(", ") }
             text.append(Gtk.Config().quote(values[i] as String))
@@ -906,7 +906,7 @@ class CwhipProject {
 
     String excludeLines() {
         String text = ""
-        int i = 0
+        int64 i = 0
         while (i < excludes.length) {
             if (i > 0) { text.append("\n") }
             text.append(excludes[i] as String)
@@ -949,7 +949,7 @@ class CwhipProject {
         base = source.base
         name = source.name
         excludes = []
-        int i = 0
+        int64 i = 0
         while (i < source.excludes.length) {
             excludes.append(source.excludes[i] as String)
             i = i + 1
@@ -980,7 +980,7 @@ class CwhipProject {
         if (hasWrap) { names.append("wrap") }
         if (hasHighlight) { names.append("highlight current line") }
         String text = ""
-        int i = 0
+        int64 i = 0
         while (i < names.length) {
             if (i > 0) { text.append(", ") }
             text.append(names[i] as String)
@@ -1037,7 +1037,7 @@ class EditorDocument {
     String baseName
     list shortcuts
     bool shortcutConflict
-    int shortcutRevision
+    int64 shortcutRevision
     String automaticSaveError
     String lastTitle
 
@@ -1093,16 +1093,16 @@ class ProjectNode {
     ProjectNode _self()
     ProjectExplorer explorer
     Gtk.DirectoryScan scan
-    int id
-    int generation
-    int kind
+    int64 id
+    int64 generation
+    int64 kind
     String path
     bool started
     bool populated
     bool complete
     String error
 
-    ProjectNode(ProjectExplorer owner, int row, String filePath, int entryKind) {
+    ProjectNode(ProjectExplorer owner, int64 row, String filePath, int64 entryKind) {
         explorer = owner
         path = filePath
         kind = entryKind
@@ -1119,7 +1119,7 @@ class ProjectNode {
             explorer.excludes, _self().received)
     }
 
-    void received(int count, String message) {
+    void received(int64 count, String message) {
         if (generation != explorer.generation || explorer.tree.disposed()) { return }
         if (!populated) {
             populated = true
@@ -1159,8 +1159,8 @@ class ProjectExplorer {
     String excludes
     list pending
     list nodes
-    int nextId
-    int generation
+    int64 nextId
+    int64 generation
     String rootPath
     String icons
     callback<void(String)> open
@@ -1205,14 +1205,14 @@ class ProjectExplorer {
         addMessage(0, "Use File > Open Folder...", "folder-open-symbolic")
     }
 
-    void addMessage(int parent, String text, String image) {
+    void addMessage(int64 parent, String text, String image) {
         nextId = nextId + 1
         tree.add(parent, nextId, text, image, false, "", -1)
     }
 
     void cancelLoads() {
         generation = generation + 1
-        int i = 0
+        int64 i = 0
         while (i < nodes.length) {
             ProjectNode node = nodes[i] as ProjectNode
             if (node.scan != null) {
@@ -1238,7 +1238,7 @@ class ProjectExplorer {
     void restoreChildren(String parent) {
         list ready = []
         list remaining = []
-        int i = 0
+        int64 i = 0
         while (i < pending.length) {
             String path = pending[i] as String
             if (System.FileSystem().dirname(path).equals(parent)) { ready.append(path) } else { remaining.append(path) }
@@ -1247,7 +1247,7 @@ class ProjectExplorer {
         pending = remaining
         i = 0
         while (i < ready.length) {
-            int id = tree.findValue(ready[i] as String)
+            int64 id = tree.findValue(ready[i] as String)
             if (id > 1 && tree.data(id) == 1) { tree.setExpanded(id, true) }
             i = i + 1
         }
@@ -1257,7 +1257,7 @@ class ProjectExplorer {
     list expandedPaths() {
         list result = []
         if (rootPath.equals("") || tree.disposed()) { return result }
-        int i = 0
+        int64 i = 0
         while (i < nodes.length) {
             ProjectNode node = nodes[i] as ProjectNode
             if (node.id != 1 && tree.expanded(node.id)) { result.append(node.path) }
@@ -1280,7 +1280,7 @@ class ProjectExplorer {
         generation = generation + 1
         if (rootPath.equals("") || tree.disposed()) { return }
         if (!path.startsWith(rootPath)) { return }
-        int id = tree.findValue(path)
+        int64 id = tree.findValue(path)
         if (id > 0) { return }
         refresh()
     }
@@ -1307,8 +1307,8 @@ class ProjectExplorer {
         hidden.setActive(value)
     }
 
-    void expand(int id) {
-        int i = 0
+    void expand(int64 id) {
+        int64 i = 0
         while (i < nodes.length) {
             if ((nodes[i] as ProjectNode).id == id) { return }
             i = i + 1
@@ -1320,8 +1320,8 @@ class ProjectExplorer {
         }
     }
 
-    void activateFile(int id) {
-        int kind = tree.data(id)
+    void activateFile(int64 id) {
+        int64 kind = tree.data(id)
         if (kind >= 0 && kind != 1) { open(tree.value(id)) }
     }
 }
@@ -1359,23 +1359,23 @@ class Cedit {
     bool closeAfterSave
     String savingText
     String persistedText
-    int preferencesItem
+    int64 preferencesItem
     callback<void()> preferencesAction
     Gtk.Window window
     Gtk.Box layout
     Gtk.MenuBar menu
     ProjectExplorer project
     Gtk.Paned workspace
-    int openFolderItem
+    int64 openFolderItem
     list documentItems
-    int undoItem
-    int redoItem
-    int cutItem
-    int copyItem
-    int recentItem
-    int newItem
-    int openItem
-    int quitItem
+    int64 undoItem
+    int64 redoItem
+    int64 cutItem
+    int64 copyItem
+    int64 recentItem
+    int64 newItem
+    int64 openItem
+    int64 quitItem
     bool menuInitialized
     bool menuReady
     bool menuEditable
@@ -1415,7 +1415,7 @@ class Cedit {
     bool pendingCloseAll
     bool allowWindowClose
     bool searchDialogOpen
-    int pageChanges
+    int64 pageChanges
     EditorDocument focusedDocument
     bool automaticSaving
     bool changingDocuments
@@ -1456,13 +1456,13 @@ class Cedit {
     String projectOp
     String projectSaveErrors
     String chooserPurpose
-    int projectSaves
+    int64 projectSaves
     bool quitReady
     bool presented
-    int projectNewItem
-    int projectOpenItem
+    int64 projectNewItem
+    int64 projectOpenItem
     list projectItems
-    int aboutItem
+    int64 aboutItem
     Gtk.Box confirmChoices
     Gtk.Label confirmLabel
     Gtk.Button confirmButton
@@ -1514,7 +1514,7 @@ class Cedit {
         overrideRows = []
         hasAutomaticSaveErrors = false
         settings = CeditSettings()
-        int commandIndex = 0
+        int64 commandIndex = 0
         while (commandIndex < settings.commands.length) {
             CommandBinding binding = settings.commands[commandIndex] as CommandBinding
             binding.action = commandAction(binding.id)
@@ -1531,7 +1531,7 @@ class Cedit {
         menu = Gtk.MenuBar()
         layout.append(menu)
         documentItems = []
-        int fileMenu = menu.addMenu("File")
+        int64 fileMenu = menu.addMenu("File")
         newItem = menu.addItem(fileMenu, "New", commandAction("new"))
         openItem = menu.addItem(fileMenu, "Open...", commandAction("open"))
         openFolderItem = menu.addItem(fileMenu, "Open Folder...", _self().chooseFolder)
@@ -1541,7 +1541,7 @@ class Cedit {
         documentItems.append(menu.addItem(fileMenu, "Save All", commandAction("save-all")))
         documentItems.append(menu.addItem(fileMenu, "Close", commandAction("close")))
         quitItem = menu.addItem(fileMenu, "Quit", commandAction("quit"))
-        int editMenu = menu.addMenu("Edit")
+        int64 editMenu = menu.addMenu("Edit")
         undoItem = menu.addItem(editMenu, "Undo", commandAction("undo"))
         redoItem = menu.addItem(editMenu, "Redo", commandAction("redo"))
         cutItem = menu.addItem(editMenu, "Cut", commandAction("cut"))
@@ -1552,7 +1552,7 @@ class Cedit {
         documentItems.append(menu.addItem(editMenu, "Replace", commandAction("replace")))
         documentItems.append(menu.addItem(editMenu, "Strip Trailing Spaces", commandAction("strip-trailing-spaces")))
         preferencesItem = menu.addItem(editMenu, "Preferences...", commandAction("preferences"))
-        int projectMenu = menu.addMenu("Project")
+        int64 projectMenu = menu.addMenu("Project")
         projectNewItem = menu.addItem(projectMenu, "New Project...", commandAction("project-new"))
         projectOpenItem = menu.addItem(projectMenu, "Open Project...", commandAction("project-open"))
         projectItems = []
@@ -1560,7 +1560,7 @@ class Cedit {
         projectItems.append(menu.addItem(projectMenu, "Save Project As...", commandAction("project-save-as")))
         projectItems.append(menu.addItem(projectMenu, "Delete Project...", commandAction("project-delete")))
         projectItems.append(menu.addItem(projectMenu, "Configure Project...", commandAction("project-configure")))
-        int helpMenu = menu.addMenu("Help")
+        int64 helpMenu = menu.addMenu("Help")
         aboutItem = menu.addItem(helpMenu, "About cedit...", commandAction("about"))
         searchWindow = Gtk.TransientWindow("Find")
         searchWindow.setDefaultSize(520, 150)
@@ -1637,7 +1637,7 @@ class Cedit {
 
         System.Process process = System.Process()
         bool explicitRequest = false
-        int index = 1
+        int64 index = 1
         while (index < process.argc()) {
             String argument = process.arg(index)
             if (!argument.equals("--test") && !argument.equals("--foreground")) { explicitRequest = true }
@@ -1702,8 +1702,8 @@ class Cedit {
     // Precedence: active project override, then user preference, then default.
     void applyDocumentSettings(EditorDocument document) {
         String font = settings.fontFamily
-        int size = settings.fontSize
-        int tabs = settings.tabWidth
+        int64 size = settings.fontSize
+        int64 tabs = settings.tabWidth
         bool spaces = settings.insertSpaces
         bool numbers = settings.lineNumbers
         bool wrapLines = settings.wrap
@@ -1725,7 +1725,7 @@ class Cedit {
         document.view.clearShortcuts()
         document.shortcuts = []
         document.shortcutConflict = settings.legacyConflict
-        int i = 0
+        int64 i = 0
         while (i < settings.commands.length) {
             CommandBinding binding = settings.commands[i] as CommandBinding
             if (binding.trigger.length > 0 && binding.valid) {
@@ -1888,7 +1888,7 @@ class Cedit {
         return true
     }
     void stopRecording() {
-        int i = 0
+        int64 i = 0
         while (i < keyboardRows.length) {
             (keyboardRows[i] as KeyboardPreference).cancelRecording()
             i = i + 1
@@ -1904,7 +1904,7 @@ class Cedit {
     void showKeyboardPreferences() {
         hidePreferences()
         if (keyboardRows.length == 0) {
-            int i = 0
+            int64 i = 0
             while (i < settings.commands.length) {
                 KeyboardPreference row = KeyboardPreference(settings, settings.commands[i] as CommandBinding,
                     _self().keyboardSettingsChanged, _self().stopRecording, keyboardRowsBox, i)
@@ -1925,7 +1925,7 @@ class Cedit {
         preferencesWindow.present()
     }
     void filterCommands(String query) {
-        int i = 0
+        int64 i = 0
         while (i < keyboardRows.length) {
             KeyboardPreference row = keyboardRows[i] as KeyboardPreference
             row.setVisible(row.binding.name.toLower().contains(query.toLower()) ||
@@ -1933,14 +1933,14 @@ class Cedit {
             i = i + 1
         }
     }
-    int preferenceNumber(String text, int minimum, int maximum) {
+    int64 preferenceNumber(String text, int64 minimum, int64 maximum) {
         if (text.length == 0 || text.length > 2) { return -1 }
-        int i = 0
+        int64 i = 0
         while (i < text.length) {
             if (!"0123456789".contains(text.slice(i, i + 1))) { return -1 }
             i = i + 1
         }
-        int number = text.toInt()
+        int64 number = text.toInt64()
         if (number < minimum || number > maximum) { return -1 }
         return number
     }
@@ -1948,8 +1948,8 @@ class Cedit {
     void editorSettingChanged(String text) {
         if (refreshingPreferences) { return }
         String problem = settings.fontError(fontEntry.text())
-        int size = preferenceNumber(sizeEntry.text(), 6, 72)
-        int tabs = preferenceNumber(tabsEntry.text(), 1, 16)
+        int64 size = preferenceNumber(sizeEntry.text(), 6, 72)
+        int64 tabs = preferenceNumber(tabsEntry.text(), 1, 16)
         if (size < 0) { problem = "Font size must be an integer from 6 to 72" }
         if (tabs < 0) { problem = "Tab width must be an integer from 1 to 16" }
         if (!problem.equals("")) {
@@ -2001,7 +2001,7 @@ class Cedit {
         if (resetSection.equals("Keyboard")) {
             settings.resetKeyboard()
             settings.shortcutRevision = settings.shortcutRevision + 1
-            int i = 0
+            int64 i = 0
             while (i < keyboardRows.length) {
                 (keyboardRows[i] as KeyboardPreference).refresh()
                 i = i + 1
@@ -2011,7 +2011,7 @@ class Cedit {
         settingsChanged()
     }
     void settingsChanged() {
-        int i = 0
+        int64 i = 0
         while (i < documents.length) {
             applyDocumentSettings(documents[i] as EditorDocument)
             i = i + 1
@@ -2524,7 +2524,7 @@ class Cedit {
 
     void closeAllDocuments() {
         changingDocuments = true
-        int index = 0
+        int64 index = 0
         while (index < documents.length) {
             EditorDocument document = documents[index] as EditorDocument
             notebook.remove(document.scroller)
@@ -2546,7 +2546,7 @@ class Cedit {
     }
 
     void reapplyDocumentSettings() {
-        int index = 0
+        int64 index = 0
         while (index < documents.length) {
             applyDocumentSettings(documents[index] as EditorDocument)
             index = index + 1
@@ -2555,7 +2555,7 @@ class Cedit {
 
     list absolutePaths(CwhipProject target, list paths) {
         list result = []
-        int index = 0
+        int64 index = 0
         while (index < paths.length) {
             result.append(System.FileSystem().join(target.root, paths[index] as String))
             index = index + 1
@@ -2577,7 +2577,7 @@ class Cedit {
             openFailures = []
             collectingFailures = true
             EditorDocument chosen = null
-            int index = 0
+            int64 index = 0
             while (index < target.files.length) {
                 WorkspaceFile item = target.files[index] as WorkspaceFile
                 String path = System.FileSystem().join(target.root, item.path)
@@ -2626,8 +2626,8 @@ class Cedit {
         EditorDocument current = currentDocument()
         String activePath = ""
         String fileList = "["
-        int count = 0
-        int index = 0
+        int64 count = 0
+        int64 index = 0
         while (index < documents.length) {
             EditorDocument document = documents[index] as EditorDocument
             String rel = ""
@@ -2646,10 +2646,10 @@ class Cedit {
         }
         fileList.append("]")
         if (!activePath.equals("")) { text.append(format("active = {}\n", Gtk.Config().quote(activePath))) }
-        int width = workspace.position()
+        int64 width = workspace.position()
         if (width >= 0 && width <= 5000) { text.append(format("explorer_width = {}\n", width)) }
-        int windowWidth = window.defaultWidth()
-        int windowHeight = window.defaultHeight()
+        int64 windowWidth = window.defaultWidth()
+        int64 windowHeight = window.defaultHeight()
         if (windowWidth >= 200 && windowWidth <= 10000 && windowHeight >= 150 && windowHeight <= 10000) {
             text.append(format("window_width = {}\nwindow_height = {}\n", windowWidth, windowHeight))
         }
@@ -2713,7 +2713,7 @@ class Cedit {
     }
 
     OverrideRow overrideRow(String key) {
-        int index = 0
+        int64 index = 0
         while (index < overrideRows.length) {
             OverrideRow row = overrideRows[index] as OverrideRow
             if (row.key.equals(key)) { return row }
@@ -2733,7 +2733,7 @@ class Cedit {
         CwhipProject current = activeProject
         configureName.setText(current.name)
         String patterns = ""
-        int index = 0
+        int64 index = 0
         while (index < current.excludes.length) {
             if (index > 0) { patterns.append(", ") }
             patterns.append(current.excludes[index] as String)
@@ -2742,9 +2742,9 @@ class Cedit {
         configureExcludes.setText(patterns)
         String font = settings.fontFamily
         if (current.hasFont) { font = current.fontFamily }
-        int size = settings.fontSize
+        int64 size = settings.fontSize
         if (current.hasSize) { size = current.fontSize }
-        int tabs = settings.tabWidth
+        int64 tabs = settings.tabWidth
         if (current.hasTabs) { tabs = current.tabWidth }
         overrideRow("font_family").show(current.hasFont, font, false)
         overrideRow("font_size").show(current.hasSize, format("{}", size), false)
@@ -2765,7 +2765,7 @@ class Cedit {
     }
 
     void inheritAll() {
-        int index = 0
+        int64 index = 0
         while (index < overrideRows.length) {
             OverrideRow row = overrideRows[index] as OverrideRow
             row.override.setActive(false)
@@ -2785,7 +2785,7 @@ class Cedit {
         String problem = current.nameError(name)
         list patterns = []
         list parts = configureExcludes.text().split(",")
-        int index = 0
+        int64 index = 0
         while (index < parts.length) {
             String pattern = (parts[index] as String).trim()
             if (!pattern.equals("")) {
@@ -2798,8 +2798,8 @@ class Cedit {
         OverrideRow fontRow = overrideRow("font_family")
         OverrideRow sizeRow = overrideRow("font_size")
         OverrideRow tabsRow = overrideRow("tab_width")
-        int size = preferenceNumber(sizeRow.entry.text(), 6, 72)
-        int tabs = preferenceNumber(tabsRow.entry.text(), 1, 16)
+        int64 size = preferenceNumber(sizeRow.entry.text(), 6, 72)
+        int64 tabs = preferenceNumber(tabsRow.entry.text(), 1, 16)
         if (problem.equals("") && fontRow.override.active()) { problem = settings.fontError(fontRow.entry.text()) }
         if (problem.equals("") && sizeRow.override.active() && size < 0) { problem = "Font size must be an integer from 6 to 72" }
         if (problem.equals("") && tabsRow.override.active() && tabs < 0) { problem = "Tab width must be an integer from 1 to 16" }
@@ -2899,7 +2899,7 @@ class Cedit {
             reportOpenFailure(status.text(), false)
             return null
         }
-        int index = 0
+        int64 index = 0
         while (index < documents.length) {
             EditorDocument existing = documents[index] as EditorDocument
             if (existing.path.equals(absolutePath)) {
@@ -2966,7 +2966,7 @@ class Cedit {
         if (document == null) {
             return
         }
-        int index = 0
+        int64 index = 0
         while (index < documents.length) {
             if ((documents[index] as EditorDocument) == document) {
                 notebook.setCurrentPage(index)
@@ -2987,7 +2987,7 @@ class Cedit {
     }
 
     EditorDocument currentDocument() {
-        int page = notebook.currentPage()
+        int64 page = notebook.currentPage()
         if (page < 0 || page >= documents.length) {
             return null
         }
@@ -3013,10 +3013,10 @@ class Cedit {
     // documents are left for an explicit Save As.
     void saveAll() {
         if (commandsBlocked()) { return }
-        int saved = 0
-        int skipped = 0
-        int failed = 0
-        int i = 0
+        int64 saved = 0
+        int64 skipped = 0
+        int64 failed = 0
+        int64 i = 0
         while (i < documents.length) {
             EditorDocument doc = documents[i] as EditorDocument
             if (doc.view.modified()) {
@@ -3082,7 +3082,7 @@ class Cedit {
             absoluteDestination = System.FileSystem().join(parent,
                 System.FileSystem().basename(absoluteDestination))
         }
-        int index = 0
+        int64 index = 0
         while (index < documents.length) {
             EditorDocument other = documents[index] as EditorDocument
             if (other != document && other.path.equals(absoluteDestination)) {
@@ -3100,7 +3100,7 @@ class Cedit {
             return false
         }
         String contents = document.view.text()
-        int written = output.write(contents)
+        int64 written = output.write(contents)
         String writeError = System.System().lastError()
         if (written != contents.length) {
             output.close()
@@ -3186,7 +3186,7 @@ class Cedit {
         openFailures = []
         collectingFailures = true
         EditorDocument last = null
-        int index = 0
+        int64 index = 0
         while (index < paths.length) {
             EditorDocument document = openDocument(paths[index] as String)
             if (document != null) {
@@ -3260,7 +3260,7 @@ class Cedit {
     }
 
     void rememberRecent(String path) {
-        int index = 0
+        int64 index = 0
         while (index < recentFiles.length) {
             if ((recentFiles[index] as String).equals(path)) {
                 return
@@ -3270,8 +3270,8 @@ class Cedit {
         recentFiles.append(path)
     }
 
-    int searchOptions() {
-        int options = 0
+    int64 searchOptions() {
+        int64 options = 0
         if (caseCheck.active()) {
             options = options + GtkSource.View.CASE_SENSITIVE
         }
@@ -3326,7 +3326,7 @@ class Cedit {
         if (document == null) {
             return
         }
-        int count = document.view.replaceAll(findEntry.text(), replaceEntry.text(),
+        int64 count = document.view.replaceAll(findEntry.text(), replaceEntry.text(),
                                              searchOptions())
         if (count == 0) {
             status.setText("No match")
@@ -3463,7 +3463,7 @@ class Cedit {
     String automaticSaveErrors() {
         if (!hasAutomaticSaveErrors) { return "" }
         String errors = ""
-        int index = 0
+        int64 index = 0
         while (index < documents.length) {
             EditorDocument document = documents[index] as EditorDocument
             if (!document.automaticSaveError.equals("")) {
@@ -3475,7 +3475,7 @@ class Cedit {
     }
 
     bool recomputeAutomaticSaveErrors() {
-        int index = 0
+        int64 index = 0
         while (index < documents.length) {
             EditorDocument document = documents[index] as EditorDocument
             if (!document.automaticSaveError.equals("")) {
@@ -3488,7 +3488,7 @@ class Cedit {
 
     void windowFocusChanged(bool active) {
         if (active || !presented || window.disposed() || !settings.saveOnWindowLoss) { return }
-        int index = 0
+        int64 index = 0
         while (index < documents.length) {
             automaticSave(documents[index] as EditorDocument)
             index = index + 1
@@ -3500,7 +3500,7 @@ class Cedit {
         String title = document.tabTitle()
         if (title.equals(document.lastTitle)) { return }
         document.lastTitle = title
-        int index = 0
+        int64 index = 0
         while (index < documents.length) {
             EditorDocument item = documents[index] as EditorDocument
             if (item == document) {
@@ -3604,17 +3604,17 @@ class Cedit {
         }
         if (!menuInitialized || projectActive != menuProjectActive) {
             menuProjectActive = projectActive
-            int projectIndex = 0
+            int64 projectIndex = 0
             while (projectIndex < projectItems.length) {
-                menu.setItemEnabled(projectItems[projectIndex] as int, projectActive)
+                menu.setItemEnabled(projectItems[projectIndex] as int64, projectActive)
                 projectIndex = projectIndex + 1
             }
         }
         if (!menuInitialized || editable != menuEditable) {
             menuEditable = editable
-            int index = 0
+            int64 index = 0
             while (index < documentItems.length) {
-                menu.setItemEnabled(documentItems[index] as int, editable)
+                menu.setItemEnabled(documentItems[index] as int64, editable)
                 index = index + 1
             }
         }
@@ -3659,7 +3659,7 @@ class Cedit {
         if (activeProject != null) {
             activeProject.workspaceText = captureWorkspace(activeProject.root, activeProject.root)
         }
-        int index = 0
+        int64 index = 0
         while (index < documents.length) {
             EditorDocument document = documents[index] as EditorDocument
             if (document.view.modified()) {
@@ -3720,14 +3720,14 @@ class Cedit {
     }
 
     void removeDocument(EditorDocument document) {
-        int index = 0
+        int64 index = 0
         while (index < documents.length) {
             if ((documents[index] as EditorDocument) == document) {
                 changingDocuments = true
                 notebook.remove(document.scroller)
                 document.scroller.dispose()
                 list remaining = []
-                int itemIndex = 0
+                int64 itemIndex = 0
                 while (itemIndex < documents.length) {
                     EditorDocument item = documents[itemIndex] as EditorDocument
                     if (item != document) {
@@ -3771,7 +3771,7 @@ class Cedit {
     }
 
     EditorDocument firstModifiedDocument() {
-        int index = 0
+        int64 index = 0
         while (index < documents.length) {
             EditorDocument document = documents[index] as EditorDocument
             if (document.view.modified()) {
@@ -3890,7 +3890,7 @@ class Cedit {
         bool badOpen = status.text().contains("Open failed") && documents.length == 2
         openFile(System.FileSystem().tempDir())
         bool directoryRejected = status.text().contains("not a regular file") && documents.length == 2
-        document.view.setText("class Demo {\n  // note\n  String name = \"Cwhip\"\n  int count = 12\n}\n")
+        document.view.setText("class Demo {\n  // note\n  String name = \"Cwhip\"\n  int64 count = 12\n}\n")
         bool tabs = documents.length == 2 && notebook.pageCount() == 2 && recentFiles.length == 2
         bool tabSwitchUpdatesStatus = pageChanges > 0
         bool remapped = false
