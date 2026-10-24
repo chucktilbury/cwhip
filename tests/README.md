@@ -118,3 +118,12 @@ temporary directories are created, including symlinks and normalized paths.
 Install tests require `TMPDIR` (or `/tmp`) outside both trees; similarly prefixed
 sibling directories such as `cwhip` and `cwhip-workspace` are allowed. Their
 output checks still reject references to the source/build roots or their files.
+
+`cwhip_install_incompatible_packages` checks the install-time handling of
+packages left in the SDK module directory by other projects. It exercises the
+checker directly (report-only default, opt-in quarantine, collision-safe
+backups, malformed/unreadable manifests, failed moves, and invalid opt-in
+values) and, in complete project builds, performs real installs into private
+temporary prefixes and `DESTDIR` trees with stale CVM-like packages, verifying
+the warning, the `cwhip-pkg init` failure and its hint, the opted-in repair,
+preserved compatible packages, and repeated installs.

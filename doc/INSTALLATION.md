@@ -248,6 +248,42 @@ environment alias is supported: rebuild and reinstall the compiler and its
 resources together, and update any resource overrides. `CWHIP_BUILTIN_DIR`
 names the directory containing `String.cw`, not a project package root.
 
+### Leftover packages from other projects
+
+Other projects (for example a separately installed CVM) may install their own
+packages into `${CMAKE_INSTALL_DATADIR}/cwhip/modules/`. Reinstalling the SDK
+replaces only the packages the SDK provides; it never removes or relabels
+anyone else's packages. `cwhip-pkg` scans every installed package version,
+including unused ones, so one left over from an older SDK ABI (a missing or
+different `[package] sdk-abi`) makes commands such as `cwhip-pkg init` fail
+with `PKG2004`.
+
+After copying its files, `cmake --install` checks the installed module
+directory (below `DESTDIR` when set, and for the `--prefix` being installed).
+By default it changes nothing: it lists each incompatible package version as a
+`cwhip-install: warning` and the install still succeeds. Fix them by
+reinstalling each package from a source version built for the current SDK ABI,
+by removing package directories you no longer need, or by explicitly opting in
+to a repair for that one install:
+
+```sh
+CWHIP_QUARANTINE_INCOMPATIBLE_PACKAGES=1 cmake --install build
+```
+
+The repair moves each complete incompatible package version directory,
+unchanged, to a new
+`${CMAKE_INSTALL_DATADIR}/cwhip/package-backups/<UTC timestamp>/modules/<name>/<version>`
+directory that package discovery never reads. Each backup has a `RESTORE.txt`
+listing the original and backup locations and how to move a package back;
+existing backups are never overwritten. SDK-installed and compatible packages
+stay in place. Directories are moved with a rename only, so nothing is copied
+or deleted; a failed move stops the install and reports what was already moved.
+Repeating the install has nothing left to move and creates no new backup.
+The variable accepts `1` (repair) or `0`/unset (report only); any other value
+fails the install. Unreadable or malformed manifests (invalid TOML, no
+`[package]` table, or a non-string `sdk-abi`) cannot be classified safely, so
+they fail the install in either mode without moving anything.
+
 ### SDK location setting
 
 A real (non-`DESTDIR`) `cmake --install` records the install prefix as a
