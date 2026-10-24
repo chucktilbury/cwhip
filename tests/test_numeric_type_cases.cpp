@@ -221,6 +221,21 @@ const TestGroupRegistration registration{9, {
                              "removed type diagnostic omitted its migration replacement");
                  }
                  require(migrationFound, "removed type name was accepted");
+                 expectDiagnostic("start {\n int64 " + std::string(name) + " = 1\n}\n",
+                                  "removed numeric type name");
+                 expectDiagnostic("start {\n print(" + std::string(name) + ")\n}\n",
+                                  "removed numeric type name");
+                 expectDiagnostic("class " + std::string(name) + " {}\nstart {}\n",
+                                  "removed numeric type name");
+                 expectDiagnostic("class Holder { " + std::string(name) +
+                                      " field }\nstart {}\n",
+                                  "removed numeric type name");
+                 expectDiagnostic("class Holder { void " + std::string(name) +
+                                      "() {} }\nstart {}\n",
+                                  "removed numeric type name");
+                 expectDiagnostic("class Holder { void use(" + std::string(name) +
+                                      " value) {} }\nstart {}\n",
+                                  "removed numeric type name");
              }
              expectDiagnostic("start {\n float32 value = 1.0\n}\n", "unknown type or class");
              auto narrow = parse("start {\n int8 value\n}\n", "backend-boundary.cw");

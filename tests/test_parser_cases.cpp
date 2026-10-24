@@ -140,12 +140,17 @@ const TestGroupRegistration registration{1, {
                  " int64 echo(int32 value) { return value }\n"
                  " range<int64> same(range<int64> value) { return value }\n"
                  " Model.Item echoItem(Model.Item value) { return value }\n"
+                 " int64<int64<int64>> nested(int64<int64<int64>> value)\n"
+                 "}\n"
+                 "int64<int64<int64>> Worker.nested(int64<int64<int64>> value) {\n"
+                 " return value\n"
                  "}\n"
                  "class CallableFields {\n"
                  " int64<int32,int8> multi\n"
                  " int64<> empty\n"
                  " int64<int64><String> nestedReturn\n"
                  " int64<range<int64>> rangeArgument\n"
+                 " range<int64><range<int64><int64>> rangeClosure\n"
                  " Model.Item<Model.Item> classArgument\n"
                  " void<> noValue\n"
                  "}\n"
@@ -161,12 +166,13 @@ const TestGroupRegistration registration{1, {
              const auto fields = std::find_if(
                  program.classes.begin(), program.classes.end(),
                  [](const auto& declaration) { return declaration.name == "CallableFields"; });
-             require(fields != program.classes.end() && fields->fields.size() == 6,
+             require(fields != program.classes.end() && fields->fields.size() == 7,
              "callable fields missing from the parsed class");
              const std::vector<std::string> expected{
                  "callback<int64(int32,int8)>", "callback<int64()>",
                  "callback<callback<int64(int64)>(String)>",
                  "callback<int64(range<int64>)>",
+                 "callback<range<int64>(callback<range<int64>(int64)>)>",
                  "callback<Model.Item(Model.Item)>", "callback<void()>"};
              for (std::size_t index = 0; index < expected.size(); ++index) {
                  require(fields->fields[index].type == expected[index],
@@ -174,6 +180,9 @@ const TestGroupRegistration registration{1, {
              }
              expectDiagnostic("class Invalid { int64<void> invalid }\nstart {}",
                       "expected type name");
+             expectDiagnostic("start {\n int64 left = 1\n int64 right = 2\n"
+                                  " left < right\n}\n",
+                              "only method calls may be used as expression statements");
          }},
          {"class-scoped anonymous enum members parse and resolve as signed integers", [] {
               const auto program = parse(
