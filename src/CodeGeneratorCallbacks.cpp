@@ -1,22 +1,24 @@
 #include "cwhip/CodeGenerator.hpp"
 #include "cwhip/CallbackType.hpp"
+#include "cwhip/NumericType.hpp"
 
 namespace cwhip {
 namespace {
 
 std::string cType(const std::string& type) {
-    if (type == "int") return "int64_t";
-    if (type == "unsigned") return "uint64_t";
-    if (type == "float") return "double";
+    if (isIntegerType(type)) return type + "_t";
+    if (type == "fp32") return "float";
+    if (type == "fp64") return "double";
     if (type == "bool") return "_Bool";
     if (type == "void") return "void";
     return "void *";
 }
 
 std::string argumentMember(const std::string& type) {
-    if (type == "int") return "integer";
-    if (type == "unsigned") return "unsigned_integer";
-    if (type == "float") return "floating";
+    if (isIntegerType(type))
+        return numericType(type)->category == NumericCategory::SignedInteger
+                   ? "integer" : "unsigned_integer";
+    if (isFloatingType(type)) return "floating";
     if (type == "bool") return "boolean";
     return "pointer";
 }
@@ -101,12 +103,12 @@ CodeGenerator::Value CodeGenerator::emitCallbackCall(const Expression& expressio
         auto argument = emitExpression(*expression.arguments[index], signature.parameters[index]);
         argument = convertObjectValue(argument, signature.parameters[index],
                                       expression.arguments[index]->location);
-        arguments += ", " + llvmType(signature.parameters[index]) + " " + argument.operand;
+        arguments += ", " + abiParameterType(signature.parameters[index]) + " " + argument.operand;
     }
     instructions_ += "  " + code + " = call ptr @cwhip_callback_code(ptr " + callback.operand + ")\n";
     const auto result = signature.result == "void" ? "" : newTemporary();
     instructions_ += "  " + (result.empty() ? "" : result + " = ") + "call " +
-                     llvmType(signature.result) + " " + code + "(" + arguments + ")\n";
+                     externReturnLlvmType(signature.result) + " " + code + "(" + arguments + ")\n";
     return rootObjectValue({signature.result, result}, expression.location);
 }
 

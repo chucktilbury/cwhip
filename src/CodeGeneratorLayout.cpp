@@ -6,6 +6,7 @@
 #include "cwhip/CodeGenerator.hpp"
 
 #include "cwhip/Diagnostic.hpp"
+#include "cwhip/NumericType.hpp"
 
 #include <algorithm>
 #include <limits>
@@ -363,7 +364,7 @@ CodeGenerator::Value CodeGenerator::convertObjectValue(
             return buildDynamicValue({"null", "null"}, location);
         }
         if (isNullableScalarType(expectedType)) {
-            const auto zero = expectedType == "float" ? "0.0" : "0";
+            const auto zero = isFloatingType(expectedType) ? "0.0" : "0";
             return {expectedType, zero, "1"};
         }
         value.type = expectedType;
@@ -377,6 +378,11 @@ CodeGenerator::Value CodeGenerator::convertObjectValue(
     }
     if (value.type == "any") {
         return extractTypedValue(value, expectedType, location);
+    }
+    const bool sourceScalar = isNumericType(value.type) || value.type == "bool";
+    const bool targetScalar = isNumericType(expectedType) || expectedType == "bool";
+    if (sourceScalar && targetScalar) {
+        return convertNumericValue(std::move(value), expectedType, location);
     }
     if (classes_.find(value.type) == classes_.end() ||
         classes_.find(expectedType) == classes_.end()) {

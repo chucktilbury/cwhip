@@ -57,7 +57,9 @@ NEWLINE         ::= LF ;
 
 PUNCTUATION     ::= "{" | "}" | "(" | ")" | "[" | "]" | "," | "." | ":" ;
 OPERATOR        ::= "+=" | "-=" | "*=" | "/=" | "%="
+                  | "&=" | "|=" | "^=" | "<<=" | ">>="
                   | "+" | "-" | "*" | "/" | "%" | "!" | "&&" | "||"
+                  | "&" | "|" | "^" | "~" | "<<" | ">>"
                   | "=" | "==" | "!=" | "<" | "<=" | ">" | ">=" ;
 ```
 
@@ -70,8 +72,8 @@ The reserved words include `start`, `bool`, `int8`, `uint8`, `int16`, `uint16`,
 `or`, `not`, `print`, `raise`, `try`, `except`, `finally`, and `from`.
 The removed spellings `int`, `unsigned`, and `float` remain reserved and
 produce migration diagnostics recommending `int64`, `uint64`, and `fp64`.
-The frontend implements numeric classification and conversion checking, but
-the LLVM backend currently diagnoses numeric execution as unsupported.
+The LLVM backend lowers each numeric type at its declared width, with
+catchable checked integer arithmetic and IEEE floating execution.
 
 Integer literals are classified semantically: unsuffixed literals select the
 smallest fitting signed type, while `u`/`U` select the smallest fitting
@@ -101,9 +103,9 @@ Lexical details that affect parsing:
 - LF produces a `NEWLINE` token except while inside parentheses or square
   brackets. Newlines inside braces are not suppressed. Other whitespace is
   discarded. There is no indentation-based syntax.
-- `&` and `|` are legal only as `&&` and `||`. The scalar compound-assignment
-  operators are `+=`, `-=`, `*=`, `/=`, and `%=`. There are no increment,
-  bitwise, or conditional (`?:`) operators.
+- Integer bitwise operators are `&`, `|`, `^`, `~`, `<<`, and `>>`.
+  Compound assignment supports arithmetic, binary bitwise, and shift forms.
+  There are no increment or conditional (`?:`) operators.
 - After `inline` and an optional capture list, the lexer consumes the next
   balanced-brace block as one opaque `INLINE_BODY` token. Braces inside C
   strings and C comments do not change its brace depth.
@@ -242,7 +244,8 @@ declaration         ::= type, IDENT,
 direct-constructor-arguments
                     ::= "(", [ expression, { ",", expression } ], ")" ;
 assignment          ::= expression, assignment-operator, expression, terminator ;
-assignment-operator ::= "=" | "+=" | "-=" | "*=" | "/=" | "%=" ;
+assignment-operator ::= "=" | "+=" | "-=" | "*=" | "/=" | "%="
+                      | "&=" | "|=" | "^=" | "<<=" | ">>=" ;
 method-call-statement
                     ::= expression, terminator ;
 print-statement     ::= "print", "(", [ expression
@@ -300,12 +303,16 @@ unary operators associate right-to-left.
 | 1 | `or`, `\|\|` | left |
 | 2 | `and`, `&&` | left |
 | 3 | `not`, `!` | right (prefix) |
-| 4 | `==`, `!=` | left |
-| 5 | `is`, `<`, `<=`, `>`, `>=` | left |
-| 6 | `+`, `-` | left |
-| 7 | `*`, `/`, `%` | left |
-| 8 | unary `+`, unary `-` | right (prefix) |
-| 9 | member access, calls, indexing, slicing, `as` checked extraction | repeated left-to-right |
+| 4 | `\|` | left |
+| 5 | `^` | left |
+| 6 | `&` | left |
+| 7 | `==`, `!=` | left |
+| 8 | `is`, `<`, `<=`, `>`, `>=` | left |
+| 9 | `<<`, `>>` | left |
+| 10 | `+`, `-` | left |
+| 11 | `*`, `/`, `%` | left |
+| 12 | unary `+`, unary `-`, `~` | right (prefix) |
+| 13 | member access, calls, indexing, slicing, `as` checked extraction | repeated left-to-right |
 
 `is` consumes a type name rather than a right-hand expression. Equality
 operators bind less tightly than `is` and relational operators because that
@@ -316,15 +323,19 @@ statement, not an expression.
 expression          ::= or-expression ;
 or-expression       ::= and-expression, { ("or" | "||"), and-expression } ;
 and-expression      ::= not-expression, { ("and" | "&&"), not-expression } ;
-not-expression      ::= ("not" | "!"), not-expression | comparison ;
+not-expression      ::= ("not" | "!"), not-expression | bitwise-or ;
+bitwise-or          ::= bitwise-xor, { "|", bitwise-xor } ;
+bitwise-xor         ::= bitwise-and, { "^", bitwise-and } ;
+bitwise-and         ::= comparison, { "&", comparison } ;
 comparison          ::= relational, { ("==" | "!="), relational } ;
-relational          ::= addition,
-                        { ("is", type-test-name | "<", addition
-                          | "<=", addition | ">", addition | ">=", addition) } ;
+relational          ::= shift,
+                        { ("is", type-test-name | "<", shift
+                          | "<=", shift | ">", shift | ">=", shift) } ;
+shift               ::= addition, { ("<<" | ">>"), addition } ;
 type-test-name      ::= QUALIFIED_IDENT | primitive-type | "void" ;
 addition            ::= multiplication, { ("+" | "-"), multiplication } ;
 multiplication      ::= unary, { ("*" | "/" | "%"), unary } ;
-unary               ::= ("+" | "-"), unary | postfix ;
+unary               ::= ("+" | "-" | "~"), unary | postfix ;
 
 postfix             ::= primary, { member-suffix | index-or-slice-suffix
                                   | call-suffix | object-cast-suffix } ;

@@ -226,17 +226,9 @@ const TestGroupRegistration registration{9, {
              }
              expectDiagnostic("start {\n float32 value = 1.0\n}\n", "unknown type or class");
              auto narrow = parse("start {\n int8 value\n}\n", "backend-boundary.cw");
-             bool rejectedNumericExecution = false;
-             try {
-                 (void)cwhip::CodeGenerator("x86_64-unknown-linux-gnu").generate(narrow);
-             } catch (const cwhip::DiagnosticError& error) {
-                 require(std::string(error.what()).find(
-                             "fixed-width numeric execution") != std::string::npos,
-                         "numeric backend boundary diagnostic was not actionable");
-                 rejectedNumericExecution = true;
-             }
-             require(rejectedNumericExecution,
-                     "numeric type was silently lowered by the backend");
+             const auto ir = cwhip::CodeGenerator("x86_64-unknown-linux-gnu").generate(narrow);
+             require(ir.find("alloca i8") != std::string::npos,
+                     "int8 local did not retain its LLVM storage width");
 
              auto stringOnly = parse("start {\n print(\"ok\")\n}\n", "string-only.cw");
              (void)cwhip::CodeGenerator("x86_64-unknown-linux-gnu").generate(stringOnly);
@@ -244,31 +236,17 @@ const TestGroupRegistration registration{9, {
              auto numericResult = parse(
                  "start {\n list values = []\n print(values.length)\n}\n",
                  "numeric-member-result.cw");
-             bool rejectedNumericResult = false;
-             try {
-                 (void)cwhip::CodeGenerator("x86_64-unknown-linux-gnu")
-                     .generate(numericResult);
-             } catch (const cwhip::DiagnosticError& error) {
-                 rejectedNumericResult = std::string(error.what()).find(
-                     "fixed-width numeric execution") != std::string::npos;
-             }
-             require(rejectedNumericResult,
-                     "numeric built-in result was silently lowered by the backend");
+             (void)cwhip::CodeGenerator("x86_64-unknown-linux-gnu").generate(numericResult);
 
              auto externalNumeric = parse(
                  "class Native {\n int8 read()\n}\n"
                  "int8 Native.read() from \"native_read\"\nstart {}\n",
                  "external-numeric.cw");
-             bool rejectedExternalAbi = false;
-             try {
-                 (void)cwhip::CodeGenerator("x86_64-unknown-linux-gnu")
-                     .generate(externalNumeric);
-             } catch (const cwhip::DiagnosticError& error) {
-                 rejectedExternalAbi = std::string(error.what()).find(
-                     "fixed-width numeric execution") != std::string::npos;
-             }
-             require(rejectedExternalAbi,
-                     "unsupported narrow numeric external ABI was accepted");
+             const auto externalIr =
+                 cwhip::CodeGenerator("x86_64-unknown-linux-gnu").generate(externalNumeric);
+             require(externalIr.find("declare signext i8 @native_read(ptr)") !=
+                         std::string::npos,
+                     "int8 native return is missing its ABI extension attribute");
          }}
 }};
 

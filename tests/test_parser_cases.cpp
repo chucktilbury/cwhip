@@ -159,16 +159,10 @@ const TestGroupRegistration registration{1, {
               const auto program = parse(
                   "class Values { enum { FIRST = 3 } }\n"
                   "start { Values value = Values()\n print(value.FIRST) }");
-              try {
-                  (void)cwhip::CodeGenerator("x86_64-unknown-linux-gnu").generate(program);
-              } catch (const cwhip::DiagnosticError& error) {
-                  require(std::string(error.what()).find(
-                              "fixed-width numeric execution") != std::string::npos,
-                          "enum constant use should stop at the numeric backend boundary");
-                  return;
-              }
-              throw std::runtime_error(
-                  "enum constant numeric execution was silently lowered");
+              const auto ir =
+                  cwhip::CodeGenerator("x86_64-unknown-linux-gnu").generate(program);
+              require(ir.find("%Class.Values = type { ptr, ptr }") != std::string::npos,
+                      "enum constants added instance storage");
           }},
          {"enum constants obey access, inheritance, and immutability rules", [] {
               expectValid(

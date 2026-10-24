@@ -964,17 +964,24 @@ const char *cwhip_value_type_name(uint64_t tag, void *pointer, uint64_t *length)
         return "null";
     }
     switch (tag) {
-    case CWHIP_ARRAY_INTEGER: *length = 3; return "int";
+    case CWHIP_ARRAY_INT64: *length = 5; return "int64";
     case CWHIP_ARRAY_STRING: *length = 6; return "string";
     case CWHIP_ARRAY_OBJECT: return cwhip_object_type_name(pointer, length);
     case CWHIP_ARRAY_MAP: *length = 4; return "dict";
     case CWHIP_ARRAY_ARRAY: *length = 4; return "list";
     case CWHIP_ARRAY_BOOLEAN: *length = 4; return "bool";
-    case CWHIP_ARRAY_FLOAT: *length = 5; return "float";
-    case CWHIP_ARRAY_UNSIGNED: *length = 8; return "unsigned";
+    case CWHIP_ARRAY_FP64: *length = 4; return "fp64";
+    case CWHIP_ARRAY_UINT64: *length = 6; return "uint64";
     case CWHIP_ARRAY_BUFFER: *length = 6; return "buffer";
     case CWHIP_ARRAY_HANDLE: *length = 6; return "handle";
     case CWHIP_ARRAY_TYPE: *length = 4; return "type";
+    case CWHIP_ARRAY_INT8: *length = 4; return "int8";
+    case CWHIP_ARRAY_UINT8: *length = 5; return "uint8";
+    case CWHIP_ARRAY_INT16: *length = 5; return "int16";
+    case CWHIP_ARRAY_UINT16: *length = 6; return "uint16";
+    case CWHIP_ARRAY_INT32: *length = 5; return "int32";
+    case CWHIP_ARRAY_UINT32: *length = 6; return "uint32";
+    case CWHIP_ARRAY_FP32: *length = 4; return "fp32";
     default: abort();
     }
 }
@@ -2269,6 +2276,37 @@ void cwhip_string_format_append(void *object, uint64_t tag, int64_t integer,
                                    file, file_length, line, column);
 }
 
+static int numeric_tag_is_signed_integer(uint64_t tag) {
+    return tag == CWHIP_ARRAY_INT8 || tag == CWHIP_ARRAY_INT16 ||
+           tag == CWHIP_ARRAY_INT32 || tag == CWHIP_ARRAY_INT64;
+}
+
+static int numeric_tag_is_unsigned_integer(uint64_t tag) {
+    return tag == CWHIP_ARRAY_UINT8 || tag == CWHIP_ARRAY_UINT16 ||
+           tag == CWHIP_ARRAY_UINT32 || tag == CWHIP_ARRAY_UINT64;
+}
+
+static int64_t numeric_signed_value(uint64_t tag, uint64_t bits) {
+    unsigned width = tag == CWHIP_ARRAY_INT8 ? 8 :
+                     tag == CWHIP_ARRAY_INT16 ? 16 :
+                     tag == CWHIP_ARRAY_INT32 ? 32 : 64;
+    if (width < 64) {
+        const uint64_t mask = (UINT64_C(1) << width) - 1;
+        bits &= mask;
+        if (bits & (UINT64_C(1) << (width - 1))) bits |= ~mask;
+    }
+    int64_t result;
+    memcpy(&result, &bits, sizeof(result));
+    return result;
+}
+
+static uint64_t numeric_unsigned_value(uint64_t tag, uint64_t bits) {
+    if (tag == CWHIP_ARRAY_UINT8) return bits & UINT8_MAX;
+    if (tag == CWHIP_ARRAY_UINT16) return bits & UINT16_MAX;
+    if (tag == CWHIP_ARRAY_UINT32) return bits & UINT32_MAX;
+    return bits;
+}
+
 void cwhip_string_format_spec_append(void *object, uint64_t tag, int64_t integer,
                                    void *pointer, uint64_t length, uint64_t type,
                                    uint64_t width, uint64_t alignment, uint64_t zero_pad,
@@ -2278,30 +2316,50 @@ void cwhip_string_format_spec_append(void *object, uint64_t tag, int64_t integer
     const char *data = text;
     uint64_t count = 0;
     int written = 0;
-    const int integral = tag == CWHIP_ARRAY_INTEGER || tag == CWHIP_ARRAY_UNSIGNED;
+    const int signed_integer = numeric_tag_is_signed_integer(tag);
+    const int unsigned_integer = numeric_tag_is_unsigned_integer(tag);
+    const int integral = signed_integer || unsigned_integer;
+    const int floating = tag == CWHIP_ARRAY_FP32 || tag == CWHIP_ARRAY_FP64;
+    const int64_t signed_value = signed_integer
+                                     ? numeric_signed_value(tag, (uint64_t)integer)
+                                     : integer;
+    const uint64_t unsigned_value = unsigned_integer
+                                       ? numeric_unsigned_value(tag, (uint64_t)integer)
+                                       : (uint64_t)integer;
     if ((type || zero_pad) && !integral) {
-        static const char message[] = "numeric format specifiers require int or unsigned";
+        static const char message[] = "numeric format specifiers require an integer";
         cwhip_exception_raise(message, sizeof(message) - 1, file, file_length, line, column);
     }
     if (type == 'c') {
-        if ((uint64_t)integer > 127) {
+        if (signed_integer && (signed_value < 0 || signed_value > 127)) {
             static const char message[] = "ASCII character format requires a value in 0..127";
             cwhip_exception_raise(message, sizeof(message) - 1, file, file_length, line, column);
         }
-        text[0] = (char)integer;
+        if (!signed_integer && unsigned_value > 127) {
+            static const char message[] = "ASCII character format requires a value in 0..127";
+            cwhip_exception_raise(message, sizeof(message) - 1, file, file_length, line, column);
+        }
+        text[0] = signed_integer ? (char)signed_value : (char)unsigned_value;
         written = 1;
     } else if (type == 'x' || type == 'X') {
-        const int negative = tag == CWHIP_ARRAY_INTEGER && integer < 0;
-        const uint64_t magnitude = negative ? 0 - (uint64_t)integer : (uint64_t)integer;
+        const int negative = signed_integer && signed_value < 0;
+        const uint64_t magnitude = negative ? 0 - (uint64_t)signed_value : unsigned_value;
         written = snprintf(text, sizeof(text), type == 'x' ? "%s%llx" : "%s%llX",
                            negative ? "-" : "", (unsigned long long)magnitude);
-    } else if (tag == CWHIP_ARRAY_INTEGER) written =
-        snprintf(text, sizeof(text), "%lld", (long long)integer);
-    else if (tag == CWHIP_ARRAY_UNSIGNED) written =
-        snprintf(text, sizeof(text), "%llu", (unsigned long long)(uint64_t)integer);
-    else if (tag == CWHIP_ARRAY_FLOAT) {
+    } else if (signed_integer) written =
+        snprintf(text, sizeof(text), "%lld", (long long)signed_value);
+    else if (unsigned_integer) written =
+        snprintf(text, sizeof(text), "%llu", (unsigned long long)unsigned_value);
+    else if (floating) {
         double number;
-        memcpy(&number, &integer, sizeof(number));
+        if (tag == CWHIP_ARRAY_FP32) {
+            const uint32_t bits = (uint32_t)(uint64_t)integer;
+            float single;
+            memcpy(&single, &bits, sizeof(single));
+            number = single;
+        } else {
+            memcpy(&number, &integer, sizeof(number));
+        }
         written = snprintf(text, sizeof(text), "%.15g", number);
     } else if (tag == CWHIP_ARRAY_BOOLEAN) {
         data = integer ? "true" : "false";
@@ -2341,7 +2399,7 @@ void cwhip_string_format_spec_append(void *object, uint64_t tag, int64_t integer
         }
     }
     const uint64_t padding = width > field_length ? width - field_length : 0;
-    if (!alignment) alignment = integral || tag == CWHIP_ARRAY_FLOAT ? '>' : '<';
+    if (!alignment) alignment = integral || floating ? '>' : '<';
     uint64_t before = alignment == '<' ? 0 : alignment == '^' ? padding / 2 : padding;
     uint64_t after = padding - before;
     if (zero_pad && count && data[0] == '-') {

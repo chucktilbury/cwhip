@@ -154,6 +154,17 @@ const char* tokenTypeName(TokenType type) noexcept {
     case TokenType::Star: return "'*'";
     case TokenType::Slash: return "'/'";
     case TokenType::Percent: return "'%'";
+    case TokenType::Ampersand: return "'&'";
+    case TokenType::Pipe: return "'|'";
+    case TokenType::Caret: return "'^'";
+    case TokenType::Tilde: return "'~'";
+    case TokenType::ShiftLeft: return "'<<'";
+    case TokenType::ShiftRight: return "'>>'";
+    case TokenType::AmpersandEqual: return "'&='";
+    case TokenType::PipeEqual: return "'|='";
+    case TokenType::CaretEqual: return "'^='";
+    case TokenType::ShiftLeftEqual: return "'<<='";
+    case TokenType::ShiftRightEqual: return "'>>='";
     case TokenType::PlusEqual: return "'+='";
     case TokenType::MinusEqual: return "'-='";
     case TokenType::StarEqual: return "'*='";
@@ -546,19 +557,18 @@ std::vector<Token> Lexer::tokenize() {
             type = peek() == '=' ? (advance(), TokenType::PercentEqual) : TokenType::Percent;
             break;
         case '&':
-            if (peek() != '&') {
-                throw DiagnosticError(location, "unexpected character");
-            }
-            advance();
-            type = TokenType::AndAnd;
+            type = peek() == '&' ? (advance(), TokenType::AndAnd) :
+                   peek() == '=' ? (advance(), TokenType::AmpersandEqual) :
+                                   TokenType::Ampersand;
             break;
         case '|':
-            if (peek() != '|') {
-                throw DiagnosticError(location, "unexpected character");
-            }
-            advance();
-            type = TokenType::OrOr;
+            type = peek() == '|' ? (advance(), TokenType::OrOr) :
+                   peek() == '=' ? (advance(), TokenType::PipeEqual) : TokenType::Pipe;
             break;
+        case '^':
+            type = peek() == '=' ? (advance(), TokenType::CaretEqual) : TokenType::Caret;
+            break;
+        case '~': type = TokenType::Tilde; break;
         case '!':
             type = peek() == '=' ? (advance(), TokenType::BangEqual) : TokenType::Bang;
             break;
@@ -566,10 +576,18 @@ std::vector<Token> Lexer::tokenize() {
             type = peek() == '=' ? (advance(), TokenType::EqualEqual) : TokenType::Equal;
             break;
         case '<':
-            type = peek() == '=' ? (advance(), TokenType::LessEqual) : TokenType::Less;
+            if (peek() == '<') {
+                advance();
+                type = peek() == '=' ? (advance(), TokenType::ShiftLeftEqual) :
+                                       TokenType::ShiftLeft;
+            } else type = peek() == '=' ? (advance(), TokenType::LessEqual) : TokenType::Less;
             break;
         case '>':
-            type = peek() == '=' ? (advance(), TokenType::GreaterEqual) : TokenType::Greater;
+            if (peek() == '>') {
+                advance();
+                type = peek() == '=' ? (advance(), TokenType::ShiftRightEqual) :
+                                       TokenType::ShiftRight;
+            } else type = peek() == '=' ? (advance(), TokenType::GreaterEqual) : TokenType::Greater;
             break;
         default:
             throw DiagnosticError(location, "unexpected character");
@@ -583,8 +601,14 @@ std::vector<Token> Lexer::tokenize() {
         std::string text(1, value);
         if (type == TokenType::PlusEqual || type == TokenType::MinusEqual ||
             type == TokenType::StarEqual || type == TokenType::SlashEqual ||
-            type == TokenType::PercentEqual) {
+            type == TokenType::PercentEqual || type == TokenType::AmpersandEqual ||
+            type == TokenType::PipeEqual || type == TokenType::CaretEqual) {
             text.push_back('=');
+        } else if (type == TokenType::ShiftLeft || type == TokenType::ShiftRight ||
+                   type == TokenType::ShiftLeftEqual || type == TokenType::ShiftRightEqual) {
+            text.push_back(value);
+            if (type == TokenType::ShiftLeftEqual || type == TokenType::ShiftRightEqual)
+                text.push_back('=');
         } else if (type == TokenType::BangEqual || type == TokenType::EqualEqual ||
             type == TokenType::LessEqual || type == TokenType::GreaterEqual ||
             type == TokenType::AndAnd || type == TokenType::OrOr) {

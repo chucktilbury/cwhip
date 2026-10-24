@@ -210,11 +210,10 @@ const TestGroupRegistration registration{0, {
                            "unsigned literal is outside the 64-bit range");
              checkLocation("start {\n int value = -0x8000000000000001\n}\n",
                            "integer literal is outside the signed 64-bit range");
-             expectDiagnostic("start {\n"
+             expectValid("start {\n"
                               " list values = [1, 2]\n"
                               " list invalid = values[::0x0]\n"
-                              "}\n",
-                              "list slice step cannot be zero");
+                              "}\n");
          }},
         {"import keyword is case-insensitive and reserved", [] {
              cwhip::Lexer lexer("IMPORT network AS Net\nstart {}", "import-keyword.cw");

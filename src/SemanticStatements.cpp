@@ -206,9 +206,14 @@ void SemanticAnalyzer::analyzeStatement(Statement& statement) {
         if (compoundAssignment) {
             const auto operation = statement.assignmentOperator.substr(
                 0, statement.assignmentOperator.size() - 1);
-            const auto operationType = commonNumericType(targetType, valueType);
+            const bool shift = operation == "<<" || operation == ">>";
+            const bool integerOnly = shift || operation == "&" || operation == "|" ||
+                                     operation == "^" || operation == "%";
+            const auto operationType = shift
+                ? std::optional<std::string>(targetType)
+                : commonNumericType(targetType, valueType);
             if (!operationType ||
-                (operation == "%" &&
+                (integerOnly &&
                  (!isIntegerType(targetType) || !isIntegerType(valueType)))) {
                 throw DiagnosticError(
                     statement.assignmentOperatorLocation,
@@ -218,8 +223,9 @@ void SemanticAnalyzer::analyzeStatement(Statement& statement) {
             }
             warnNumericConversion(*operationType, targetType,
                                   statement.target->location);
-            warnNumericConversion(*operationType, valueType,
-                                  statement.expressions.front()->location);
+            if (!shift)
+                warnNumericConversion(*operationType, valueType,
+                                      statement.expressions.front()->location);
             warnNumericConversion(targetType, *operationType,
                                   statement.assignmentOperatorLocation);
         }

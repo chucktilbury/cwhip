@@ -1,0 +1,5 @@
+{
+  "friendly_name": "constant zero list slice step remains catchable",
+  "expected_diagnostic": "",
+  "enabled": true
+}
