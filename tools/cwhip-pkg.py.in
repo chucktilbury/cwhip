@@ -37,6 +37,7 @@ SDK_PREFIX = (Path(__file__).resolve().parent / "@CWHIP_PKG_PREFIX_RELATIVE_PATH
 TEMPLATE_MAX_DOWNLOAD = 32 * 1024 * 1024
 TEMPLATE_MAX_SIZE = 128 * 1024 * 1024
 TEMPLATE_MAX_ENTRIES = 10000
+SDK_ABI = "numeric-v2"
 VERSION_PATTERN = re.compile(
     r"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)"
     r"(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?"
@@ -45,6 +46,8 @@ VERSION_PATTERN = re.compile(
 IDENTIFIER_PATTERN = re.compile(r"[A-Za-z_][A-Za-z0-9_]*\Z")
 ENVIRONMENT_NAME_PATTERN = re.compile(r"[A-Za-z_][A-Za-z0-9_]*\Z")
 CWHIP_KEYWORDS = {
+    "int8", "uint8", "int16", "uint16", "int32", "uint32", "int64", "uint64",
+    "fp32", "fp64",
     "start", "int", "bool", "float", "unsigned", "strg", "list", "dict",
     "buffer", "handle", "any", "type", "if", "else", "while", "do", "for",
     "in", "is", "break", "continue", "and", "or", "not", "print", "raise",
@@ -162,9 +165,15 @@ def read_manifest(package_root: Path, *, check_directory_version: bool = True) -
     package = document.get("package")
     if not isinstance(package, dict):
         raise CwhipkgError(f"{manifest_path}: missing [package] table")
-    if set(package) != {"name", "version", "source", "export"}:
+    if package.get("sdk-abi") != SDK_ABI:
         raise CwhipkgError(
-            f"{manifest_path}: [package] must contain only name, version, source, and export"
+            f'{manifest_path}: incompatible package SDK ABI (expected {SDK_ABI!r}); '
+            'migrate source and rebuild native artifacts, then set '
+            f'[package] sdk-abi = "{SDK_ABI}"', code="PKG2004"
+        )
+    if set(package) != {"name", "version", "source", "export", "sdk-abi"}:
+        raise CwhipkgError(
+            f"{manifest_path}: [package] must contain only name, version, source, export, and sdk-abi"
         )
 
     name = require_string(package, "name", str(manifest_path))

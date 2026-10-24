@@ -36,9 +36,6 @@ inline std::string mangleTypeCode(const std::string& type) {
     if (type == "uint64") return "u64";
     if (type == "fp32") return "f32";
     if (type == "fp64") return "f64";
-    if (type == "int") return "i";
-    if (type == "unsigned") return "u";
-    if (type == "float") return "f";
     if (type == "bool") return "b";
     if (type == "any") return "y";
     if (type == "void") return "v";
@@ -72,7 +69,7 @@ inline std::string methodSignatureKey(const MethodDeclaration& method) {
     return method.name + mangleParameters(method.parameters);
 }
 
-/// A human-readable signature for diagnostics, e.g. "absolute(int)".
+/// A human-readable signature for diagnostics, e.g. "absolute(int64)".
 inline std::string readableSignature(const MethodDeclaration& method) {
     std::string text = method.name + "(";
     for (std::size_t index = 0; index < method.parameters.size(); ++index) {

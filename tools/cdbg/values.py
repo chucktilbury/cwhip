@@ -51,14 +51,19 @@ def object_summary(value, name):
 def dynamic(value, depth):
     tag = int(value["tag"])
     integer = int(value["integer"])
-    if tag == 1:
-        return str(integer)
-    if tag == 8:
-        return str(integer & ((1 << 64) - 1))
+    if tag in (1, 12, 14, 16):
+        width = {1: 64, 12: 8, 14: 16, 16: 32}[tag]
+        bits = integer & ((1 << width) - 1)
+        return str(bits - (1 << width) if bits & (1 << (width - 1)) else bits)
+    if tag in (8, 13, 15, 17):
+        width = {8: 64, 13: 8, 15: 16, 17: 32}[tag]
+        return str(integer & ((1 << width) - 1))
     if tag == 6:
         return "true" if integer else "false"
     if tag == 7:
         return str(struct.unpack("=d", struct.pack("=Q", integer & ((1 << 64) - 1)))[0])
+    if tag == 18:
+        return str(struct.unpack("=f", struct.pack("=I", integer & ((1 << 32) - 1)))[0])
     if tag == 2:
         return string(value["pointer"])
     if tag == 3:

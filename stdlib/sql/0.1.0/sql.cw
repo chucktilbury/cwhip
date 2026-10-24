@@ -30,7 +30,7 @@ namespace SQL {
             raise(Exception("SQL statement backend does not implement error"))
         }
 
-        bool bind(int oneBasedIndex, Value value) {
+        bool bind(int64 oneBasedIndex, Value value) {
             raise(Exception("SQL statement backend does not implement bind"))
         }
 
@@ -50,7 +50,7 @@ namespace SQL {
             raise(Exception("SQL statement backend does not implement failed"))
         }
 
-        Value value(int zeroBasedColumnIndex) {
+        Value value(int64 zeroBasedColumnIndex) {
             raise(Exception("SQL statement backend does not implement value"))
         }
 
@@ -79,9 +79,9 @@ namespace SQL {
 
     class Value {
         private:
-        int _kind
-        int _integer
-        float _real
+        int64 _kind
+        int64 _integer
+        fp64 _real
         String _text
         buffer _blob
 
@@ -94,7 +94,7 @@ namespace SQL {
             _blob = null
         }
 
-        Value(int value) {
+        Value(int64 value) {
             _kind = 1
             _integer = value
             _real = 0.0
@@ -102,7 +102,7 @@ namespace SQL {
             _blob = null
         }
 
-        Value(float value) {
+        Value(fp64 value) {
             _kind = 2
             _integer = 0
             _real = value
@@ -128,7 +128,7 @@ namespace SQL {
             _blob = value
         }
 
-        int kind() {
+        int64 kind() {
             return _kind
         }
 
@@ -136,12 +136,12 @@ namespace SQL {
             return _kind == 0
         }
 
-        int asInteger() {
+        int64 asInteger() {
             if (_kind != 1) { raise(Exception("SQL value is not an integer")) }
             return _integer
         }
 
-        float asReal() {
+        fp64 asReal() {
             if (_kind != 2) { raise(Exception("SQL value is not a real")) }
             return _real
         }

@@ -5,6 +5,13 @@
 
 This document records the current design direction and project requirements for **Cwhip**. It deliberately preserves unresolved tensions and questions rather than silently choosing an implementation or language rule.
 
+**Numeric update (SDK 0.0.2):** the earlier numeric design discussion below is
+historical, not the current numeric contract. The fixed-width semantics in
+[LANGUAGE-REFERENCE.md](LANGUAGE-REFERENCE.md) and API/ABI replacements in
+[NUMERIC-MIGRATION.md](NUMERIC-MIGRATION.md) supersede its old type names,
+literal inference, conversion, and arithmetic rules. No old numeric aliases
+are accepted. The String parser section below describes the current methods.
+
 ## Vision
 
 Cwhip is intended as a synthesis of useful ideas from C, C++, and Python:
@@ -835,26 +842,21 @@ statements.
 
 ### String-to-number conversion (implemented)
 
-`String` exposes three checked native-bound conversion methods:
-
-- `s.toInt()` -> `int`: optional leading `+`/`-`, digit-only body, no
-  whitespace tolerance, the entire string must be consumed. Raises a
-  catchable exception on any non-digit content or on overflowing the
-  signed 64-bit `int` range.
-- `s.toUnsigned()` -> `unsigned`: optional leading `+` only (a leading `-`
-  raises rather than being silently accepted or wrapped), otherwise the
-  same digit-only, whole-string-consumed rule. Raises on overflowing the
-  64-bit `unsigned` range.
-- `s.toFloat()` -> `float`: parsed with `strtod`, also requiring the whole
-  string to be consumed (so trailing garbage raises rather than being
-  ignored); scientific notation (e.g. `"1.5e2"`) is accepted. Raises on a
-  malformed float or one that is too long (over 127 bytes) to convert.
+`String` exposes checked native-bound methods named by destination:
+`toInt8/16/32/64()`, `toUint8/16/32/64()`, `toFp32()`, and `toFp64()`.
+Each returns its exact numeric type. Integers accept signed decimal text
+(unsigned rejects `-`) and check destination range without wrapping.
+Floating parsers consume decimal/exponent text directly in the destination
+format, preserving signed zero and nonzero subnormals, and rejecting
+overflow/nonzero underflow to zero. Whitespace, partial parses, malformed
+text, special-value/hex spellings, and floating strings over 127 bytes raise.
+See [NUMERIC-MIGRATION.md](NUMERIC-MIGRATION.md) for the full contract.
 
 A `null` receiver raises the same "null reference" exception any other
 null-receiver method call would. See
-`tests/functional/positive/positive_string_conversion.cw` for a
-worked example covering all three methods, valid and invalid inputs, and
-exception-catching via `try`/`except`.
+`tests/test_numeric_sdk.py` for all ten methods, boundary failures, and
+exception-catching via `try`/`except`. The older functional conversion
+fixture still uses historical syntax pending the broad corpus migration.
 
 ### `buffer` and `handle` types (implemented subset)
 

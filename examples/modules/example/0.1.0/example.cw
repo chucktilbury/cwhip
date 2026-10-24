@@ -1,6 +1,6 @@
 namespace Example {
     class Answer {
-        int value() {
+        int64 value() {
             return 42
         }
     }

@@ -12,49 +12,49 @@ namespace GtkSource {
     class View {
         private:
         Gtk.SourceViewWidget _widget
-        void _setText(int token, String text)
-        String _getText(int token)
-        bool _modified(int token)
-        void _markSaved(int token)
-        void _undo(int token)
-        void _redo(int token)
-        bool _stripTrailingSpaces(int token)
-        void _autoPair(int token, bool enabled)
-        bool _canUndo(int token)
-        bool _canRedo(int token)
-        bool _hasSelection(int token)
-        void _edit(int token, int operation)
-        void _focus(int token)
-        bool _find(int token, String query)
-        bool _replaceNext(int token, String query, String replacement)
-        bool _search(int token, String query, int options)
-        bool _replace(int token, String query, String replacement, int options)
-        int _replaceAll(int token, String query, String replacement, int options)
-        bool _captureScope(int token)
-        bool _hasScope(int token)
-        String _selectedText(int token)
-        String _languageId(int token)
-        int _line(int token)
-        int _column(int token)
-        void _setCursor(int token, int line, int column)
-        void _centerCursor(int token, int line, int column)
-        void _editable(int token, bool editable)
-        bool _hasContext(int token, String context, int offset)
-        bool _language(int token, String language)
-        void _monospace(int token, bool monospace)
-        void _emojiMenu(int token, bool enabled)
-        bool _bindShortcut(int token, String trigger, callback<void()> action)
-        bool _hasShortcut(int token, String trigger)
-        void _clearShortcuts(int token)
-        void _configure(int token, String font, int size, int tabs, bool spaces,
+        void _setText(int64 token, String text)
+        String _getText(int64 token)
+        bool _modified(int64 token)
+        void _markSaved(int64 token)
+        void _undo(int64 token)
+        void _redo(int64 token)
+        bool _stripTrailingSpaces(int64 token)
+        void _autoPair(int64 token, bool enabled)
+        bool _canUndo(int64 token)
+        bool _canRedo(int64 token)
+        bool _hasSelection(int64 token)
+        void _edit(int64 token, int64 operation)
+        void _focus(int64 token)
+        bool _find(int64 token, String query)
+        bool _replaceNext(int64 token, String query, String replacement)
+        bool _search(int64 token, String query, int64 options)
+        bool _replace(int64 token, String query, String replacement, int64 options)
+        int64 _replaceAll(int64 token, String query, String replacement, int64 options)
+        bool _captureScope(int64 token)
+        bool _hasScope(int64 token)
+        String _selectedText(int64 token)
+        String _languageId(int64 token)
+        int64 _line(int64 token)
+        int64 _column(int64 token)
+        void _setCursor(int64 token, int64 line, int64 column)
+        void _centerCursor(int64 token, int64 line, int64 column)
+        void _editable(int64 token, bool editable)
+        bool _hasContext(int64 token, String context, int64 offset)
+        bool _language(int64 token, String language)
+        void _monospace(int64 token, bool monospace)
+        void _emojiMenu(int64 token, bool enabled)
+        bool _bindShortcut(int64 token, String trigger, callback<void()> action)
+        bool _hasShortcut(int64 token, String trigger)
+        void _clearShortcuts(int64 token)
+        void _configure(int64 token, String font, int64 size, int64 tabs, bool spaces,
                         bool numbers, bool wrap, bool highlight)
-        int _changed(int token, callback<void()> action)
-        int _cursorMoved(int token, callback<void()> action)
-        void _lineSelection(int token, bool enabled)
-        int _lineActivated(int token, callback<void(int)> action)
-        void _markStyle(int token, String category, String icon, String color)
-        void _lineMark(int token, String category, int line)
-        void _clearMarks(int token, String category)
+        int64 _changed(int64 token, callback<void()> action)
+        int64 _cursorMoved(int64 token, callback<void()> action)
+        void _lineSelection(int64 token, bool enabled)
+        int64 _lineActivated(int64 token, callback<void(int64)> action)
+        void _markStyle(int64 token, String category, String icon, String color)
+        void _lineMark(int64 token, String category, int64 line)
+        void _clearMarks(int64 token, String category)
         public:
         // Search option bits; add them together to combine options.
         enum { CASE_SENSITIVE = 1, WHOLE_WORDS = 2, IN_SELECTION = 4, BACKWARD = 8 }
@@ -63,7 +63,7 @@ namespace GtkSource {
             _language(_widgetToken(), "")
         }
         Gtk.SourceViewWidget widget() { return _widget }
-        int _widgetToken() { return _widget.nativeToken() }
+        int64 _widgetToken() { return _widget.nativeToken() }
         void setText(String text) { _setText(_widgetToken(), text) }
         String text() { return _getText(_widgetToken()) }
         bool modified() { return _modified(_widgetToken()) }
@@ -90,13 +90,13 @@ namespace GtkSource {
         bool replaceNext(String query, String replacement) {
             return _replaceNext(_widgetToken(), query, replacement)
         }
-        bool findWith(String query, int options) {
+        bool findWith(String query, int64 options) {
             return _search(_widgetToken(), query, options)
         }
-        bool replaceWith(String query, String replacement, int options) {
+        bool replaceWith(String query, String replacement, int64 options) {
             return _replace(_widgetToken(), query, replacement, options)
         }
-        int replaceAll(String query, String replacement, int options) {
+        int64 replaceAll(String query, String replacement, int64 options) {
             return _replaceAll(_widgetToken(), query, replacement, options)
         }
         bool captureSearchScope() { return _captureScope(_widgetToken()) }
@@ -104,12 +104,12 @@ namespace GtkSource {
         String selectedText() { return _selectedText(_widgetToken()) }
         bool setLanguage(String language) { return _language(_widgetToken(), language) }
         String language() { return _languageId(_widgetToken()) }
-        int line() { return _line(_widgetToken()) }
-        int column() { return _column(_widgetToken()) }
-        void setCursor(int line, int column) { _setCursor(_widgetToken(), line, column) }
-        void centerCursor(int line, int column) { _centerCursor(_widgetToken(), line, column) }
+        int64 line() { return _line(_widgetToken()) }
+        int64 column() { return _column(_widgetToken()) }
+        void setCursor(int64 line, int64 column) { _setCursor(_widgetToken(), line, column) }
+        void centerCursor(int64 line, int64 column) { _centerCursor(_widgetToken(), line, column) }
         void setEditable(bool editable) { _editable(_widgetToken(), editable) }
-        bool hasContextAt(String context, int offset) {
+        bool hasContextAt(String context, int64 offset) {
             return _hasContext(_widgetToken(), context, offset)
         }
         bool bindShortcut(String trigger, callback<void()> action) {
@@ -117,80 +117,80 @@ namespace GtkSource {
         }
         bool hasShortcut(String trigger) { return _hasShortcut(_widgetToken(), trigger) }
         void clearShortcuts() { _clearShortcuts(_widgetToken()) }
-        void configure(String font, int size, int tabs, bool spaces,
+        void configure(String font, int64 size, int64 tabs, bool spaces,
                        bool numbers, bool wrap, bool highlight) {
             _configure(_widgetToken(), font, size, tabs, spaces, numbers, wrap, highlight)
         }
-        int onChanged(callback<void()> action) {
+        int64 onChanged(callback<void()> action) {
             return _changed(_widgetToken(), action)
         }
-        int onCursorMoved(callback<void()> action) {
+        int64 onCursorMoved(callback<void()> action) {
             return _cursorMoved(_widgetToken(), action)
         }
         void setLineSelection(bool enabled) { _lineSelection(_widgetToken(), enabled) }
-        int onLineActivated(callback<void(int)> action) { return _lineActivated(_widgetToken(), action) }
+        int64 onLineActivated(callback<void(int64)> action) { return _lineActivated(_widgetToken(), action) }
         void setMarkStyle(String category, String icon, String background) {
             _markStyle(_widgetToken(), category, icon, background)
         }
-        void addLineMark(String category, int line) { _lineMark(_widgetToken(), category, line) }
+        void addLineMark(String category, int64 line) { _lineMark(_widgetToken(), category, line) }
         void clearLineMarks(String category) { _clearMarks(_widgetToken(), category) }
     }
 
-    void View._setText(int token, String text) from "cwhip_gtk_source_view_set_text"
-    String View._getText(int token) from "cwhip_gtk_source_view_get_text"
-    bool View._modified(int token) from "cwhip_gtk_source_view_modified"
-    void View._markSaved(int token) from "cwhip_gtk_source_view_mark_saved"
-    void View._undo(int token) from "cwhip_gtk_source_view_undo"
-    void View._redo(int token) from "cwhip_gtk_source_view_redo"
-    bool View._stripTrailingSpaces(int token) from "cwhip_gtk_source_view_strip_trailing_spaces"
-    void View._autoPair(int token, bool enabled) from "cwhip_gtk_source_view_auto_pair"
-    bool View._canUndo(int token) from "cwhip_gtk_source_view_can_undo"
-    bool View._canRedo(int token) from "cwhip_gtk_source_view_can_redo"
-    bool View._hasSelection(int token) from "cwhip_gtk_source_view_has_selection"
-    void View._edit(int token, int operation) from "cwhip_gtk_source_view_edit"
-    void View._focus(int token) from "cwhip_gtk_widget_focus"
-    bool View._find(int token, String query) from "cwhip_gtk_source_view_find"
-    bool View._replaceNext(int token, String query, String replacement)
+    void View._setText(int64 token, String text) from "cwhip_gtk_source_view_set_text"
+    String View._getText(int64 token) from "cwhip_gtk_source_view_get_text"
+    bool View._modified(int64 token) from "cwhip_gtk_source_view_modified"
+    void View._markSaved(int64 token) from "cwhip_gtk_source_view_mark_saved"
+    void View._undo(int64 token) from "cwhip_gtk_source_view_undo"
+    void View._redo(int64 token) from "cwhip_gtk_source_view_redo"
+    bool View._stripTrailingSpaces(int64 token) from "cwhip_gtk_source_view_strip_trailing_spaces"
+    void View._autoPair(int64 token, bool enabled) from "cwhip_gtk_source_view_auto_pair"
+    bool View._canUndo(int64 token) from "cwhip_gtk_source_view_can_undo"
+    bool View._canRedo(int64 token) from "cwhip_gtk_source_view_can_redo"
+    bool View._hasSelection(int64 token) from "cwhip_gtk_source_view_has_selection"
+    void View._edit(int64 token, int64 operation) from "cwhip_gtk_source_view_edit"
+    void View._focus(int64 token) from "cwhip_gtk_widget_focus"
+    bool View._find(int64 token, String query) from "cwhip_gtk_source_view_find"
+    bool View._replaceNext(int64 token, String query, String replacement)
         from "cwhip_gtk_source_view_replace_next"
-    int View._line(int token) from "cwhip_gtk_source_view_line"
-    int View._column(int token) from "cwhip_gtk_source_view_column"
-    void View._setCursor(int token, int line, int column) from "cwhip_gtk_source_view_set_cursor"
-    void View._centerCursor(int token, int line, int column) from "cwhip_gtk_source_view_center_cursor"
-    void View._editable(int token, bool editable) from "cwhip_gtk_source_view_editable"
-    bool View._hasContext(int token, String context, int offset)
+    int64 View._line(int64 token) from "cwhip_gtk_source_view_line"
+    int64 View._column(int64 token) from "cwhip_gtk_source_view_column"
+    void View._setCursor(int64 token, int64 line, int64 column) from "cwhip_gtk_source_view_set_cursor"
+    void View._centerCursor(int64 token, int64 line, int64 column) from "cwhip_gtk_source_view_center_cursor"
+    void View._editable(int64 token, bool editable) from "cwhip_gtk_source_view_editable"
+    bool View._hasContext(int64 token, String context, int64 offset)
         from "cwhip_gtk_source_view_has_context"
-    bool View._language(int token, String language) from "cwhip_gtk_source_view_language"
-    void View._monospace(int token, bool monospace)
+    bool View._language(int64 token, String language) from "cwhip_gtk_source_view_language"
+    void View._monospace(int64 token, bool monospace)
         from "cwhip_gtk_source_view_monospace"
-    void View._emojiMenu(int token, bool enabled) from "cwhip_gtk_source_view_emoji_menu"
-    String View._languageId(int token) from "cwhip_gtk_source_view_language_id"
-    bool View._search(int token, String query, int options) from "cwhip_gtk_source_view_search"
-    bool View._replace(int token, String query, String replacement, int options)
+    void View._emojiMenu(int64 token, bool enabled) from "cwhip_gtk_source_view_emoji_menu"
+    String View._languageId(int64 token) from "cwhip_gtk_source_view_language_id"
+    bool View._search(int64 token, String query, int64 options) from "cwhip_gtk_source_view_search"
+    bool View._replace(int64 token, String query, String replacement, int64 options)
         from "cwhip_gtk_source_view_replace"
-    int View._replaceAll(int token, String query, String replacement, int options)
+    int64 View._replaceAll(int64 token, String query, String replacement, int64 options)
         from "cwhip_gtk_source_view_replace_all"
-    bool View._captureScope(int token) from "cwhip_gtk_source_view_capture_scope"
-    bool View._hasScope(int token) from "cwhip_gtk_source_view_has_scope"
-    String View._selectedText(int token) from "cwhip_gtk_source_view_selected_text"
+    bool View._captureScope(int64 token) from "cwhip_gtk_source_view_capture_scope"
+    bool View._hasScope(int64 token) from "cwhip_gtk_source_view_has_scope"
+    String View._selectedText(int64 token) from "cwhip_gtk_source_view_selected_text"
     String Content.languageFor(String path) from "cwhip_gtk_source_language_for"
     bool Content.isText(String data) from "cwhip_gtk_source_is_text"
-    bool View._bindShortcut(int token, String trigger, callback<void()> action)
+    bool View._bindShortcut(int64 token, String trigger, callback<void()> action)
         from "cwhip_gtk_source_view_bind_shortcut"
-    bool View._hasShortcut(int token, String trigger)
+    bool View._hasShortcut(int64 token, String trigger)
         from "cwhip_gtk_source_view_has_shortcut"
-    void View._clearShortcuts(int token) from "cwhip_gtk_source_view_clear_shortcuts"
-    void View._configure(int token, String font, int size, int tabs, bool spaces,
+    void View._clearShortcuts(int64 token) from "cwhip_gtk_source_view_clear_shortcuts"
+    void View._configure(int64 token, String font, int64 size, int64 tabs, bool spaces,
                          bool numbers, bool wrap, bool highlight)
         from "cwhip_gtk_source_view_configure"
-    int View._changed(int token, callback<void()> action)
+    int64 View._changed(int64 token, callback<void()> action)
         from "cwhip_gtk_source_view_changed"
-    int View._cursorMoved(int token, callback<void()> action)
+    int64 View._cursorMoved(int64 token, callback<void()> action)
         from "cwhip_gtk_source_view_cursor_moved"
-    void View._lineSelection(int token, bool enabled) from "cwhip_gtk_source_view_line_selection"
-    int View._lineActivated(int token, callback<void(int)> action)
+    void View._lineSelection(int64 token, bool enabled) from "cwhip_gtk_source_view_line_selection"
+    int64 View._lineActivated(int64 token, callback<void(int64)> action)
         from "cwhip_gtk_source_view_line_activated"
-    void View._markStyle(int token, String category, String icon, String color)
+    void View._markStyle(int64 token, String category, String icon, String color)
         from "cwhip_gtk_source_view_mark_style"
-    void View._lineMark(int token, String category, int line) from "cwhip_gtk_source_view_line_mark"
-    void View._clearMarks(int token, String category) from "cwhip_gtk_source_view_clear_marks"
+    void View._lineMark(int64 token, String category, int64 line) from "cwhip_gtk_source_view_line_mark"
+    void View._clearMarks(int64 token, String category) from "cwhip_gtk_source_view_clear_marks"
 }

@@ -11,9 +11,16 @@ class String {
     public:
     void append(String other)
     bool equals(String other)
-    int64 toInt()
-    uint64 toUnsigned()
-    fp64 toFloat()
+    int8 toInt8()
+    uint8 toUint8()
+    int16 toInt16()
+    uint16 toUint16()
+    int32 toInt32()
+    uint32 toUint32()
+    int64 toInt64()
+    uint64 toUint64()
+    fp32 toFp32()
+    fp64 toFp64()
 
     uint64 byteAt(int64 index)
     String slice(int64 first, int64 last)
@@ -34,9 +41,16 @@ class String {
 
 void String.append(String other) from "cwhip_string_append"
 bool String.equals(String other) from "cwhip_string_equals"
-int64 String.toInt() from "cwhip_string_method_to_int"
-uint64 String.toUnsigned() from "cwhip_string_method_to_unsigned"
-fp64 String.toFloat() from "cwhip_string_method_to_float"
+int8 String.toInt8() from "cwhip_string_method_to_int8"
+uint8 String.toUint8() from "cwhip_string_method_to_uint8"
+int16 String.toInt16() from "cwhip_string_method_to_int16"
+uint16 String.toUint16() from "cwhip_string_method_to_uint16"
+int32 String.toInt32() from "cwhip_string_method_to_int32"
+uint32 String.toUint32() from "cwhip_string_method_to_uint32"
+int64 String.toInt64() from "cwhip_string_method_to_int64"
+uint64 String.toUint64() from "cwhip_string_method_to_uint64"
+fp32 String.toFp32() from "cwhip_string_method_to_fp32"
+fp64 String.toFp64() from "cwhip_string_method_to_fp64"
 uint64 String.byteAt(int64 index) from "cwhip_string_method_byte_at"
 String String.slice(int64 first, int64 last) from "cwhip_string_method_slice"
 void String.insert(int64 index, String other) from "cwhip_string_method_insert"

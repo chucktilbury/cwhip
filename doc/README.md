@@ -4,6 +4,7 @@
 - [Historical Cwhip language notes](CWHIP-LANGUAGE-NOTES.md)
 - [Cwhip grammar reference](GRAMMAR.md)
 - [Cwhip language reference](LANGUAGE-REFERENCE.md)
+- [Numeric source, native ABI, and SDK migration](NUMERIC-MIGRATION.md)
 - [Bound-method callbacks and native callback ABI](CALLBACKS.md)
 - [Compiler build and installation](INSTALLATION.md)
 - [Diagnostic contract and code registry](DIAGNOSTICS.md)
@@ -24,5 +25,6 @@
 - [Sanitizers, example checks, CI, coverage, and fuzzing](TESTING.md)
 - [Project overview, build, and install](../README.md)
 
-The language reference documents signed 64-bit `int` and unsigned 64-bit
-`unsigned` values, including their literal ranges and native ABI.
+The language reference documents fixed-width int8/uint8 through int64/uint64
+and fp32/fp64 values, including literal selection, checked arithmetic,
+conversions, exact dynamic type tags, and native ABI.

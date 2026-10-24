@@ -161,8 +161,8 @@ void cwhip_gtk_tree_setup(void *self, int64_t token, void *request, void *activa
     tree->roots = g_list_store_new(cwhip_tree_item_get_type());
     tree->items = g_hash_table_new_full(g_int64_hash, g_int64_equal, g_free, g_object_unref);
     tree->by_value = g_hash_table_new(g_str_hash, g_str_equal);
-    tree->request = cwhip_callback_acquire(request, "callback<void(int)>");
-    tree->activate = cwhip_callback_acquire(activate, "callback<void(int)>");
+    tree->request = cwhip_callback_acquire(request, "callback<void(int64)>");
+    tree->activate = cwhip_callback_acquire(activate, "callback<void(int64)>");
     GtkTreeListModel *model =
         gtk_tree_list_model_new(G_LIST_MODEL(g_object_ref(tree->roots)), FALSE, FALSE,
                                 tree_children, tree_ref(tree), tree_unref);
@@ -585,7 +585,7 @@ static int64_t directory_start(int64_t owner_token, void *path, bool hidden, voi
     }
     job->entries = g_ptr_array_new_with_free_func(directory_entry_free);
     job->cancel = g_cancellable_new();
-    job->context = cwhip_callback_acquire(callback, "callback<void(int,String)>");
+    job->context = cwhip_callback_acquire(callback, "callback<void(int64,String)>");
     GSource *source = g_source_new(&directory_source_funcs, sizeof(DirectorySource));
     DirectorySource *ds = (DirectorySource *)source;
     ds->job = job;

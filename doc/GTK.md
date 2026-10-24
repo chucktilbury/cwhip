@@ -63,9 +63,9 @@ window; use `dispose()` to tear down a window that has not been presented.
 Calling close before presentation is rejected rather than silently doing nothing.
 
 `String id()` returns a managed copy of the application ID while live.
-`int post(callback<void()> action)` is the only worker-callable GUI operation;
+`int64 post(callback<void()> action)` is the only worker-callable GUI operation;
 it queues one invocation on the GUI thread and returns a positive, process-unique
-token. `bool cancel(int token)` is GUI-only: true means pending work was removed,
+token. `bool cancel(int64 token)` is GUI-only: true means pending work was removed,
 false means it was already cancelled/running/completed or was never pending.
 Tokens are never reused. Posts before initialization or after shutdown abort
 with an explicit diagnostic. Coordinate worker completion before requesting
@@ -99,19 +99,19 @@ The first-release additions are:
 
 | Class | Constructor and operations |
 | --- | --- |
-| `Window` | `Window(String title)`, `setTitle(String)`, `String title()`, `setDefaultSize(int width, int height)`, `int defaultWidth()`, `int defaultHeight()`, `setTransientFor(Window parent)`, `setChild(Widget)`, `remove(Widget)`, `present()`, `close()`, `onCloseRequest(callback<bool()>)`, `onFocusChanged(callback<void(bool)>)`, `bindShortcut(String trigger, callback<void()>)`, `bool hasShortcut(String trigger)` |
-| `TransientWindow` | `TransientWindow(String title)`, `setTitle(String)`, `String title()`, `setDefaultSize(int width, int height)`, `int defaultWidth()`, `int defaultHeight()`, `setTransientFor(Window parent)`, `setChild(Widget)`, `remove(Widget)`, `present()`, `close()`, `onCloseRequest(callback<bool()>)` |
-| `Box` | `Box(int orientation, int spacing)`, `setLayout(int orientation, int spacing)`, `append(Widget)`, `remove(Widget)` |
-| `Grid` | `Grid(int spacing)`, `attach(Widget, int column, int row, int width, int height)` |
+| `Window` | `Window(String title)`, `setTitle(String)`, `String title()`, `setDefaultSize(int64 width, int64 height)`, `int64 defaultWidth()`, `int64 defaultHeight()`, `setTransientFor(Window parent)`, `setChild(Widget)`, `remove(Widget)`, `present()`, `close()`, `onCloseRequest(callback<bool()>)`, `onFocusChanged(callback<void(bool)>)`, `bindShortcut(String trigger, callback<void()>)`, `bool hasShortcut(String trigger)` |
+| `TransientWindow` | `TransientWindow(String title)`, `setTitle(String)`, `String title()`, `setDefaultSize(int64 width, int64 height)`, `int64 defaultWidth()`, `int64 defaultHeight()`, `setTransientFor(Window parent)`, `setChild(Widget)`, `remove(Widget)`, `present()`, `close()`, `onCloseRequest(callback<bool()>)` |
+| `Box` | `Box(int64 orientation, int64 spacing)`, `setLayout(int64 orientation, int64 spacing)`, `append(Widget)`, `remove(Widget)` |
+| `Grid` | `Grid(int64 spacing)`, `attach(Widget, int64 column, int64 row, int64 width, int64 height)` |
 | `ContextMenu` | `ContextMenu(Widget owner)`, `setChild(Widget)` |
 | `Label` | `Label(String text)`, `setText(String)`, `String text()` |
 | `Button` | `Button(String label)`, `setLabel(String)`, `String label()`, `onClicked(callback<void()>)` |
 | `Entry` | `Entry(String text)`, `setText(String)`, `String text()`, `focus()`, `setEditable(bool)`, `onChanged(callback<void(String)>)` |
 | `CheckButton` | `CheckButton(String label)`, `setLabel(String)`, `String label()`, `setActive(bool)`, `bool active()`, `onToggled(callback<void(bool)>)` |
 | `ScrolledWindow` | `ScrolledWindow()`, `setChild(Widget)`, `remove(Widget)` |
-| `Notebook` | `Notebook()`, `appendPage(Widget, String)`, `appendClosablePage(Widget, String, callback<void()>)`, `int currentPage()`, `setCurrentPage(int)`, `int pageCount()`, `setPageTitle(int, String)`, `remove(Widget)`, `onPageChanged(callback<void()>)`, `setBorderedTabs()` |
-| `Paned` | `Paned()`, `append(Widget)`, `setPosition(int)`, `int position()` |
-| `MenuBar` | `MenuBar()`, `int addMenu(String)`, `int addItem(int menu, String label, callback<void()>)`, `addSeparator(int menu)`, `setItemEnabled(int item, bool)`, `activateItem(int item)` |
+| `Notebook` | `Notebook()`, `appendPage(Widget, String)`, `appendClosablePage(Widget, String, callback<void()>)`, `int64 currentPage()`, `setCurrentPage(int64)`, `int64 pageCount()`, `setPageTitle(int64, String)`, `remove(Widget)`, `onPageChanged(callback<void()>)`, `setBorderedTabs()` |
+| `Paned` | `Paned()`, `append(Widget)`, `setPosition(int64)`, `int64 position()` |
+| `MenuBar` | `MenuBar()`, `int64 addMenu(String)`, `int64 addItem(int64 menu, String label, callback<void()>)`, `addSeparator(int64 menu)`, `setItemEnabled(int64 item, bool)`, `activateItem(int64 item)` |
 
 Methods without a listed result return `void`, except signal registration,
 which returns `SignalConnection`. Orientation is `Gtk.Box.HORIZONTAL` (`0`) or
@@ -248,16 +248,16 @@ returns the current divider position. The start side
 keeps its requested width on window resize; the end side grows.
 
 ```text
-Gtk.Tree(callback<void(int)> request, callback<void(int)> activate)
-void add(int parent, int id, String label, String icon, bool expandable,
-         String value, int data)
-void clear(int parent)
-void setExpanded(int id, bool expanded)
-String value(int id)
-int data(int id)
-int findValue(String value)
-int childCount(int parent)
-bool expanded(int id)
+Gtk.Tree(callback<void(int64)> request, callback<void(int64)> activate)
+void add(int64 parent, int64 id, String label, String icon, bool expandable,
+         String value, int64 data)
+void clear(int64 parent)
+void setExpanded(int64 id, bool expanded)
+String value(int64 id)
+int64 data(int64 id)
+int64 findValue(String value)
+int64 childCount(int64 parent)
+bool expanded(int64 id)
 ```
 
 `Tree` is a virtualized `GtkListView`/`GtkTreeListModel` with `GtkTreeExpander`
@@ -279,11 +279,11 @@ shutdown, including disposal from within a callback.
 
 ```text
 Gtk.DirectoryScan(Gtk.Tree owner, String path, bool hidden,
-                  callback<void(int, String)> result)
+                  callback<void(int64, String)> result)
 Gtk.DirectoryScan(Gtk.Tree owner, String path, bool hidden, String root,
-                  String excludes, callback<void(int, String)> result)
+                  String excludes, callback<void(int64, String)> result)
 void cancel()
-void append(Gtk.Tree owner, int parent, int firstId, int count, String icons)
+void append(Gtk.Tree owner, int64 parent, int64 firstId, int64 count, String icons)
 ```
 
 Enumeration and sorting run on a native worker without managed-runtime or GTK
@@ -344,8 +344,8 @@ void paste()
 void selectAll()
 void focus()
 void setEmojiMenu(bool enabled)
-void setCursor(int line, int column)
-void centerCursor(int line, int column)
+void setCursor(int64 line, int64 column)
+void centerCursor(int64 line, int64 column)
 void setEditable(bool editable)
 ```
 
@@ -378,9 +378,9 @@ Read-only line-oriented interactions and source marks are also supported:
 
 ```text
 void setLineSelection(bool enabled)
-int onLineActivated(callback<void(int)> action)
+int64 onLineActivated(callback<void(int64)> action)
 void setMarkStyle(String category, String icon, String background)
-void addLineMark(String category, int line)
+void addLineMark(String category, int64 line)
 void clearLineMarks(String category)
 ```
 
@@ -400,7 +400,7 @@ one-based lines, deduplicates marks in that category at a line, and ignores line
 beyond the buffer's end. `clearLineMarks` removes only that category. Empty
 categories, invalid colors and nonpositive lines are programming errors.
 
-`configure(String font, int size, int tabs, bool spaces, bool numbers, bool wrap,
+`configure(String font, int64 size, int64 tabs, bool spaces, bool numbers, bool wrap,
 bool highlight)` applies a per-view font family/point size, tab width,
 space insertion, line numbers, word/character wrapping, and current-line
 highlighting without replacing the buffer or language. It keeps monospace mode
@@ -420,9 +420,9 @@ Search and replace take an option sum of `GtkSource.View.CASE_SENSITIVE`,
 buffer; `find`/`replaceNext` are the zero-option forms):
 
 ```text
-bool findWith(String query, int options)
-bool replaceWith(String query, String replacement, int options)
-int replaceAll(String query, String replacement, int options)
+bool findWith(String query, int64 options)
+bool replaceWith(String query, String replacement, int64 options)
+int64 replaceAll(String query, String replacement, int64 options)
 bool captureSearchScope()
 bool hasSearchScope()
 String selectedText()
@@ -479,9 +479,9 @@ families. It does not select an application-wide font.
 `Gtk.Keyboard().normalize(String trigger)` returns GTK's canonical spelling for
 one key-value trigger, or `""` for invalid/unsupported syntax (including compound
 alternative triggers). Use this result to compare conflicts.
-`int record(Gtk.Entry entry, callback<void(String)> result)` captures the next
+`int64 record(Gtk.Entry entry, callback<void(String)> result)` captures the next
 non-modifier key combination at the entry; Escape delivers `""`. The result
-does not change the entry itself. `bool cancel(int token)` disconnects and
+does not change the entry itself. `bool cancel(int64 token)` disconnects and
 removes the recorder, and is safe inside its callback. It remains registered
 until cancelled, its entry is destroyed, or application shutdown; callers must
 cancel after receiving a result and coordinate which entry is recording.
@@ -494,10 +494,10 @@ Cwhip-written settings model, not a settings framework:
 | `String validate(String text)` | `""` for valid TOML; otherwise a parse/scalar error. Encoded NUL strings are unsupported. |
 | `String fileStatus(String path)` | `""` for an existing path, `missing` only for file-not-found, or an explicit stat/broken-symlink error. |
 | `String value(String text, String section, String key)` | After validation: `""` for absent, `s` plus decoded string, `i` plus decimal integer, `btrue`/`bfalse`, `t` for a table, `x` for another type. Empty section addresses the root. |
-| `String key(String text, String section, int index)` | Zero-based key enumeration; `""` at the end or for an absent table. |
+| `String key(String text, String section, int64 index)` | Zero-based key enumeration; `""` at the end or for an absent table. |
 | `String quote(String text)` | A TOML-escaped basic string literal. |
-| `String item(String text, String section, String key, int index, String field)` | After validation: a tagged value (same tags as `value`) for zero-based element `index` of array `section.key`, or with nonempty `field`, that key of a table element (`""` if absent, `x` if the element is not a table). `""` past the end or for a missing array. |
-| `int arraySize(String text, String section, String key)` | Array element count, or `-1` for a missing/non-array value. |
+| `String item(String text, String section, String key, int64 index, String field)` | After validation: a tagged value (same tags as `value`) for zero-based element `index` of array `section.key`, or with nonempty `field`, that key of a table element (`""` if absent, `x` if the element is not a table). `""` past the end or for a missing array. |
+| `int64 arraySize(String text, String section, String key)` | Array element count, or `-1` for a missing/non-array value. |
 | `String remove(String text, String section, String key)` | Validated TOML with one key removed (empty section addresses the root); other values are kept and serialized as by `merge`. |
 | `String merge(String original, String updates)` | Both inputs must be validated TOML; recursively overlays updates and serializes, preserving unrelated values but not comments/formatting. |
 | `void save(String path, String text, String expected, callback<void(String)> result)` | Asynchronously loads the local file, checks expected previous contents, then atomically replaces using its ETag where supported. Expected `""` allows a missing first-run file. Result is `""` on success, or an explicit I/O/concurrent-edit error. The caller creates the parent directory and bounds/validates the data. |

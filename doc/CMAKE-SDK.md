@@ -1,6 +1,11 @@
 # Installed SDK for external projects
 
-The installed Cwhip **0.0.1** prefix is the supported prototype distribution
+SDK 0.0.2 uses the incompatible **numeric-v2** source/native contract.
+See [NUMERIC-MIGRATION.md](NUMERIC-MIGRATION.md) before rebuilding consumers.
+`Cwhip_SDK_ABI` and the installed `CWHIP_SDK_ABI` macro expose this identifier;
+every package must declare `[package] sdk-abi = "numeric-v2"`.
+
+The installed Cwhip **0.0.2** prefix is the supported prototype distribution
 boundary. It is not just a compiler executable. Install and move the **whole**
 tree: `bin/cwhip`, `bin/cwhip-pkg`, `lib/cwhip/libcwhip_runtime.a`, public
 `include/cwhip` headers, `share/cwhip/builtin`, standard package directories
@@ -40,7 +45,7 @@ has no cross-version compatibility guarantee:
 
 ```cmake
 cmake_minimum_required(VERSION 3.24)
-find_package(Cwhip 0.0.1 EXACT CONFIG REQUIRED)
+find_package(Cwhip 0.0.2 EXACT CONFIG REQUIRED)
 cwhip_apply_application_defaults()
 project(example LANGUAGES C)
 if(NOT Cwhip_APPLICATION_OUTPUT_DIRECTORIES)

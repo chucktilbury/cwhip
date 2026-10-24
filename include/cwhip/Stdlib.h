@@ -11,6 +11,9 @@
 
 #include <stdint.h>
 
+#define CWHIP_SDK_ABI "numeric-v2"
+#define CWHIP_SDK_VERSION "0.0.2"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
