@@ -3,6 +3,8 @@
 New to Cwhip? Start with the [getting started guide](doc/GETTING_STARTED.md)
 for a source-first SDK install, a working project, language basics, packages,
 and the optional standalone editor/debugger.
+For small complete programs with expected output, see the
+[switches and ranges walkthrough](doc/EXAMPLES.md#switches-and-integer-ranges).
 
 External projects can consume the [installed, relocatable CMake SDK](doc/CMAKE-SDK.md)
 without a compiler checkout. The complete prefix, not just its executables,

@@ -1,4 +1,8 @@
 {
+  "switch_delivery.cw": {"stdout": "scheduled day 2\nsend reminder\nscheduled day 6\nsend reminder\nunscheduled day 4\n"},
+  "range_snapshots.cw": {"stdout": "capture 2\ncapture 4\n2 3 4 \ncaptures: 2, source last: 8\nnew range: 2..8\n0..-1 visits: 0 -1 \n"},
+  "range_windows.cw": {"stdout": "saved: 5..3, total: 12\n4 included: true, 6 included: false\nrestored: 5..3\nmixed: -1..2, negative included: true\n"},
+  "range_slices.cw": {"stdout": "forward: 20 30, reverse: 40 30\nshared nested value: 7\nbuffer copy: 30 20 10\nbuffer forward: 10 20\nASCII reverse: dcb, UTF-8 bytes: é\npartial UTF-8 rejected\nout-of-bounds rejected\nempty slice rejected\n"},
   "debugger.cw": {"stdout": "42"},
   "gtk.cw": {"requires": "gtk", "args": ["--test"], "stdout": "Hello GTK"},
   "editor/cedit.cw": {"requires": "sourceview", "args": ["--test", "editor-a.cw", "editor-b.cw", "editor-a.cw"], "stdout": "true"},
