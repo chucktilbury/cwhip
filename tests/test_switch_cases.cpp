@@ -133,9 +133,12 @@ start {
         for (const auto& type : types) {
             const auto prefix = "start { switch (" + std::string(type[0]) + "(0)) { case (";
             expectValid(prefix + type[1] + ".." + type[2] + ") {} } }");
+            expectValid(prefix + type[2] + ".." + type[1] + ") {} } }");
             expectDiagnostic(prefix + type[3] + ") {} } }", "losslessly representable");
             expectDiagnostic(prefix + type[4] + ") {} } }", "losslessly representable");
             expectDiagnostic(prefix + type[1] + ".." + type[3] + ") {} } }",
+                             "losslessly representable");
+            expectDiagnostic(prefix + type[3] + ".." + type[1] + ") {} } }",
                              "losslessly representable");
         }
     }},
@@ -144,6 +147,10 @@ start {
                                   "case (1..5, 3) {}", "case (1..5) {} case (5..6) {}",
                                   "case (-5..5) {} case (-6..-5) {}",
                                   "case (1..10) {} case (2..3) {} case (8..9) {}",
+                                  "case (3..1, 1..3) {}", "case (3..1, 3u..5u) {}",
+                                  "case (5..-5) {} case (-6..-5) {}",
+                                  "case (3..1, 8..5) {} case (7) {}",
+                                  "case (5..1) {} case (3..2) {}",
                                   "case (uint8(-1)) {} case (255) {}"}) {
             expectDiagnostic("start { switch (int64(1)) { " + std::string(labels) + " } }",
                              "duplicate or overlapping");
@@ -151,9 +158,14 @@ start {
         expectDiagnostic("start { switch (uint64(0)) {"
                          "case (0..18446744073709551615u) {}"
                          "case (18446744073709551615u) {} } }", "overlapping");
-        expectDiagnostic("start { switch (int64(1)) { case (2..-2) {} } }", "reversed");
-        expectDiagnostic("start { switch (uint64(1)) {"
-                         "case (18446744073709551615u..0) {} } }", "reversed");
+        expectValid("start { switch (int64(1)) { case (2..-2) {} } }");
+        expectValid("start { switch (uint64(1)) {"
+                    "case (18446744073709551615u..0) {} } }");
+        expectDiagnostic("start { switch (uint64(0)) {"
+                         "case (18446744073709551615u..0) {} case (0) {} } }", "overlapping");
+        expectDiagnostic("start { switch (int64(0)) {"
+                         "case (9223372036854775807..-9223372036854775808) {}"
+                         "case (-9223372036854775808) {} } }", "overlapping");
         expectValid("start { switch (int64(0)) { case (-5..-1) {} case (0..5) {} } }");
         try {
             parse("start {\n switch (1) {\n case (1, 1u) {}\n }\n}\n", "duplicate.cw");
@@ -162,6 +174,28 @@ start {
             require(error.location().file == "duplicate.cw" && error.location().line == 3,
                     "duplicate diagnostic lost the label source location");
         }
+    }},
+    {"switch grouped ranges normalize without changing source endpoints", [] {
+        for (const auto* labels : {"1..3, 5..8", "3..1, 8..5", "1..3, 8..5, 10",
+                                  "-1..-3, 2..-0"}) {
+            expectValid("start { switch (int64(1)) { case(" + std::string(labels) +
+                        ") {} } }");
+        }
+        auto program = parse("class A { enum { FIRST = -3 } }\n"
+                             "class B { enum { LAST = 8 } }\n"
+                             "start {\n switch (int64(1)) {\n"
+                             " case(B.LAST..A.FIRST) {}\n }\n}", "endpoints.cw");
+        const auto& label = program.statements.front().switchBranches.front().labels.front();
+        require(label.lowerValue == "-3" && label.upperValue == "8",
+                "evaluated enum endpoints were not normalized");
+        require(label.lower->value == "8" && label.upper->value == "-3" &&
+                    label.lower->location.line == 5 && label.lower->location.column == 9 &&
+                    label.upper->location.line == 5 && label.upper->location.column == 17,
+                "source endpoints or locations were swapped");
+        expectDiagnostic("class A { enum { FIRST = -3 } }\n"
+                         "class B { enum { LAST = 8 } }\n"
+                         "start { switch (int64(1)) {"
+                         "case(B.LAST..A.FIRST) {} case (-3) {} } }", "overlapping");
     }},
     {"switch constant expressions preserve numeric semantics", [] {
         expectValid("class C { enum { ONE = 1, THREE = ONE + 2 }\n"

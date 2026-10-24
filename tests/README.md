@@ -62,7 +62,8 @@ case so CMake discovers it; no central test list needs editing.
 `test_switch_cases.cpp` covers switch syntax/AST, compile-time labels,
 representability, overlap diagnostics, scopes, reachability, and control-flow
 restrictions. `cwhip_switch_execution` compiles and runs dispatch across all
-eight integer types at both `-O0` and `-O2`, including full-width intervals,
+eight integer types at both `-O0` and `-O2`, including ascending/descending
+full-width intervals, grouped/mixed ranges, cross-class enum endpoints,
 single selector evaluation, `next` chains, nested control flow, and
 return/exception/finally/destruction behavior. Run these with
 `ctest --test-dir build --output-on-failure -R

@@ -312,8 +312,11 @@ enum constants, which have type `int64`). Labels and inclusive range endpoints
 must be compile-time integer expressions. The evaluated value must fit the
 selector type exactly; implicit conversion never truncates or wraps a label.
 Existing explicit casts and constant arithmetic retain their numeric semantics.
-Reversed ranges and duplicate/overlapping labels are errors, including overlaps
-between signed and unsigned spellings of the same value. There is at most one
+Endpoint order does not matter: `1..3` and `3..1` both match 1, 2, and 3.
+Groups such as `case (1..3, 5..8)` may mix ascending and descending ranges
+and discrete alternatives. Duplicate/overlapping labels are errors after
+endpoint normalization, including overlaps between signed and unsigned
+spellings of the same value. There is at most one
 `default`, and it must be last. Empty switches are allowed.
 
 The selector is evaluated once. A matching branch executes in its own scope

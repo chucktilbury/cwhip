@@ -33,6 +33,7 @@ def main():
 import enum_values as Values
 namespace N {
     class Labels { enum { LOW = -3, HIGH = LOW + 2, SINGLE = 30 } }
+    class OtherLabels { enum { HIGH = 3 } }
     class Payload {
         int64 value
         Payload(int64 n) { value = n }
@@ -187,6 +188,21 @@ start {
                  "rethrow/\nimported-enum\n")
     check("worker.evaluations == 21")
 
+    groups = (
+        ("1..3,5..8", {1, 2, 3, 5, 6, 7, 8}),
+        ("3..1,8..5", {1, 2, 3, 5, 6, 7, 8}),
+        ("1..3,8..5,10", {1, 2, 3, 5, 6, 7, 8, 10}),
+        ("N.OtherLabels.HIGH..N.Labels.LOW,8..5", set(range(-3, 4)) | set(range(5, 9))),
+        ("N.Labels.LOW..N.OtherLabels.HIGH,5..8", set(range(-3, 4)) | set(range(5, 9))),
+    )
+    for labels, members in groups:
+        for value in range(-4, 12):
+            source += (f"switch (int64({value})) {{\n"
+                       f'case({labels}) {{ print("member\\n") }}\n'
+                       'default { print("miss\\n") }\n}\n')
+            expected += "member\n" if value in members else "miss\n"
+            checks += 1
+
     for width in (8, 16, 32, 64):
         for signed in (True, False):
             numeric = ("int" if signed else "uint") + str(width)
@@ -201,6 +217,15 @@ start {
                            'default { print("BAD") }\n}\n')
                 expected += "edge\n" if value in (minimum, maximum) else "interior\n"
                 checks += 1
+            for descending in (False, True):
+                first, last = (maximum, minimum) if descending else (minimum, maximum)
+                for value in (minimum, minimum + 1, 0, maximum - 1, maximum):
+                    source += (f"switch ({numeric}({value}{suffix})) {{\n"
+                               f'case ({first}{suffix}..{last}{suffix}) '
+                               '{ print("full-width\\n") }\n'
+                               'default { print("BAD") }\n}\n')
+                    expected += "full-width\n"
+                    checks += 1
     source += r"""
     switch (uint64(18446744073709551615u)) {
         case (0..18446744073709551615u) { print("wide-unsigned\n") }

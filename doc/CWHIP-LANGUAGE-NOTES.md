@@ -765,7 +765,10 @@ statements.
 - `switch (integer) { case (constant, low..high) { ... } default { ... } }`
   dispatches on one evaluation of an integral selector. Case parentheses and
   all branch braces are required. Ranges are inclusive, labels must fit the
-  selector losslessly, and overlaps/reversed ranges are diagnosed. There is at
+  selector losslessly, and overlaps are diagnosed after normalizing endpoints.
+  Ascending and descending intervals match the same inclusive set; groups such
+  as `case (1..3, 5..8)` may mix either direction and discrete alternatives.
+  There is at
   most one optional final `default`, without parentheses. Completion exits
   the switch unless the branch's final direct statement is `next`; this
   executes the following body unconditionally in its own scope, after normal

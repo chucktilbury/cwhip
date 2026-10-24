@@ -433,13 +433,16 @@ bitwise operations, and explicit numeric casts. Enum references in labels must
 be unqualified constants in a method or qualified through a class name, not
 through a runtime instance expression. Separate alternatives with
 commas; `low..high` denotes an inclusive range and can be mixed with individual
-values. Ranges are tested without enumerating their elements, even across the
+values. Either endpoint order is accepted: `1..3` and `3..1` match the same
+inclusive set. Groups such as `case (1..3, 5..8)` and `case (3..1, 5..8, 10)`
+are supported. Endpoints may reference constants from different classes.
+Ranges are tested without enumerating their elements, even across the
 full `uint64` domain. Every evaluated value/endpoint must be losslessly
 representable in the selector type; there is no implicit narrowing or modular
 conversion to make a label fit. Explicit casts and constant arithmetic retain
 the ordinary numeric rules (for example, `uint8(255) + uint8(1)` is zero).
-Reversed ranges and duplicate or overlapping labels are compile-time errors,
-including equal signed/unsigned constants.
+Duplicate or overlapping labels are compile-time errors after endpoint
+normalization, including equal signed/unsigned constants.
 
 Ordinary branch completion exits the switch: there is no implicit fallthrough
 and no switch `break`. An optional `default { ... }` has no parentheses, may

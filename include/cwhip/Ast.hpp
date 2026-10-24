@@ -78,6 +78,7 @@ struct Statement;
 struct SwitchLabel {
     std::unique_ptr<Expression> lower;
     std::unique_ptr<Expression> upper;
+    // Source endpoints stay in source order; evaluated bounds are normalized.
     std::string lowerValue;
     std::string upperValue;
 };

@@ -63,11 +63,12 @@ void SemanticAnalyzer::analyzeSwitch(Statement& statement) {
     std::vector<Interval> intervals;
     for (auto& branch : statement.switchBranches) {
         for (auto& label : branch.labels) {
-            const auto lower = evaluate(*label.lower, label.lowerValue);
-            const auto upper = label.upper ? evaluate(*label.upper, label.upperValue) : lower;
+            auto lower = evaluate(*label.lower, label.lowerValue);
+            auto upper = label.upper ? evaluate(*label.upper, label.upperValue) : lower;
             if (!label.upper) label.upperValue = label.lowerValue;
             if (lower > upper) {
-                throw DiagnosticError(label.lower->location, "case range is reversed");
+                std::swap(lower, upper);
+                std::swap(label.lowerValue, label.upperValue);
             }
             intervals.push_back({lower, upper, label.lower->location});
         }
