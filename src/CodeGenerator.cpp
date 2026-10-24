@@ -5,6 +5,7 @@
  */
 #include "cwhip/CodeGenerator.hpp"
 #include "cwhip/CallbackType.hpp"
+#include "cwhip/NumericType.hpp"
 
 #include "cwhip/Diagnostic.hpp"
 
@@ -88,7 +89,7 @@ bool CodeGenerator::isStringType(const std::string& type) const {
 }
 
 bool CodeGenerator::isNullableScalarType(const std::string& type) const {
-    return type == "int" || type == "unsigned" || type == "float" || type == "bool";
+    return isNumericType(type) || type == "bool";
 }
 
 bool CodeGenerator::isDynamicValueType(const std::string& type) const {
@@ -177,10 +178,8 @@ std::string CodeGenerator::freshLabel(const std::string& prefix) {
 }
 
 std::string CodeGenerator::llvmType(const std::string& type) const {
-    if (type == "int") return "i64";
+    if (const auto* numeric = numericType(type)) return std::string(numeric->llvmType);
     if (type == "bool") return "i1";
-    if (type == "float") return "double";
-    if (type == "unsigned") return "i64";
     if (type == "String") return "ptr";
     if (type == "any") return "%CwhipArrayValue";
     if (type == "type") return "%CwhipString";

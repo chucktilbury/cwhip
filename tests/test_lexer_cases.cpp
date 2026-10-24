@@ -20,7 +20,8 @@ const TestGroupRegistration registration{0, {
              cwhip::Lexer lexer("StArT {\n INT n = 12\n StRg s = \"a\\n\"\n}", "lexer.cw");
              const auto tokens = lexer.tokenize();
              require(tokens[0].type == cwhip::TokenType::Start, "START keyword not recognized");
-             require(tokens[3].type == cwhip::TokenType::Int, "INT keyword not recognized");
+             require(tokens[3].type == cwhip::TokenType::RemovedInt,
+                     "removed INT spelling was not kept reserved");
              require(tokens[5].type == cwhip::TokenType::Equal, "assignment token missing");
              require(tokens[6].type == cwhip::TokenType::Integer && tokens[6].text == "12",
                      "integer token incorrect");
@@ -89,7 +90,7 @@ const TestGroupRegistration registration{0, {
              expectDiagnostic("start {\n /* comment", "unterminated block comment");
          }},
         {"reserved keywords", [] {
-             expectDiagnostic("start {\n int While = 0\n}", "keywords are reserved");
+             expectDiagnostic("start {\n bool While = false\n}", "keywords are reserved");
          }},
          {"old string spelling is an identifier", [] {
               cwhip::Lexer lexer("start { int string = 1 }", "string-identifier.cw");
@@ -104,15 +105,17 @@ const TestGroupRegistration registration{0, {
              const auto tokens = lexer.tokenize();
              bool foundTrue = false;
              bool foundFloat = false;
-             bool foundUnsigned = false;
+             bool foundRemovedFloat = false;
+             bool foundRemovedUnsigned = false;
              for (const auto& token : tokens) {
                  foundTrue |= token.type == cwhip::TokenType::True;
                  foundFloat |= token.type == cwhip::TokenType::Float && token.text == "3.14";
-                 foundUnsigned |= token.type == cwhip::TokenType::UnsignedInteger &&
-                                  token.text == "42u";
+                 foundRemovedFloat |= token.type == cwhip::TokenType::RemovedFloat;
+                 foundRemovedUnsigned |= token.type == cwhip::TokenType::RemovedUnsigned;
              }
-             require(foundTrue && foundFloat && foundUnsigned,
-                     "boolean, float, or unsigned literal token missing");
+             require(foundTrue && foundFloat && foundRemovedFloat &&
+                         foundRemovedUnsigned,
+                     "boolean, float, or removed numeric type token missing");
          }},
         {"scalar compound-assignment operators", [] {
              cwhip::Lexer lexer("a += 1 a -= 1 a *= 1 a /= 1 a %= 1",

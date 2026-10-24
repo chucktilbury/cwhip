@@ -122,7 +122,7 @@ const TestGroupRegistration registration{4, {
         {"'any' equality is rejected", [] {
              expectDiagnostic("start {\n list values = [1]\n"
                               " bool same = values[0] == values[0]\n}",
-                              "equality requires matching int, bool, float, or unsigned operands");
+                              "equality requires numeric operands of any supported width");
          }},
         {"internal dynamic values may be compared with null", [] {
              expectValid("start {\n list values = [null]\n"

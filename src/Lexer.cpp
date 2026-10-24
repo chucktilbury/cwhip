@@ -83,10 +83,20 @@ const char* tokenTypeName(TokenType type) noexcept {
     case TokenType::Float: return "float";
     case TokenType::String: return "string";
     case TokenType::Start: return "'start'";
-    case TokenType::Int: return "'int'";
+    case TokenType::RemovedInt: return "removed type 'int'";
+    case TokenType::Int8: return "'int8'";
+    case TokenType::UInt8: return "'uint8'";
+    case TokenType::Int16: return "'int16'";
+    case TokenType::UInt16: return "'uint16'";
+    case TokenType::Int32: return "'int32'";
+    case TokenType::UInt32: return "'uint32'";
+    case TokenType::Int64: return "'int64'";
+    case TokenType::UInt64: return "'uint64'";
+    case TokenType::FP32: return "'fp32'";
+    case TokenType::FP64: return "'fp64'";
     case TokenType::Bool: return "'bool'";
-    case TokenType::FloatType: return "'float'";
-    case TokenType::Unsigned: return "'unsigned'";
+    case TokenType::RemovedFloat: return "removed type 'float'";
+    case TokenType::RemovedUnsigned: return "removed type 'unsigned'";
     case TokenType::StrgType: return "'strg'";
     case TokenType::ListType: return "'list'";
     case TokenType::DictType: return "'dict'";
@@ -300,6 +310,14 @@ Token Lexer::scanIdentifierOrInteger() {
             }
             while (peek() >= '0' && peek() <= '9') text.push_back(advance());
         }
+        if (floating && peek() == 'f' && peek(1) == '6' && peek(2) == '4') {
+            text.push_back(advance());
+            text.push_back(advance());
+            text.push_back(advance());
+            if (isIdentifierPart(peek())) {
+                throw DiagnosticError(location, "malformed floating-point literal");
+            }
+        }
         if (!floating && (peek() == 'u' || peek() == 'U')) {
             text.push_back(advance());
             return makeToken(TokenType::UnsignedInteger, std::move(text), location);
@@ -321,9 +339,15 @@ Token Lexer::scanIdentifierOrInteger() {
         return makeToken(TokenType::Identifier, std::move(text), location);
     }
     static const std::unordered_map<std::string, TokenType> keywords{
-        {"start", TokenType::Start}, {"int", TokenType::Int},
-        {"bool", TokenType::Bool}, {"float", TokenType::FloatType},
-        {"unsigned", TokenType::Unsigned},
+        {"start", TokenType::Start},
+        {"int", TokenType::RemovedInt}, {"unsigned", TokenType::RemovedUnsigned},
+        {"float", TokenType::RemovedFloat},
+        {"int8", TokenType::Int8}, {"uint8", TokenType::UInt8},
+        {"int16", TokenType::Int16}, {"uint16", TokenType::UInt16},
+        {"int32", TokenType::Int32}, {"uint32", TokenType::UInt32},
+        {"int64", TokenType::Int64}, {"uint64", TokenType::UInt64},
+        {"fp32", TokenType::FP32}, {"fp64", TokenType::FP64},
+        {"bool", TokenType::Bool},
         {"strg", TokenType::StrgType},
         {"list", TokenType::ListType}, {"dict", TokenType::DictType},
         {"buffer", TokenType::BufferType}, {"handle", TokenType::HandleType},

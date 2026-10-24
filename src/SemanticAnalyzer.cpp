@@ -6,6 +6,7 @@
 #include "cwhip/SemanticAnalyzer.hpp"
 #include "cwhip/CallbackType.hpp"
 #include "cwhip/Mangling.hpp"
+#include "cwhip/NumericType.hpp"
 
 #include "cwhip/Diagnostic.hpp"
 #include "cwhip/Lexer.hpp"
@@ -235,7 +236,7 @@ void SemanticAnalyzer::normalizeType(
         type = callbackType(signature.result, signature.parameters);
         return;
     }
-    if (type == "int" || type == "bool" || type == "float" || type == "unsigned" ||
+    if (isNumericType(type) || type == "bool" ||
         type == "list" || type == "dict" ||
         type == "buffer" || type == "handle" ||
         type == "any" || type == "type" || type == "void") {
@@ -251,8 +252,7 @@ void SemanticAnalyzer::normalizeType(
 void SemanticAnalyzer::normalizeExpression(
     Expression& expression, const std::vector<std::string>& namespacePath) {
     if (expression.kind == ExpressionKind::ObjectCast &&
-        expression.value != "int" && expression.value != "bool" &&
-        expression.value != "float" && expression.value != "unsigned" &&
+        !isNumericType(expression.value) && expression.value != "bool" &&
         expression.value != "String" && expression.value != "list" &&
         expression.value != "dict" && expression.value != "buffer" &&
         expression.value != "handle" && expression.value != "any" &&
@@ -267,8 +267,7 @@ void SemanticAnalyzer::normalizeExpression(
                                              expression.typeLocation);
     }
     if (expression.kind == ExpressionKind::TypeTest &&
-        expression.value != "int" && expression.value != "bool" &&
-        expression.value != "float" && expression.value != "unsigned" &&
+        !isNumericType(expression.value) && expression.value != "bool" &&
         expression.value != "list" &&
         expression.value != "dict" && expression.value != "buffer" &&
         expression.value != "handle" && expression.value != "any" &&
@@ -283,8 +282,7 @@ void SemanticAnalyzer::normalizeExpression(
                                              expression.typeLocation);
     }
     if (expression.kind == ExpressionKind::TypeName &&
-        expression.value != "int" && expression.value != "bool" &&
-        expression.value != "float" && expression.value != "unsigned" &&
+        !isNumericType(expression.value) && expression.value != "bool" &&
         expression.value != "list" &&
         expression.value != "dict" && expression.value != "buffer" &&
         expression.value != "handle" && expression.value != "any" &&
@@ -335,7 +333,26 @@ void SemanticAnalyzer::setBuiltinSource(std::filesystem::path path) {
     builtinSource_ = std::move(path);
 }
 
+const std::vector<SemanticWarning>& SemanticAnalyzer::warnings() const noexcept {
+    return warnings_;
+}
+
+void SemanticAnalyzer::warnNumericConversion(const std::string& target,
+                                             const std::string& source,
+                                             const SourceLocation& location) {
+    if (!isNumericType(target) || !isNumericType(source) ||
+        isLosslessNumericConversion(target, source)) {
+        return;
+    }
+    warnings_.push_back({
+        location,
+        "implicit conversion from '" + source + "' to '" + target +
+            "' may lose range or precision; use an explicit " + target +
+            "(...) cast to acknowledge it"});
+}
+
 void SemanticAnalyzer::analyze(Program& program) {
+    warnings_.clear();
     program.classes.erase(
         std::remove_if(program.classes.begin(), program.classes.end(),
                        [](const ClassDeclaration& declaration) {
@@ -364,6 +381,7 @@ void SemanticAnalyzer::analyze(Program& program) {
                                std::istreambuf_iterator<char>()};
         Parser parser(Lexer(text, builtinPath.string()).tokenize());
         auto builtin = parser.parseProgram(false);
+        for (auto& declaration : builtin.classes) declaration.builtin = true;
         program.classes.insert(program.classes.begin() + 1,
                                std::make_move_iterator(builtin.classes.begin()),
                                std::make_move_iterator(builtin.classes.end()));
@@ -520,10 +538,10 @@ void SemanticAnalyzer::analyze(Program& program) {
     };
     std::unordered_map<std::string, std::string> externalSymbolSignatures;
     const auto abiCategory = [](const std::string& type) {
-        if (type == "int") return std::string("i64");
+        if (const auto* numeric = numericType(type)) {
+            return std::string(numeric->llvmType);
+        }
         if (type == "bool") return std::string("i1");
-        if (type == "float") return std::string("double");
-        if (type == "unsigned") return std::string("i64");
         if (type == "String") return std::string("ptr");
         if (type == "void") return std::string("void");
         return std::string("ptr");
@@ -829,7 +847,7 @@ void SemanticAnalyzer::validateType(const std::string& type, const SourceLocatio
             "with 'is'/'type', printed, compared with null, stored in a collection, or extracted "
             "into a concrete type");
     }
-    if (type == "int" || type == "bool" || type == "float" || type == "unsigned" ||
+    if (isNumericType(type) || type == "bool" ||
         type == "list" || type == "dict" ||
         type == "buffer" || type == "handle" || type == "type" ||
         (allowVoid && type == "void")) {

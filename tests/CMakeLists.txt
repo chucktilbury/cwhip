@@ -51,6 +51,20 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
 endif()
 
 add_test(NAME cwhip_unit_and_functional COMMAND cwhip_tests)
+add_executable(cwhip_numeric_semantic_tests
+    numeric_test_driver.cpp test_cases.cpp test_numeric_type_cases.cpp)
+target_link_libraries(cwhip_numeric_semantic_tests PRIVATE cwhip_frontend)
+set_target_properties(cwhip_numeric_semantic_tests PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY "${CWHIP_RUNTIME_OUTPUT_DIRECTORY}"
+)
+target_compile_definitions(cwhip_numeric_semantic_tests PRIVATE
+    CWHIP_TEST_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/functional"
+    CWHIP_TEST_DIR="${CMAKE_CURRENT_SOURCE_DIR}"
+)
+if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    target_compile_options(cwhip_numeric_semantic_tests PRIVATE -Wall -Wextra -Wpedantic)
+endif()
+add_test(NAME cwhip_numeric_semantic COMMAND cwhip_numeric_semantic_tests)
 add_executable(cwhip_command_line_tests command_line_tests.cpp)
 target_link_libraries(cwhip_command_line_tests PRIVATE cwhip_frontend)
 set_target_properties(cwhip_command_line_tests PROPERTIES

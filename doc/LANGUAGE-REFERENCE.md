@@ -8,9 +8,11 @@ reference to goads, punishment, or violence. The compiler frontend is C++17
 and the runtime is written in C. CPL and CWPL are optional informal shorthand.
 The canonical project website is [cwhip.org](https://cwhip.org).
 New source files use `.cw`; no alternate source suffix is accepted for
-existing programs. This manual describes the working subset: the compiler
-produces textual LLVM IR and invokes Clang to link the runtime. It is not a
-description of every feature proposed in the design notes.
+existing programs. The compiler produces textual LLVM IR and invokes Clang
+to link the runtime. The numeric frontend supports fixed-width types and their
+semantic rules, but the LLVM backend deliberately rejects programs that use
+numeric values until execution and ABI rules are implemented. Some older
+runtime examples below have not yet been migrated to the new numeric names.
 
 The parser limits recursive syntax nesting to 128 active levels, counting
 namespaces, statement blocks, expressions, and unary operators. Excessive
@@ -42,28 +44,21 @@ nestedly pair. A semicolon begins a comment rather than separating statements.
 See `NEWLINE`, `COMMENT`, and `terminator`.
 
 Integer literals may be decimal or hexadecimal (`0x`/`0X` followed by
-case-insensitive digits `0`-`9` and `a`-`f`). Unsuffixed literals are signed
-64-bit `int` values by default; a trailing `u` or `U` selects an unsigned
-64-bit literal. The signed range is
--9,223,372,036,854,775,808 through 9,223,372,036,854,775,807; literals outside
-the applicable range are rejected. Signs are unary operators, so
-`-0x8000000000000000` is the signed minimum, but its positive magnitude is
-out of range for `int`. Float literals accept decimal points and exponents.
+case-insensitive digits `0`-`9` and `a`-`f`). Unsuffixed literals use the
+smallest fitting signed width; a trailing `u` or `U` selects the smallest
+fitting unsigned width. Signs are unary operators, and a directly negated
+literal can represent the signed minimum. Floating literals default to
+`fp32`; an `f64` suffix selects `fp64`, and unsuffixed literals fall back to
+`fp64` when they do not fit finite nonzero `fp32`. Out-of-range integer and
+non-finite `fp64` literals are rejected.
 Double-quoted and single-quoted strings are UTF-8 and cannot span physical
 lines. Double quotes support `\e` (ESC, byte `0x1b`), `\n`, `\r`, `\t`,
 `\\`, and `\"`; single quotes do not interpret escapes. See `INTEGER`,
 `UNSIGNED_INT`, `FLOAT`, `STRING`, and `ESCAPE`.
 
-```cwhip
-// Complete program: literal spellings and a formatted string.
-// test: {"stdout": "count=18, total=18, ratio=0.5"}
-start {
-    int count = 0x12
-    unsigned total = 0x12u
-    float ratio = .5
-    print(format("count={}, total={}, ratio={}", count, total, ratio))
-}
-```
+The spellings `int`, `unsigned`, and `float` are removed type names, but
+remain reserved rather than becoming identifiers. Diagnostics recommend
+`int64`, `uint64`, and `fp64`. `float32` and `float64` are not aliases.
 
 ## Program structure and entry point
 
@@ -104,13 +99,13 @@ start {
 }
 ```
 
-The built-in types are:
+The numeric types are signed `int8`, `int16`, `int32`, and `int64`; unsigned
+`uint8`, `uint16`, `uint32`, and `uint64`; and IEEE `fp32` and `fp64`.
+Their shared semantic descriptor records category, width, signedness, range,
+and LLVM representation. Other built-in types include:
 
 | Type | Values and behavior |
 |---|---|
-| `int` | Signed 64-bit integer. |
-| `unsigned` | Unsigned 64-bit integer. |
-| `float` | IEEE double-precision floating-point value. Literal parsing rejects non-finite/out-of-range values. |
 | `bool` | `true` or `false`. Conditions must have this type; there is no general truthiness conversion. |
 | `String` / `strg` | Managed UTF-8 string object. `strg` names the existing `String` class type. |
 | `list` | Ordered, dynamically sized, heterogeneous collection. |
@@ -135,58 +130,32 @@ The parser also recognizes `void` as a method return type. It is not a
 storable value type. See `primitive-type`, `type`, `return-type`, and
 `type-test-name`.
 
-Conversions are deliberately limited. Compatible class references can be
-assigned to a base-class variable when the inheritance path is unambiguous
-and accessible. Dynamically tagged collection values can be extracted into
-supported concrete local types; the runtime checks the contained value.
-Explicit scalar casts use
-`bool(expr)`, `int(expr)`, `unsigned(expr)`, or `float(expr)`. All sixteen
-ordered pairs of these scalar types are supported, including identity casts.
-The operand must have one of these four static types; class, reference,
-string, dynamically tagged `any`, and bare `null` operands are not supported.
-Implicit numeric conversions
-are not general-purpose; overload resolution allows a plain integer literal
-(decimal or hexadecimal) to match an `unsigned` parameter, while `u` literals
-are unsigned directly.
-The following table is normative (rows are source types, columns are targets):
+The frontend classifies integer literals to the smallest fitting signed or
+unsigned type. Integer arithmetic uses the smallest common type that safely
+contains both ranges; mixed signed/unsigned operations with no common type
+(notably `int64` and `uint64`) are rejected. Integer comparisons support every
+integer pair without converting through a lossy common representation.
+Floating arithmetic promotes to the wider floating type; integer/floating
+arithmetic uses `fp32` only when it can exactly represent the integer type's
+full range, otherwise `fp64`. Assignment, argument, and return conversions
+use the same range/precision model. Potentially lossy implicit conversions
+produce a warning with an explicit-cast suggestion; explicit casts acknowledge
+that loss.
 
-| Source / target | `bool` | `int` (signed i64) | `unsigned` (u64) | `float` (double) |
-|---|---|---|---|---|
-| `bool` | Identity | `false` = 0, `true` = 1 | `false` = 0, `true` = 1 | `false` = 0.0, `true` = 1.0 |
-| `int` | Zero = false, nonzero = true | Identity | Value modulo 2^64 (same bits) | IEEE double conversion |
-| `unsigned` | Zero = false, nonzero = true | Checked value <= 9223372036854775807 | Identity | IEEE double conversion |
-| `float` | Zero = false, nonzero (including NaN) = true | Checked, truncate toward zero | Checked, truncate toward zero | Identity |
+These are frontend semantics only. Numeric execution, checked signed
+overflow, unsigned modular execution, shift behavior, native ABI lowering,
+and numeric runtime values remain future backend work. Until then, compilation
+stops with an explicit unsupported-numeric-execution diagnostic.
 
-Integer-to-float conversion rounds to the nearest representable double when
-needed. Casting `int` to `unsigned` preserves the 64-bit pattern and yields
-the value modulo 2^64, without overflow: `unsigned(-10)` is
-18446744073709551606, `unsigned(-1)` is 18446744073709551615, and
-`unsigned(-9223372036854775808)` is 9223372036854775808. Printing these
-results uses unsigned decimal notation. The reverse cast remains checked:
-an `unsigned` greater than 9223372036854775807 cast to `int` raises a
-catchable `integer overflow` exception, rather than reinterpreting the bits.
-Float-to-integer casts check the input **before** truncating toward zero.
-For `int`, the accepted interval is [-9223372036854775808, 9223372036854775808);
-for `unsigned`, it is [0, 18446744073709551616). NaN, either infinity, and
-values outside these intervals raise the same exception, including negative
-fractions or negative subnormals cast to `unsigned`.
-For `bool(floatValue)`, both +0.0 and -0.0 are false; every other value,
-including positive/negative subnormals, infinities, and NaN, is true.
-Identity casts preserve the scalar payload, including floating-point signed
-zero and NaN. Signed
-`int` division or remainder with the minimum value and `-1` likewise raises
-`integer overflow`.
-String-to-number conversion is provided by the instance methods
-`value.toInt()`, `value.toUnsigned()`, and `value.toFloat()` and can raise on
-invalid input or an integer value outside the target type's range.
-See `primary` and `postfix`.
+Explicit numeric casts use the numeric type-name call forms such as
+`int8(expr)`, `uint64(expr)`, and `fp32(expr)`. Compile-time checking covers
+all numeric source/target directions; runtime conversion behavior is not
+available until backend lowering is implemented. Compatible class-reference
+conversions and dynamic collection extraction remain separate behaviors.
 
-`null` is a universal null value and can initialize nullable locals, including
-scalar locals. Such a scalar local carries a null state for assignment,
-printing, and comparison with `null`. An explicit cast consumes that state:
-it converts the local's zero payload and returns a non-null scalar, even for
-an identity cast. Thus `bool(nullFloat)` is false, `float(nullInt)` is 0.0,
-and `int(nullInt)` is a non-null 0; none raises an exception.
+`null` is a universal null value and can initialize nullable locals. Numeric
+nullability is currently checked by the frontend, but cannot execute because
+the numeric backend is not yet implemented.
 Null assignment does not make
 primitive fields, collection values, arguments, or returns nullable in the
 same way: those contexts retain their declared representation. Object and
