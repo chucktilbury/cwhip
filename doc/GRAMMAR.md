@@ -59,7 +59,7 @@ PUNCTUATION     ::= "{" | "}" | "(" | ")" | "[" | "]" | "," | "." | ":" ;
 OPERATOR        ::= "+=" | "-=" | "*=" | "/=" | "%="
                   | "&=" | "|=" | "^=" | "<<=" | ">>="
                   | "+" | "-" | "*" | "/" | "%" | "!" | "&&" | "||"
-                  | "&" | "|" | "^" | "~" | "<<" | ">>"
+                  | "&" | "|" | "^" | "~" | "<<" | ">>" | ".."
                   | "=" | "==" | "!=" | "<" | "<=" | ">" | ">=" ;
 ```
 
@@ -69,7 +69,10 @@ The reserved words include `start`, `bool`, `int8`, `uint8`, `int16`, `uint16`,
 `namespace`, `include`, `inline`, `import`, `as`, `public`, `protected`,
 `private`, `virtual`, `super`, `null`, `true`, `false`, `return`, `void`,
 `if`, `else`, `while`, `do`, `for`, `in`, `is`, `break`, `continue`, `and`,
-`or`, `not`, `print`, `raise`, `try`, `except`, `finally`, and `from`.
+`or`, `not`, `print`, `raise`, `try`, `except`, `finally`, `from`,
+`switch`, `case`, and `default`.
+`next` is a case-insensitive contextual keyword only as a standalone statement;
+it remains an identifier in declarations, expressions, and member access.
 The removed spellings `int`, `unsigned`, and `float` remain reserved and
 produce migration diagnostics recommending `int64`, `uint64`, and `fp64`.
 The LLVM backend lowers each numeric type at its declared width, with
@@ -90,7 +93,9 @@ Lexical details that affect parsing:
   are inferred as described above; values outside the selected 64-bit range
   are rejected. Floats accept leading-dot (`.5`),
   trailing-dot (`5.`), and exponent forms (`1e3`, `1.0E-3`); an exponent must
-  contain digits.
+  contain digits. `..` is a separate range token: `1..20` is an integer,
+  range token, and integer, not two floating literals. This does not change
+  `.5`, `5.`, or `1.e2` floating literals.
 - Only double-quoted strings interpret escapes: `\e` produces ESC (`0x1b`),
   and `\n`, `\r`, `\t`, `\\`, and `\"` are also accepted. Single-quoted
   strings preserve backslashes literally. Both quote styles are one physical
@@ -225,6 +230,8 @@ statement           ::= declaration
                       | method-call-statement
                       | print-statement
                       | if-statement
+                      | switch-statement
+                      | next-statement
                       | while-statement
                       | do-while-statement
                       | foreach-statement
@@ -252,6 +259,14 @@ print-statement     ::= "print", "(", [ expression
                          | STRING, ",", format-argument-list ], ")", terminator ;
 if-statement        ::= "if", "(", expression, ")", { NEWLINE }, block,
                         [ { NEWLINE }, "else", { NEWLINE }, block ] ;
+switch-statement    ::= "switch", "(", expression, ")", { NEWLINE }, "{",
+                        { NEWLINE }, { case-branch, { NEWLINE } },
+                        [ default-branch, { NEWLINE } ], "}" ;
+case-branch         ::= "case", "(", case-label, { ",", case-label }, ")",
+                        { NEWLINE }, block ;
+case-label          ::= expression, [ "..", expression ] ;
+default-branch      ::= "default", { NEWLINE }, block ;
+next-statement      ::= "next", terminator ;
 while-statement     ::= "while", "(", expression, ")", { NEWLINE }, block ;
 do-while-statement  ::= "do", { NEWLINE }, block, { NEWLINE },
                         "while", "(", expression, ")" ;
@@ -291,6 +306,24 @@ require an instance context.
 (a `QUALIFIED_IDENT`), not a built-in type such as `int8`, `strg`, or `buffer`.
 It constructs the declared class directly; it does not declare a function.
 Class fields still have no initializer syntax.
+
+A switch selector must be integral (`int8` through `uint64`, including class
+enum constants, which have type `int64`). Labels and inclusive range endpoints
+must be compile-time integer expressions. The evaluated value must fit the
+selector type exactly; implicit conversion never truncates or wraps a label.
+Existing explicit casts and constant arithmetic retain their numeric semantics.
+Reversed ranges and duplicate/overlapping labels are errors, including overlaps
+between signed and unsigned spellings of the same value. There is at most one
+`default`, and it must be last. Empty switches are allowed.
+
+The selector is evaluated once. A matching branch executes in its own scope
+and normally exits the switch; unmatched selectors execute `default`, if any.
+`next` must be the final direct statement of a branch that has a following
+branch. It executes that following body unconditionally, without testing its
+labels, after normal branch cleanup. Nested or conditional `next` is rejected.
+Branches block `break`/`continue` from targeting an outer loop; loops introduced
+inside a branch retain their own loop transfers. `return` still exits the
+enclosing method and runs its usual cleanup.
 
 ### Expressions
 

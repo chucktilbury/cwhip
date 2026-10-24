@@ -181,7 +181,7 @@ std::int64_t SemanticAnalyzer::resolveEnumValue(ClassDeclaration& declaration,
     std::int64_t value = 0;
     try {
         if (member.initializer) {
-            value = evaluateEnumExpression(*member.initializer, declaration, index);
+            value = evaluateIntegerConstant(*member.initializer, &declaration, index);
             if (!isIntegerType(member.initializer->resolvedType))
                 throw DiagnosticError(member.location,
                                       "enum value must be a compile-time integer expression");
@@ -222,12 +222,16 @@ std::int64_t SemanticAnalyzer::resolveEnumValue(ClassDeclaration& declaration,
     return value;
 }
 
-std::int64_t SemanticAnalyzer::evaluateEnumExpression(Expression& expression,
-                                                      ClassDeclaration& declaration,
+std::int64_t SemanticAnalyzer::evaluateIntegerConstant(Expression& expression,
+                                                      ClassDeclaration* declaration,
                                                       std::size_t memberIndex) {
     if (expression.kind == ExpressionKind::Identifier ||
         expression.kind == ExpressionKind::Member) {
-        const ClassDeclaration* targetClass = &declaration;
+        if (declaration == nullptr) {
+            throw DiagnosticError(expression.location,
+                                  "case value must be a compile-time integer expression");
+        }
+        const ClassDeclaration* targetClass = declaration;
         const EnumMemberDeclaration* targetMember = nullptr;
         std::size_t targetIndex = 0;
         bool classQualified = false;
@@ -291,7 +295,7 @@ std::int64_t SemanticAnalyzer::evaluateEnumExpression(Expression& expression,
             });
         targetIndex = static_cast<std::size_t>(
             std::distance(mutableOwner->enumMembers.begin(), index));
-        if (mutableOwner == &declaration && targetIndex >= memberIndex) {
+        if (mutableOwner == declaration && targetIndex >= memberIndex) {
             throw DiagnosticError(expression.location,
                                   "enum initializer cannot reference a later or cyclic member '" +
                                       memberName + "'");
@@ -316,12 +320,17 @@ std::int64_t SemanticAnalyzer::evaluateEnumExpression(Expression& expression,
         std::uint64_t value = 0;
         if (!parseIntegerMagnitude(
                 expression.value.substr(0, expression.value.size() - 1), value))
-            throw DiagnosticError(expression.location, "enum unsigned literal is out of range");
+            throw DiagnosticError(expression.location, "unsigned constant literal is out of range");
         expression.resolvedType = smallestUnsignedIntegerType(value);
         return signedBits(value);
     }
     if (expression.kind == ExpressionKind::Integer ||
         expression.kind == ExpressionKind::EnumConstant) {
+        if (declaration == nullptr && expression.left) {
+            throw DiagnosticError(expression.location,
+                                  "case value must be a compile-time integer expression, "
+                                  "not an instance expression");
+        }
         std::int64_t value = 0;
         if (constantInteger(expression, value)) {
             expression.resolvedType = expression.kind == ExpressionKind::EnumConstant
@@ -329,17 +338,17 @@ std::int64_t SemanticAnalyzer::evaluateEnumExpression(Expression& expression,
             return value;
         }
         throw DiagnosticError(expression.location,
-                              "enum integer literal is outside the signed 64-bit range");
+                              "integer constant literal is outside the signed 64-bit range");
     }
     if (expression.kind == ExpressionKind::Unary && expression.left) {
         if (expression.value == "-" && expression.left->kind == ExpressionKind::Integer) {
             std::uint64_t magnitude = 0;
             if (!parseIntegerMagnitude(expression.left->value, magnitude) ||
                 (expression.resolvedType = smallestSignedIntegerType(magnitude, true)).empty())
-                throw DiagnosticError(expression.location, "enum integer literal is out of range");
+                throw DiagnosticError(expression.location, "integer constant literal is out of range");
             return signedBits(std::uint64_t{0} - magnitude);
         }
-        auto value = evaluateEnumExpression(*expression.left, declaration, memberIndex);
+        auto value = evaluateIntegerConstant(*expression.left, declaration, memberIndex);
         expression.resolvedType = expression.left->resolvedType;
         if (!isIntegerType(expression.resolvedType))
             throw DiagnosticError(expression.location, "integer unary operand required");
@@ -361,7 +370,7 @@ std::int64_t SemanticAnalyzer::evaluateEnumExpression(Expression& expression,
             return -value;
         }
         throw DiagnosticError(expression.location,
-                              "unsupported unary operator in enum constant expression");
+                              "unsupported unary operator in required constant expression");
     }
     if (expression.kind == ExpressionKind::Cast && expression.arguments.size() == 1 &&
         (isIntegerType(expression.value) || expression.value == "bool")) {
@@ -370,7 +379,7 @@ std::int64_t SemanticAnalyzer::evaluateEnumExpression(Expression& expression,
         if (expression.value == "bool") {
             return floatingConstant(argument)
                 ? evaluateFloatingConstant(argument, declaration, memberIndex) != 0.0
-                : evaluateEnumExpression(argument, declaration, memberIndex) != 0;
+                : evaluateIntegerConstant(argument, declaration, memberIndex) != 0;
         }
         if (floatingConstant(argument)) {
             const auto value = std::trunc(
@@ -385,14 +394,14 @@ std::int64_t SemanticAnalyzer::evaluateEnumExpression(Expression& expression,
             return signedTarget ? static_cast<std::int64_t>(value)
                                 : signedBits(static_cast<std::uint64_t>(value));
         }
-        const auto value = evaluateEnumExpression(argument, declaration, memberIndex);
+        const auto value = evaluateIntegerConstant(argument, declaration, memberIndex);
         return normalizeIntegerBits(static_cast<std::uint64_t>(value), expression.value);
     }
     if (expression.kind == ExpressionKind::Binary && expression.left && expression.right) {
         const auto left =
-            evaluateEnumExpression(*expression.left, declaration, memberIndex);
+            evaluateIntegerConstant(*expression.left, declaration, memberIndex);
         const auto right =
-            evaluateEnumExpression(*expression.right, declaration, memberIndex);
+            evaluateIntegerConstant(*expression.right, declaration, memberIndex);
         const auto& operation = expression.value;
         if (!isIntegerType(expression.left->resolvedType) ||
             !isIntegerType(expression.right->resolvedType))
@@ -456,42 +465,44 @@ std::int64_t SemanticAnalyzer::evaluateEnumExpression(Expression& expression,
         if (expression.value == "+") {
             if (__builtin_add_overflow(left, right, &value)) {
                 throw DiagnosticError(expression.location,
-                                      "enum constant expression overflows signed 64-bit range");
+                                      "required constant expression overflows signed 64-bit range");
             }
             return checked(value);
         }
         if (expression.value == "-") {
             if (__builtin_sub_overflow(left, right, &value)) {
                 throw DiagnosticError(expression.location,
-                                      "enum constant expression overflows signed 64-bit range");
+                                      "required constant expression overflows signed 64-bit range");
             }
             return checked(value);
         }
         if (expression.value == "*") {
             if (__builtin_mul_overflow(left, right, &value)) {
                 throw DiagnosticError(expression.location,
-                                      "enum constant expression overflows signed 64-bit range");
+                                      "required constant expression overflows signed 64-bit range");
             }
             return checked(value);
         }
         if (expression.value == "/" || expression.value == "%") {
             if (right == 0) {
                 throw DiagnosticError(expression.location,
-                                      "division by zero in enum constant expression");
+                                      "division by zero in required constant expression");
             }
             if (left == minimum && right == -1) {
                 throw DiagnosticError(expression.location,
-                                      "enum constant expression overflows signed 64-bit range");
+                                      "required constant expression overflows signed 64-bit range");
             }
             return expression.value == "/" ? left / right : left % right;
         }
     }
     throw DiagnosticError(expression.location,
-                          "enum value must be a compile-time integer expression");
+                          declaration == nullptr
+                              ? "case value must be a compile-time integer expression"
+                              : "enum value must be a compile-time integer expression");
 }
 
 double SemanticAnalyzer::evaluateFloatingConstant(Expression& expression,
-                                                   ClassDeclaration& declaration,
+                                                   ClassDeclaration* declaration,
                                                    std::size_t memberIndex) {
     static_assert(std::numeric_limits<float>::is_iec559 &&
                   std::numeric_limits<float>::digits == 24 &&
@@ -503,7 +514,7 @@ double SemanticAnalyzer::evaluateFloatingConstant(Expression& expression,
             const auto value = evaluateFloatingConstant(child, declaration, memberIndex);
             return target == "fp32" ? static_cast<double>(static_cast<float>(value)) : value;
         }
-        const auto value = evaluateEnumExpression(child, declaration, memberIndex);
+        const auto value = evaluateIntegerConstant(child, declaration, memberIndex);
         if (child.resolvedType != "bool" &&
             numericType(child.resolvedType)->category == NumericCategory::UnsignedInteger) {
             const auto unsignedValue = static_cast<std::uint64_t>(value);

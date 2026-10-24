@@ -63,7 +63,7 @@ std::unique_ptr<Expression> cloneExpression(const Expression& expression);
 
 enum class StatementKind {
     Declaration, Assignment, Print, If, While, DoWhile, Block, Return, Expression,
-    SuperConstructorCall, Raise, Try, ForEach, Break, Continue, InlineC
+    SuperConstructorCall, Raise, Try, ForEach, Break, Continue, InlineC, Switch, Next
 };
 
 struct InlineCapture {
@@ -74,6 +74,20 @@ struct InlineCapture {
 };
 
 struct Statement;
+
+struct SwitchLabel {
+    std::unique_ptr<Expression> lower;
+    std::unique_ptr<Expression> upper;
+    std::string lowerValue;
+    std::string upperValue;
+};
+
+struct SwitchBranch {
+    SourceLocation location;
+    bool isDefault = false;
+    std::vector<SwitchLabel> labels;
+    std::vector<Statement> body;
+};
 
 struct ExceptionHandler {
     SourceLocation location;
@@ -107,6 +121,7 @@ struct Statement {
     // overload so code generation invokes the same constructor.
     std::string resolvedSignature;
     std::vector<ExceptionHandler> exceptionHandlers;
+    std::vector<SwitchBranch> switchBranches;
 };
 
 struct Parameter {

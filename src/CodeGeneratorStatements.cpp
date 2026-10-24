@@ -138,8 +138,68 @@ void CodeGenerator::emitLoopTransfer(bool isBreak, const SourceLocation& locatio
     activeExceptionHandlers_ = savedExceptionHandlers;
 }
 
+void CodeGenerator::emitSwitch(const Statement& statement) {
+    const auto selector = emitExpression(*statement.expressions.front());
+    const auto type = llvmType(selector.type);
+    const bool signedSelector =
+        numericType(selector.type)->category == NumericCategory::SignedInteger;
+    const auto endLabel = freshLabel("switch.end");
+    std::vector<std::string> bodies;
+    auto defaultLabel = endLabel;
+    for (const auto& branch : statement.switchBranches) {
+        bodies.push_back(freshLabel("switch.body"));
+        if (branch.isDefault) defaultLabel = bodies.back();
+    }
+    for (std::size_t index = 0; index < statement.switchBranches.size(); ++index) {
+        for (const auto& label : statement.switchBranches[index].labels) {
+            auto matches = newTemporary();
+            if (label.upper) {
+                const auto lower = newTemporary();
+                const auto upper = newTemporary();
+                instructions_ += "  " + lower + " = icmp " +
+                                 (signedSelector ? "sge " : "uge ") + type + " " +
+                                 selector.operand + ", " + label.lowerValue + "\n"
+                                 "  " + upper + " = icmp " +
+                                 (signedSelector ? "sle " : "ule ") + type + " " +
+                                 selector.operand + ", " + label.upperValue + "\n"
+                                 "  " + matches + " = and i1 " + lower + ", " + upper + "\n";
+            } else {
+                instructions_ += "  " + matches + " = icmp eq " + type + " " +
+                                 selector.operand + ", " + label.lowerValue + "\n";
+            }
+            const auto followingTest = freshLabel("switch.test");
+            instructions_ += "  br i1 " + matches + ", label %" + bodies[index] +
+                             ", label %" + followingTest + "\n" + followingTest + ":\n";
+        }
+    }
+    instructions_ += "  br label %" + defaultLabel + "\n";
+    bool endReachable = defaultLabel == endLabel;
+    for (std::size_t index = 0; index < statement.switchBranches.size(); ++index) {
+        const auto& branch = statement.switchBranches[index];
+        instructions_ += bodies[index] + ":\n";
+        scopes_.emplace_back();
+        blockTerminated_ = false;
+        emitStatements(branch.body);
+        scopes_.pop_back();
+        if (!blockTerminated_) {
+            const bool next = !branch.body.empty() &&
+                              branch.body.back().kind == StatementKind::Next;
+            instructions_ += "  br label %" + (next ? bodies.at(index + 1) : endLabel) + "\n";
+            if (!next) endReachable = true;
+        }
+    }
+    instructions_ += endLabel + ":\n";
+    blockTerminated_ = !endReachable;
+    if (blockTerminated_) instructions_ += "  unreachable\n";
+}
+
 void CodeGenerator::emitStatement(const Statement& statement) {
     switch (statement.kind) {
+    case StatementKind::Switch:
+        emitSwitch(statement);
+        return;
+    case StatementKind::Next:
+        return;
     case StatementKind::Declaration: {
         const auto pointer = "%v" + std::to_string(nextVariable_++);
         std::string flagPointer;

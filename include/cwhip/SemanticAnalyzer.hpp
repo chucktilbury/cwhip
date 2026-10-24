@@ -75,11 +75,11 @@ private:
                                  const std::string& name) const;
     void resolveEnumConstants(Program& program);
     std::int64_t resolveEnumValue(ClassDeclaration& declaration, std::size_t index);
-    std::int64_t evaluateEnumExpression(Expression& expression,
-                                        ClassDeclaration& declaration,
-                                        std::size_t memberIndex);
+    std::int64_t evaluateIntegerConstant(Expression& expression,
+                                        ClassDeclaration* declaration = nullptr,
+                                        std::size_t memberIndex = 0);
     double evaluateFloatingConstant(Expression& expression,
-                                    ClassDeclaration& declaration,
+                                    ClassDeclaration* declaration,
                                     std::size_t memberIndex);
     const MethodDeclaration* findMethod(const ClassDeclaration& declaration,
                                         const std::string& name) const;
@@ -120,6 +120,7 @@ private:
     std::string analyzeLValue(Expression& expression);
     void analyzeStatements(std::vector<Statement>& statements);
     void analyzeStatement(Statement& statement);
+    void analyzeSwitch(Statement& statement);
     std::size_t findSymbolIndex(const std::string& name) const;
     void analyzeMethod(const ClassDeclaration& owner, MethodDeclaration& method);
     void validateType(const std::string& type, const SourceLocation& location,

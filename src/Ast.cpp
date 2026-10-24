@@ -148,6 +148,8 @@ void dumpStatement(const Statement& statement, std::ostream& output, int depth) 
     case StatementKind::DoWhile: output << "Do while\n"; break;
     case StatementKind::Break: output << "Break\n"; break;
     case StatementKind::Continue: output << "Continue\n"; break;
+    case StatementKind::Next: output << "Next\n"; break;
+    case StatementKind::Switch: output << "Switch\n"; break;
     case StatementKind::ForEach:
         output << (statement.keyName.empty()
                        ? "For each [" + statement.name + "]\n"
@@ -170,6 +172,17 @@ void dumpStatement(const Statement& statement, std::ostream& output, int depth) 
     }
     for (const auto& expression : statement.expressions) {
         dumpExpression(*expression, output, depth + 1);
+    }
+    for (const auto& branch : statement.switchBranches) {
+        indent(output, depth + 1);
+        output << (branch.isDefault ? "Default\n" : "Case\n");
+        for (const auto& label : branch.labels) {
+            indent(output, depth + 2);
+            output << (label.upper ? "Range\n" : "Value\n");
+            dumpExpression(*label.lower, output, depth + 3);
+            if (label.upper) dumpExpression(*label.upper, output, depth + 3);
+        }
+        dumpStatements(branch.body, output, depth + 2);
     }
     if (!statement.body.empty()) {
         dumpStatements(statement.body, output, depth + 1);

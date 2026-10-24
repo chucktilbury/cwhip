@@ -91,6 +91,7 @@ private:
     void emitStatements(const std::vector<Statement>& statements);
     void emitStatement(const Statement& statement);
     void emitTry(const Statement& statement);
+    void emitSwitch(const Statement& statement);
     void emitVirtualBaseInitializers(const ClassDeclaration& owner,
                                      const std::vector<Statement>& initializers);
     void emitLoopTransfer(bool isBreak, const SourceLocation& location);

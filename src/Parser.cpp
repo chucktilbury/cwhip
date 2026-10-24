@@ -8,6 +8,7 @@
 #include "cwhip/Diagnostic.hpp"
 
 #include <algorithm>
+#include <cctype>
 #include <ostream>
 #include <utility>
 
@@ -483,6 +484,19 @@ Statement Parser::parseStatement() {
         check(TokenType::Void)) {
         return parseDeclaration();
     }
+    if (check(TokenType::Identifier) && current().text.size() == 4 &&
+        std::equal(current().text.begin(), current().text.end(), "next",
+                   [](unsigned char left, char right) { return std::tolower(left) == right; }) &&
+        (tokens_[current_ + 1].type == TokenType::Newline ||
+         tokens_[current_ + 1].type == TokenType::RightBrace ||
+         tokens_[current_ + 1].type == TokenType::End)) {
+        Statement statement;
+        statement.kind = StatementKind::Next;
+        statement.location = current().location;
+        ++current_;
+        consumeStatementTerminator();
+        return statement;
+    }
     if (check(TokenType::Identifier) || check(TokenType::LeftParen)) {
         return parseExpressionStatement();
     }
@@ -494,6 +508,9 @@ Statement Parser::parseStatement() {
     }
     if (check(TokenType::While)) {
         return parseWhile();
+    }
+    if (check(TokenType::Switch)) {
+        return parseSwitch();
     }
     if (check(TokenType::Do)) {
         return parseDoWhile();
@@ -746,6 +763,48 @@ Statement Parser::parseIf() {
         }
         statement.alternate = parseBlock();
     }
+    return statement;
+}
+
+Statement Parser::parseSwitch() {
+    const NestingGuard nesting(*this);
+    const auto keyword = consume(TokenType::Switch, "'switch'");
+    Statement statement;
+    statement.kind = StatementKind::Switch;
+    statement.location = keyword.location;
+    consume(TokenType::LeftParen, "'(' after switch");
+    statement.expressions.push_back(parseExpression());
+    consume(TokenType::RightParen, "')' after switch selector");
+    skipNewlines();
+    consume(TokenType::LeftBrace, "'{' after switch selector");
+    skipNewlines();
+    bool defaultSeen = false;
+    while (!check(TokenType::RightBrace) && !check(TokenType::End)) {
+        SwitchBranch branch;
+        branch.location = current().location;
+        if (defaultSeen) {
+            error(current(), "default must be the final switch branch");
+        }
+        if (match(TokenType::Case)) {
+            consume(TokenType::LeftParen, "'(' after case");
+            do {
+                SwitchLabel label;
+                label.lower = parseExpression();
+                if (match(TokenType::DotDot)) label.upper = parseExpression();
+                branch.labels.push_back(std::move(label));
+            } while (match(TokenType::Comma));
+            consume(TokenType::RightParen, "')' after case values");
+        } else if (match(TokenType::Default)) {
+            branch.isDefault = true;
+            defaultSeen = true;
+        } else {
+            error(current(), "expected case or default in switch");
+        }
+        branch.body = parseBlock();
+        statement.switchBranches.push_back(std::move(branch));
+        skipNewlines();
+    }
+    consume(TokenType::RightBrace, "'}' after switch branches");
     return statement;
 }
 

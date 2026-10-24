@@ -47,6 +47,23 @@ bool canFallThrough(const Statement& statement) {
                            [](const ExceptionHandler& handler) {
                                return canFallThrough(handler.body);
                            });
+    case StatementKind::Switch: {
+        if (statement.switchBranches.empty() ||
+            !statement.switchBranches.back().isDefault) return true;
+        bool followingFallsThrough = true;
+        bool anyFallsThrough = false;
+        for (auto branch = statement.switchBranches.rbegin();
+             branch != statement.switchBranches.rend(); ++branch) {
+            auto fallsThrough = canFallThrough(branch->body);
+            if (fallsThrough && !branch->body.empty() &&
+                branch->body.back().kind == StatementKind::Next) {
+                fallsThrough = followingFallsThrough;
+            }
+            anyFallsThrough = anyFallsThrough || fallsThrough;
+            followingFallsThrough = fallsThrough;
+        }
+        return anyFallsThrough;
+    }
     default:
         // A loop may not run (or may exit via break); never infer a return
         // solely from its body.
@@ -63,6 +80,11 @@ bool canFallThrough(const std::vector<Statement>& statements) {
 
 bool containsSuperCall(const Statement& statement) {
     if (statement.kind == StatementKind::SuperConstructorCall) return true;
+    for (const auto& branch : statement.switchBranches) {
+        for (const auto& child : branch.body) {
+            if (containsSuperCall(child)) return true;
+        }
+    }
     for (const auto& child : statement.body) {
         if (containsSuperCall(child)) return true;
     }
@@ -85,6 +107,9 @@ bool containsReturn(const std::vector<Statement>& statements) {
         if (statement.kind == StatementKind::Return ||
             containsReturn(statement.body) || containsReturn(statement.alternate) ||
             containsReturn(statement.cleanup)) return true;
+        for (const auto& branch : statement.switchBranches) {
+            if (containsReturn(branch.body)) return true;
+        }
         for (const auto& handler : statement.exceptionHandlers) {
             if (containsReturn(handler.body)) return true;
         }
@@ -322,6 +347,13 @@ void SemanticAnalyzer::normalizeStatements(
         if (statement.target) normalizeExpression(*statement.target, namespacePath);
         for (auto& expression : statement.expressions) {
             normalizeExpression(*expression, namespacePath);
+        }
+        for (auto& branch : statement.switchBranches) {
+            for (auto& label : branch.labels) {
+                normalizeExpression(*label.lower, namespacePath);
+                if (label.upper) normalizeExpression(*label.upper, namespacePath);
+            }
+            normalizeStatements(branch.body, namespacePath);
         }
         normalizeStatements(statement.body, namespacePath);
         normalizeStatements(statement.alternate, namespacePath);

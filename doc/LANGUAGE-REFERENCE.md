@@ -390,15 +390,16 @@ start {
 
 The supported statements are local declarations, assignment, method-call
 expression statements, `print`, nested blocks, `if`/`else`, `while`,
-`do`/`while`, `for`-each, `break`, `continue`, `return`, `try`/`except`/
-`finally`, `raise`, base-constructor initializers, and inline C. See
-`statement` and its named productions.
+`do`/`while`, `for`-each, `break`, `continue`, `switch`/`case`/`next`, `return`,
+`try`/`except`/`finally`, `raise`, base-constructor initializers, and inline C.
+See `statement` and its named productions.
 
 Conditions are parenthesized and must be `bool`. `else` always introduces a
 block; there is no `else if` production. The `do` body executes at least once.
 `for (value in collection)` iterates list values; `for (key, value in dict)`
 iterates dict keys and values. The value variable has type `any`; the key
 variable has type `String`. `break` and `continue` are valid only in loops.
+They cannot cross a switch branch boundary to reach an outer loop.
 
 ```cwhip
 // Complete program: while, continue, and for-each.
@@ -418,6 +419,75 @@ start {
     print(total)
 }
 ```
+
+### Constant switches
+
+`switch (selector) { ... }` evaluates its selector exactly once. The selector
+must have an integer type (`int8` through `uint64`); class enum members are
+supported because they are `int64` constants. `bool`, floating-point, strings,
+and objects are not switch selector types.
+
+Each `case (values) { ... }` requires parentheses and braces. Values are
+compile-time integer expressions, including enum references, integer arithmetic,
+bitwise operations, and explicit numeric casts. Enum references in labels must
+be unqualified constants in a method or qualified through a class name, not
+through a runtime instance expression. Separate alternatives with
+commas; `low..high` denotes an inclusive range and can be mixed with individual
+values. Ranges are tested without enumerating their elements, even across the
+full `uint64` domain. Every evaluated value/endpoint must be losslessly
+representable in the selector type; there is no implicit narrowing or modular
+conversion to make a label fit. Explicit casts and constant arithmetic retain
+the ordinary numeric rules (for example, `uint8(255) + uint8(1)` is zero).
+Reversed ranges and duplicate or overlapping labels are compile-time errors,
+including equal signed/unsigned constants.
+
+Ordinary branch completion exits the switch: there is no implicit fallthrough
+and no switch `break`. An optional `default { ... }` has no parentheses, may
+appear only once, and must be last. With no matching label and no default,
+execution continues after the switch. Empty switches are valid.
+
+```cwhip
+// Complete program: alternatives, inclusive ranges, and explicit continuation.
+// test: {"stdout": "prepare/process/other"}
+start {
+    int64 value = 1
+    switch (value) {
+        case (1) {
+            print("prepare/")
+            next
+        }
+        case (2, 4, 6, 10..20) {
+            print("process/")
+            next
+        }
+        default {
+            print("other")
+        }
+    }
+}
+```
+
+`next` unconditionally executes the immediately following branch **body**,
+without checking its labels (including a following `default`). It must be the
+final direct statement in a branch with a following branch. A `next` inside
+an `if`, nested block, loop, or exception block is rejected; nested switches
+may have their own `next`. Each branch has a separate lexical scope, so a
+local declared before `next` is not visible in the following branch. Completed
+`try` blocks run their `finally` before the transfer. Object lifetimes retain
+the normal managed/explicit-destruction rules; `next` adds no automatic
+destruction.
+
+Case boundaries prevent `break` and `continue` from escaping to a loop outside
+the branch. Loops declared inside a branch still permit their own `break` and
+`continue`. A `return` exits the enclosing method, not just the switch, with
+normal exception/finally cleanup. As with other control-flow constructs,
+definite initialization is conservative: a later branch must be valid when
+entered directly, not only via `next`.
+
+`switch`, `case`, and `default` are case-insensitive reserved words. `next` is
+contextual only when it forms a standalone statement, preserving existing
+identifiers such as `Process.next()`, a local named `next`, or enum member `NEXT`.
+Newlines delimit simple statements; semicolons still start comments.
 
 ## Classes, objects, inheritance, and dispatch
 
