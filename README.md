@@ -134,6 +134,10 @@ in [`stdlib/README.md`](stdlib/README.md); its public APIs are in
 - Integral `switch` statements support constant alternatives, inclusive ranges,
   a final optional `default`, and explicit `next` continuation without implicit
   fallthrough. See [constant switches](doc/LANGUAGE-REFERENCE.md#constant-switches).
+- First-class `range<T>` values capture inclusive integer endpoints once,
+  supporting directional `for (i in first..last)`, exact `value in bounds`
+  membership, and independent `items[bounds]` copy slices for lists, Strings,
+  and buffers. See [integer ranges](doc/LANGUAGE-REFERENCE.md#integer-ranges).
 - Base constructors use dotless `super Base(args)` syntax; virtual bases use
   `super virtual Base(args)` or `virtual super Base(args)`.
 - Collection type keywords are `list` and `dict`; `array` and `map` are

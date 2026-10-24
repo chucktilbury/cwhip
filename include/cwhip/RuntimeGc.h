@@ -64,7 +64,8 @@ typedef enum CwhipArrayValueTag {
     CWHIP_ARRAY_UINT16 = 15,
     CWHIP_ARRAY_INT32 = 16,
     CWHIP_ARRAY_UINT32 = 17,
-    CWHIP_ARRAY_FP32 = 18
+    CWHIP_ARRAY_FP32 = 18,
+    CWHIP_ARRAY_RANGE = 19
 } CwhipArrayValueTag;
 
 typedef struct CwhipArrayValue {
@@ -103,6 +104,27 @@ typedef struct CwhipBuffer {
     uint64_t capacity;
     uint8_t *data;
 } CwhipBuffer;
+
+/* Immutable, canonical sign/zero-extended endpoint bits. Existing numeric-v2
+ * tags/layouts are unchanged; ranges use a new managed-reference tag. */
+typedef struct CwhipRange {
+    const CwhipClassMeta *metadata;
+    uint64_t element_tag;
+    uint64_t first;
+    uint64_t last;
+} CwhipRange;
+
+void *cwhip_range_new(uint64_t element_tag, uint64_t first, uint64_t last);
+void *cwhip_range_convert(void *range, uint64_t element_tag);
+int32_t cwhip_value_is_range(uint64_t tag, void *range, uint64_t element_tag);
+void *cwhip_value_require_range(uint64_t tag, void *range, uint64_t element_tag,
+                               const char *file, uint64_t file_length,
+                               uint64_t line, uint64_t column);
+/* kind: 0 list, 1 String (UTF-8 bytes), 2 buffer. Strict, inclusive copies. */
+void *cwhip_range_slice(void *collection, void *range, uint64_t kind,
+                       const char *file, uint64_t file_length, uint64_t line,
+                       uint64_t column);
+void cwhip_range_print(void *range);
 
 typedef struct CwhipRootFrame {
     struct CwhipRootFrame *previous;

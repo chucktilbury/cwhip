@@ -505,6 +505,10 @@ void CodeGenerator::emitStatement(const Statement& statement) {
     }
     case StatementKind::ForEach: {
         const auto source = emitExpression(*statement.expressions.front());
+        if (isRangeType(source.type)) {
+            emitRangeLoop(statement, source);
+            return;
+        }
         const bool array = isArrayType(source.type);
         const auto lengthAddress = newTemporary();
         const auto length = newTemporary();
@@ -695,6 +699,46 @@ void CodeGenerator::emitStatement(const Statement& statement) {
         emitLoopTransfer(false, statement.location);
         return;
     }
+}
+
+void CodeGenerator::emitRangeLoop(const Statement& statement, const Value& range) {
+    const auto first = emitRangeEndpoint(range, 2, statement.location);
+    const auto last = emitRangeEndpoint(range, 3, statement.location);
+    const auto ascending = emitNumericComparison("<=", first, last, statement.location);
+    const auto type = llvmType(first.type);
+    const auto delta = newTemporary();
+    instructions_ += "  " + delta + " = select i1 " + ascending.operand +
+                     ", " + type + " 1, " + type + " -1\n";
+    const auto slot = "%v" + std::to_string(nextVariable_++);
+    entryAllocas_ += "  " + slot + " = alloca " + type + "\n";
+    instructions_ += "  store " + type + " " + first.operand + ", ptr " + slot + "\n";
+    scopes_.emplace_back();
+    scopes_.back().emplace(statement.name, Binding{first.type, slot, {}, false, true});
+    instructions_ += debugDeclaration(statement.name, first.type, slot, statement.location);
+    const auto body = freshLabel("range.body");
+    const auto step = freshLabel("range.step");
+    const auto advance = freshLabel("range.advance");
+    const auto end = freshLabel("range.end");
+    instructions_ += "  br label %" + body + "\n" + body + ":\n";
+    loopTargets_.push_back({end, step, activeTryTransfers_.size()});
+    blockTerminated_ = false;
+    emitStatements(statement.body);
+    const bool terminated = blockTerminated_;
+    loopTargets_.pop_back();
+    scopes_.pop_back();
+    if (!terminated) instructions_ += "  br label %" + step + "\n";
+    const auto current = newTemporary();
+    const auto done = newTemporary();
+    const auto next = newTemporary();
+    instructions_ += step + ":\n"
+                     "  " + current + " = load " + type + ", ptr " + slot + "\n"
+                     "  " + done + " = icmp eq " + type + " " + current + ", " + last.operand + "\n"
+                     "  br i1 " + done + ", label %" + end + ", label %" + advance + "\n"
+                     + advance + ":\n"
+                     "  " + next + " = add " + type + " " + current + ", " + delta + "\n"
+                     "  store " + type + " " + next + ", ptr " + slot + "\n"
+                     "  br label %" + body + "\n" + end + ":\n";
+    blockTerminated_ = false;
 }
 
 } // namespace cwhip

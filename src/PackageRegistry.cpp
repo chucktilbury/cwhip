@@ -48,7 +48,7 @@ bool identifier(const std::string& value) {
         "start", "int", "bool", "float", "unsigned", "int8", "uint8",
         "int16", "uint16", "int32", "uint32", "int64", "uint64", "fp32",
         "fp64", "strg", "list",
-        "dict", "buffer", "handle", "any", "type", "if",
+        "dict", "buffer", "handle", "range", "any", "type", "if",
         "else", "while", "do", "for", "in", "is", "break", "continue",
         "and", "or", "not", "print", "raise", "try", "except", "finally",
         "class", "namespace", "include", "inline", "import", "as", "from",

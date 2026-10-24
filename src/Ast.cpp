@@ -100,6 +100,8 @@ const char* expressionName(ExpressionKind kind) {
     case ExpressionKind::MapLiteral: return "MapLiteral";
     case ExpressionKind::Index: return "Index";
     case ExpressionKind::Slice: return "Slice";
+    case ExpressionKind::Range: return "Range";
+    case ExpressionKind::RangeSlice: return "RangeSlice";
     case ExpressionKind::Cast: return "Cast";
     case ExpressionKind::ObjectCast: return "ObjectCast";
     case ExpressionKind::TypeTest: return "TypeTest";

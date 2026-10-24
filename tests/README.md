@@ -70,6 +70,25 @@ return/exception/finally/destruction behavior. Run these with
 'cwhip_(unit_and_functional|switch_execution)$'`.
 `CWHIP_GC_STRESS=1` can also be used with the switch execution test.
 
+`test_range_cases.cpp` covers first-class `range<T>` types, all integer
+endpoint-type pairs, precedence, read-only bindings (including inline aliases),
+and rejected endpoints/consumers. `cwhip_range_execution` runs all eight
+integer widths at both `-O0` and `-O2`, each normally and with
+`CWHIP_GC_STRESS=1`. It covers full-width membership, safe terminal steps,
+snapshot evaluation order/count, variable mutation, parameter/field/return/
+callback and collection round trips, cleanup and nested control flow,
+inclusive list/String/buffer copies, reversal, singleton/empty/bounds errors,
+UTF-8 failures, and preservation of colon slices and switch grouping.
+When GDB is available it also verifies direct and boxed range debugger displays
+against a real generated program.
+`cwhip_gc_runtime_lifecycle`/`cwhip_gc_runtime_stress` also check direct range
+payload tracing and stable numeric-v2 tags.
+
+```sh
+ctest --test-dir build --output-on-failure \
+  -R 'cwhip_(unit_and_functional|range_execution|switch_execution|numeric_execution|gc_runtime_.*)$'
+```
+
 `cwhip_cli_diagnostics` checks the compiler/package
 [diagnostic contract](../doc/DIAGNOSTICS.md): coded errors, preserved source and
 backend detail, stdout/stderr, exit status, and plain text on redirected output

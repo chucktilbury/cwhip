@@ -79,7 +79,26 @@ def dynamic(value, depth):
     if tag in (4, 5, 9):
         name = {4: "dict", 5: "list", 9: "buffer"}[tag]
         return container(value["pointer"], name, depth)
+    if tag == 19:
+        return integer_range(value["pointer"])
     return "<runtime tag {}: {}>".format(tag, raw(value["pointer"]))
+
+
+def integer_range(value):
+    if int(value) == 0:
+        return "null"
+    obj = runtime_object(value, "CwhipRange")
+    tag = int(obj["element_tag"])
+    signed = tag in (1, 12, 14, 16)
+    names = {1: "int64", 8: "uint64", 12: "int8", 13: "uint8",
+             14: "int16", 15: "uint16", 16: "int32", 17: "uint32"}
+    if tag not in names:
+        return "<invalid range element tag {}>".format(tag)
+    endpoints = []
+    for field in ("first", "last"):
+        bits = int(obj[field])
+        endpoints.append(str(bits - (1 << 64) if signed and bits & (1 << 63) else bits))
+    return "range<{}> {}..{}".format(names[tag], *endpoints)
 
 
 def string(value):
@@ -147,6 +166,8 @@ def friendly(value, cwhip, depth=0):
         return string(value)
     if name in ("list", "dict", "buffer"):
         return container(value, name, depth)
+    if name.startswith("range<"):
+        return integer_range(value)
     # Opaque class debug types lack members. Say so instead of guessing fields.
     if typ.target().code == gdb.TYPE_CODE_STRUCT:
         if name in ("handle", "callback"):

@@ -35,6 +35,7 @@ enum class TokenType {
     RemovedUnsigned,
     StrgType,
     ListType,
+    RangeType,
     DictType,
     BufferType,
     HandleType,

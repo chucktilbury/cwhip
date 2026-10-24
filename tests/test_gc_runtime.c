@@ -242,6 +242,40 @@ static int test_finalizer_graph_mutation(void) {
     return 0;
 }
 
+static int test_range_payloads(void) {
+    _Static_assert(CWHIP_ARRAY_INT64 == 1 && CWHIP_ARRAY_UINT64 == 8 &&
+                   CWHIP_ARRAY_BUFFER == 9 && CWHIP_ARRAY_FP32 == 18 &&
+                   CWHIP_ARRAY_RANGE == 19, "numeric-v2 tags must remain stable");
+    CwhipArray *array = NULL;
+    CwhipMap *map = NULL;
+    void *slots[] = {&array, &map};
+    CwhipRootFrame frame = {0};
+    cwhip_gc_push_or_abort(&frame, slots, 2);
+    array = cwhip_gc_alloc_array(1);
+    array->values[0].tag = CWHIP_ARRAY_RANGE;
+    array->values[0].pointer = cwhip_range_new(CWHIP_ARRAY_UINT64, UINT64_MAX, 0);
+    map = cwhip_gc_alloc_map();
+    cwhip_map_set(map, "r", 1, &array->values[0], "range-test", 10, 1, 1);
+    array = NULL;
+    cwhip_gc_collect();
+    if (cwhip_gc_heap_count() != 2) return fail("map did not retain its range");
+    CwhipArrayValue *value = cwhip_map_get(map, "r", 1, "range-test", 10, 1, 1);
+    if (!cwhip_value_is_range(value->tag, value->pointer, CWHIP_ARRAY_UINT64) ||
+        cwhip_value_is_range(value->tag, value->pointer, CWHIP_ARRAY_INT64))
+        return fail("range extraction did not preserve endpoint type");
+    const CwhipRange *range = value->pointer;
+    if (range->first != UINT64_MAX || range->last != 0)
+        return fail("range endpoints lost uint64 bits");
+    uint64_t length = 0;
+    const char *name = cwhip_value_type_name(value->tag, value->pointer, &length);
+    if (length != 13 || memcmp(name, "range<uint64>", 13))
+        return fail("dynamic range type name is incorrect");
+    cwhip_gc_pop_or_abort(&frame);
+    cwhip_gc_collect();
+    if (cwhip_gc_heap_count() != 0) return fail("range graph was not reclaimed");
+    return 0;
+}
+
 int main(void) {
     cwhip_runtime_thread_enter();
     CwhipRootFrame outer = {0};
@@ -494,6 +528,7 @@ int main(void) {
     if (test_allocation_policy_and_index()) return 1;
     if (test_heap_tables()) return 1;
     if (test_finalizer_graph_mutation()) return 1;
+    if (test_range_payloads()) return 1;
     cwhip_runtime_thread_exit();
     puts("PASS precise roots, reclamation, finalization, destruction, and frame lifecycle");
     return 0;

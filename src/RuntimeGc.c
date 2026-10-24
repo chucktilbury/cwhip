@@ -666,6 +666,9 @@ static const CwhipClassMeta map_metadata = {
 static const CwhipClassMeta buffer_metadata = {
     "buffer", 6, 0, NULL, 0, sizeof(CwhipBuffer), 0, NULL, NULL, 0, NULL, 0, NULL
 };
+static const CwhipClassMeta range_metadata = {
+    "range", 5, 0, NULL, 0, sizeof(CwhipRange), 0, NULL, NULL, 0, NULL, 0, NULL
+};
 
 static HeapNode *find_object(const void *object);
 static HeapNode *find_containing_object(const void *object);
@@ -1016,6 +1019,21 @@ const char *cwhip_value_type_name(uint64_t tag, void *pointer, uint64_t *length)
         return "null";
     }
     switch (tag) {
+    case CWHIP_ARRAY_RANGE: {
+        if (pointer == NULL) { *length = 4; return "null"; }
+        const CwhipRange *range = (const CwhipRange *)pointer;
+        switch (range->element_tag) {
+        case CWHIP_ARRAY_INT8: *length = 11; return "range<int8>";
+        case CWHIP_ARRAY_UINT8: *length = 12; return "range<uint8>";
+        case CWHIP_ARRAY_INT16: *length = 12; return "range<int16>";
+        case CWHIP_ARRAY_UINT16: *length = 13; return "range<uint16>";
+        case CWHIP_ARRAY_INT32: *length = 12; return "range<int32>";
+        case CWHIP_ARRAY_UINT32: *length = 13; return "range<uint32>";
+        case CWHIP_ARRAY_INT64: *length = 12; return "range<int64>";
+        case CWHIP_ARRAY_UINT64: *length = 13; return "range<uint64>";
+        default: abort();
+        }
+    }
     case CWHIP_ARRAY_INT64: *length = 5; return "int64";
     case CWHIP_ARRAY_STRING: *length = 6; return "string";
     case CWHIP_ARRAY_OBJECT: return cwhip_object_type_name(pointer, length);
@@ -1321,7 +1339,8 @@ void cwhip_value_require_null(uint64_t actual_tag, void *pointer, const char *fi
     const int nullable_tag =
         actual_tag == CWHIP_ARRAY_STRING || actual_tag == CWHIP_ARRAY_OBJECT ||
         actual_tag == CWHIP_ARRAY_MAP || actual_tag == CWHIP_ARRAY_ARRAY ||
-        actual_tag == CWHIP_ARRAY_BUFFER || actual_tag == CWHIP_ARRAY_HANDLE;
+        actual_tag == CWHIP_ARRAY_BUFFER || actual_tag == CWHIP_ARRAY_HANDLE ||
+        actual_tag == CWHIP_ARRAY_RANGE;
     if (!nullable_tag || pointer != NULL) {
         static const char message[] = "'any' value does not hold null";
         cwhip_exception_raise(message, sizeof(message) - 1, file, file_length, line, column);
@@ -1418,7 +1437,8 @@ void cwhip_value_require_array(uint64_t actual_tag, void *pointer, const char *f
 
 static int dynamic_value_is_gc_reference(uint64_t tag) {
     return tag == CWHIP_ARRAY_OBJECT || tag == CWHIP_ARRAY_MAP ||
-           tag == CWHIP_ARRAY_ARRAY || tag == CWHIP_ARRAY_BUFFER;
+           tag == CWHIP_ARRAY_ARRAY || tag == CWHIP_ARRAY_BUFFER ||
+           tag == CWHIP_ARRAY_RANGE;
 }
 
 void cwhip_value_require_buffer(uint64_t actual_tag, void *pointer, const char *file,
@@ -2411,6 +2431,21 @@ void cwhip_string_format_spec_append(void *object, uint64_t tag, int64_t integer
             memcpy(&number, &integer, sizeof(number));
         }
         written = snprintf(text, sizeof(text), "%.15g", number);
+    } else if (tag == CWHIP_ARRAY_RANGE) {
+        if (pointer == NULL) {
+            data = "(null)";
+            count = 6;
+        } else {
+            const CwhipRange *range = (const CwhipRange *)pointer;
+            if (numeric_tag_is_signed_integer(range->element_tag))
+                written = snprintf(text, sizeof(text), "%lld..%lld",
+                                   (long long)numeric_signed_value(range->element_tag, range->first),
+                                   (long long)numeric_signed_value(range->element_tag, range->last));
+            else
+                written = snprintf(text, sizeof(text), "%llu..%llu",
+                                   (unsigned long long)range->first,
+                                   (unsigned long long)range->last);
+        }
     } else if (tag == CWHIP_ARRAY_BOOLEAN) {
         data = integer ? "true" : "false";
         count = integer ? 4 : 5;
@@ -2853,6 +2888,122 @@ void *cwhip_array_slice(void *object, int64_t start, int64_t end, const char *fi
                        uint64_t file_length, uint64_t line, uint64_t column) {
     return cwhip_array_slice_ex(object, start, end, 1, 1, 1, file,
                                file_length, line, column);
+}
+
+void *cwhip_range_new(uint64_t element_tag, uint64_t first, uint64_t last) {
+    if (!numeric_tag_is_signed_integer(element_tag) &&
+        !numeric_tag_is_unsigned_integer(element_tag)) abort();
+    CwhipRange *range = (CwhipRange *)cwhip_gc_alloc(&range_metadata);
+    range->element_tag = element_tag;
+    range->first = numeric_tag_is_signed_integer(element_tag)
+                       ? (uint64_t)numeric_signed_value(element_tag, first)
+                       : numeric_unsigned_value(element_tag, first);
+    range->last = numeric_tag_is_signed_integer(element_tag)
+                      ? (uint64_t)numeric_signed_value(element_tag, last)
+                      : numeric_unsigned_value(element_tag, last);
+    return range;
+}
+
+void *cwhip_range_convert(void *object, uint64_t element_tag) {
+    if (object == NULL) return NULL;
+    const CwhipRange *range = (const CwhipRange *)object;
+    return cwhip_range_new(element_tag, range->first, range->last);
+}
+
+int32_t cwhip_value_is_range(uint64_t tag, void *object, uint64_t element_tag) {
+    if (tag != CWHIP_ARRAY_RANGE || object == NULL) return 0;
+    const HeapNode *node = find_object(object);
+    return node != NULL && ((const CwhipRange *)object)->metadata == &range_metadata &&
+           ((const CwhipRange *)object)->element_tag == element_tag;
+}
+
+void *cwhip_value_require_range(uint64_t tag, void *object, uint64_t element_tag,
+                               const char *file, uint64_t file_length,
+                               uint64_t line, uint64_t column) {
+    if (tag == CWHIP_ARRAY_OBJECT && object == NULL) return NULL;
+    if (!cwhip_value_is_range(tag, object, element_tag)) {
+        static const char message[] = "'any' value does not hold the requested range type";
+        cwhip_exception_raise(message, sizeof(message) - 1, file, file_length, line, column);
+    }
+    return object;
+}
+
+void cwhip_range_print(void *object) {
+    if (object == NULL) { fputs("(null)", stdout); return; }
+    const CwhipRange *range = (const CwhipRange *)object;
+    if (numeric_tag_is_signed_integer(range->element_tag))
+        printf("%lld..%lld", (long long)numeric_signed_value(range->element_tag, range->first),
+               (long long)numeric_signed_value(range->element_tag, range->last));
+    else
+        printf("%llu..%llu", (unsigned long long)range->first,
+               (unsigned long long)range->last);
+}
+
+static uint64_t range_slice_index(uint64_t bits, uint64_t tag, uint64_t length,
+                                  const char *file, uint64_t file_length,
+                                  uint64_t line, uint64_t column) {
+    uint64_t index = bits;
+    if (numeric_tag_is_signed_integer(tag)) {
+        const int64_t value = numeric_signed_value(tag, bits);
+        if (value < 0) {
+            const uint64_t magnitude = 0 - (uint64_t)value;
+            index = magnitude <= length ? length - magnitude : UINT64_MAX;
+        }
+    }
+    if (index >= length) {
+        static const char message[] = "range slice index out of bounds";
+        cwhip_exception_raise(message, sizeof(message) - 1, file, file_length, line, column);
+    }
+    return index;
+}
+
+void *cwhip_range_slice(void *object, void *bounds, uint64_t kind,
+                       const char *file, uint64_t file_length, uint64_t line,
+                       uint64_t column) {
+    cwhip_gc_require_alive(bounds, file, file_length, line, column);
+    if (bounds == NULL) {
+        static const char message[] = "null range";
+        cwhip_exception_raise(message, sizeof(message) - 1, file, file_length, line, column);
+    }
+    const CwhipRange *range = (const CwhipRange *)bounds;
+    CwhipArray *array = NULL;
+    CwhipBuffer *buffer = NULL;
+    if (kind == 0) array = checked_array(object, file, file_length, line, column);
+    else if (kind == 1) buffer = string_buffer(object);
+    else if (kind == 2) buffer = checked_buffer(object, file, file_length, line, column);
+    else abort();
+    const uint64_t source_length = array ? array->length : buffer->length;
+    const uint64_t first = range_slice_index(range->first, range->element_tag, source_length,
+                                              file, file_length, line, column);
+    const uint64_t last = range_slice_index(range->last, range->element_tag, source_length,
+                                             file, file_length, line, column);
+    const int ascending = first <= last;
+    const uint64_t length = (ascending ? last - first : first - last) + 1;
+    if (array) {
+        CwhipArray *copy = (CwhipArray *)cwhip_gc_alloc_array((int64_t)length);
+        for (uint64_t i = 0; i < length; ++i)
+            copy->values[i] = array->values[ascending ? first + i : first - i];
+        return copy;
+    }
+    if (kind == 2) {
+        CwhipBuffer *copy = (CwhipBuffer *)cwhip_buffer_new((int64_t)length,
+                                                           file, file_length, line, column);
+        for (uint64_t i = 0; i < length; ++i)
+            copy->data[i] = buffer->data[ascending ? first + i : first - i];
+        return copy;
+    }
+    char *bytes = (char *)malloc((size_t)length);
+    if (bytes == NULL) abort();
+    for (uint64_t i = 0; i < length; ++i)
+        bytes[i] = (char)buffer->data[ascending ? first + i : first - i];
+    if (!valid_utf8(bytes, length)) {
+        free(bytes);
+        static const char message[] = "String range slice produces invalid UTF-8";
+        cwhip_exception_raise(message, sizeof(message) - 1, file, file_length, line, column);
+    }
+    void *copy = cwhip_string_new(&cwhip_string_class_meta, bytes, length);
+    free(bytes);
+    return copy;
 }
 
 size_t cwhip_gc_heap_count(void) {

@@ -99,6 +99,7 @@ const char* tokenTypeName(TokenType type) noexcept {
     case TokenType::RemovedUnsigned: return "removed type 'unsigned'";
     case TokenType::StrgType: return "'strg'";
     case TokenType::ListType: return "'list'";
+    case TokenType::RangeType: return "'range'";
     case TokenType::DictType: return "'dict'";
     case TokenType::BufferType: return "'buffer'";
     case TokenType::HandleType: return "'handle'";
@@ -365,6 +366,7 @@ Token Lexer::scanIdentifierOrInteger() {
         {"bool", TokenType::Bool},
         {"strg", TokenType::StrgType},
         {"list", TokenType::ListType}, {"dict", TokenType::DictType},
+        {"range", TokenType::RangeType},
         {"buffer", TokenType::BufferType}, {"handle", TokenType::HandleType},
         {"any", TokenType::AnyType}, {"type", TokenType::TypeType},
         {"callback", TokenType::CallbackType},

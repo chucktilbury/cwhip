@@ -372,6 +372,11 @@ int SemanticAnalyzer::conversionRank(const std::string& target,
                                     const std::string& source,
                                     const Expression&) const {
     if (target == source) return 0;
+    if (isRangeType(target) && isRangeType(source)) {
+        const auto element = rangeElementType(target);
+        return isLosslessNumericConversion(element, rangeElementType(source))
+                   ? 1 + static_cast<int>(numericType(element)->width) : -1;
+    }
     if (isNumericType(target) && isNumericType(source)) {
         const auto* targetType = numericType(target);
         return (isLosslessNumericConversion(target, source) ? 1 : 100) +
@@ -535,19 +540,23 @@ bool SemanticAnalyzer::isSubclassOf(const std::string& type, const std::string& 
 bool SemanticAnalyzer::isAssignable(const std::string& target,
                                     const std::string& source) const {
     if (target == source) return true;
+    if (isRangeType(target) && isRangeType(source))
+        return isLosslessNumericConversion(rangeElementType(target), rangeElementType(source));
     if (isCallbackType(target) || isCallbackType(source))
         return isCallbackType(target) && source == "null";
     // 'any' is the dynamic/tagged value representation returned by collection
     // reads; it may hold primitive values and managed references.
     if (target == "any") {
-        return isNumericType(source) || source == "bool" || source == "String" ||
+        return isRangeType(source) || isNumericType(source) || source == "bool" ||
+               source == "String" ||
                source == "null" ||
                source == "list" || source == "dict" || source == "buffer" ||
                source == "handle" || source == "type" ||
                classes_.find(source) != classes_.end();
     }
     if (source == "any") {
-        return isNumericType(target) || target == "bool" || target == "String" ||
+        return isRangeType(target) || isNumericType(target) || target == "bool" ||
+               target == "String" ||
                target == "dict" ||
                target == "list" || target == "buffer" || target == "handle" ||
                classes_.find(target) != classes_.end();
@@ -559,7 +568,8 @@ bool SemanticAnalyzer::isAssignable(const std::string& target,
         // CWHIP-LANGUAGE-NOTES.md); other scalar contexts (fields, list/dict
         // elements, function arguments/returns) are unaffected by this and
         // continue to use the plain unboxed representation.
-        return target == "buffer" || target == "handle" || target == "String" ||
+        return isRangeType(target) || target == "buffer" || target == "handle" ||
+               target == "String" ||
                target == "list" || target == "dict" || isNumericType(target) ||
                target == "bool" ||
                target == "type" || classes_.find(target) != classes_.end();

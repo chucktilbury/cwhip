@@ -100,7 +100,8 @@ bool CodeGenerator::isDynamicValueType(const std::string& type) const {
 }
 
 bool CodeGenerator::isManagedReferenceType(const std::string& type) const {
-    return isCallbackType(type) || isArrayType(type) || isMapType(type) || isBufferType(type) ||
+    return isRangeType(type) || isCallbackType(type) || isArrayType(type) ||
+           isMapType(type) || isBufferType(type) ||
            isStringType(type) || classes_.find(type) != classes_.end();
 }
 
@@ -562,13 +563,20 @@ CodeGenerator::Value CodeGenerator::buildDynamicValue(Value value,
     }
     const auto tag = newTemporary();
     const auto numericTag = numericRuntimeTag(value.type);
-    const auto valueTag = numericTag != 0 ? std::to_string(numericTag) :
+    auto valueTag = numericTag != 0 ? std::to_string(numericTag) :
                           isMapType(value.type) ? "4" :
                           isArrayType(value.type) ? "5" :
                           value.type == "bool" ? "6" :
                           isBufferType(value.type) ? "9" :
+                          isRangeType(value.type) ? "19" :
                           value.type == "handle" ? "10" :
                           value.type == "type" ? "11" : "3";
+    if (isRangeType(value.type)) {
+        const auto isNull = newTemporary();
+        valueTag = newTemporary();
+        instructions_ += "  " + isNull + " = icmp eq ptr " + value.operand + ", null\n"
+                         "  " + valueTag + " = select i1 " + isNull + ", i64 3, i64 19\n";
+    }
     instructions_ += "  " + tag + " = insertvalue %CwhipArrayValue zeroinitializer, i64 " +
                      valueTag + ", 0\n";
     std::string stored = tag;
@@ -691,6 +699,18 @@ CodeGenerator::Value CodeGenerator::extractTypedValue(Value value,
                          "  " + result + " = insertvalue %CwhipString " + first + ", i64 " +
                          length + ", 1\n";
         return {expectedType, result};
+    }
+    if (isRangeType(expectedType)) {
+        const auto pointer = newTemporary();
+        const auto result = newTemporary();
+        instructions_ += "  " + pointer + " = extractvalue %CwhipArrayValue " +
+                         value.operand + ", 2\n"
+                         "  " + result + " = call ptr @cwhip_value_require_range(i64 " +
+                         tag + ", ptr " + pointer + ", i64 " +
+                         std::to_string(numericRuntimeTag(rangeElementType(expectedType))) +
+                         ", ptr " + file + ", i64 " + fileLength + ", i64 " + line +
+                         ", i64 " + column + ")\n";
+        return rootObjectValue({expectedType, result}, location);
     }
     if (expectedType == "dict" || expectedType == "list") {
         const auto runtimeCollection = expectedType == "dict" ? "map" : "array";
@@ -864,7 +884,7 @@ CodeGenerator::Value CodeGenerator::emitExpression(const Expression& expression,
                 nullCondition = operand.nullFlag;
             } else if (operand.type == "list" || operand.type == "dict" ||
                        operand.type == "buffer" || operand.type == "handle" ||
-                       isCallbackType(operand.type)) {
+                       isCallbackType(operand.type) || isRangeType(operand.type)) {
                 nullCondition = newTemporary();
                 instructions_ += "  " + nullCondition + " = icmp eq ptr " + operand.operand +
                                  ", null\n";
@@ -916,6 +936,37 @@ CodeGenerator::Value CodeGenerator::emitExpression(const Expression& expression,
                          "  " + result + " = insertvalue %CwhipString " + first + ", i64 " +
                          length + ", 1\n";
         return {"type", result};
+    }
+    case ExpressionKind::Range: {
+        const auto element = rangeElementType(expression.resolvedType);
+        const auto first = convertNumericValue(emitExpression(*expression.left), element,
+                                                expression.left->location);
+        const auto last = convertNumericValue(emitExpression(*expression.right), element,
+                                               expression.right->location);
+        const auto wideType = numericType(element)->category == NumericCategory::SignedInteger
+                                  ? "int64" : "uint64";
+        const auto wideFirst = convertNumericValue(first, wideType, expression.location);
+        const auto wideLast = convertNumericValue(last, wideType, expression.location);
+        const auto result = newTemporary();
+        instructions_ += "  " + result + " = call ptr @cwhip_range_new(i64 " +
+                         std::to_string(numericRuntimeTag(element)) + ", i64 " +
+                         wideFirst.operand + ", i64 " + wideLast.operand + ")\n";
+        return rootObjectValue({expression.resolvedType, result}, expression.location);
+    }
+    case ExpressionKind::RangeSlice: {
+        const auto collection = emitExpression(*expression.left);
+        const auto range = emitExpression(*expression.arguments.front());
+        const auto result = newTemporary();
+        const auto file = internString(expression.location.file);
+        const auto kind = collection.type == "list" ? "0" :
+                          collection.type == "String" ? "1" : "2";
+        instructions_ += "  " + result + " = call ptr @cwhip_range_slice(ptr " +
+                         collection.operand + ", ptr " + range.operand + ", i64 " + kind +
+                         ", ptr " + file + ", i64 " +
+                         std::to_string(expression.location.file.size()) + ", i64 " +
+                         std::to_string(expression.location.line) + ", i64 " +
+                         std::to_string(expression.location.column) + ")\n";
+        return rootObjectValue({collection.type, result}, expression.location);
     }
     case ExpressionKind::ArrayLiteral: {
         const auto array = newTemporary();
@@ -1471,6 +1522,18 @@ CodeGenerator::Value CodeGenerator::emitExpression(const Expression& expression,
             const auto pointer = newTemporary();
             const auto matches = newTemporary();
             const auto result = newTemporary();
+            if (isRangeType(target)) {
+                instructions_ += "  " + tag + " = extractvalue %CwhipArrayValue " +
+                                 operand.operand + ", 0\n"
+                                 "  " + pointer + " = extractvalue %CwhipArrayValue " +
+                                 operand.operand + ", 2\n"
+                                 "  " + matches + " = call i32 @cwhip_value_is_range(i64 " +
+                                 tag + ", ptr " + pointer + ", i64 " +
+                                 std::to_string(numericRuntimeTag(rangeElementType(target))) +
+                                 ")\n"
+                                 "  " + result + " = icmp ne i32 " + matches + ", 0\n";
+                return {"bool", result};
+            }
             const auto expectedTag = isNumericType(target) ?
                                          std::to_string(numericRuntimeTag(target)) :
                                      target == "dict" ? "4" :
@@ -1573,6 +1636,23 @@ CodeGenerator::Value CodeGenerator::emitExpression(const Expression& expression,
         }
         const auto right = emitExpression(*expression.right,
                                           left.type == "type" ? "type" : "");
+        if (operation == "in") {
+            const auto first = emitRangeEndpoint(right, 2, expression.location);
+            const auto last = emitRangeEndpoint(right, 3, expression.location);
+            const auto geFirst = emitNumericComparison(">=", left, first, expression.location);
+            const auto leLast = emitNumericComparison("<=", left, last, expression.location);
+            const auto leFirst = emitNumericComparison("<=", left, first, expression.location);
+            const auto geLast = emitNumericComparison(">=", left, last, expression.location);
+            const auto forward = newTemporary();
+            const auto backward = newTemporary();
+            const auto result = newTemporary();
+            instructions_ += "  " + forward + " = and i1 " + geFirst.operand + ", " +
+                             leLast.operand + "\n"
+                             "  " + backward + " = and i1 " + leFirst.operand + ", " +
+                             geLast.operand + "\n"
+                             "  " + result + " = or i1 " + forward + ", " + backward + "\n";
+            return {"bool", result};
+        }
         if (operation == "+" || operation == "-" || operation == "*" ||
             operation == "/" || operation == "%" || operation == "&" ||
             operation == "|" || operation == "^" ||
@@ -1690,6 +1770,21 @@ CodeGenerator::Value CodeGenerator::emitExpression(const Expression& expression,
     }
     }
     unsupported(expression.location, "expression");
+}
+
+CodeGenerator::Value CodeGenerator::emitRangeEndpoint(
+    const Value& range, unsigned index, const SourceLocation& location) {
+    emitNullCheck(range.operand, location);
+    const auto address = newTemporary();
+    const auto bits = newTemporary();
+    instructions_ += "  " + address + " = getelementptr inbounds %CwhipRange, ptr " +
+                     range.operand + ", i32 0, i32 " + std::to_string(index) + "\n"
+                     "  " + bits + " = load i64, ptr " + address + "\n";
+    const auto element = rangeElementType(range.type);
+    if (numericType(element)->width == 64) return {element, bits};
+    const auto result = newTemporary();
+    instructions_ += "  " + result + " = trunc i64 " + bits + " to " + llvmType(element) + "\n";
+    return {element, result};
 }
 
 } // namespace cwhip
