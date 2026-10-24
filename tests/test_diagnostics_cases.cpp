@@ -134,7 +134,7 @@ const TestGroupRegistration registration{2, {
              }
              for (const auto& spec : {"d", "x", "X", "c", "08"}) {
                  expectDiagnostic("start {\n print(\"{:" + std::string(spec) + "}\", true)\n}",
-                                  "numeric format specifiers require int or unsigned");
+                                  "numeric format specifiers require an integer value");
              }
              expectDiagnostic("start {\n print(\"{}\", 1, 2)\n}",
                               "one '{}' placeholder per argument");
@@ -147,7 +147,7 @@ const TestGroupRegistration registration{2, {
          }},
         {"string ordering rejected", [] {
              expectDiagnostic("start {\n strg a = \"a\"\n print(a < \"a\")\n}",
-                              "requires matching int, float, or unsigned operands");
+                              "comparison operator '<' requires numeric operands");
          }},
         {"integer condition rejected", [] {
              expectDiagnostic("start { if (1) { } }", "if condition must have type bool");
@@ -168,12 +168,12 @@ const TestGroupRegistration registration{2, {
          }},
         {"compound assignments reject unsupported targets", [] {
              expectDiagnostic("start {\n bool ready = true\n ready += true\n}",
-                              "requires an int, unsigned, or float target");
+                              "compound assignment requires a numeric target");
              expectDiagnostic("start {\n list values = [1]\n values[0] += 1\n}",
                               "target must be a scalar variable or object field");
              expectDiagnostic("class Item {}\nstart {\n Item value = Item()\n"
                               " value += value\n}",
-                              "requires an int, unsigned, or float target");
+                              "compound assignment requires a numeric target");
          }},
         {"compound assignments require initialized values", [] {
              expectDiagnostic("start {\n int value\n value += 1\n}",

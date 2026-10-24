@@ -6,6 +6,7 @@
 #include "cwhip/SemanticAnalyzer.hpp"
 #include "cwhip/CallbackType.hpp"
 #include "cwhip/Mangling.hpp"
+#include "cwhip/NumericType.hpp"
 
 #include "cwhip/Diagnostic.hpp"
 
@@ -40,6 +41,8 @@ void SemanticAnalyzer::analyzeStatement(Statement& statement) {
                                       "cannot initialize " + statement.declaredType +
                                           " variable with " + initializerType);
             }
+            warnNumericConversion(statement.declaredType, initializerType,
+                                  statement.expressions.front()->location);
             symbols_[index].initialized = true;
         }
         return;
@@ -183,10 +186,9 @@ void SemanticAnalyzer::analyzeStatement(Statement& statement) {
                                       "compound assignment target must be a scalar variable or "
                                       "object field");
             }
-            if (targetType != "int" && targetType != "unsigned" &&
-                targetType != "float") {
+            if (!isNumericType(targetType)) {
                 throw DiagnosticError(statement.target->location,
-                                      "compound assignment requires an int, unsigned, or float "
+                                      "compound assignment requires a numeric "
                                       "target");
             }
             (void)analyzeExpression(*statement.target);
@@ -204,21 +206,30 @@ void SemanticAnalyzer::analyzeStatement(Statement& statement) {
         if (compoundAssignment) {
             const auto operation = statement.assignmentOperator.substr(
                 0, statement.assignmentOperator.size() - 1);
-            if (valueType != targetType || (operation == "%" && targetType == "float")) {
+            const auto operationType = commonNumericType(targetType, valueType);
+            if (!operationType ||
+                (operation == "%" &&
+                 (!isIntegerType(targetType) || !isIntegerType(valueType)))) {
                 throw DiagnosticError(
                     statement.assignmentOperatorLocation,
                     "operator '" + statement.assignmentOperator +
-                        "' requires matching int, float, or unsigned operands" +
-                        (operation == "%" && targetType == "float"
-                             ? " (float remainder is unsupported)"
-                             : ""));
+                        "' requires a valid common numeric type" +
+                        (operation == "%" ? " and integer operands" : ""));
             }
+            warnNumericConversion(*operationType, targetType,
+                                  statement.target->location);
+            warnNumericConversion(*operationType, valueType,
+                                  statement.expressions.front()->location);
+            warnNumericConversion(targetType, *operationType,
+                                  statement.assignmentOperatorLocation);
         }
         if (targetType == "buffer-byte") {
-            if (valueType != "int" && valueType != "unsigned") {
+            if (!isIntegerType(valueType)) {
                 throw DiagnosticError(statement.expressions.front()->location,
-                                      "buffer element assignment requires int or unsigned");
+                                      "buffer element assignment requires an integer");
             }
+            warnNumericConversion("uint8", valueType,
+                                  statement.expressions.front()->location);
             return;
         }
         if (!isAssignable(targetType, valueType) &&
@@ -226,6 +237,10 @@ void SemanticAnalyzer::analyzeStatement(Statement& statement) {
             throw DiagnosticError(statement.expressions.front()->location,
                                   "cannot assign " + valueType + " to " + targetType +
                                       " variable '" + statement.target->value + "'");
+        }
+        if (!compoundAssignment) {
+            warnNumericConversion(targetType, valueType,
+                                  statement.expressions.front()->location);
         }
         if (statement.target->kind == ExpressionKind::Identifier) {
             const auto index = findSymbolIndex(statement.target->value);
@@ -240,8 +255,8 @@ void SemanticAnalyzer::analyzeStatement(Statement& statement) {
         for (const auto& expression : statement.expressions) {
             types.push_back(analyzeExpression(*expression));
         }
-        if (!types.empty() && types.front() != "int" && types.front() != "bool" &&
-                   types.front() != "float" && types.front() != "unsigned" &&
+        if (!types.empty() && !isNumericType(types.front()) &&
+                   types.front() != "bool" &&
                    types.front() != "String" && types.front() != "any" &&
                    types.front() != "type") {
             throw DiagnosticError(statement.location,
@@ -491,6 +506,8 @@ void SemanticAnalyzer::analyzeStatement(Statement& statement) {
                 throw DiagnosticError(statement.expressions.front()->location,
                                       "return type does not match method return type");
             }
+            warnNumericConversion(currentMethod_->returnType, returnType,
+                                  statement.expressions.front()->location);
         }
         return;
     }
@@ -516,8 +533,7 @@ void SemanticAnalyzer::analyzeStatement(Statement& statement) {
                                       "inline capture type '" + capture.type +
                                           "' is not supported");
             }
-            if (capture.type != "int" && capture.type != "bool" &&
-                capture.type != "float" && capture.type != "unsigned" &&
+            if (!isNumericType(capture.type) && capture.type != "bool" &&
                 capture.type != "String" &&
                 capture.type != "list" && capture.type != "dict" &&
                 capture.type != "buffer" &&

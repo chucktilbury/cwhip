@@ -798,6 +798,12 @@ int main(int argc, char** argv) {
         cwhip::SemanticAnalyzer semanticAnalyzer;
         semanticAnalyzer.setBuiltinSource(resources.builtinSource);
         semanticAnalyzer.analyze(program);
+        for (const auto& warning : semanticAnalyzer.warnings()) {
+            std::cerr << diagnosticPrefix(cwhip::DiagnosticCode::Source,
+                                          cwhip::DiagnosticSeverity::Warning)
+                      << warning.location.file << ':' << warning.location.line << ':'
+                      << warning.location.column << ": " << warning.message << '\n';
+        }
         frontendTimer.reset();
         if (dump) {
             cwhip::dumpAst(program, std::cout);

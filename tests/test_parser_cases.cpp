@@ -69,7 +69,7 @@ const TestGroupRegistration registration{1, {
              };
              rejected("start { print(" + addition + ") }");
              rejected("start { print(" + members + ") }");
-             rejected("start { inline(int " + members + ") {} }");
+             rejected("start { inline(int64 " + members + ") {} }");
              std::string accepted = "1";
              for (int index = 0; index < 127; ++index) accepted += "+1";
              cwhip::Lexer lexer("start { print(" + accepted + ") }", "tree-depth.cw");
@@ -159,10 +159,16 @@ const TestGroupRegistration registration{1, {
               const auto program = parse(
                   "class Values { enum { FIRST = 3 } }\n"
                   "start { Values value = Values()\n print(value.FIRST) }");
-              const auto ir =
-                  cwhip::CodeGenerator("x86_64-unknown-linux-gnu").generate(program);
-              require(ir.find("%Class.Values = type { ptr, ptr }") != std::string::npos,
-                      "enum constants must not add per-instance storage");
+              try {
+                  (void)cwhip::CodeGenerator("x86_64-unknown-linux-gnu").generate(program);
+              } catch (const cwhip::DiagnosticError& error) {
+                  require(std::string(error.what()).find(
+                              "fixed-width numeric execution") != std::string::npos,
+                          "enum constant use should stop at the numeric backend boundary");
+                  return;
+              }
+              throw std::runtime_error(
+                  "enum constant numeric execution was silently lowered");
           }},
          {"enum constants obey access, inheritance, and immutability rules", [] {
               expectValid(
@@ -401,11 +407,11 @@ const TestGroupRegistration registration{1, {
          }},
         {"buffer literals reject non-integer element types", [] {
              expectDiagnostic("start { buffer bytes = buffer[true] }",
-                              "buffer literal elements must have type int or unsigned");
+                              "buffer literal elements must have an integer type");
              expectDiagnostic("start { buffer bytes = buffer[1.5] }",
-                              "buffer literal elements must have type int or unsigned");
+                              "buffer literal elements must have an integer type");
              expectDiagnostic("start { buffer bytes = buffer[\"byte\"] }",
-                              "buffer literal elements must have type int or unsigned");
+                              "buffer literal elements must have an integer type");
          }},
         {"raise, catch-all, and finally syntax", [] {
              const auto program = parse(

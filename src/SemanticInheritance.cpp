@@ -7,6 +7,7 @@
 #include "cwhip/CallbackType.hpp"
 #include "cwhip/Diagnostic.hpp"
 #include "cwhip/Mangling.hpp"
+#include "cwhip/NumericType.hpp"
 
 #include <algorithm>
 #include <unordered_set>
@@ -369,11 +370,12 @@ std::vector<const MethodDeclaration*> SemanticAnalyzer::findOverloads(
 
 int SemanticAnalyzer::conversionRank(const std::string& target,
                                     const std::string& source,
-                                    const Expression& argument) const {
+                                    const Expression&) const {
     if (target == source) return 0;
-    if (source == "int" && target == "unsigned" &&
-        argument.kind == ExpressionKind::Integer) {
-        return 1;
+    if (isNumericType(target) && isNumericType(source)) {
+        const auto* targetType = numericType(target);
+        return (isLosslessNumericConversion(target, source) ? 1 : 100) +
+               static_cast<int>(targetType->width);
     }
     if (source == "null" && classes_.find(target) != classes_.end()) return 2;
     if (!isAssignable(target, source)) return -1;
@@ -538,15 +540,15 @@ bool SemanticAnalyzer::isAssignable(const std::string& target,
     // 'any' is the dynamic/tagged value representation returned by collection
     // reads; it may hold primitive values and managed references.
     if (target == "any") {
-        return source == "int" || source == "bool" || source == "float" ||
-               source == "unsigned" || source == "String" || source == "null" ||
+        return isNumericType(source) || source == "bool" || source == "String" ||
+               source == "null" ||
                source == "list" || source == "dict" || source == "buffer" ||
                source == "handle" || source == "type" ||
                classes_.find(source) != classes_.end();
     }
     if (source == "any") {
-        return target == "int" || target == "bool" || target == "float" ||
-               target == "unsigned" || target == "String" || target == "dict" ||
+        return isNumericType(target) || target == "bool" || target == "String" ||
+               target == "dict" ||
                target == "list" || target == "buffer" || target == "handle" ||
                classes_.find(target) != classes_.end();
     }
@@ -558,10 +560,11 @@ bool SemanticAnalyzer::isAssignable(const std::string& target,
         // elements, function arguments/returns) are unaffected by this and
         // continue to use the plain unboxed representation.
         return target == "buffer" || target == "handle" || target == "String" ||
-               target == "list" || target == "dict" || target == "int" ||
-               target == "unsigned" || target == "float" || target == "bool" ||
+               target == "list" || target == "dict" || isNumericType(target) ||
+               target == "bool" ||
                target == "type" || classes_.find(target) != classes_.end();
     }
+    if (isNumericType(target) && isNumericType(source)) return true;
     const auto found = classes_.find(source);
     if (classes_.find(target) == classes_.end() || found == classes_.end() ||
         !isSubclassOf(source, target)) return false;

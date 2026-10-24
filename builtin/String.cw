@@ -11,16 +11,16 @@ class String {
     public:
     void append(String other)
     bool equals(String other)
-    int toInt()
-    unsigned toUnsigned()
-    float toFloat()
+    int64 toInt()
+    uint64 toUnsigned()
+    fp64 toFloat()
 
-    unsigned byteAt(int index)
-    String slice(int first, int last)
-    void insert(int index, String other)
-    void removeRange(int first, int last)
+    uint64 byteAt(int64 index)
+    String slice(int64 first, int64 last)
+    void insert(int64 index, String other)
+    void removeRange(int64 first, int64 last)
     void clear()
-    int find(String needle)
+    int64 find(String needle)
     bool contains(String needle)
     bool startsWith(String prefix)
     bool endsWith(String suffix)
@@ -34,15 +34,15 @@ class String {
 
 void String.append(String other) from "cwhip_string_append"
 bool String.equals(String other) from "cwhip_string_equals"
-int String.toInt() from "cwhip_string_method_to_int"
-unsigned String.toUnsigned() from "cwhip_string_method_to_unsigned"
-float String.toFloat() from "cwhip_string_method_to_float"
-unsigned String.byteAt(int index) from "cwhip_string_method_byte_at"
-String String.slice(int first, int last) from "cwhip_string_method_slice"
-void String.insert(int index, String other) from "cwhip_string_method_insert"
-void String.removeRange(int first, int last) from "cwhip_string_method_remove_range"
+int64 String.toInt() from "cwhip_string_method_to_int"
+uint64 String.toUnsigned() from "cwhip_string_method_to_unsigned"
+fp64 String.toFloat() from "cwhip_string_method_to_float"
+uint64 String.byteAt(int64 index) from "cwhip_string_method_byte_at"
+String String.slice(int64 first, int64 last) from "cwhip_string_method_slice"
+void String.insert(int64 index, String other) from "cwhip_string_method_insert"
+void String.removeRange(int64 first, int64 last) from "cwhip_string_method_remove_range"
 void String.clear() from "cwhip_string_method_clear"
-int String.find(String needle) from "cwhip_string_method_find"
+int64 String.find(String needle) from "cwhip_string_method_find"
 bool String.contains(String needle) from "cwhip_string_method_contains"
 bool String.startsWith(String prefix) from "cwhip_string_method_starts_with"
 bool String.endsWith(String suffix) from "cwhip_string_method_ends_with"

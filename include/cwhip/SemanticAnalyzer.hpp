@@ -26,10 +26,16 @@ struct SymbolInfo {
     bool readOnly = false;
 };
 
+struct SemanticWarning {
+    SourceLocation location;
+    std::string message;
+};
+
 class SemanticAnalyzer {
 public:
     void analyze(Program& program);
     void dumpSymbolTable(std::ostream& output) const;
+    const std::vector<SemanticWarning>& warnings() const noexcept;
     /// Overrides the String builtin source; defaults to the resolved resource path.
     void setBuiltinSource(std::filesystem::path path);
 
@@ -102,6 +108,8 @@ private:
     bool basePathAccessible(const ClassDeclaration& owner,
                             const std::vector<std::string>& path) const;
     bool isAssignable(const std::string& target, const std::string& source) const;
+    void warnNumericConversion(const std::string& target, const std::string& source,
+                               const SourceLocation& location);
     bool isSubclassOf(const std::string& type, const std::string& base) const;
     std::vector<const FieldDeclaration*> inheritedFields(const ClassDeclaration& declaration) const;
     std::string analyzeExpression(Expression& expression,
@@ -120,6 +128,7 @@ private:
 
     std::vector<Scope> scopes_;
     std::vector<SymbolInfo> symbols_;
+    std::vector<SemanticWarning> warnings_;
     std::unordered_set<std::string> namespaces_;
     std::unordered_map<std::string, std::string> namespaceOwners_;
     std::unordered_map<std::string, ClassDeclaration*> classes_;

@@ -26,6 +26,16 @@ namespace cwhip {
 /// Encodes one parameter type as a short, unambiguous code.
 inline std::string mangleTypeCode(const std::string& type) {
     if (isCallbackType(type)) return callbackSymbol(type);
+    if (type == "int8") return "i8";
+    if (type == "uint8") return "u8";
+    if (type == "int16") return "i16";
+    if (type == "uint16") return "u16";
+    if (type == "int32") return "i32";
+    if (type == "uint32") return "u32";
+    if (type == "int64") return "i64";
+    if (type == "uint64") return "u64";
+    if (type == "fp32") return "f32";
+    if (type == "fp64") return "f64";
     if (type == "int") return "i";
     if (type == "unsigned") return "u";
     if (type == "float") return "f";

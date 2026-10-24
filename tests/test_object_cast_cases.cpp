@@ -104,9 +104,9 @@ const TestGroupRegistration registration{2, {
      }},
     {"checked casts reject impossible sources and targets", [] {
          expectDiagnostic("class Foo {}\nstart { print(1 as Foo) }",
-                          "checked cast from 'int' to 'Foo' is impossible");
-         expectDiagnostic("class Foo {}\nstart { print(Foo() as int) }",
-                          "checked cast from 'Foo' to 'int' is impossible");
+                          "checked cast from 'int8' to 'Foo' is impossible");
+         expectDiagnostic("class Foo {}\nstart { print(Foo() as int64) }",
+                          "checked cast from 'Foo' to 'int64' is impossible");
          expectDiagnostic("class Foo {}\nstart { print(Foo() as void) }",
                           "checked cast target 'void' is not supported");
          expectDiagnostic("class Foo {}\nstart { print(Foo() as Missing) }",

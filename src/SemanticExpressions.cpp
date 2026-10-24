@@ -6,6 +6,7 @@
 #include "cwhip/SemanticAnalyzer.hpp"
 #include "cwhip/CallbackType.hpp"
 #include "cwhip/Mangling.hpp"
+#include "cwhip/NumericType.hpp"
 
 #include "cwhip/Diagnostic.hpp"
 
@@ -45,6 +46,56 @@ bool parseIntegerMagnitude(const std::string& literal, std::uint64_t& value) {
     const auto* end = literal.data() + literal.size();
     const auto parsed = std::from_chars(begin, end, value, hexadecimal ? 16 : 10);
     return parsed.ec == std::errc{} && parsed.ptr == end;
+}
+
+std::string smallestSignedIntegerType(std::uint64_t magnitude, bool negative) {
+    for (const unsigned width : {8U, 16U, 32U, 64U}) {
+        const auto limit = std::uint64_t{1} << (width - 1);
+        if (negative ? magnitude <= limit : magnitude < limit) {
+            return "int" + std::to_string(width);
+        }
+    }
+    return {};
+}
+
+std::string smallestUnsignedIntegerType(std::uint64_t magnitude) {
+    for (const unsigned width : {8U, 16U, 32U}) {
+        if (magnitude < (std::uint64_t{1} << width)) {
+            return "uint" + std::to_string(width);
+        }
+    }
+    return "uint64";
+}
+
+bool nonzeroDecimalLiteral(std::string_view literal) {
+    const auto exponent = literal.find_first_of("eE");
+    const auto significand = literal.substr(0, exponent);
+    return std::any_of(significand.begin(), significand.end(),
+                       [](char digit) { return digit >= '1' && digit <= '9'; });
+}
+
+std::string classifyFloatingLiteral(const std::string& literal,
+                                    const SourceLocation& location) {
+    const bool explicitFp64 = literal.size() >= 3 &&
+                              literal.compare(literal.size() - 3, 3, "f64") == 0;
+    const auto text = explicitFp64 ? literal.substr(0, literal.size() - 3) : literal;
+    const auto parseFloat = [&text](auto& value) {
+        const auto parsed = std::from_chars(text.data(), text.data() + text.size(), value,
+                                            std::chars_format::general);
+        return parsed.ec == std::errc{} && parsed.ptr == text.data() + text.size() &&
+               std::isfinite(value);
+    };
+    const bool nonzero = nonzeroDecimalLiteral(text);
+    if (!explicitFp64) {
+        float value = 0;
+        if (parseFloat(value) && (!nonzero || value != 0.0F)) return "fp32";
+    }
+    double value = 0;
+    if (!parseFloat(value) || (nonzero && value == 0.0)) {
+        throw DiagnosticError(location,
+                              "floating-point literal is outside the finite fp64 range");
+    }
+    return "fp64";
 }
 
 bool isMinimumIntegerMagnitude(const Expression& expression) {
@@ -420,28 +471,26 @@ bool SemanticAnalyzer::resolveBaseQualifier(Expression& receiver,
 
 std::string SemanticAnalyzer::analyzeExpression(Expression& expression,
                                                 const std::string& expectedType) {
+    const auto rememberNumericType = [&expression](const std::string& type) {
+        if (isNumericType(type)) expression.resolvedType = type;
+        return type;
+    };
     switch (expression.kind) {
     case ExpressionKind::Integer: {
-        // A plain, unsuffixed integer literal is also a valid unsigned
-        // literal when the surrounding context expects `unsigned` (the `u`
-        // suffix remains required everywhere else, including plain `int`
-        // contexts and `any`).
         std::uint64_t magnitude = 0;
         if (!parseIntegerMagnitude(expression.value, magnitude)) {
             throw DiagnosticError(expression.location,
-                                  expectedType == "unsigned"
-                                      ? "integer literal is outside the unsigned 64-bit range"
-                                      : "integer literal is outside the signed 64-bit range");
+                                  "integer literal is outside the signed 64-bit range; "
+                                  "append 'u' for an unsigned literal");
         }
-        if (expectedType == "unsigned") {
-            return "unsigned";
-        }
-        if (magnitude > static_cast<std::uint64_t>(
-                            std::numeric_limits<std::int64_t>::max())) {
+        const auto type = smallestSignedIntegerType(magnitude, false);
+        if (type.empty()) {
             throw DiagnosticError(expression.location,
-                                  "integer literal is outside the signed 64-bit range");
+                                  "integer literal is outside the signed 64-bit range; "
+                                  "append 'u' for an unsigned literal");
         }
-        return "int";
+        expression.resolvedType = type;
+        return type;
     }
     case ExpressionKind::Unsigned: {
         const auto length = expression.value.size() - 1;
@@ -451,20 +500,12 @@ std::string SemanticAnalyzer::analyzeExpression(Expression& expression,
             throw DiagnosticError(expression.location,
                                   "unsigned literal is outside the 64-bit range");
         }
-        return "unsigned";
+        expression.resolvedType = smallestUnsignedIntegerType(value);
+        return expression.resolvedType;
     }
     case ExpressionKind::Float: {
-        double value = 0;
-        const auto parsed = std::from_chars(expression.value.data(),
-                                            expression.value.data() + expression.value.size(),
-                                            value);
-        if (parsed.ec != std::errc{} ||
-            parsed.ptr != expression.value.data() + expression.value.size() ||
-            !std::isfinite(value)) {
-            throw DiagnosticError(expression.location,
-                                  "floating-point literal is outside the finite double range");
-        }
-        return "float";
+        expression.resolvedType = classifyFloatingLiteral(expression.value, expression.location);
+        return expression.resolvedType;
     }
     case ExpressionKind::Boolean:
         return "bool";
@@ -482,10 +523,10 @@ std::string SemanticAnalyzer::analyzeExpression(Expression& expression,
             for (std::size_t field = 0; field < expression.formatSpecs.size(); ++field) {
                 const auto& spec = expression.formatSpecs[field];
                 if (expression.formatArgumentIndices[field] == index &&
-                    (spec.type || spec.zeroPad) && type != "int" &&
-                    type != "unsigned" && type != "any") {
+                    (spec.type || spec.zeroPad) && !isIntegerType(type) &&
+                    type != "any") {
                     throw DiagnosticError(argument->location,
-                                          "numeric format specifiers require int or unsigned");
+                                          "numeric format specifiers require an integer value");
                 }
             }
         }
@@ -494,8 +535,7 @@ std::string SemanticAnalyzer::analyzeExpression(Expression& expression,
         return expectedType == "type" ? "type" : "null";
     case ExpressionKind::TypeName: {
         const auto& target = expression.value;
-        const bool known = target == "int" || target == "bool" || target == "float" ||
-                           target == "unsigned" || target == "String" ||
+        const bool known = isNumericType(target) || target == "bool" || target == "String" ||
                            target == "list" || target == "dict" || target == "buffer" ||
                            target == "handle" || target == "any" || target == "type" ||
                            classes_.find(target) != classes_.end();
@@ -520,7 +560,7 @@ std::string SemanticAnalyzer::analyzeExpression(Expression& expression,
                 throw DiagnosticError(expression.location,
                                       "variable '" + expression.value + "' may be uninitialized");
             }
-            return symbols_[index].type;
+            return rememberNumericType(symbols_[index].type);
         }
         if (currentClass_ != nullptr) {
             if (countEnumMembers(*currentClass_, expression.value) != 0 &&
@@ -546,7 +586,7 @@ std::string SemanticAnalyzer::analyzeExpression(Expression& expression,
                                           "field '" + expression.value +
                                               "' is not accessible in this class");
                 }
-                return field->type;
+                return rememberNumericType(field->type);
             }
             if (countEnumMembers(*currentClass_, expression.value) != 0) {
                 const auto accessible =
@@ -567,7 +607,7 @@ std::string SemanticAnalyzer::analyzeExpression(Expression& expression,
                         findEnumMember(*currentClass_, expression.value)) {
                     expression.kind = ExpressionKind::EnumConstant;
                     expression.value = std::to_string(*member->value);
-                    return "int";
+                    return rememberNumericType("int64");
                 }
             }
         }
@@ -588,7 +628,7 @@ std::string SemanticAnalyzer::analyzeExpression(Expression& expression,
     case ExpressionKind::ImplicitThis:
         return currentClass_->name;
     case ExpressionKind::EnumConstant:
-        return "int";
+        return rememberNumericType("int64");
     case ExpressionKind::Member: {
         if (expectedType == "type") {
             std::string name;
@@ -651,13 +691,15 @@ std::string SemanticAnalyzer::analyzeExpression(Expression& expression,
         if (!qualified && !classQualified) {
             const auto receiverType = analyzeExpression(*expression.left);
             if (isArrayType(receiverType)) {
-                if (expression.value == "length") return "int";
+                if (expression.value == "length")
+                    return rememberNumericType("int64");
                 throw DiagnosticError(expression.location,
                                       "lists support only the read-only 'length' member and "
                                       "'resize' and 'append' methods");
             }
             if (isMapType(receiverType)) {
-                if (expression.value == "length") return "int";
+                if (expression.value == "length")
+                    return rememberNumericType("int64");
                 if (expression.value == "contains" || expression.value == "remove") {
                     throw DiagnosticError(expression.location,
                                           "dict '" + expression.value +
@@ -668,12 +710,13 @@ std::string SemanticAnalyzer::analyzeExpression(Expression& expression,
                                       "'contains' and 'remove' methods");
             }
             if (isBufferType(receiverType)) {
-                if (expression.value == "length") return "int";
+                if (expression.value == "length")
+                    return rememberNumericType("int64");
                 throw DiagnosticError(expression.location,
                                       "buffers support only the read-only 'length' member");
             }
             if (receiverType == "String" && expression.value == "length") {
-                return "int";
+                return rememberNumericType("int64");
             }
             if (isOpaqueHandleType(receiverType)) {
                 throw DiagnosticError(expression.location,
@@ -744,7 +787,7 @@ std::string SemanticAnalyzer::analyzeExpression(Expression& expression,
             if (member == nullptr) {
                 if (!classQualified) {
                     if (const auto* field = findField(*owner, expression.value)) {
-                        return field->type;
+                        return rememberNumericType(field->type);
                     }
                 }
                 throw DiagnosticError(expression.location,
@@ -754,7 +797,7 @@ std::string SemanticAnalyzer::analyzeExpression(Expression& expression,
             expression.kind = ExpressionKind::EnumConstant;
             expression.value = std::to_string(*member->value);
             if (classQualified) expression.left.reset();
-            return "int";
+            return rememberNumericType("int64");
         }
         if (classQualified) {
             throw DiagnosticError(expression.location,
@@ -762,7 +805,7 @@ std::string SemanticAnalyzer::analyzeExpression(Expression& expression,
                                       expression.value + "'");
         }
         if (const auto* field = findField(*owner, expression.value)) {
-            return field->type;
+            return rememberNumericType(field->type);
         }
         throw DiagnosticError(expression.location,
                               "class '" + owner->name + "' has no field '" + expression.value + "'");
@@ -772,8 +815,7 @@ std::string SemanticAnalyzer::analyzeExpression(Expression& expression,
         // so nested arrays share the same precise GC tracing as maps.
         for (auto& element : expression.arguments) {
             const auto actualType = analyzeExpression(*element);
-            const bool validElement = actualType == "int" || actualType == "bool" ||
-                                      actualType == "float" || actualType == "unsigned" ||
+            const bool validElement = isNumericType(actualType) || actualType == "bool" ||
                                       actualType == "String" ||
                                       actualType == "null" || actualType == "any" ||
                                       isMapType(actualType) || isArrayType(actualType) ||
@@ -794,9 +836,9 @@ std::string SemanticAnalyzer::analyzeExpression(Expression& expression,
     case ExpressionKind::BufferLiteral: {
         for (auto& element : expression.arguments) {
             const auto elementType = analyzeExpression(*element);
-            if (elementType != "int" && elementType != "unsigned") {
+            if (!isIntegerType(elementType)) {
                 throw DiagnosticError(element->location,
-                                      "buffer literal elements must have type int or unsigned; "
+                                      "buffer literal elements must have an integer type; "
                                       "found " +
                                           elementType);
             }
@@ -811,8 +853,7 @@ std::string SemanticAnalyzer::analyzeExpression(Expression& expression,
                                       "dict keys must have type strg");
             }
             const auto valueType = analyzeExpression(*expression.arguments[index + 1]);
-            const bool validValue = valueType == "int" || valueType == "bool" ||
-                                    valueType == "float" || valueType == "unsigned" ||
+            const bool validValue = isNumericType(valueType) || valueType == "bool" ||
                                     valueType == "String" ||
                                     valueType == "type" ||
                                     valueType == "null" || valueType == "any" ||
@@ -839,24 +880,25 @@ std::string SemanticAnalyzer::analyzeExpression(Expression& expression,
         }
         if (isArrayType(collectionType)) {
             if (expression.kind == ExpressionKind::Index) {
-                if (analyzeExpression(*expression.arguments.front()) != "int") {
+                if (!isIntegerType(analyzeExpression(*expression.arguments.front()))) {
                     throw DiagnosticError(expression.arguments.front()->location,
-                                          "list index and slice bounds must be int");
+                                          "list index and slice bounds must be integers");
                 }
                 return "any";
             }
             for (const auto index : {0U, 1U}) {
                 const bool present = index == 0 ? expression.sliceHasStart
                                                 : expression.sliceHasEnd;
-                if (present && analyzeExpression(*expression.arguments[index]) != "int") {
+                if (present &&
+                    !isIntegerType(analyzeExpression(*expression.arguments[index]))) {
                     throw DiagnosticError(expression.arguments[index]->location,
-                                          "list index and slice bounds must be int");
+                                          "list index and slice bounds must be integers");
                 }
             }
             if (expression.sliceHasStep) {
                 auto& step = *expression.arguments[2];
-                if (analyzeExpression(step) != "int") {
-                    throw DiagnosticError(step.location, "list slice step must be int");
+                if (!isIntegerType(analyzeExpression(step))) {
+                    throw DiagnosticError(step.location, "list slice step must be an integer");
                 }
                 std::int64_t constantStep = 0;
                 if (constantInteger(step, constantStep) && constantStep == 0) {
@@ -869,9 +911,10 @@ std::string SemanticAnalyzer::analyzeExpression(Expression& expression,
             for (const auto index : {0U, 1U}) {
                 const bool present = index == 0 ? expression.sliceHasStart
                                                 : expression.sliceHasEnd;
-                if (present && analyzeExpression(*expression.arguments[index]) != "int") {
+                if (present &&
+                    !isIntegerType(analyzeExpression(*expression.arguments[index]))) {
                     throw DiagnosticError(expression.arguments[index]->location,
-                                          "dict index and slice bounds must be int");
+                                          "dict index and slice bounds must be integers");
                 }
             }
             return "dict";
@@ -886,16 +929,17 @@ std::string SemanticAnalyzer::analyzeExpression(Expression& expression,
         }
         if (isBufferType(collectionType)) {
             if (expression.kind == ExpressionKind::Index) {
-                if (analyzeExpression(*expression.arguments.front()) != "int") {
+                if (!isIntegerType(analyzeExpression(*expression.arguments.front()))) {
                     throw DiagnosticError(expression.arguments.front()->location,
                                           "buffer index and slice bounds must be int");
                 }
-                return "unsigned";
+                return rememberNumericType("uint8");
             }
             for (const auto index : {0U, 1U}) {
                 const bool present = index == 0 ? expression.sliceHasStart
                                                 : expression.sliceHasEnd;
-                if (present && analyzeExpression(*expression.arguments[index]) != "int") {
+                if (present &&
+                    !isIntegerType(analyzeExpression(*expression.arguments[index]))) {
                     throw DiagnosticError(expression.arguments[index]->location,
                                           "buffer index and slice bounds must be int");
                 }
@@ -912,7 +956,7 @@ std::string SemanticAnalyzer::analyzeExpression(Expression& expression,
             throw DiagnosticError(expression.location,
                                   "buffer constructor expects one int length");
         }
-        if (analyzeExpression(*expression.arguments.front()) != "int") {
+        if (!isIntegerType(analyzeExpression(*expression.arguments.front()))) {
             throw DiagnosticError(expression.arguments.front()->location,
                                   "buffer length must have type int");
         }
@@ -1042,6 +1086,8 @@ std::string SemanticAnalyzer::analyzeExpression(Expression& expression,
                                       "constructor argument type does not match parameter '" +
                                           constructor->parameters[index].name + "'");
             }
+            warnNumericConversion(constructor->parameters[index].type, argumentType,
+                                  expression.arguments[index]->location);
         }
         const auto virtualBases = virtualBaseNames(*owner);
         for (const auto& baseName : virtualBases) {
@@ -1122,15 +1168,15 @@ std::string SemanticAnalyzer::analyzeExpression(Expression& expression,
                                           "list '" + target.value + "' expects one argument");
                 }
                 const auto type = analyzeExpression(*expression.arguments.front());
-                if (target.value == "resize" ? type != "int" :
-                    (type != "any" && type != "null" && type != "int" &&
-                     type != "bool" && type != "float" && type != "unsigned" &&
+                if (target.value == "resize" ? !isIntegerType(type) :
+                    (type != "any" && type != "null" && !isNumericType(type) &&
+                     type != "bool" &&
                      type != "String" && type != "type" &&
                      !isArrayType(type) && !isMapType(type) &&
                      classes_.find(type) == classes_.end())) {
                     throw DiagnosticError(expression.arguments.front()->location,
                                           target.value == "resize"
-                                              ? "list resize length must be int"
+                                              ? "list resize length must be an integer"
                                               : "list append value must be a supported collection "
                                                 "element");
                 }
@@ -1150,20 +1196,20 @@ std::string SemanticAnalyzer::analyzeExpression(Expression& expression,
                     throw DiagnosticError(expression.arguments.front()->location,
                                           "dict key must have type strg");
                 }
-                return "int";
+                return rememberNumericType("int64");
             }
             if (isBufferType(receiverType)) {
                 if (target.value != "resize" && target.value != "clear" &&
                     target.value != "append") {
                     throw DiagnosticError(target.location,
                                           "buffers support only resize(int), clear(), and "
-                                          "append(int or unsigned)");
+                                          "append(integer)");
                 }
                 if (target.value == "resize") {
                     if (expression.arguments.size() != 1 ||
-                        analyzeExpression(*expression.arguments.front()) != "int") {
+                        !isIntegerType(analyzeExpression(*expression.arguments.front()))) {
                         throw DiagnosticError(expression.location,
-                                              "buffer 'resize' expects one int length");
+                                              "buffer 'resize' expects one integer length");
                     }
                     return "void";
                 }
@@ -1177,12 +1223,12 @@ std::string SemanticAnalyzer::analyzeExpression(Expression& expression,
                 if (target.value == "append") {
                     if (expression.arguments.size() != 1) {
                         throw DiagnosticError(expression.location,
-                                              "buffer 'append' expects one int or unsigned value");
+                                              "buffer 'append' expects one integer value");
                     }
                     const auto valueType = analyzeExpression(*expression.arguments.front());
-                    if (valueType != "int" && valueType != "unsigned") {
+                    if (!isIntegerType(valueType)) {
                         throw DiagnosticError(expression.arguments.front()->location,
-                                              "buffer append value must have type int or unsigned");
+                                              "buffer append value must have an integer type");
                     }
                     return "void";
                 }
@@ -1299,7 +1345,10 @@ std::string SemanticAnalyzer::analyzeExpression(Expression& expression,
                                       "method argument type does not match parameter '" +
                                           method->parameters[index].name + "'");
             }
+            warnNumericConversion(method->parameters[index].type, argumentType,
+                                  expression.arguments[index]->location);
         }
+        expression.resolvedType = method->returnType;
         return method->returnType;
     }
     case ExpressionKind::BoundMethod:
@@ -1315,6 +1364,8 @@ std::string SemanticAnalyzer::analyzeExpression(Expression& expression,
             const auto actual = analyzeExpression(*expression.arguments[index], signature.parameters[index]);
             if (!isAssignable(signature.parameters[index], actual))
                 throw DiagnosticError(expression.arguments[index]->location, "callback argument type mismatch");
+            warnNumericConversion(signature.parameters[index], actual,
+                                  expression.arguments[index]->location);
         }
         expression.resolvedType = type;
         return signature.result;
@@ -1323,12 +1374,12 @@ std::string SemanticAnalyzer::analyzeExpression(Expression& expression,
         const auto operand = analyzeExpression(*expression.arguments.front());
         const auto& target = expression.value;
         const auto isScalar = [](const std::string& type) {
-            return type == "bool" || type == "int" || type == "unsigned" || type == "float";
+            return type == "bool" || isNumericType(type);
         };
         if (!isScalar(operand) || !isScalar(target)) {
             throw DiagnosticError(expression.location,
                                   "cannot cast " + operand + " to " + target +
-                                      "; only bool/int/unsigned/float conversions are supported");
+                                      "; only bool and numeric conversions are supported");
         }
         return target;
     }
@@ -1336,8 +1387,8 @@ std::string SemanticAnalyzer::analyzeExpression(Expression& expression,
         const auto operand = analyzeExpression(*expression.left);
         const auto& target = expression.value;
         const bool targetKnown =
-            target == "int" || target == "bool" || target == "float" ||
-            target == "unsigned" || target == "String" || target == "list" ||
+            isNumericType(target) || target == "bool" || target == "String" ||
+            target == "list" ||
             target == "dict" || target == "buffer" || target == "handle" ||
             target == "any" || target == "type" || target == "null" ||
             target == "void" ||
@@ -1351,8 +1402,8 @@ std::string SemanticAnalyzer::analyzeExpression(Expression& expression,
                                   "checked cast target 'void' is not supported");
         }
         const bool supportedOperand =
-            operand == "any" || operand == "null" || operand == "int" ||
-            operand == "bool" || operand == "float" || operand == "unsigned" ||
+            operand == "any" || operand == "null" || isNumericType(operand) ||
+            operand == "bool" ||
             operand == "String" || operand == "list" || operand == "dict" ||
             operand == "buffer" || operand == "handle" || operand == "type" ||
             classes_.find(operand) != classes_.end();
@@ -1381,8 +1432,7 @@ std::string SemanticAnalyzer::analyzeExpression(Expression& expression,
             throw DiagnosticError(expression.typeLocation,
                                   "type test target '" + target + "' is not supported");
         }
-        const bool knownTarget = target == "int" || target == "bool" ||
-                                 target == "float" || target == "unsigned" ||
+        const bool knownTarget = isNumericType(target) || target == "bool" ||
                                  target == "String" || target == "list" ||
                                  target == "dict" || target == "buffer" ||
                                  target == "handle" || target == "type" ||
@@ -1392,8 +1442,7 @@ std::string SemanticAnalyzer::analyzeExpression(Expression& expression,
                                   "unknown type name '" + target + "'");
         }
         const bool knownOperand = operand == "null" || operand == "any" ||
-                                  operand == "int" || operand == "bool" ||
-                                  operand == "float" || operand == "unsigned" ||
+                                  isNumericType(operand) || operand == "bool" ||
                                   operand == "String" || operand == "list" ||
                                   operand == "dict" || operand == "buffer" ||
                                   operand == "handle" || operand == "type" ||
@@ -1406,8 +1455,19 @@ std::string SemanticAnalyzer::analyzeExpression(Expression& expression,
     }
     case ExpressionKind::Unary: {
         if (expression.value == "-" && expression.left &&
-            isMinimumIntegerMagnitude(*expression.left)) {
-            return "int";
+            expression.left->kind == ExpressionKind::Integer) {
+            std::uint64_t magnitude = 0;
+            if (!parseIntegerMagnitude(expression.left->value, magnitude)) {
+                throw DiagnosticError(expression.location,
+                                      "integer literal is outside the signed 64-bit range");
+            }
+            const auto negativeType = smallestSignedIntegerType(magnitude, true);
+            if (negativeType.empty()) {
+                throw DiagnosticError(expression.location,
+                                      "integer literal is outside the signed 64-bit range");
+            }
+            expression.resolvedType = negativeType;
+            return negativeType;
         }
         const auto operand = analyzeExpression(*expression.left);
         if (expression.value == "!") {
@@ -1415,11 +1475,25 @@ std::string SemanticAnalyzer::analyzeExpression(Expression& expression,
                 throw DiagnosticError(expression.location,
                                       "logical negation requires a bool operand");
             }
+            expression.resolvedType = "bool";
             return "bool";
         }
-        if ((expression.value == "+" && (operand == "int" || operand == "float" ||
-                                         operand == "unsigned")) ||
-            (expression.value == "-" && (operand == "int" || operand == "float"))) {
+        if (expression.value == "+" && isNumericType(operand)) {
+            expression.resolvedType = operand;
+            return operand;
+        }
+        if (expression.value == "-" && isNumericType(operand) &&
+            !isIntegerType(operand)) {
+            expression.resolvedType = operand;
+            return operand;
+        }
+        if (expression.value == "-" && isIntegerType(operand)) {
+            if (numericType(operand)->category == NumericCategory::UnsignedInteger) {
+                throw DiagnosticError(expression.location,
+                                      "unary minus cannot be applied to an unsigned integer; "
+                                      "use unsigned subtraction or an explicit conversion");
+            }
+            expression.resolvedType = operand;
             return operand;
         }
         throw DiagnosticError(expression.location,
@@ -1451,6 +1525,7 @@ std::string SemanticAnalyzer::analyzeExpression(Expression& expression,
                                       "logical operator '" + operation +
                                           "' requires bool operands");
             }
+            expression.resolvedType = "bool";
             return "bool";
         }
         if (operation == "==" || operation == "!=") {
@@ -1463,12 +1538,13 @@ std::string SemanticAnalyzer::analyzeExpression(Expression& expression,
             const auto isNullComparable = [this](const std::string& type) {
                 if (isCallbackType(type)) return true;
                 return type == "any" || type == "buffer" || type == "handle" || type == "String" ||
-                       type == "list" || type == "dict" || type == "int" ||
-                       type == "bool" || type == "float" || type == "unsigned" ||
+                       type == "list" || type == "dict" || isNumericType(type) ||
+                       type == "bool" ||
                        classes_.find(type) != classes_.end();
             };
             if ((isNullComparable(left) && right == "null") ||
                 (left == "null" && isNullComparable(right))) {
+                expression.resolvedType = "bool";
                 return "bool";
             }
             if (left == "type" || right == "type") {
@@ -1476,11 +1552,13 @@ std::string SemanticAnalyzer::analyzeExpression(Expression& expression,
                     throw DiagnosticError(expression.location,
                                           "equality requires two type values");
                 }
+                expression.resolvedType = "bool";
                 return "bool";
             }
             if (isCallbackType(left) || isCallbackType(right)) {
                 if (left != right)
                     throw DiagnosticError(expression.location, "callback equality requires identical signatures");
+                expression.resolvedType = "bool";
                 return "bool";
             }
             if (classes_.find(left) != classes_.end() &&
@@ -1490,43 +1568,70 @@ std::string SemanticAnalyzer::analyzeExpression(Expression& expression,
                         expression.location,
                         "equality requires compatible class-reference operands");
                 }
+                expression.resolvedType = "bool";
                 return "bool";
             }
-            if (left != right ||
-                (left != "int" && left != "bool" && left != "float" &&
-                 left != "unsigned")) {
+            if (!(isNumericType(left) && isNumericType(right)) &&
+                !(left == "bool" && right == "bool")) {
                 throw DiagnosticError(expression.location,
-                                      "equality requires matching int, bool, float, or unsigned "
-                                      "operands");
+                                      "equality requires numeric operands of any supported "
+                                      "width, matching bool operands, or compatible references");
             }
+            if (isNumericType(left) && isNumericType(right) &&
+                (isFloatingType(left) || isFloatingType(right))) {
+                const auto common = commonNumericType(left, right);
+                if (common) {
+                    warnNumericConversion(*common, left, expression.left->location);
+                    warnNumericConversion(*common, right, expression.right->location);
+                }
+            }
+            expression.resolvedType = "bool";
             return "bool";
         }
-        const bool sameArithmeticType = left == right &&
-            (left == "int" || left == "float" || left == "unsigned");
         if (operation == "<" || operation == "<=" || operation == ">" ||
             operation == ">=") {
             if (left == "type" || right == "type") {
                 throw DiagnosticError(expression.location,
                                       "ordering comparisons are not supported for type values");
             }
-            if (!sameArithmeticType) {
+            const bool integerComparison = isIntegerType(left) && isIntegerType(right);
+            const bool floatingComparison = isNumericType(left) && isNumericType(right) &&
+                                            commonNumericType(left, right).has_value();
+            if (!integerComparison && !floatingComparison) {
                 throw DiagnosticError(expression.location,
                                       "comparison operator '" + operation +
-                                          "' requires matching int, float, or unsigned operands");
+                                          "' requires numeric operands");
             }
+            if (!integerComparison) {
+                const auto common = commonNumericType(left, right);
+                if (common) {
+                    warnNumericConversion(*common, left, expression.left->location);
+                    warnNumericConversion(*common, right, expression.right->location);
+                }
+            }
+            expression.resolvedType = "bool";
             return "bool";
         }
-        if (!sameArithmeticType ||
-            (operation == "%" && left == "float")) {
-            const auto reason = operation == "%" && left == "float"
-                                    ? " (float remainder is unsupported)"
-                                    : "";
+        if (!isNumericType(left) || !isNumericType(right) ||
+            (operation == "%" &&
+             (!isIntegerType(left) || !isIntegerType(right)))) {
             throw DiagnosticError(expression.location,
                                   "operator '" + operation +
-                                      "' requires matching int, float, or unsigned operands" +
-                                      reason);
+                                      "' requires numeric operands" +
+                                      (operation == "%"
+                                           ? " (remainder requires integer operands)" : ""));
         }
-        return left;
+        const auto common = commonNumericType(left, right);
+        if (!common) {
+            throw DiagnosticError(expression.location,
+                                  "operator '" + operation + "' has no common numeric type for " +
+                                      left + " and " + right +
+                                      "; convert an operand explicitly");
+        }
+        warnNumericConversion(*common, left, expression.left->location);
+        warnNumericConversion(*common, right, expression.right->location);
+        expression.resolvedType = *common;
+        return *common;
     }
     }
     throw DiagnosticError(expression.location, "invalid expression");
@@ -1571,9 +1676,9 @@ std::string SemanticAnalyzer::analyzeLValue(Expression& expression) {
     if (expression.kind == ExpressionKind::Index) {
         const auto collectionType = analyzeExpression(*expression.left);
         if (isArrayType(collectionType)) {
-            if (analyzeExpression(*expression.arguments.front()) != "int") {
+            if (!isIntegerType(analyzeExpression(*expression.arguments.front()))) {
                 throw DiagnosticError(expression.arguments.front()->location,
-                                      "list index must be int");
+                                      "list index must be an integer");
             }
             return "any";
         }
@@ -1586,9 +1691,9 @@ std::string SemanticAnalyzer::analyzeLValue(Expression& expression) {
             return "any";
         }
         if (isBufferType(collectionType)) {
-            if (analyzeExpression(*expression.arguments.front()) != "int") {
+            if (!isIntegerType(analyzeExpression(*expression.arguments.front()))) {
                 throw DiagnosticError(expression.arguments.front()->location,
-                                      "buffer index must be int");
+                                      "buffer index must be an integer");
             }
             return "buffer-byte";
         }

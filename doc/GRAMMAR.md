@@ -35,9 +35,9 @@ HEX_INTEGER     ::= ("0x" | "0X"), HEX_DIGIT, { HEX_DIGIT } ;
 INTEGER         ::= DECIMAL_INTEGER | HEX_INTEGER ;
 UNSIGNED_INT    ::= INTEGER, ("u" | "U") ;
 EXPONENT        ::= ("e" | "E"), [ "+" | "-" ], DIGIT, { DIGIT } ;
-FLOAT           ::= DIGIT, { DIGIT }, ".", { DIGIT }, [ EXPONENT ]
+FLOAT           ::= ( DIGIT, { DIGIT }, ".", { DIGIT }, [ EXPONENT ]
                   | ".", DIGIT, { DIGIT }, [ EXPONENT ]
-                  | DIGIT, { DIGIT }, EXPONENT ;
+                  | DIGIT, { DIGIT }, EXPONENT ), [ "f64" ] ;
 
 DOUBLE_STRING   ::= '"', { DOUBLE_CHAR | ESCAPE }, '"' ;
 SINGLE_STRING   ::= "'", { SINGLE_CHAR }, "'" ;
@@ -61,26 +61,32 @@ OPERATOR        ::= "+=" | "-=" | "*=" | "/=" | "%="
                   | "=" | "==" | "!=" | "<" | "<=" | ">" | ">=" ;
 ```
 
-The reserved words are `start`, `int`, `bool`, `float`, `unsigned`, `strg`, `callback`,
+The reserved words include `start`, `bool`, `int8`, `uint8`, `int16`, `uint16`,
+`int32`, `uint32`, `int64`, `uint64`, `fp32`, `fp64`, `strg`, `callback`,
 `list`, `dict`, `buffer`, `handle`, `any`, `type`, `class`,
 `namespace`, `include`, `inline`, `import`, `as`, `public`, `protected`,
 `private`, `virtual`, `super`, `null`, `true`, `false`, `return`, `void`,
 `if`, `else`, `while`, `do`, `for`, `in`, `is`, `break`, `continue`, `and`,
 `or`, `not`, `print`, `raise`, `try`, `except`, `finally`, and `from`.
+The removed spellings `int`, `unsigned`, and `float` remain reserved and
+produce migration diagnostics recommending `int64`, `uint64`, and `fp64`.
+The frontend implements numeric classification and conversion checking, but
+the LLVM backend currently diagnoses numeric execution as unsupported.
 
-Unsuffixed decimal and hexadecimal integer literals have type `int`; a trailing
-`u` or `U` gives either spelling type `unsigned`. Hexadecimal digits are
-case-insensitive. Signs are unary operators: `-0x8000000000000000` is the
-signed minimum, while the corresponding positive literal is outside the
-signed range. Literal magnitudes must fit the selected signed or unsigned
-64-bit range.
+Integer literals are classified semantically: unsuffixed literals select the
+smallest fitting signed type, while `u`/`U` select the smallest fitting
+unsigned type. Hexadecimal digits are case-insensitive. Signs are unary
+operators; a directly negated literal may represent the signed minimum.
+Magnitudes outside the 64-bit range are rejected. Floating literals default
+to `fp32`; `f64` explicitly selects `fp64`. Unsuffixed values that overflow or
+underflow `fp32` fall back to `fp64`, and values outside finite `fp64` range
+are rejected.
 
 Lexical details that affect parsing:
 
-- A leading `+` or `-` is an operator, not part of a number. Unsuffixed
-  decimal and hexadecimal integer values are signed 64-bit; `u`/`U` marks an
-  unsigned 64-bit literal. Values outside the selected type's range are
-  rejected. Floats accept leading-dot (`.5`),
+- A leading `+` or `-` is an operator, not part of a number. Integer widths
+  are inferred as described above; values outside the selected 64-bit range
+  are rejected. Floats accept leading-dot (`.5`),
   trailing-dot (`5.`), and exponent forms (`1e3`, `1.0E-3`); an exponent must
   contain digits.
 - Only double-quoted strings interpret escapes: `\e` produces ESC (`0x1b`),
@@ -177,9 +183,12 @@ parameter           ::= type, IDENT ;
 type                ::= primitive-type | QUALIFIED_IDENT | callback-type ;
 callback-type       ::= "callback", "<", return-type, "(",
                         [ type, { ",", type } ], ")", ">" ;
-primitive-type      ::= "int" | "bool" | "float" | "unsigned" | "strg"
+primitive-type      ::= numeric-type-name | "bool" | "strg"
                       | "list" | "dict" | "buffer"
                       | "handle" | "any" | "type" ;
+numeric-type-name   ::= "int8" | "uint8" | "int16" | "uint16"
+                      | "int32" | "uint32" | "int64" | "uint64"
+                      | "fp32" | "fp64" ;
 
 include-directive   ::= "include", DOUBLE_STRING, terminator ;
 ```
@@ -276,7 +285,7 @@ identifier names the C parameter; final names must be unique within a list.
 Field captures obey normal access, ambiguity, and exact-type checks and
 require an instance context.
 `direct-constructor-arguments` is accepted only when `type` is a class name
-(a `QUALIFIED_IDENT`), not a built-in type such as `int`, `strg`, or `buffer`.
+(a `QUALIFIED_IDENT`), not a built-in type such as `int8`, `strg`, or `buffer`.
 It constructs the declared class directly; it does not declare a function.
 Class fields still have no initializer syntax.
 
@@ -341,9 +350,7 @@ primary             ::= INTEGER | UNSIGNED_INT | FLOAT | STRING
                       | "true" | "false" | "null" | IDENT
                       | "type", "(", expression, ")"
                       | "bool", "(", expression, ")"
-                      | "int", "(", expression, ")"
-                      | "unsigned", "(", expression, ")"
-                      | "float", "(", expression, ")"
+                      | numeric-type-name, "(", expression, ")"
                       | "buffer", "(", [ expression, { ",", expression } ], ")"
                       | buffer-literal
                       | "(", expression, ")"
@@ -354,7 +361,7 @@ dict-literal        ::= "{", [ dict-entry, { ",", dict-entry } ], "}" ;
 dict-entry          ::= expression, ":", expression ;
 type-value          ::= "strg" | "list" | "dict"
                       | "handle" | "any"
-                      | "bool" | "int" | "unsigned" | "float"  (* only when not followed by "(" *)
+                      | "bool" | numeric-type-name (* only when not followed by "(" *)
                       | "buffer"                      (* only when not followed by "(" or "[" *) ;
 ```
 
@@ -369,8 +376,8 @@ checked-extraction source type. It binds at postfix precedence and can be
 repeated.
 Parenthesize the cast before member access, as in
 `(items[index] as model.Foo).method()`, because dotted names after `as` are
-parsed as qualified class names. Scalar conversion retains `int(value)` and
-the other scalar type-name call forms; `Foo(value)` constructs a class unless
+parsed as qualified class names. Numeric conversions use the numeric type-name
+call forms; `Foo(value)` constructs a class unless
 `Foo` resolves to a callback value.
 Name resolution may recognize a dotted qualified class construction. A
 member expression such as `Base.field` or `Left.Root.method(args)` inside a

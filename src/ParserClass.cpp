@@ -243,10 +243,17 @@ std::string Parser::parseType(bool allowVoid) {
         consume(TokenType::Greater, "'>' after callback signature");
         type += ")>";
     }
-    else if (match(TokenType::Int)) type = "int";
+    else if (match(TokenType::Int8)) type = "int8";
+    else if (match(TokenType::UInt8)) type = "uint8";
+    else if (match(TokenType::Int16)) type = "int16";
+    else if (match(TokenType::UInt16)) type = "uint16";
+    else if (match(TokenType::Int32)) type = "int32";
+    else if (match(TokenType::UInt32)) type = "uint32";
+    else if (match(TokenType::Int64)) type = "int64";
+    else if (match(TokenType::UInt64)) type = "uint64";
+    else if (match(TokenType::FP32)) type = "fp32";
+    else if (match(TokenType::FP64)) type = "fp64";
     else if (match(TokenType::Bool)) type = "bool";
-    else if (match(TokenType::FloatType)) type = "float";
-    else if (match(TokenType::Unsigned)) type = "unsigned";
     else if (match(TokenType::StrgType)) type = "String";
     else if (match(TokenType::ListType)) type = "list";
     else if (match(TokenType::DictType)) type = "dict";
@@ -285,10 +292,17 @@ MethodDeclaration Parser::parseMethod(const Token& typeOrName, const Token& meth
     MethodDeclaration method;
     method.name = methodName.text;
     method.returnType = constructor ? "void" : !returnType.empty() ? returnType :
-                        (typeOrName.type == TokenType::Int ? "int" :
+                        (typeOrName.type == TokenType::Int8 ? "int8" :
+                         typeOrName.type == TokenType::UInt8 ? "uint8" :
+                         typeOrName.type == TokenType::Int16 ? "int16" :
+                         typeOrName.type == TokenType::UInt16 ? "uint16" :
+                         typeOrName.type == TokenType::Int32 ? "int32" :
+                         typeOrName.type == TokenType::UInt32 ? "uint32" :
+                         typeOrName.type == TokenType::Int64 ? "int64" :
+                         typeOrName.type == TokenType::UInt64 ? "uint64" :
+                         typeOrName.type == TokenType::FP32 ? "fp32" :
+                         typeOrName.type == TokenType::FP64 ? "fp64" :
                          typeOrName.type == TokenType::Bool ? "bool" :
-                         typeOrName.type == TokenType::FloatType ? "float" :
-                         typeOrName.type == TokenType::Unsigned ? "unsigned" :
                          typeOrName.type == TokenType::StrgType ? "String" :
                          typeOrName.type == TokenType::Void ? "void" : typeOrName.text);
     method.location = typeOrName.location;
