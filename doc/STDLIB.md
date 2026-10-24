@@ -767,12 +767,18 @@ This is meant for line protocols such as GDB/MI on a GTK main thread:
   bytes are still queued, the remaining bytes are discarded and the failure
   is sticky: `stdin closed by the child...: Broken pipe` or
   `process completed before queued stdin was written; input was discarded`.
+  An accepted `cancel` on an interactive child whose stdin is still open
+  discards queued bytes immediately (`pendingInput()` becomes `0`) and sets
+  a sticky `inputError()` starting with `process was cancelled` (ending in
+  `; queued input was discarded` when bytes were dropped). The broken pipe
+  that the kill then causes is never reported as the child closing its
+  stdin, whether it is observed before or after a later `write`.
   `SIGPIPE` is never raised in Cwhip threads, so a dead child cannot terminate
   the program. `inputError()` is the most recent stdin failure (`""` if none)
   and is independent of `error()`, which still describes launch, wait, and
   output failures; input problems never change `state()`.
-- Completion, `cancel`, and `close()` are unchanged: completion and `close()`
-  close stdin and discard any queued bytes, and `pendingInput()` is `0`
+- Completion and `close()` are unchanged: they close stdin and discard any
+  queued bytes, and `pendingInput()` is `0`
   afterwards. Each stdin pipe end is close-on-exec, so other children never
   inherit it and cannot delay its end of file.
 
