@@ -1,10 +1,10 @@
 # Confirms an accessible public base member is selected when another same-named base member is private.
 class HiddenPath {
-    int marker
+    int64 marker
 }
 
 class VisiblePath {
-    int marker
+    int64 marker
 }
 
 class MixedPaths : private HiddenPath, public VisiblePath {

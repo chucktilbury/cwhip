@@ -1,4 +1,4 @@
 start {
     list values = [true]
-    int result = values[0] as int
+    int64 result = values[0] as int64
 }

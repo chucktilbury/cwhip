@@ -1,6 +1,6 @@
 # Rejects initializing the same virtual base twice in one constructor.
 class Root {
-    Root(int value) {
+    Root(int64 value) {
     }
 }
 

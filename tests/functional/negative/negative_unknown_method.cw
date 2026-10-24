@@ -1,6 +1,6 @@
 # Rejects calling a method absent from the Counter class.
 class Counter {
-    int value
+    int64 value
 }
 
 start {

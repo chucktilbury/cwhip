@@ -11,7 +11,7 @@ using namespace cwhip_test;
 const TestGroupRegistration registration{2, {
     {"all scalar cast pairs and bool type values", [] {
          const std::pair<std::string, std::string> scalars[] = {
-             {"bool", "true"}, {"int", "-7"}, {"unsigned", "12u"}, {"float", "3.75"}
+             {"bool", "true"}, {"int64", "-7"}, {"uint64", "12u"}, {"fp64", "3.75"}
          };
          for (const auto& source : scalars) {
              for (const auto& target : scalars) {
@@ -23,10 +23,10 @@ const TestGroupRegistration registration{2, {
          expectValid("start {\n print(bool)\n print(true is bool)\n print(bool(1))\n}");
      }},
     {"non-scalar operands remain invalid for every scalar cast target", [] {
-         const std::string targets[] = {"bool", "int", "unsigned", "float"};
+         const std::string targets[] = {"bool", "int64", "uint64", "fp64"};
          const std::pair<std::string, std::string> operands[] = {
              {"null", "null"}, {"[1]", "list"}, {"{\"key\": 2}", "dict"},
-             {"buffer(1)", "buffer"}, {"int", "type"}, {"\"1\"", "String"}
+             {"buffer(1)", "buffer"}, {"int64", "type"}, {"\"1\"", "String"}
          };
          for (const auto& target : targets) {
              for (const auto& operand : operands) {
@@ -43,10 +43,10 @@ const TestGroupRegistration registration{2, {
                               "cannot cast any to " + target);
          }
      }},
-    {"float casts branch through ordered range checks before LLVM conversion", [] {
+    {"fp64 casts branch through ordered range checks before LLVM conversion", [] {
          auto program = parse(R"(class Casts {
-             int signedValue(float value) { return int(value) }
-             unsigned unsignedValue(float value) { return unsigned(value) }
+             int64 signedValue(fp64 value) { return int64(value) }
+             uint64 unsignedValue(fp64 value) { return uint64(value) }
          }
          start {}
          )");
@@ -57,41 +57,43 @@ const TestGroupRegistration registration{2, {
                  "  (%t[0-9]+) = fcmp oge double (%t[0-9]+), " + lower + "\n"
                  "  (%t[0-9]+) = fcmp olt double \\2, " + upper + "\n"
                  "  (%t[0-9]+) = and i1 \\1, \\3\n"
-                 "  br i1 \\4, label %(cast\\.valid\\.[0-9]+), label %(cast\\.invalid\\.[0-9]+)\n"
+                 "  (%t[0-9]+) = xor i1 \\4, true\n"
+                 "  br i1 \\5, label %(numeric\\.failure\\.[0-9]+), label %(numeric\\.success\\.[0-9]+)\n"
                  "\\6:\n"
-                 "  call void @cwhip_exception_raise\\(ptr @\\.cw\\.overflow\\.message, i64 16,[^\n]+\\)\n"
+                 "  call void @cwhip_exception_raise\\(ptr @\\.cw\\.string\\.[0-9]+,[^\n]+\\)\n"
                  "  unreachable\n"
-                 "\\5:\n"
+                 "\\7:\n"
                  "  %t[0-9]+ = " + conversion + " double \\2 to i64\n");
              require(std::regex_search(ir, guard),
                      conversion + " must only execute in the range-checked valid block");
          };
-         requireGuard("-9223372036854775808\\.0", "9223372036854775808\\.0", "fptosi");
-         requireGuard("0\\.0", "18446744073709551616\\.0", "fptoui");
+         requireGuard("-9\\.22337203685477581e\\+18", "9\\.22337203685477581e\\+18",
+                      "fptosi");
+         requireGuard("0\\.0", "1\\.84467440737095516e\\+19", "fptoui");
      }},
-    {"signed to unsigned casts retain i64 bits without a range check", [] {
+    {"signed to uint64 casts retain i64 bits without a range check", [] {
          auto program = parse(R"(class Casts {
-             unsigned bits(int value) { return unsigned(value) }
+             uint64 bits(int64 value) { return uint64(value) }
          }
          start {}
          )");
          const auto ir = cwhip::CodeGenerator("x86_64-unknown-linux-gnu").generate(program);
          require(ir.find(" = icmp sge i64 ") == std::string::npos,
-                 "signed to unsigned conversion must accept negative values");
+                 "signed to uint64 conversion must accept negative values");
          require(ir.find("cast.invalid.") == std::string::npos,
-                 "signed to unsigned conversion must not have an overflow branch");
+                 "signed to uint64 conversion must not have an overflow branch");
          require(std::regex_search(ir, std::regex("  ret i64 %t[0-9]+\n")),
-                 "signed to unsigned conversion must return the i64 payload");
+                 "signed to uint64 conversion must return the i64 payload");
      }},
-    {"boolean float conversion uses unordered not-equal without fast math", [] {
+    {"boolean fp64 conversion uses unordered not-equal without fast math", [] {
          auto program = parse(R"(class Casts {
-             bool truth(float value) { return bool(value) }
+             bool truth(fp64 value) { return bool(value) }
          }
          start {}
          )");
          const auto ir = cwhip::CodeGenerator("x86_64-unknown-linux-gnu").generate(program);
          require(std::regex_search(ir, std::regex(" = fcmp une double %t[0-9]+, 0\\.0\n")),
-                 "float truth conversion must include NaN and exclude both signed zeros");
+                 "fp64 truth conversion must include NaN and exclude both signed zeros");
      }},
 }};
 } // namespace

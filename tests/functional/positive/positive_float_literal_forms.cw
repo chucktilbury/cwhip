@@ -5,13 +5,13 @@ class App {
     App() {}
     destroy {}
     void run() {
-        float leadingDot = .5
-        float trailingDot = 5.
-        float digitDotDigit = 3.14
-        float exponentOnly = 1e3
-        float leadingDotExponent = .5e2
-        float trailingDotExponent = 5.e2
-        int bareZero = 0
+        fp64 leadingDot = .5
+        fp64 trailingDot = 5.
+        fp64 digitDotDigit = 3.14
+        fp64 exponentOnly = 1e3
+        fp64 leadingDotExponent = .5e2
+        fp64 trailingDotExponent = 5.e2
+        int64 bareZero = 0
 
         print(format("{}", leadingDot))
         print(format("{}", trailingDot))

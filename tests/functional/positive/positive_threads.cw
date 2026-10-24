@@ -14,30 +14,30 @@ handle Thread.launch() from "cwhip_thread_start"
 void Thread.join(handle worker) from "cwhip_thread_join"
 
 class Semaphore {
-    handle create(int initialCount)
+    handle create(int64 initialCount)
     void wait(handle sem)
     void signal(handle sem)
     void release(handle sem)
 }
 
-handle Semaphore.create(int initialCount) from "cwhip_semaphore_create"
+handle Semaphore.create(int64 initialCount) from "cwhip_semaphore_create"
 void Semaphore.wait(handle sem) from "cwhip_semaphore_wait"
 void Semaphore.signal(handle sem) from "cwhip_semaphore_signal"
 void Semaphore.release(handle sem) from "cwhip_semaphore_release"
 
 class Counter {
-    int value
+    int64 value
 
-    Counter(int initial) {
+    Counter(int64 initial) {
         value = initial
     }
 }
 
 class Doubler : Thread {
-    int input
-    int result
+    int64 input
+    int64 result
 
-    Doubler(int value) {
+    Doubler(int64 value) {
         input = value
         result = 0
     }
@@ -60,7 +60,7 @@ class Incrementer : Thread {
 
     void run() {
         Semaphore sem = Semaphore()
-        int i = 0
+        int64 i = 0
         while (i < 400) {
             sem.wait(mutex)
             shared.value = shared.value + 1

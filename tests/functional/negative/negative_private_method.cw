@@ -1,7 +1,7 @@
 # Rejects calling a private method through an external object reference.
 class Hidden {
     private:
-    int read() {
+    int64 read() {
         return 1
     }
 }

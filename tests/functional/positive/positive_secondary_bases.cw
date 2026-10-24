@@ -1,24 +1,24 @@
 # Covers construction and conversion through secondary bases, qualified subobjects, dispatch, and destructor failures.
 class Payload {
-    int value
+    int64 value
 
-    Payload(int initial) {
+    Payload(int64 initial) {
         value = initial
     }
 }
 
 class Root {
-    int value
+    int64 value
 
-    Root(int initial) {
+    Root(int64 initial) {
         value = initial
     }
 
-    int read() {
+    int64 read() {
         return value
     }
 
-    int readValue() {
+    int64 readValue() {
         return value
     }
 
@@ -28,7 +28,7 @@ class Root {
 }
 
 class Left : Root {
-    Left(int initial) {
+    Left(int64 initial) {
         super Root(initial)
     }
 
@@ -40,7 +40,7 @@ class Left : Root {
 class Right : Root {
     Payload payload
 
-    Right(int initial) {
+    Right(int64 initial) {
         super Root(initial)
         payload = Payload(initial + 20)
     }
@@ -52,16 +52,16 @@ class Right : Root {
 }
 
 class Diamond : Left, Right {
-    Diamond(int left, int right) {
+    Diamond(int64 left, int64 right) {
         super Left(left)
         super Right(right)
     }
 
-    int read() {
+    int64 read() {
         return 77
     }
 
-    int sum() {
+    int64 sum() {
         return 77
     }
 
@@ -71,7 +71,7 @@ class Diamond : Left, Right {
 }
 
 class Reader {
-    int readRoot(Root root) {
+    int64 readRoot(Root root) {
         return root.read()
     }
 }

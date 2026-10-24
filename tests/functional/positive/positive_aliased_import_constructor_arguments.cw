@@ -4,12 +4,12 @@ class Box {
     String value
 
     Box(String text) { value = text }
-    Box(int number) { value = "int" }
+    Box(int64 number) { value = "int" }
     Box(bool flag) { value = "bool" }
 
     String label() { return value }
     void set(String text) { value = text }
-    void set(int number) { value = "int" }
+    void set(int64 number) { value = "int" }
 
     Box rebuild() { return Box(sys.FileSystem().basename("/m/method.txt")) }
 }

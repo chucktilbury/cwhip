@@ -14,9 +14,9 @@ namespace {
 using namespace cwhip_test;
 
 const TestGroupRegistration registration{4, {
-        {"list literals accept mixed int, string, and class values", [] {
+        {"list literals accept mixed int64, string, and class values", [] {
              expectValid(
-                 "class Widget {\n  int id\n  Widget(int initial) { id = initial }\n}\n"
+                 "class Widget {\n  int64 id\n  Widget(int64 initial) { id = initial }\n}\n"
                  "start {\n"
                  "  list bag = [1, \"two\", Widget(3), null]\n"
                  "  print(bag.length)\n"
@@ -37,15 +37,15 @@ const TestGroupRegistration registration{4, {
          }},
         {"removed collection type spellings are ordinary identifiers", [] {
              expectValid("start {\n"
-                         "  int array = 1\n"
-                         "  int map = array\n"
+                         "  int64 array = 1\n"
+                         "  int64 map = array\n"
                          "  print(map)\n"
                          "}");
          }},
         {"list element values can be extracted directly into concrete types", [] {
              expectValid("start {\n"
                          "  list bag = [1, \"two\"]\n"
-                         "  int extracted = bag[0]\n"
+                         "  int64 extracted = bag[0]\n"
                          "  strg second = bag[1]\n"
                          "  print(extracted)\n"
                          "  print(second)\n"
@@ -59,8 +59,8 @@ const TestGroupRegistration registration{4, {
                          "  print(bag.length)\n"
                          "}");
          }},
-        {"legacy 'int[]' list syntax is rejected", [] {
-             expectDiagnostic("start {\n  int[] values = [1, 2]\n}",
+        {"legacy 'int64[]' list syntax is rejected", [] {
+             expectDiagnostic("start {\n  int64[] values = [1, 2]\n}",
                               "expected identifier (keywords are reserved)");
          }},
         {"legacy 'string[]' list syntax is rejected", [] {
@@ -69,7 +69,7 @@ const TestGroupRegistration registration{4, {
          }},
         {"legacy 'Class[]' list syntax is rejected", [] {
              expectDiagnostic(
-                 "class Widget {\n  int id\n  Widget(int initial) { id = initial }\n}\n"
+                 "class Widget {\n  int64 id\n  Widget(int64 initial) { id = initial }\n}\n"
                  "start {\n  Widget[] values = [Widget(1)]\n}",
                  "expected expression");
          }},
@@ -83,21 +83,21 @@ const TestGroupRegistration registration{4, {
                               "'any' values cannot be used for member access");
          }},
         {"internal dynamic values cannot receive method calls", [] {
-              expectDiagnostic("class Widget {\n  int value\n  int get() { return value }\n}\n"
+              expectDiagnostic("class Widget {\n  int64 value\n  int64 get() { return value }\n}\n"
                                "start {\n  list bag = [Widget()]\n"
-                               "  int value = bag[0].get()\n}",
+                               "  int64 value = bag[0].get()\n}",
                                "'any' values cannot be used for method calls");
          }},
         {"list and 'any' equality is rejected", [] {
              expectDiagnostic("start {\n  list bag = [1]\n  list other = [1]\n"
-                              "  int same = bag == other\n}",
-                              "equality requires matching int, bool, float, or unsigned operands");
+                              "  int64 same = bag == other\n}",
+                              "equality requires numeric operands of any supported width");
          }},
         {"dict type and literal keys are accepted", [] {
              expectValid("start {\n"
                          "  dict values = {\"answer\": 42, 'label': \"ok\"}\n"
                          "  dict alias = values\n"
-                         "  int result = alias[\"answer\"]\n"
+                         "  int64 result = alias[\"answer\"]\n"
                          "  alias[\"answer\"] = \"changed\"\n"
                          "  print(alias.length)\n"
                          "}");
@@ -116,8 +116,8 @@ const TestGroupRegistration registration{4, {
          }},
         {"dict equality is rejected", [] {
              expectDiagnostic("start {\n dict values = {}\n dict other = {}\n"
-                              " int same = values == other\n}",
-                              "equality requires matching int, bool, float, or unsigned operands");
+                              " int64 same = values == other\n}",
+                              "equality requires numeric operands of any supported width");
          }},
         {"'any' equality is rejected", [] {
              expectDiagnostic("start {\n list values = [1]\n"
@@ -130,18 +130,18 @@ const TestGroupRegistration registration{4, {
          }},
         {"internal dynamic values support the approved typed contexts", [] {
              expectValid("class Reader {\n"
-                         "  int value\n"
-                         "  void set(int input) { value = input }\n"
-                         "  int get() { return value }\n"
-                         "  int read(list values) { return values[0] }\n"
+                         "  int64 value\n"
+                         "  void set(int64 input) { value = input }\n"
+                         "  int64 get() { return value }\n"
+                         "  int64 read(list values) { return values[0] }\n"
                          "}\n"
                          "start {\n"
                          "  list values = [42]\n"
-                         "  int extracted = values[0]\n"
+                         "  int64 extracted = values[0]\n"
                          "  Reader reader = Reader()\n"
                          "  reader.value = values[0]\n"
                          "  reader.set(values[0])\n"
-                         "  int returned = reader.read(values)\n"
+                         "  int64 returned = reader.read(values)\n"
                          "  list nested = [values[0]]\n"
                          "  nested.append(values[0])\n"
                          "  nested[0] = values[0]\n"
@@ -149,7 +149,7 @@ const TestGroupRegistration registration{4, {
                          "  mapped[\"value\"] = values[0]\n"
                          "  print(values[0])\n"
                          "  print(format(\"value {}\", values[0]))\n"
-                         "  bool isInteger = values[0] is int\n"
+                         "  bool isInteger = values[0] is int64\n"
                          "  type dynamicType = type(values[0])\n"
                          "  bool isNull = values[0] == null\n"
                          "}");
@@ -161,29 +161,29 @@ const TestGroupRegistration registration{4, {
          }},
         {"dict removal accepts one string key", [] {
              expectValid("start {\n dict values = {\"a\": 1}\n"
-                         " int removed = values.remove(\"a\")\n"
+                         " int64 removed = values.remove(\"a\")\n"
                          " print(removed)\n}");
          }},
         {"dict removal rejects a non-string key", [] {
              expectDiagnostic("start {\n dict values = {}\n"
-                              " int removed = values.remove(1)\n}",
+                              " int64 removed = values.remove(1)\n}",
                               "dict key must have type strg");
          }},
         {"dict removal rejects incorrect arity", [] {
              expectDiagnostic("start {\n dict values = {}\n"
-                              " int removed = values.remove()\n}",
+                              " int64 removed = values.remove()\n}",
                               "dict 'remove' expects one strg key");
          }},
         {"dict slice bounds require integers", [] {
              expectDiagnostic("start {\n dict values = {}\n"
                               " dict copy = values[\"a\":\"z\"]\n}",
-                              "dict index and slice bounds must be int");
+                              "dict index and slice bounds must be integers");
          }},
          {"dict contains and collection iteration are accepted", [] {
               expectValid("start {\n"
                           "  dict values = {\"one\": 1}\n"
                           "  strg key = \"one\"\n"
-                          "  int present = values.contains(key)\n"
+                          "  int64 present = values.contains(key)\n"
                           "  for (name, value in values) { print(name) }\n"
                           "  list items = [1, \"two\"]\n"
                           "  for (item in items) { print(item) }\n"

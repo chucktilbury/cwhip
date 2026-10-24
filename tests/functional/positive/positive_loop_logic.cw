@@ -1,6 +1,6 @@
 # Verifies do-while, loop transfers, logical aliases, precedence, short-circuiting, and finally.
 class Probe {
-    int calls
+    int64 calls
     Probe() {
         calls = 0
     }
@@ -8,14 +8,14 @@ class Probe {
         calls = calls + 1
         return true
     }
-    int read() {
+    int64 read() {
         return calls
     }
 }
 
 start {
-    int iterations = 0
-    int whileTotal = 0
+    int64 iterations = 0
+    int64 whileTotal = 0
     while (iterations < 5) {
         iterations = iterations + 1
         if (iterations == 2) {
@@ -28,13 +28,13 @@ start {
     }
     print(whileTotal)
 
-    int doRuns = 0
+    int64 doRuns = 0
     do {
         doRuns = doRuns + 1
     } while (false)
     print(doRuns)
 
-    int doCount = 0
+    int64 doCount = 0
     do {
         doCount = doCount + 1
         if (doCount == 1) {
@@ -44,10 +44,10 @@ start {
     } while (true)
     print(doCount)
 
-    list values = [1, 2, 3, 4]
-    int forTotal = 0
+    list values = [int64(1), int64(2), int64(3), int64(4)]
+    int64 forTotal = 0
     for (item in values) {
-        int value = item
+        int64 value = item
         if (value == 2) {
             continue
         }
@@ -58,10 +58,10 @@ start {
     }
     print(forTotal)
 
-    dict entries = {"first": 1, "skip": 2, "stop": 3, "last": 4}
-    int mapTotal = 0
+    dict entries = {"first": int64(1), "skip": int64(2), "stop": int64(3), "last": int64(4)}
+    int64 mapTotal = 0
     for (key, item in entries) {
-        int value = item
+        int64 value = item
         if (value == 2) {
             continue
         }
@@ -72,11 +72,11 @@ start {
     }
     print(mapTotal)
 
-    int outer = 0
-    int nestedTotal = 0
+    int64 outer = 0
+    int64 nestedTotal = 0
     while (outer < 2) {
         outer = outer + 1
-        int inner = 0
+        int64 inner = 0
         while (inner < 3) {
             inner = inner + 1
             break
@@ -105,7 +105,7 @@ start {
     bool comparisonPrecedence = not 0 == 2
     print(comparisonPrecedence)
 
-    int cleanupCount = 0
+    int64 cleanupCount = 0
     while (true) {
         try {
             break
@@ -122,7 +122,7 @@ start {
             cleanupCount = cleanupCount + 1
         }
     }
-    int turns = 0
+    int64 turns = 0
     while (turns < 2) {
         turns = turns + 1
         try {
@@ -133,8 +133,8 @@ start {
     }
     print(cleanupCount)
 
-    int finalTurns = 0
-    int finalContinues = 0
+    int64 finalTurns = 0
+    int64 finalContinues = 0
     while (finalTurns < 2) {
         finalTurns = finalTurns + 1
         try {
@@ -146,7 +146,7 @@ start {
     }
     print(finalContinues)
 
-    int finalBreaks = 0
+    int64 finalBreaks = 0
     while (true) {
         try {
             print(5)

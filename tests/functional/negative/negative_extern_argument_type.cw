@@ -1,9 +1,9 @@
 # Rejects passing a string to a native-bound method parameter declared as int.
 class Native {
-    int absolute(int value)
+    int64 absolute(int64 value)
 }
 
-int Native.absolute(int value) from "cwhip_method_demo_abs"
+int64 Native.absolute(int64 value) from "cwhip_method_demo_abs"
 
 start {
     strg text = "not an integer"

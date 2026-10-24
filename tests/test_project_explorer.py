@@ -12,34 +12,34 @@ from program_runner import environment, invoke
 
 DRIVER = r"""
 class ExplorerFixture {
-    void choose(String path, int accept, int overwrite)
+    void choose(String path, int64 accept, int64 overwrite)
     void collect()
     bool alert(String fragments)
-    bool activate(int position)
+    bool activate(int64 position)
     bool singleClick()
     bool context(bool hidden)
     bool chooser()
     void watch()
-    int gap()
-    int beats()
-    int now()
+    int64 gap()
+    int64 beats()
+    int64 now()
     bool virtualized()
     bool monospace()
     bool icons()
     void stop()
     void later(callback<void()> action)
 }
-void ExplorerFixture.choose(String path, int accept, int overwrite) from "fixture_editor_choose"
+void ExplorerFixture.choose(String path, int64 accept, int64 overwrite) from "fixture_editor_choose"
 void ExplorerFixture.collect() from "fixture_editor_collect"
 bool ExplorerFixture.alert(String fragments) from "fixture_editor_alert"
-bool ExplorerFixture.activate(int position) from "explorer_activate"
+bool ExplorerFixture.activate(int64 position) from "explorer_activate"
 bool ExplorerFixture.singleClick() from "explorer_single_click"
 bool ExplorerFixture.context(bool hidden) from "explorer_context"
 bool ExplorerFixture.chooser() from "explorer_chooser"
 void ExplorerFixture.watch() from "explorer_watch"
-int ExplorerFixture.gap() from "explorer_gap"
-int ExplorerFixture.beats() from "explorer_beats"
-int ExplorerFixture.now() from "explorer_now"
+int64 ExplorerFixture.gap() from "explorer_gap"
+int64 ExplorerFixture.beats() from "explorer_beats"
+int64 ExplorerFixture.now() from "explorer_now"
 bool ExplorerFixture.virtualized() from "explorer_virtualized"
 bool ExplorerFixture.monospace() from "fixture_editor_monospace"
 bool ExplorerFixture.icons() from "explorer_icons"
@@ -48,13 +48,13 @@ void ExplorerFixture.later(callback<void()> action) from "explorer_later"
 
 class ExplorerChecks {
     Cedit editor
-    int stage
-    int deadline
-    int waitUntil
-    int checks
-    int startedAt
-    int before
-    int errorPhase
+    int64 stage
+    int64 deadline
+    int64 waitUntil
+    int64 checks
+    int64 startedAt
+    int64 before
+    int64 errorPhase
     bool sawChooser
     callback<void()> nextAction
     void require(bool condition, String label) {
@@ -67,13 +67,13 @@ class ExplorerChecks {
     String path(String name) { return System.FileSystem().join(System.FileSystem().getCwd(), name) }
     ProjectNode find(String name) {
         String expected = path(name)
-        int i = 0
+        int64 i = 0
         while (i < editor.project.nodes.length) {
             ProjectNode node = editor.project.nodes[i] as ProjectNode
             if (node.path.equals(expected)) { return node }
             i = i + 1
         }
-        int id = editor.project.tree.findValue(expected)
+        int64 id = editor.project.tree.findValue(expected)
         if (id == 0) { return null }
         return ProjectNode(editor.project, id, expected, editor.project.tree.data(id))
     }
@@ -207,7 +207,7 @@ class ExplorerChecks {
             }
             require(find("project/saved.txt") != null && find("project/sub/nested.txt") != null,
                 "save-as refreshes explorer and preserves expansion")
-            int generation = editor.project.generation
+            int64 generation = editor.project.generation
             require(!editor.writeDocument(editor.currentDocument(), "/dev/null/failed.txt") &&
                 editor.project.generation == generation, "failed save does not refresh explorer")
             if (errorPhase == 3) {
@@ -306,7 +306,7 @@ class ExplorerLifetime {
     ExplorerLifetime _self()
     Cedit editor
     Gtk.DirectoryScan scan
-    int deliveries
+    int64 deliveries
     String mode
     void closeFolder() {
         if (!ExplorerFixture().chooser()) {
@@ -330,7 +330,7 @@ class ExplorerLifetime {
         editor.window.close()
         System.StandardIO().writeLine("PASS cancel inside batch callback")
     }
-    void received(int count, String error) {
+    void received(int64 count, String error) {
         deliveries = deliveries + 1
         if (count <= 0 || !error.equals("")) { System.Process().exit(1) }
         ExplorerFixture().collect()
@@ -345,12 +345,12 @@ class ExplorerLifetime {
             System.StandardIO().writeLine("PASS shutdown inside batch callback")
         }
     }
-    void request(int id) {
+    void request(int64 id) {
         Gtk.Application().shutdown()
         ExplorerFixture().collect()
         System.StandardIO().writeLine("PASS shutdown inside expansion callback")
     }
-    void leaf(int id) {}
+    void leaf(int64 id) {}
     void activate() {
         editor.activate()
         mode = System.Process().getEnv("EXPLORER_LIFETIME")

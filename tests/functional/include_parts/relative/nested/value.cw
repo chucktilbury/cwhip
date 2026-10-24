@@ -1,5 +1,5 @@
 class RelativeValue {
-    int answer() {
+    int64 answer() {
         return 33
     }
 }

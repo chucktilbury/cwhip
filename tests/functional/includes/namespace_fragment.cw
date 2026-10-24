@@ -1,6 +1,6 @@
 namespace Included {
     class Remote {
-        int value() {
+        int64 value() {
             return 40
         }
     }

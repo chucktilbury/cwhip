@@ -18,35 +18,35 @@ from program_runner import environment, invoke
 
 DRIVER = r"""
 class ProjectFixture {
-    void choose(String path, int accept, int overwrite)
+    void choose(String path, int64 accept, int64 overwrite)
     void collect()
     bool alert(String fragments)
     bool alertOpen()
     void later(callback<void()> action)
-    int now()
+    int64 now()
     bool click(String title, String label)
     bool visible(String title)
     bool has(String title, String fragment)
-    int tabWidth()
+    int64 tabWidth()
 }
-void ProjectFixture.choose(String path, int accept, int overwrite) from "fixture_editor_choose"
+void ProjectFixture.choose(String path, int64 accept, int64 overwrite) from "fixture_editor_choose"
 void ProjectFixture.collect() from "fixture_editor_collect"
 bool ProjectFixture.alert(String fragments) from "fixture_editor_alert"
 bool ProjectFixture.alertOpen() from "fixture_editor_alert_open"
 void ProjectFixture.later(callback<void()> action) from "explorer_later"
-int ProjectFixture.now() from "explorer_now"
+int64 ProjectFixture.now() from "explorer_now"
 bool ProjectFixture.click(String title, String label) from "project_click"
 bool ProjectFixture.visible(String title) from "project_window_visible"
 bool ProjectFixture.has(String title, String fragment) from "project_window_has"
-int ProjectFixture.tabWidth() from "project_tab_width"
+int64 ProjectFixture.tabWidth() from "project_tab_width"
 
 class ProjectChecks {
     Cedit editor
     callback<void()> nextAction
     String mode
-    int stage
-    int checks
-    int deadline
+    int64 stage
+    int64 checks
+    int64 deadline
     void require(bool condition, String label) {
         if (!condition) {
             System.StandardIO().writeErrorLine(format("FAIL {} stage {}: {}: {}", mode, stage, label, editor.status.text()))
@@ -57,13 +57,13 @@ class ProjectChecks {
     String path(String name) { return System.FileSystem().join(System.FileSystem().getCwd(), name) }
     ProjectNode find(String name) {
         String expected = path(name)
-        int i = 0
+        int64 i = 0
         while (i < editor.project.nodes.length) {
             ProjectNode node = editor.project.nodes[i] as ProjectNode
             if (node.path.equals(expected)) { return node }
             i = i + 1
         }
-        int id = editor.project.tree.findValue(expected)
+        int64 id = editor.project.tree.findValue(expected)
         if (id == 0) { return null }
         return ProjectNode(editor.project, id, expected, editor.project.tree.data(id))
     }
@@ -102,8 +102,8 @@ class ProjectChecks {
         deadline = ProjectFixture().now() + 30000
         ProjectFixture().later(nextAction)
     }
-    void menu(int item) { editor.menu.activateItem(item) }
-    int item(int index) { return editor.projectItems[index] as int }
+    void menu(int64 item) { editor.menu.activateItem(item) }
+    int64 item(int64 index) { return editor.projectItems[index] as int64 }
     void next() {
         if (busy()) {
             again()
@@ -489,7 +489,7 @@ def main():
 
         def sources(root, extra=()):
             root.mkdir()
-            (root / "a.cw").write_text("class A {\n    int value = 1\n}\n")
+            (root / "a.cw").write_text("class A {\n    int64 value = 1\n}\n")
             for name in extra:
                 path = root / name
                 path.parent.mkdir(parents=True, exist_ok=True)
@@ -571,7 +571,7 @@ def main():
             (proj2 / ".cwhip/workspace.toml").write_text(
                 'version = 1\n[workspace]\nactive = "readme.txt"\nfiles = [{ path = "readme.txt", line = 1, column = 1 }]\n')
             run("dirty-switch", "proj")
-            assert (proj / "a.cw").read_text() == "class A {\n    int value = 1\n}\n", "discarded edit saved"
+            assert (proj / "a.cw").read_text() == "class A {\n    int64 value = 1\n}\n", "discarded edit saved"
             assert digest(proj) == before
             assert (proj2 / "readme.txt").read_text() == "readme.txt\n"
             assert toml(proj2 / ".cwhip/workspace.toml")["workspace"]["files"][0]["path"] == "readme.txt"

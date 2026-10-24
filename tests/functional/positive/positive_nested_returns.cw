@@ -1,20 +1,20 @@
 class Payload {
-    int code
+    int64 code
 
-    Payload(int value) {
+    Payload(int64 value) {
         code = value
     }
 }
 
 class ReturnProbe {
-    int evaluations
+    int64 evaluations
 
     strg makeValue() {
         evaluations = evaluations + 1
         return "survived"
     }
 
-    int choose(bool first) {
+    int64 choose(bool first) {
         if (first) {
             { return 10 }
         } else {
@@ -22,8 +22,8 @@ class ReturnProbe {
         }
     }
 
-    int fromLoop() {
-        int index = 0
+    int64 fromLoop() {
+        int64 index = 0
         while (index < 3) {
             if (index == 2) { return index }
             index = index + 1
@@ -31,15 +31,15 @@ class ReturnProbe {
         return -1
     }
 
-    int fromFor() {
-        for (item in [1, 2]) {
-            int value = item
+    int64 fromFor() {
+        for (item in [int64(1), int64(2)]) {
+            int64 value = item
             if (value == 2) { return value }
         }
         return -1
     }
 
-    int fromHandler() {
+    int64 fromHandler() {
         try {
             try {
                 raise(Exception("go"))
@@ -57,7 +57,7 @@ class ReturnProbe {
         try {
             return self.makeValue()
         } finally {
-            int count = 0
+            int64 count = 0
             while (count < 180) {
                 strg temporary = "temporary"
                 count = count + 1
@@ -70,7 +70,7 @@ class ReturnProbe {
         try {
             return Payload(99)
         } finally {
-            int count = 0
+            int64 count = 0
             while (count < 180) {
                 Payload temporary = Payload(count)
                 count = count + 1
@@ -78,7 +78,7 @@ class ReturnProbe {
         }
     }
 
-    int replacedByException() {
+    int64 replacedByException() {
         try {
             return 8
         } finally {

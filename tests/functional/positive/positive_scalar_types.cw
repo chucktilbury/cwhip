@@ -1,9 +1,9 @@
 # Exercises distinct bool, double-backed float, and uint64 unsigned semantics.
 class ScalarBox {
     bool enabled
-    float amount
-    unsigned count
-    ScalarBox(bool enabledValue, float amountValue, unsigned countValue) {
+    fp64 amount
+    uint64 count
+    ScalarBox(bool enabledValue, fp64 amountValue, uint64 countValue) {
         enabled = enabledValue
         amount = amountValue
         count = countValue
@@ -11,10 +11,10 @@ class ScalarBox {
     bool isEnabled() {
         return enabled
     }
-    float getAmount() {
+    fp64 getAmount() {
         return amount
     }
-    unsigned getCount() {
+    uint64 getCount() {
         return count
     }
 }
@@ -32,26 +32,26 @@ start {
         print("bool condition")
     }
 
-    int loops = 0
+    int64 loops = 0
     while (loops < 3 and combined) {
         loops = loops + 1
     }
     print(loops)
-    int doRuns = 0
+    int64 doRuns = 0
     do {
         doRuns = doRuns + 1
     } while (false)
     print(doRuns)
 
-    float amount = 3.14 + 0.5
-    float scientific = 1.5e-3
+    fp64 amount = 3.14 + 0.5
+    fp64 scientific = 1.5e-3
     print(amount)
     print(scientific)
     print(amount > 3.0)
 
-    unsigned maximum = 18446744073709551615u
-    unsigned quotient = maximum / 3u
-    unsigned remainder = 8u % 3u
+    uint64 maximum = 18446744073709551615u
+    uint64 quotient = maximum / 3u
+    uint64 remainder = 8u % 3u
     print(maximum)
     print(quotient)
     print(remainder)
@@ -63,16 +63,16 @@ start {
     print(values[1])
     print(values[2])
     bool extractedBool = values[0]
-    float extractedFloat = values[1]
-    unsigned extractedUnsigned = values[2]
+    fp64 extractedFloat = values[1]
+    uint64 extractedUnsigned = values[2]
     print(extractedBool)
     print(extractedFloat)
     print(extractedUnsigned)
 
-    dict entries = {"flag": no, "amount": scientific, "count": 42u}
+    dict entries = {"flag": no, "amount": scientific, "count": uint64(42u)}
     bool mapBool = entries["flag"]
-    float mapFloat = entries["amount"]
-    unsigned mapUnsigned = entries["count"]
+    fp64 mapFloat = entries["amount"]
+    uint64 mapUnsigned = entries["count"]
     print(mapBool)
     print(mapFloat)
     print(mapUnsigned)
@@ -87,9 +87,9 @@ start {
     print(doRuns)
 
     bool inlineFlag = false
-    float inlineAmount = 1.0
-    unsigned inlineCount = 5u
-    inline (bool inlineFlag, float inlineAmount, unsigned inlineCount) {
+    fp64 inlineAmount = 1.0
+    uint64 inlineCount = 5u
+    inline (bool inlineFlag, fp64 inlineAmount, uint64 inlineCount) {
         *inlineFlag = 1;
         *inlineAmount += 0.5;
         *inlineCount += 2;

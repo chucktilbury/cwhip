@@ -24,7 +24,7 @@ public:
         write(root / "cwhip-pkg.toml",
               "schema = 1\n[dependencies.sample]\nrepo = \"acme/sample\"\nversion = \"=1.0.0\"\n");
         write(package() / "cwhip-package.toml",
-              "[package]\nname = \"sample\"\nversion = \"1.0.0\"\n"
+              "[package]\nsdk-abi = \"numeric-v2\"\nname = \"sample\"\nversion = \"1.0.0\"\n"
               "source = \"source.cw\"\nexport = \"namespace:Export\"\n");
         write(package() / "source.cw", "namespace Export {}\n");
         lock();
@@ -187,11 +187,11 @@ const TestGroupRegistration registration{8, {
         const auto dependency = project.root / "modules/child/1.0.0";
         std::filesystem::create_directories(dependency);
         Project::write(dependency / "cwhip-package.toml",
-              "[package]\nname = \"child\"\nversion = \"1.0.0\"\n"
+              "[package]\nsdk-abi = \"numeric-v2\"\nname = \"child\"\nversion = \"1.0.0\"\n"
               "source = \"source.cw\"\nexport = \"namespace:Child\"\n");
         Project::write(dependency / "source.cw", "namespace Child {}\n");
         Project::write(project.package() / "cwhip-package.toml",
-              "[package]\nname = \"sample\"\nversion = \"1.0.0\"\n"
+              "[package]\nsdk-abi = \"numeric-v2\"\nname = \"sample\"\nversion = \"1.0.0\"\n"
               "source = \"source.cw\"\nexport = \"namespace:Export\"\n"
               "[dependencies]\nchild = \"=1.0.0\"\n"
               "[sources]\nchild = \"acme/child\"\n");
@@ -200,7 +200,7 @@ const TestGroupRegistration registration{8, {
                     graph.packages.at("child").version == "1.0.0",
                 "valid source mapping must not change package dependency semantics");
         Project::write(project.package() / "cwhip-package.toml",
-              "[package]\nname = \"sample\"\nversion = \"1.0.0\"\n"
+              "[package]\nsdk-abi = \"numeric-v2\"\nname = \"sample\"\nversion = \"1.0.0\"\n"
               "source = \"source.cw\"\nexport = \"namespace:Export\"\n"
               "[sources]\nunknown = \"acme/unknown\"\n");
         failure([&] { cwhip::resolvePackages({"sample"}, {project.root / "modules"}); },

@@ -1,7 +1,7 @@
 include "cycle_b.cw"
 
 class CycleValue {
-    int answer() {
+    int64 answer() {
         return 9
     }
 }

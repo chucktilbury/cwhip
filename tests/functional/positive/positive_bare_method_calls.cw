@@ -1,5 +1,5 @@
 class Counter {
-    int value
+    int64 value
 
     void step() {
         value = value + 1
@@ -10,7 +10,7 @@ class Counter {
         print(value)
     }
 
-    int sum(int n) {
+    int64 sum(int64 n) {
         if (n == 0) {
             return 0
         }

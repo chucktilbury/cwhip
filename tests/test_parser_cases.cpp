@@ -111,7 +111,7 @@ const TestGroupRegistration registration{1, {
                               "'import' is only allowed at top level");
          }},
         {"create is no longer a reserved keyword", [] {
-             cwhip::Lexer lexer("start {\n int create = 1\n print(create)\n}", "identifier.cw");
+             cwhip::Lexer lexer("start {\n int64 create = 1\n print(create)\n}", "identifier.cw");
              const auto tokens = lexer.tokenize();
              require(tokens[4].type == cwhip::TokenType::Identifier &&
                          tokens[4].text == "create",
@@ -121,7 +121,7 @@ const TestGroupRegistration registration{1, {
              expectValid("class string { string() {} }\n"
                          "class Text { strg echo(strg value) { return value } }\n"
                          "start {\n strg text = Text().echo(\"value\")\n"
-                         " int string = 1\n string custom = string()\n print(string)\n}");
+                         " int64 string = 1\n string custom = string()\n print(string)\n}");
              expectDiagnostic("start {\n string text = \"value\"\n}",
                               "unknown type or class 'string'");
          }},
@@ -138,7 +138,7 @@ const TestGroupRegistration registration{1, {
                   "class Values {\n"
                   " enum { FIRST = 40 + 2, NEXT, TWICE = FIRST * 2, }\n"
                   " enum { ZERO, MIN = -0x8000000000000000, MAX = 0x7fffffffffffffff }\n"
-                  " int read() { return FIRST }\n"
+                  " int64 read() { return FIRST }\n"
                   "}\nstart {}");
               const auto values = std::find_if(
                   program.classes.begin(), program.classes.end(),
@@ -167,7 +167,7 @@ const TestGroupRegistration registration{1, {
          {"enum constants obey access, inheritance, and immutability rules", [] {
               expectValid(
                   "class Base { public: enum { VALUE = 7 } }\n"
-                  "class Child : Base { int read() { return VALUE } }\n"
+                  "class Child : Base { int64 read() { return VALUE } }\n"
                   "start { Child child = Child()\n print(child.VALUE)\n"
                   " print(child.Base.VALUE) }\n");
               expectDiagnostic(
@@ -193,7 +193,7 @@ const TestGroupRegistration registration{1, {
                   "enum constants are immutable");
               expectDiagnostic(
                   "class Box { enum { VALUE = 7 }\n"
-                  " void update() { inline (int VALUE) {} } }\nstart {}",
+                  " void update() { inline (int64 VALUE) {} } }\nstart {}",
                   "enum constants are immutable");
               expectDiagnostic(
                   "class Left { enum { VALUE = 1 } }\n"
@@ -205,16 +205,16 @@ const TestGroupRegistration registration{1, {
          {"enum constants reject collisions and invalid values", [] {
               expectDiagnostic("class Box { enum { VALUE, VALUE } }\nstart {}",
                                "duplicate enum member");
-              expectDiagnostic("class Box { int VALUE\nenum { VALUE } }\nstart {}",
+              expectDiagnostic("class Box { int64 VALUE\nenum { VALUE } }\nstart {}",
                                "collides with another class member");
               expectDiagnostic("class Box { void VALUE() {}\nenum { VALUE } }\nstart {}",
                                "collides with another class member");
               expectDiagnostic(
-                  "class Base { enum { VALUE } }\nclass Derived : Base { int VALUE }\nstart {}",
+                  "class Base { enum { VALUE } }\nclass Derived : Base { int64 VALUE }\nstart {}",
                   "collides with an inherited enum member");
               expectDiagnostic(
                   "class Base { enum { VALUE } }\n"
-                  "class Derived : Base { int VALUE() { return 1 } }\nstart {}",
+                  "class Derived : Base { int64 VALUE() { return 1 } }\nstart {}",
                   "collides with an inherited enum member");
               expectDiagnostic("class Box { enum { FIRST = LATER, LATER = 3 } }\nstart {}",
                                "cannot reference a later or cyclic");
@@ -237,7 +237,7 @@ const TestGroupRegistration registration{1, {
              const auto program = parse(
                  "class Box {\n"
                  "  Box() {}\n"
-                 "  Box(int value) {}\n"
+                 "  Box(int64 value) {}\n"
                  "}\n"
                  "start {\n"
                  "  Box empty()\n"
@@ -260,23 +260,23 @@ const TestGroupRegistration registration{1, {
          }},
         {"direct constructor declarations reject invalid construction", [] {
              expectDiagnostic(
-                 "class Box { Box(int value) {} }\nstart { Box item() }",
+                 "class Box { Box(int64 value) {} }\nstart { Box item() }",
                  "constructor argument count does not match class 'Box'");
              expectDiagnostic(
-                 "class Box { Box(int value) {} }\nstart { Box item(\"wrong\") }",
+                 "class Box { Box(int64 value) {} }\nstart { Box item(\"wrong\") }",
                  "constructor argument type does not match parameter 'value'");
              expectDiagnostic(
                  "class Secret { private: Secret() {} }\nstart { Secret item() }",
                  "constructor for class 'Secret' is not accessible here");
              expectDiagnostic("start { Missing item() }",
                               "unknown type or class 'Missing'");
-             expectDiagnostic("start { int value() }",
+             expectDiagnostic("start { int64 value() }",
                               "expected newline after statement");
          }},
         {"single inheritance and base constructor syntax", [] {
              const auto program = parse(
-                 "class Base { Base(int value) {} }\n"
-                 "class Child : Base { Child(int value) { super Base(value) } }\n"
+                 "class Base { Base(int64 value) {} }\n"
+                 "class Child : Base { Child(int64 value) { super Base(value) } }\n"
                  "start { Child child = Child(1) }");
              std::ostringstream output;
              cwhip::dumpAst(program, output);
@@ -287,9 +287,9 @@ const TestGroupRegistration registration{1, {
          }},
         {"virtual base initializer syntax", [] {
              const auto program = parse(
-                 "class Root { Root(int value) {} }\n"
+                 "class Root { Root(int64 value) {} }\n"
                  "class Leaf : virtual Root {\n"
-                 "  Leaf(int value) { virtual super Root(value) }\n"
+                 "  Leaf(int64 value) { virtual super Root(value) }\n"
                  "}\n"
                  "start { Leaf leaf = Leaf(1) }");
              std::ostringstream output;
@@ -300,12 +300,12 @@ const TestGroupRegistration registration{1, {
          }},
         {"dotless base initializer modifier orders", [] {
              const auto program = parse(
-                 "class Root { Root(int value) {} }\n"
+                 "class Root { Root(int64 value) {} }\n"
                  "class First : virtual Root {\n"
-                 "  First(int value) { super virtual Root(value) }\n"
+                 "  First(int64 value) { super virtual Root(value) }\n"
                  "}\n"
                  "class Second : virtual Root {\n"
-                 "  Second(int value) { virtual super Root(value) }\n"
+                 "  Second(int64 value) { virtual super Root(value) }\n"
                  "}\n"
                  "start { First first = First(1)\n Second second = Second(2) }");
              std::ostringstream output;
@@ -352,7 +352,7 @@ const TestGroupRegistration registration{1, {
                      "virtual/access modifier ordering was not accepted");
          }},
         {"parser precedence and AST", [] {
-             const auto program = parse("start {\n int x = 1 + 2 * 3\n print(x)\n}");
+             const auto program = parse("start {\n int64 x = 1 + 2 * 3\n print(x)\n}");
              require(program.statements.size() == 2, "expected declaration and print");
              std::ostringstream output;
              cwhip::dumpAst(program, output);
@@ -362,7 +362,7 @@ const TestGroupRegistration registration{1, {
          }},
         {"compound assignments are assignment statements in the AST", [] {
              cwhip::Lexer lexer(
-                 "start {\n int value = 12\n value += 1\n value -= 1\n value *= 2\n"
+                 "start {\n int64 value = 12\n value += 1\n value -= 1\n value *= 2\n"
                  " value /= 2\n value %= 3\n}",
                  "compound-assignment.cw");
              const auto program = cwhip::Parser(lexer.tokenize()).parseProgram();
@@ -520,16 +520,16 @@ const TestGroupRegistration registration{1, {
         {"newline statement boundaries", [] {
              const auto program = parse(
                  "class Base {\n"
-                 "  int value\n"
-                 "  Base(int initial) {\n"
+                 "  int64 value\n"
+                 "  Base(int64 initial) {\n"
                  "    value = initial\n"
                  "  }\n"
                  "}\n"
                  "class Child : Base {\n"
-                 "  Child(int initial) {\n"
+                 "  Child(int64 initial) {\n"
                  "    super Base(initial)\n"
                  "  }\n"
-                 "  int read() {\n"
+                 "  int64 read() {\n"
                  "    return value\n"
                  "  }\n"
                  "}\n"
@@ -542,7 +542,7 @@ const TestGroupRegistration registration{1, {
                      "expected semicolon-free declarations, assignment, and print");
          }},
         {"adjacent statements without a boundary are rejected", [] {
-             expectDiagnostic("start {\n int first = 1 int second = 2\n}",
+             expectDiagnostic("start {\n int64 first = 1 int64 second = 2\n}",
                               "expected newline after statement");
          }},
         {"parser trace", [] {

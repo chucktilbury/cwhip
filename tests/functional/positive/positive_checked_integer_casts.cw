@@ -1,44 +1,44 @@
 start {
-    float signedMinimum = float(-9223372036854775808)
-    float signedLastRepresentable = float(9223372036854774784)
-    float unsignedLastRepresentable = float(18446744073709549568u)
-    print(int(signedMinimum))
-    print(int(signedLastRepresentable))
-    print(unsigned(unsignedLastRepresentable))
-    print(int(-3.99))
-    print(unsigned(3.99))
+    fp64 signedMinimum = fp64(-9223372036854775808)
+    fp64 signedLastRepresentable = fp64(9223372036854774784)
+    fp64 unsignedLastRepresentable = fp64(18446744073709549568u)
+    print(int64(signedMinimum))
+    print(int64(signedLastRepresentable))
+    print(uint64(unsignedLastRepresentable))
+    print(int64(-3.99f64))
+    print(uint64(3.99f64))
 
     try {
-        print(int(float(9223372036854775807)))
+        print(int64(fp64(9223372036854775807)))
     } except() as error {
         print(error)
     }
 
     try {
-        print(int(-9223372036854777856.0))
+        print(int64(-9223372036854777856.0f64))
     } except() as error {
         print(error)
     }
 
     try {
-        print(int(0.0 / 0.0))
+        print(int64(0.0 / 0.0))
     } except() as error {
         print(error)
     }
 
     try {
-        print(unsigned(-1.0))
+        print(uint64(-1.0f64))
     } except() as error {
         print(error)
     }
 
     try {
-        print(unsigned(float(18446744073709551615u)))
+        print(uint64(fp64(18446744073709551615u)))
     } except() as error {
         print(error)
     }
 
-    int minimum = -9223372036854775808
+    int64 minimum = -9223372036854775808
     try {
         print(minimum / -1)
     } except() as error {

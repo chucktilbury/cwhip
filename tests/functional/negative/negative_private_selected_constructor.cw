@@ -1,5 +1,5 @@
 class ProtectedChoice {
-    ProtectedChoice(int value) {}
+    ProtectedChoice(int64 value) {}
 
     private:
     ProtectedChoice(strg value) {}

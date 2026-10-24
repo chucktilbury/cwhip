@@ -542,10 +542,10 @@ ordinary non-GUI programs.
 
 ## Build and start cedit and cdbg
 
-These are independent repositories consuming the installed **0.0.1** SDK,
+These are independent repositories consuming the installed **0.0.2** SDK,
 including its `Cwhip_APPLICATION_OUTPUT_DIRECTORIES` capability. They do not
-need a compiler source checkout or an umbrella workspace. Older installations
-with the same version but without that capability must be rebuilt/reinstalled.
+need a compiler source checkout or an umbrella workspace. Older 0.0.1
+installations must be rebuilt/reinstalled for the numeric-v2 ABI.
 
 With the GUI SDK selected as above:
 

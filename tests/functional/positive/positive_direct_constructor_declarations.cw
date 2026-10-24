@@ -1,11 +1,11 @@
 class Choice {
-    int selected
+    int64 selected
 
     Choice() {
         selected = 0
     }
 
-    Choice(int value) {
+    Choice(int64 value) {
         selected = value
     }
 
@@ -13,32 +13,32 @@ class Choice {
         selected = 3
     }
 
-    int read() {
+    int64 read() {
         return selected
     }
 }
 
 class Ticker {
-    int count
+    int64 count
 
-    int next() {
+    int64 next() {
         count += 1
         return count
     }
 
-    int read() {
+    int64 read() {
         return count
     }
 }
 
 class Pair {
-    int value
+    int64 value
 
-    Pair(int first, int second) {
+    Pair(int64 first, int64 second) {
         value = first * 10 + second
     }
 
-    int read() {
+    int64 read() {
         return value
     }
 }
@@ -60,9 +60,9 @@ class Maker {
 
 namespace Geometry {
     class Point {
-        int x
+        int64 x
 
-        Point(int initial) {
+        Point(int64 initial) {
             x = initial
         }
     }

@@ -1,8 +1,8 @@
 # Verifies inherited fields and overridden methods through a three-level class hierarchy.
 class Node {
-    int value
+    int64 value
 
-    Node(int initial) {
+    Node(int64 initial) {
         value = initial
     }
 }
@@ -14,41 +14,41 @@ class Base {
         item = initial
     }
 
-    int read() {
+    int64 read() {
         return item.value
     }
 }
 
 class Child : Base {
-    int extra
+    int64 extra
 
-    Child(Node initial, int amount) {
+    Child(Node initial, int64 amount) {
         super Base(initial)
         extra = amount
     }
 
-    int combined() {
+    int64 combined() {
         return item.value + extra
     }
 
-    int read() {
+    int64 read() {
         return item.value + extra
     }
 }
 
 class Grandchild : Child {
-    int last
+    int64 last
 
-    Grandchild(Node initial, int amount, int finalAmount) {
+    Grandchild(Node initial, int64 amount, int64 finalAmount) {
         super Child(initial, amount)
         last = finalAmount
     }
 
-    int total() {
+    int64 total() {
         return item.value + extra + last
     }
 
-    int read() {
+    int64 read() {
         return item.value + extra + last
     }
 }

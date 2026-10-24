@@ -4,11 +4,11 @@
 class Shape {
     Shape() {}
 
-    int area(int side) {
+    int64 area(int64 side) {
         return side
     }
 
-    float area(int other) {
+    fp64 area(int64 other) {
         return 1.0
     }
 }

@@ -2,7 +2,7 @@
 class Base {
     Base() {}
 
-    int value(int input) {
+    int64 value(int64 input) {
         return input
     }
 }
@@ -12,7 +12,7 @@ class Child : Base {
         super Base()
     }
 
-    strg value(int input) {
+    strg value(int64 input) {
         return "wrong"
     }
 }

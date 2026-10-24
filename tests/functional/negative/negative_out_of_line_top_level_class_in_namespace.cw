@@ -1,10 +1,10 @@
 # Rejects defining a top-level class method from inside a namespace.
 class Foo {
-    int compute()
+    int64 compute()
 }
 
 namespace Other {
-    int Foo.compute() {
+    int64 Foo.compute() {
         return 99
     }
 }

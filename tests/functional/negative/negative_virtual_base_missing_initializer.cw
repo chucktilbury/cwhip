@@ -1,6 +1,6 @@
 # Rejects a most-derived constructor that omits a required virtual-base initializer.
 class Root {
-    Root(int value) {
+    Root(int64 value) {
     }
 }
 

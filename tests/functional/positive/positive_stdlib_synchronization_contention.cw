@@ -10,7 +10,7 @@ void Thread.join(handle worker) from "cwhip_thread_join"
 
 class Counter {
     Sync.Mutex mutex
-    int value
+    int64 value
 
     Counter() {
         mutex = Sync.Mutex()
@@ -26,10 +26,10 @@ class CounterWorker : Thread {
     }
 
     void run() {
-        int index = 0
+        int64 index = 0
         while (index < 2000) {
             counter.mutex.lock()
-            int current = counter.value
+            int64 current = counter.value
             counter.value = current + 1
             counter.mutex.unlock()
             index = index + 1
@@ -40,8 +40,8 @@ class CounterWorker : Thread {
 class PingPong {
     Sync.Mutex mutex
     Sync.Condition turnChanged
-    int turn
-    int exchanges
+    int64 turn
+    int64 exchanges
 
     PingPong() {
         mutex = Sync.Mutex()
@@ -53,17 +53,17 @@ class PingPong {
 
 class PingPongWorker : Thread {
     PingPong shared
-    int mine
-    int theirs
+    int64 mine
+    int64 theirs
 
-    PingPongWorker(PingPong state, int myTurn, int otherTurn) {
+    PingPongWorker(PingPong state, int64 myTurn, int64 otherTurn) {
         shared = state
         mine = myTurn
         theirs = otherTurn
     }
 
     void run() {
-        int round = 0
+        int64 round = 0
         while (round < 100) {
             shared.mutex.lock()
             while (shared.turn != mine) {

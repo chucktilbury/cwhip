@@ -1,6 +1,6 @@
 # Rejects passing a string to a virtual base constructor that requires an integer.
 class Root {
-    Root(int value) {
+    Root(int64 value) {
     }
 }
 

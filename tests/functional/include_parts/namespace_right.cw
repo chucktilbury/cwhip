@@ -1,6 +1,6 @@
 namespace Library {
     class Right {
-        int answer() {
+        int64 answer() {
             return 25
         }
     }

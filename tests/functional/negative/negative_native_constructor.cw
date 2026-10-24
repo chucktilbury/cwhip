@@ -1,8 +1,8 @@
 class NativeCtor {
-    NativeCtor(int value)
+    NativeCtor(int64 value)
 }
 
-NativeCtor NativeCtor.NativeCtor(int value) from "native_ctor"
+NativeCtor NativeCtor.NativeCtor(int64 value) from "native_ctor"
 
 start {
     NativeCtor value = NativeCtor(1)

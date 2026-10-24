@@ -1,21 +1,21 @@
 class Primary {
     protected:
-    int primary
+    int64 primary
     public:
     Primary() { primary = 10 }
 }
 
 class Secondary {
-    int secondary
+    int64 secondary
     Secondary() { secondary = 20 }
     void updateSecondary() {
-        inline (int secondary) { *secondary += 1; }
+        inline (int64 secondary) { *secondary += 1; }
     }
 }
 
 class Fields : Primary, Secondary {
     private:
-    int own
+    int64 own
     strg text
     buffer bytes
     Root saved
@@ -23,16 +23,16 @@ class Fields : Primary, Secondary {
     Fields() {
         super Primary()
         super Secondary()
-        inline (int own, strg text, buffer bytes) {
+        inline (int64 own, strg text, buffer bytes) {
             *own = 30;
             *text = cwhip_system_arg(NULL, 0);
             *bytes = cwhip_random_bytes(NULL, 2);
         }
     }
-    void update(int own) {
-        inline (int own) { *own += 2; }
+    void update(int64 own) {
+        inline (int64 own) { *own += 2; }
         print(own)
-        inline (int .own, int primary, int Secondary.secondary) {
+        inline (int64 .own, int64 primary, int64 Secondary.secondary) {
             *own += 3;
             *primary += 4;
             *secondary += 5;
@@ -42,10 +42,10 @@ class Fields : Primary, Secondary {
         print(Primary.primary)
         print(Secondary.secondary)
     }
-    int read() { return own }
+    int64 read() { return own }
     void shadowLocal() {
-        int own = 200
-        inline (int own) { *own += 2; }
+        int64 own = 200
+        inline (int64 own) { *own += 2; }
         print(own)
     }
     void store(Root input) {
@@ -54,36 +54,36 @@ class Fields : Primary, Secondary {
         print(saved.shared)
     }
     destroy {
-        inline (int own) { *own += 7; }
+        inline (int64 own) { *own += 7; }
         print(own)
     }
 }
 
 class Root {
-    int shared
+    int64 shared
     list values
     Root() { shared = 40 }
     void updateRoot() {
-        inline (int shared) { *shared += 1; }
+        inline (int64 shared) { *shared += 1; }
     }
 }
 class Left : virtual Root {}
 class Right : virtual Root {}
 class Diamond : Left, Right {
     void update() {
-        inline (int shared) { *shared += 2; }
-        inline (int Right.Root.shared) { *shared += 3; }
+        inline (int64 shared) { *shared += 2; }
+        inline (int64 Right.Root.shared) { *shared += 3; }
         inline (list Right.Root.values) { *values = cwhip_system_argv(NULL); }
     }
 }
 
-class RepeatedRoot { int value }
+class RepeatedRoot { int64 value }
 class First : RepeatedRoot {}
 class Second : RepeatedRoot {}
 class Repeated : First, Second {
     void update() {
-        inline (int First.RepeatedRoot.value) { *value = 51; }
-        inline (int Second.RepeatedRoot.value) { *value = 61; }
+        inline (int64 First.RepeatedRoot.value) { *value = 51; }
+        inline (int64 Second.RepeatedRoot.value) { *value = 61; }
     }
 }
 

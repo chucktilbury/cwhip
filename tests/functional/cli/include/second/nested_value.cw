@@ -1,5 +1,5 @@
 class NestedValue {
-    int value() {
+    int64 value() {
         return 2
     }
 }

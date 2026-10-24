@@ -1,8 +1,8 @@
 # Passes constructor arguments to one shared virtual base from the most-derived diamond class.
 class Root {
-    int value
+    int64 value
 
-    Root(int initial) {
+    Root(int64 initial) {
         value = initial
         print(format("Root:{}", initial))
     }
@@ -21,7 +21,7 @@ class Right : virtual Root {
 }
 
 class Diamond : Left, Right {
-    Diamond(int initial) {
+    Diamond(int64 initial) {
         virtual super Root(initial)
         super Left()
         super Right()

@@ -8,11 +8,11 @@ class Values {
         SAME_VALUE = 123,
     }
 
-    int read() {
+    int64 read() {
         return FIRST
     }
 
-    int echo(int value) {
+    int64 echo(int64 value) {
         return value
     }
 }
@@ -21,7 +21,7 @@ class Child : Values {}
 
 class Probe {
     Values value
-    int calls
+    int64 calls
 
     Probe(Values initial) {
         value = initial
@@ -66,5 +66,5 @@ start {
     list valuesList = [Values.FIRST, values.NEXT]
     print(valuesList[0])
     print(valuesList[1])
-    print(int(Values.FIRST))
+    print(int64(Values.FIRST))
 }

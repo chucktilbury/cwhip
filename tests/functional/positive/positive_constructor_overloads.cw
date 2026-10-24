@@ -13,11 +13,11 @@ class Pick {
         print("zero")
     }
 
-    Pick(int value) {
+    Pick(int64 value) {
         print("int")
     }
 
-    Pick(int first, int second) {
+    Pick(int64 first, int64 second) {
         print("two")
     }
 
@@ -41,17 +41,17 @@ class BaseOnly {
 }
 
 class MethodChoice {
-    int choose(RootTag value) {
+    int64 choose(RootTag value) {
         return 1
     }
 
-    int choose(DerivedTag value) {
+    int64 choose(DerivedTag value) {
         return 2
     }
 }
 
 class Base {
-    Base(int value) {
+    Base(int64 value) {
         print("base int")
     }
 
@@ -61,13 +61,13 @@ class Base {
 }
 
 class ChildBase : Base {
-    ChildBase(int value) {
+    ChildBase(int64 value) {
         super Base(value)
     }
 }
 
 class VirtualRoot {
-    VirtualRoot(int value) {
+    VirtualRoot(int64 value) {
         print("virtual int")
     }
 

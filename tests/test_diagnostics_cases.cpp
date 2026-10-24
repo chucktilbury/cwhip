@@ -153,18 +153,20 @@ const TestGroupRegistration registration{2, {
              expectDiagnostic("start { if (1) { } }", "if condition must have type bool");
          }},
         {"semantic type mismatch", [] {
-             expectDiagnostic("start {\n int value = \"wrong\"\n}",
-                              "cannot initialize int variable with String");
+             expectDiagnostic("start {\n int64 value = \"wrong\"\n}",
+                              "cannot initialize int64 variable with String");
          }},
         {"semantic assignment type mismatch", [] {
-             expectDiagnostic("start {\n int value = 1\n value = \"wrong\"\n}",
-                              "cannot assign String to int variable 'value'");
+             expectDiagnostic("start {\n int64 value = 1\n value = \"wrong\"\n}",
+                              "cannot assign String to int64 variable 'value'");
          }},
         {"compound assignments require matching arithmetic types", [] {
-             expectDiagnostic("start {\n int value = 1\n value += 2u\n}",
-                              "operator '+=' requires matching");
-             expectDiagnostic("start {\n float value = 1.0\n value %= 2.0\n}",
-                              "float remainder is unsupported");
+             expectDiagnostic("start {\n int64 value = 1\n"
+                              " uint64 other = 18446744073709551615u\n"
+                              " value += other\n}",
+                              "requires a valid common numeric type");
+             expectDiagnostic("start {\n fp64 value = 1.0\n value %= 2.0\n}",
+                              "requires a valid common numeric type and integer operands");
          }},
         {"compound assignments reject unsupported targets", [] {
              expectDiagnostic("start {\n bool ready = true\n ready += true\n}",
@@ -176,28 +178,28 @@ const TestGroupRegistration registration{2, {
                               "compound assignment requires a numeric target");
          }},
         {"compound assignments require initialized values", [] {
-             expectDiagnostic("start {\n int value\n value += 1\n}",
+             expectDiagnostic("start {\n int64 value\n value += 1\n}",
                               "variable 'value' may be uninitialized");
          }},
         {"semantic undefined variable", [] {
              expectDiagnostic("start {\n print(missing)\n}", "undefined variable 'missing'");
          }},
         {"semantic definite initialization", [] {
-             expectDiagnostic("start {\n int value\n print(value)\n}",
+             expectDiagnostic("start {\n int64 value\n print(value)\n}",
                               "variable 'value' may be uninitialized");
          }},
         {"semantic branch initialization", [] {
-             expectDiagnostic("start {\n int value\n if (true) { value = 1 }\n print(value)\n}",
+             expectDiagnostic("start {\n int64 value\n if (true) { value = 1 }\n print(value)\n}",
                               "variable 'value' may be uninitialized");
          }},
         {"semantic initialized in both branches", [] {
              const auto program = parse(
-                 "start {\n int value\n if (true) { value = 1 } else { value = 2 }\n print(value)\n}");
+                 "start {\n int64 value\n if (true) { value = 1 } else { value = 2 }\n print(value)\n}");
              require(program.statements.size() == 3, "expected declaration, if, and print");
          }},
         {"virtual-base initializer rejected outside constructors", [] {
              expectDiagnostic(
-                 "class Root { Root(int value) {} }\n"
+                 "class Root { Root(int64 value) {} }\n"
                  "class Leaf : virtual Root {\n"
                  "  void method() { super virtual Root(1) }\n"
                  "}\n"

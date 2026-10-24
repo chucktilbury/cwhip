@@ -2114,7 +2114,7 @@ class Cedit {
 
     String version() {
         // Keep in sync with project(cwhip VERSION ...) in CMakeLists.txt.
-        return "0.0.1"
+        return "0.0.2"
     }
 
     void projectFailure(String title, String detail) {
@@ -3902,7 +3902,7 @@ class Cedit {
         }
         bool conflicted = document.shortcutConflict
         bool plainText = GtkSource.Content().languageFor("notes.txt").equals("") && document.view.language().equals("cwhip")
-        bool highlighted = plainText && document.view.hasContextAt("keyword", 0) && document.view.hasContextAt("comment", 17) && document.view.hasContextAt("string", 39) && document.view.hasContextAt("number", 62)
+        bool highlighted = plainText && document.view.hasContextAt("keyword", 0) && document.view.hasContextAt("comment", 17) && document.view.hasContextAt("string", 39) && document.view.hasContextAt("number", 63)
         bool searched = document.view.find("Cwhip")
         bool replaced = document.view.replaceNext("Cwhip", "Cwhip language")
         bool dirtyBlocked = requestClose()

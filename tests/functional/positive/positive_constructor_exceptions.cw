@@ -18,7 +18,7 @@ class GenericFailure {
   }
 }
 class TypedThrower {
-  TypedThrower(int value) {
+  TypedThrower(int64 value) {
     raise(TypedFailure("typed constructor failure"))
   }
   destroy {

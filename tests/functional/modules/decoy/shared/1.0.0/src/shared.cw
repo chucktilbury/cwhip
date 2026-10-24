@@ -1,5 +1,5 @@
 class SharedOne {
-    int version() {
+    int64 version() {
         return 1
     }
 }

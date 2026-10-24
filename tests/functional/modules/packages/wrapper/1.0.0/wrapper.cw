@@ -2,7 +2,7 @@ import greeting as G
 
 class Wrapper {
     Wrapper() {}
-    int answer() {
+    int64 answer() {
         return G().answer()
     }
 }

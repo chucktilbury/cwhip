@@ -1,7 +1,7 @@
 # Exercises heterogeneous list values, mutation, slicing, list aliases, typed extraction, retained references, and bounds exceptions.
 class Node {
-    int value
-    Node(int initial) {
+    int64 value
+    Node(int64 initial) {
         value = initial
     }
 }
@@ -19,7 +19,7 @@ class Holder {
 start {
     // Arrays (and their 'list' keyword alias) are heterogeneous bags: one
     // literal can freely mix ints, strings, and class references.
-    list items = [10, "twenty", 30, "forty"]
+    list items = [int64(10), "twenty", int64(30), "forty"]
     print(items.length)
     print(items[1])
     items[1] = "twenty-five"
@@ -38,7 +38,7 @@ start {
     list emptyLiteral = []
     print(emptyLiteral.length)
     list alias = items
-    alias[0] = 11
+    alias[0] = int64(11)
     print(items[0])
 
     list words = ["one", "two"]
@@ -48,7 +48,7 @@ start {
     Holder holder = Holder(nodes)
     list copiedNodes = holder.copyNodes(holder.nodes)
     nodes = []
-    int counter = 0
+    int64 counter = 0
     while (counter < 40) {
         Node discarded = Node(counter)
         counter = counter + 1
@@ -64,7 +64,7 @@ start {
 
     // Reading an element directly into a concrete type is a runtime-checked,
     // type-safe extraction.
-    int extracted = items[0]
+    int64 extracted = items[0]
     print(extracted)
 
     list mixed = [1, "two", Node(3), null]

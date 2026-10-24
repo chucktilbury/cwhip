@@ -132,7 +132,7 @@ class CwhipkgTest(unittest.TestCase):
         manifests: dict[str, str],
         *,
         create_source: bool = True,
-        source_content: str = "class Greeter { int answer() { return 42 } }\n",
+        source_content: str = "class Greeter { int64 answer() { return 42 } }\n",
     ) -> None:
         working = self.root / f"{repository}-work"
         working.mkdir()
@@ -179,6 +179,7 @@ class CwhipkgTest(unittest.TestCase):
     ) -> str:
         return (
             "[package]\n"
+            'sdk-abi = "numeric-v2"\n'
             f'name = "{name}"\n'
             f'version = "{version}"\n'
             f'source = "{source}"\n'
@@ -211,7 +212,7 @@ class CwhipkgTest(unittest.TestCase):
         (root / "CMakeLists.txt").write_text(
             "cmake_minimum_required(VERSION 3.24)\n"
             "project(cwhip_template LANGUAGES C)\n"
-            "find_package(Cwhip 0.0.1 EXACT CONFIG REQUIRED)\n"
+            "find_package(Cwhip 0.0.2 EXACT CONFIG REQUIRED)\n"
             'cwhip_add_program(hello SOURCE "${PROJECT_SOURCE_DIR}/src/main.cw")\n'
             "get_target_property(hello_executable hello CWHIP_EXECUTABLE)\n"
             'install(PROGRAMS "${hello_executable}" DESTINATION bin)\n'
@@ -504,7 +505,7 @@ class CwhipkgTest(unittest.TestCase):
         def probe(command, **kwargs):
             if command[0] == "pkg-config":
                 return subprocess.CompletedProcess(command, 1, "", "optional packages unavailable")
-            text = ("cwhip: v0.0.1" if Path(command[0]).name == "cwhip" else
+            text = ("cwhip: v0.0.2" if Path(command[0]).name == "cwhip" else
                     "cmake version 3.24.0" if command[0] == "cmake" else
                     "clang version 22" if command[0] == "chosen-clang" else "git version 2")
             return subprocess.CompletedProcess(command, 0, text, "")
@@ -757,7 +758,7 @@ class CwhipkgTest(unittest.TestCase):
         installed.mkdir(parents=True)
         (installed / "cwhip-package.toml").write_text(self.manifest(), encoding="utf-8")
         (installed / "greeting.cw").write_text(
-            "class Greeter { int answer() { return 42 } }\n",
+            "class Greeter { int64 answer() { return 42 } }\n",
             encoding="utf-8",
         )
         sentinel = installed / "keep.txt"
@@ -952,7 +953,7 @@ class CwhipkgTest(unittest.TestCase):
         self.assertEqual(restored.returncode, 0, restored.stderr)
         self.assertIn(entry["commit"], self.git_log.read_text())
         self.assertEqual((self.project / "modules/greeting/1.0.0/greeting.cw").read_text(),
-                         "class Greeter { int answer() { return 42 } }\n")
+                         "class Greeter { int64 answer() { return 42 } }\n")
         self.assertEqual((self.project / "cwhip-pkg.toml").read_bytes(), manifest_bytes)
         self.assertEqual((self.project / "cwhip-pkg.lock").read_bytes(), lock_bytes)
         self.git_log.unlink()
@@ -1292,7 +1293,7 @@ class CwhipkgTest(unittest.TestCase):
         self.assertIn("schema", from_flag.stdout + from_flag.stderr)
         lock_path.write_text(valid_lock)
         override_hash = independent / "greeting/1.0.0/greeting.cw"
-        override_hash.write_text("class Greeter { int answer() { return 99 } }\n")
+        override_hash.write_text("class Greeter { int64 answer() { return 99 } }\n")
         hash_failure = run([compiler, "--check-only", "-M", str(independent), str(source)],
                            cwd=self.root, env=environment)
         self.assertNotEqual(hash_failure.returncode, 0)
@@ -1307,7 +1308,7 @@ class CwhipkgTest(unittest.TestCase):
         package.mkdir(parents=True)
         (package / "cwhip-package.toml").write_text(self.manifest())
         (package / "greeting.cw").write_text(
-            "class Greeter { int answer() { return 73 } }\n"
+            "class Greeter { int64 answer() { return 73 } }\n"
         )
         installation = self.root / "empty-installation-modules"
         installation.mkdir()
@@ -1346,7 +1347,7 @@ class CwhipkgTest(unittest.TestCase):
             package.mkdir(parents=True)
             (package / "cwhip-package.toml").write_text(self.manifest())
             (package / "greeting.cw").write_text(
-                f"class Greeter {{ int answer() {{ return {value} }} }}\n"
+                f"class Greeter {{ int64 answer() {{ return {value} }} }}\n"
             )
         environment = {
             **self.base_environment,
@@ -1466,7 +1467,7 @@ class CwhipkgTest(unittest.TestCase):
         self.assertFalse((legacy / "cwhip-pkg.lock").exists())
 
     def test_compiler_graph_rejects_default_namespace_collision(self) -> None:
-        namespace = "namespace Shared { class Greeter { int answer() { return 42 } } }\n"
+        namespace = "namespace Shared { class Greeter { int64 answer() { return 42 } } }\n"
         self.make_remote("helper", {"1.0.0": self.manifest(name="helper", export="namespace:Shared")},
                          source_content=namespace)
         self.make_remote("top", {"1.0.0": self.manifest(

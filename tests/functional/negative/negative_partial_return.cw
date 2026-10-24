@@ -1,5 +1,5 @@
 class PartialReturn {
-    int value(bool choose) {
+    int64 value(bool choose) {
         if (choose) {
             return 1
         }

@@ -1,7 +1,7 @@
 # Rejects calling a protected method from outside its class hierarchy.
 class Hidden {
     protected:
-    int read() {
+    int64 read() {
         return 1
     }
 }

@@ -1,17 +1,17 @@
 # Checks newline-delimited statements work without semicolons and comments preserve statement boundaries.
 class Base {
-    int value
-    Base(int initial) {
+    int64 value
+    Base(int64 initial) {
         value = initial
     }
 }
 
 class Child : Base {
-    Child(int initial) {
+    Child(int64 initial) {
         super Base(initial)
     }
 
-    int read() {
+    int64 read() {
         return value
     }
 }

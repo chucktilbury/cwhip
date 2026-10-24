@@ -1,13 +1,13 @@
 class Counter {
-    int calls
-    int next() {
+    int64 calls
+    int64 next() {
         calls += 1
         return calls
     }
 }
 
 class Formatter {
-    strg message(int value) {
+    strg message(int64 value) {
         return format("[{:08X}]", value)
     }
 }
@@ -41,7 +41,7 @@ start {
     dict mapping = {format("key {}", 1): 9}
     print(mapping["key 1"])
     strg retained = format("{} {}", formatter.message(1), counter.next())
-    int index = 0
+    int64 index = 0
     while (index < 2000) {
         strg garbage = format("{:08X} {}", index, formatter.message(index))
         index += 1

@@ -1,25 +1,25 @@
 # Exercises public base access and confirms protected/private base members remain usable inside derived classes.
 class Base {
-    int value
+    int64 value
 }
 
 class PublicChild : public Base {
 }
 
 class ProtectedChild : protected Base {
-    int readValue() {
+    int64 readValue() {
         return value
     }
 }
 
 class PrivateChild : private Base {
-    int readValue() {
+    int64 readValue() {
         return value
     }
 }
 
 class ProtectedGrandchild : public ProtectedChild {
-    int readAgain() {
+    int64 readAgain() {
         return value
     }
 }

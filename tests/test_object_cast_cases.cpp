@@ -8,15 +8,15 @@ using namespace cwhip_test;
 const TestGroupRegistration registration{2, {
     {"parenthesized cast receivers support standalone void method calls", [] {
          expectValid(R"(class Bar {
-             int val
-             Bar(int v) { val = v }
+             int64 val
+             Bar(int64 v) { val = v }
              void show() { print(format("class Bar {}", val)) }
          }
          class Foo {
              list flarp
              Foo() {
                  flarp = []
-                 int i = 0
+                 int64 i = 0
                  while (i <= 10) {
                      flarp.append(Bar(i))
                      i += 1
@@ -32,19 +32,19 @@ const TestGroupRegistration registration{2, {
          for (const auto& expression : {"(1)", "(1 + 2)", "(b)", "(b.val)",
                                         "(b as Bar)", "(values[0] as Bar)", "(Bar())"}) {
              expectDiagnostic(
-                 "class Bar { int val }\nstart {\n Bar b()\n list values = [b]\n " +
+                 "class Bar { int64 val }\nstart {\n Bar b()\n list values = [b]\n " +
                      std::string(expression) + "\n}",
                  "only method calls may be used as expression statements");
          }
      }},
     {"parenthesized statement routing preserves assignments and ordinary calls", [] {
-         expectValid(R"(class Bar { int val
+         expectValid(R"(class Bar { int64 val
              void show() {}
              void invoke() { (show()) }
          }
          start {
              Bar b()
-             int value = 1
+             int64 value = 1
              value += 1
              b.val = value
              (b).val += 1
@@ -55,7 +55,7 @@ const TestGroupRegistration registration{2, {
          })");
      }},
     {"checked object casts accept class references, null, and collection values", [] {
-         expectValid(R"(class Foo { int read() { return 7 } }
+         expectValid(R"(class Foo { int64 read() { return 7 } }
              class Bar : Foo {}
              class Other {}
              start {
@@ -75,11 +75,11 @@ const TestGroupRegistration registration{2, {
          expectValid(R"(class Foo {}
              start {
                  list values = [1, 2u, true, 3.5, "text", [4], {"x": 5},
-                                buffer(1), type(int), Foo(), null]
-                 int i = values[0] as int
-                 unsigned u = values[1] as unsigned
+                                buffer(1), type(int64), Foo(), null]
+                 int64 i = values[0] as int64
+                 uint64 u = values[1] as uint64
                  bool b = values[2] as bool
-                 float f = values[3] as float
+                 fp64 f = values[3] as fp64
                  strg s = values[4] as strg
                  list l = values[5] as list
                  dict d = values[6] as dict
@@ -114,7 +114,7 @@ const TestGroupRegistration registration{2, {
          expectDiagnostic("class Foo {}\nstart { print(null is null) }",
                           "expected type name after 'is'");
          expectDiagnostic("class Foo { void noValue() {} }\n"
-                          "start { print(Foo().noValue() as int) }",
+                          "start { print(Foo().noValue() as int64) }",
                           "checked cast does not support source type 'void'");
          expectDiagnostic("class Foo {}\nstart { print(Foo() as) }",
                           "expected type name after 'as'");
@@ -123,7 +123,7 @@ const TestGroupRegistration registration{2, {
      }},
     {"checked object casts normalize qualified namespace targets", [] {
          expectValid(R"(namespace model {
-             class Foo { int read() { return 7 } }
+             class Foo { int64 read() { return 7 } }
              class Casts {
                  Foo convert(list values) { return values[0] as Foo }
              }
@@ -131,7 +131,7 @@ const TestGroupRegistration registration{2, {
          start { print(([model.Foo()][0] as model.Foo).read()) })");
      }},
     {"checked object casts have postfix precedence and compose with calls", [] {
-         auto program = parse(R"(class Foo { int read() { return 7 } }
+         auto program = parse(R"(class Foo { int64 read() { return 7 } }
              start { print(([Foo()][0] as Foo).read() + 1) })");
          const auto& sum = *program.statements.front().expressions.front();
          require(sum.kind == cwhip::ExpressionKind::Binary, "addition must be outside cast");

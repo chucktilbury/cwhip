@@ -18,6 +18,6 @@
   "virtual_base.cw": {"stdout": "Root ctorLeft ctorRight ctorDiamond ctorread() from diamond: 77expression with left and right: 231in Payload ctor (50)in Payload ctor (9)read() from Root: 77read() from Right Payload: 50read() from Left Payload: 50Diamond dtorRight dtorLeft dtorRoot dtor\nvirtual exception class:virtual initialization failed"},
   "virtual_exception.cw": {"stdout": "this is the stringChild was caughtFinally blockafter the exception handlers"},
   "name_collision.cw": {"stdout": "hello from main\n"},
-  "network.cw": {"stderr": ""},
+  "network.cw": {"stdout": "using built-in XOR rows\ninitial loss 0.696471786492922\nepoch 0 loss 0.696471786492922\nepoch 1000 loss 0.000468145367005966\nepoch 2000 loss 0.000178807061590954\nepoch 3000 loss 0.000110599177559243\nepoch 4000 loss 8.0080132339586e-05\nfinal loss 6.27691259297548e-05\n0,0 target 0 prediction 2.37696517892131e-06\n0,1 target 1 prediction 0.999928222005468\n1,0 target 1 prediction 0.999928459539374\n1,1 target 0 prediction 0.000105370393403003\nreloaded prediction 2.37696517892129e-06\nresult learned\n"},
   "modules/example/0.1.0/example.cw": {"driver": "import example\nstart { print(Example.Answer().value()) }\n", "stdout": "42"}
 }

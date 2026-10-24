@@ -77,7 +77,7 @@ const TestGroupRegistration registration{0, {
                      "slash comment did not preserve the following line");
          }},
         {"block comments preserve statement boundaries", [] {
-             cwhip::Lexer lexer("start {\n int value = 1 /* comment\ncontinued */\n print(value)\n}",
+             cwhip::Lexer lexer("start {\n int64 value = 1 /* comment\ncontinued */\n print(value)\n}",
                                "block-comment.cw");
              const auto tokens = lexer.tokenize();
              std::size_t newlines = 0;
@@ -93,15 +93,16 @@ const TestGroupRegistration registration{0, {
              expectDiagnostic("start {\n bool While = false\n}", "keywords are reserved");
          }},
          {"old string spelling is an identifier", [] {
-              cwhip::Lexer lexer("start { int string = 1 }", "string-identifier.cw");
+              cwhip::Lexer lexer("start { int64 string = 1 }", "string-identifier.cw");
               const auto tokens = lexer.tokenize();
               require(tokens[3].type == cwhip::TokenType::Identifier &&
                           tokens[3].text == "string",
                       "lowercase string was treated as a keyword");
           }},
         {"scalar keywords and literals", [] {
-             cwhip::Lexer lexer("start { bool ready = true float value = 3.14 "
-                               "unsigned count = 42u }", "scalar.cw");
+             cwhip::Lexer lexer("start { bool ready = true fp64 value = 3.14 "
+                               "uint64 count = 42u FLOAT oldFloat = 1.0 "
+                               "UNSIGNED oldUnsigned = 42u }", "scalar.cw");
              const auto tokens = lexer.tokenize();
              bool foundTrue = false;
              bool foundFloat = false;
@@ -115,7 +116,7 @@ const TestGroupRegistration registration{0, {
              }
              require(foundTrue && foundFloat && foundRemovedFloat &&
                          foundRemovedUnsigned,
-                     "boolean, float, or removed numeric type token missing");
+                     "boolean, fp64, or removed numeric type token missing");
          }},
         {"scalar compound-assignment operators", [] {
              cwhip::Lexer lexer("a += 1 a -= 1 a *= 1 a /= 1 a %= 1",
@@ -140,8 +141,8 @@ const TestGroupRegistration registration{0, {
                      "compound-assignment token spelling was not retained");
          }},
         {"hexadecimal integer spellings", [] {
-             cwhip::Lexer lexer("start { int a = 0x1234 int b = 0XAbCd "
-                               "unsigned c = 0xFFu unsigned d = 0XfFU }",
+             cwhip::Lexer lexer("start { int64 a = 0x1234 int64 b = 0XAbCd "
+                               "uint64 c = 0xFFu uint64 d = 0XfFU }",
                                "hexadecimal.cw");
              const auto tokens = lexer.tokenize();
              std::vector<std::pair<cwhip::TokenType, std::string>> literals;
@@ -165,7 +166,7 @@ const TestGroupRegistration registration{0, {
         {"malformed hexadecimal literals are source-located", [] {
              for (const auto& literal : {"0x", "0x1g", "0x1ufoo"}) {
                  try {
-                     cwhip::Lexer lexer("start {\n int value = " + std::string(literal) +
+                     cwhip::Lexer lexer("start {\n int64 value = " + std::string(literal) +
                                            "\n}",
                                        "malformed-hex.cw");
                      lexer.tokenize();
@@ -176,7 +177,7 @@ const TestGroupRegistration registration{0, {
                              "malformed hex diagnostic message incorrect");
                      require(error.location().file == "malformed-hex.cw" &&
                                  error.location().line == 2 &&
-                                 error.location().column == 14,
+                         error.location().column == 16,
                              "malformed hex diagnostic has incorrect source location");
                      continue;
                  }
@@ -185,10 +186,10 @@ const TestGroupRegistration registration{0, {
          }},
         {"hexadecimal integer range and unary minimum", [] {
              expectValid("start {\n"
-                         " int maximum = 0x7FFFFFFFFFFFFFFF\n"
-                         " int minimum = -0x8000000000000000\n"
-                         " unsigned maximumUnsigned = 0xFFFFFFFFFFFFFFFFu\n"
-                         " unsigned contextualUnsigned = 0xFFFFFFFFFFFFFFFF\n"
+                         " int64 maximum = 0x7FFFFFFFFFFFFFFF\n"
+                         " int64 minimum = -0x8000000000000000\n"
+                         " uint64 maximumUnsigned = 0xFFFFFFFFFFFFFFFFu\n"
+                         " uint64 contextualUnsigned = uint64(0xFFFFFFFFFFFFFFFFu)\n"
                          "}\n");
              const auto checkLocation = [](const std::string& source,
                                            const std::string& message) {
@@ -204,11 +205,11 @@ const TestGroupRegistration registration{0, {
                  }
                  throw std::runtime_error("out-of-range hexadecimal literal was accepted");
              };
-             checkLocation("start {\n int value = 0x8000000000000000\n}\n",
+             checkLocation("start {\n int64 value = 0x8000000000000000\n}\n",
                            "integer literal is outside the signed 64-bit range");
-             checkLocation("start {\n unsigned value = 0x10000000000000000u\n}\n",
+             checkLocation("start {\n uint64 value = 0x10000000000000000u\n}\n",
                            "unsigned literal is outside the 64-bit range");
-             checkLocation("start {\n int value = -0x8000000000000001\n}\n",
+             checkLocation("start {\n int64 value = -0x8000000000000001\n}\n",
                            "integer literal is outside the signed 64-bit range");
              expectValid("start {\n"
                               " list values = [1, 2]\n"

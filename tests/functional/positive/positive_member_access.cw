@@ -1,36 +1,36 @@
 # Verifies public access, protected subclass access, private self-access, and protected construction.
 class AccessBase {
     public:
-    int publicValue
-    int publicMethod() {
+    int64 publicValue
+    int64 publicMethod() {
         return publicValue
     }
 
     protected:
-    int protectedValue
-    int protectedMethod() {
+    int64 protectedValue
+    int64 protectedMethod() {
         return protectedValue
     }
 
     private:
-    int privateValue
-    int privateMethod() {
+    int64 privateValue
+    int64 privateMethod() {
         return privateValue
     }
 
     public:
-    int readPrivate() {
+    int64 readPrivate() {
         return privateValue
     }
 
-    int readPrivateMethod(AccessBase self) {
+    int64 readPrivateMethod(AccessBase self) {
         return self.privateMethod()
     }
 }
 
 class AccessChild : public AccessBase {
     public:
-    int readProtected(AccessChild self) {
+    int64 readProtected(AccessChild self) {
         self.protectedValue = 7
         return self.protectedMethod()
     }

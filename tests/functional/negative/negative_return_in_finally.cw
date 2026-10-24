@@ -1,5 +1,5 @@
 class InvalidReturn {
-    int value() {
+    int64 value() {
         try {
             return 1
         } finally {

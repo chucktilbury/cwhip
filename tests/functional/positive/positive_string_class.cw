@@ -11,8 +11,8 @@ class ExtendedString : String {
 }
 
 class Order {
-    int count
-    int next() {
+    int64 count
+    int64 next() {
         count = count + 1
         return count
     }
@@ -56,9 +56,9 @@ start {
     key.append("!")
     print(lookup["key"])
     print(lookup.contains("key"))
-    print("9".toInt())
-    print("11".toUnsigned())
-    print("1.5".toFloat())
+    print("9".toInt64())
+    print("11".toUint64())
+    print("1.5".toFp64())
     strg empty = null
     print(empty == null)
     print(type(empty))

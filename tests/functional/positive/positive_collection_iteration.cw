@@ -1,10 +1,10 @@
 # Exercises dict lookup and membership, key/value iteration, list iteration, and collection-held object references.
 class Node {
-    int value
-    Node(int initial) {
+    int64 value
+    Node(int64 initial) {
         value = initial
     }
-    int read() {
+    int64 read() {
         return value
     }
 }
@@ -20,7 +20,7 @@ start {
     Node selectedValue = table[selected]
     print(selectedValue.read())
 
-    int seen = 0
+    int64 seen = 0
     for (key, value in table) {
         print(key)
         Node current = value

@@ -1,9 +1,9 @@
 class OutOfLine {
-    OutOfLine(int value)
+    OutOfLine(int64 value)
     OutOfLine(strg value)
 }
 
-OutOfLine OutOfLine.OutOfLine(int value) {
+OutOfLine OutOfLine.OutOfLine(int64 value) {
     print("out int")
 }
 

@@ -106,6 +106,11 @@ file(READ "${preferences}" actual_preferences)
 if(NOT actual_preferences STREQUAL original_preferences)
     message(FATAL_ERROR "Install changed app preferences")
 endif()
+if(NOT REGISTER_SDK)
+    file(WRITE "${sdk_configuration}"
+        "sdk_prefix = \"${prefix}\"\n\n[applications]\n"
+        "install_prefix = \"${prefix}\"\nbuild_type = \"${BUILD_TYPE}\"\n")
+endif()
 
 # Discover the installed package and inherit its registered app defaults.
 set(defaults_project "${work_directory}/application-defaults-project")
@@ -113,7 +118,7 @@ set(defaults_build "${work_directory}/application-defaults-build")
 file(MAKE_DIRECTORY "${defaults_project}")
 file(WRITE "${defaults_project}/CMakeLists.txt" [=[
 cmake_minimum_required(VERSION 3.16)
-find_package(Cwhip 0.0.1 EXACT CONFIG REQUIRED)
+find_package(Cwhip 0.0.2 EXACT CONFIG REQUIRED)
 cwhip_apply_application_defaults()
 project(installed_application_defaults C)
 if(NOT "${CMAKE_INSTALL_PREFIX}" STREQUAL "${EXPECTED_INSTALL_PREFIX}")

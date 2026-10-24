@@ -4,6 +4,6 @@ start {
     // slot holds a string, so extracting it into 'int' must raise instead of
     // silently reinterpreting the bits.
     list values = [1, "two", 3]
-    int mismatched = values[1]
+    int64 mismatched = values[1]
     print(mismatched)
 }

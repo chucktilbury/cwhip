@@ -1,11 +1,11 @@
 # Rejects virtual-base initializers ordered differently from the transitive construction order.
 class Ancestor {
-    Ancestor(int value) {
+    Ancestor(int64 value) {
     }
 }
 
 class Root : virtual Ancestor {
-    Root(int value) {
+    Root(int64 value) {
     }
 }
 

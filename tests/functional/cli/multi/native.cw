@@ -1,7 +1,7 @@
 class Native {
-    int get()
+    int64 get()
 }
-int Native.get() from "cwhip_multi_external_value"
+int64 Native.get() from "cwhip_multi_external_value"
 start {
     Native native = Native()
     print(native.get())

@@ -14,7 +14,7 @@ void *fixture_callback_register(void *self, void *callback) {
     (void)self;
     Registration *registration = malloc(sizeof(*registration));
     if (!registration) abort();
-    registration->context = cwhip_callback_acquire(callback, "callback<int(int)>");
+    registration->context = cwhip_callback_acquire(callback, "callback<int64(int64)>");
     registration->function = (IntCallback)cwhip_callback_adapter(registration->context);
     return registration;
 }
@@ -80,7 +80,7 @@ void fixture_callback_unlocked(void *self, void *handle) {
 
 void *fixture_callback_transfer(void *self, void *callback) {
     (void)self;
-    return cwhip_callback_transfer_prepare(callback, "callback<int(int)>");
+    return cwhip_callback_transfer_prepare(callback, "callback<int64(int64)>");
 }
 
 void *fixture_callback_accept(void *self, void *transfer) {

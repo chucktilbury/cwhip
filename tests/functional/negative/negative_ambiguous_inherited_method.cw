@@ -1,12 +1,12 @@
 # Rejects an unqualified method call when two bases declare the same method.
 class First {
-    int value() {
+    int64 value() {
         return 1
     }
 }
 
 class Second {
-    int value() {
+    int64 value() {
         return 2
     }
 }

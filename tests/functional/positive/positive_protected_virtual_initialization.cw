@@ -3,8 +3,8 @@ class Ancestor {
     destroy { print("ancestor destroyed") }
 }
 class Root : virtual Ancestor {
-    int value
-    Root(int initial) {
+    int64 value
+    Root(int64 initial) {
         print("root")
         if (initial < 0) { raise(Exception("virtual failure")) }
         value = initial
@@ -18,9 +18,9 @@ class Right : virtual Root {
     Right() { print("right") }
 }
 class Diamond : Left, Right {
-    Diamond(int initial)
+    Diamond(int64 initial)
 }
-Diamond Diamond.Diamond(int initial) {
+Diamond Diamond.Diamond(int64 initial) {
     try {
         super virtual Root(initial)
         super Left()

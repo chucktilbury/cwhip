@@ -1,4 +1,5 @@
 [package]
+sdk-abi = "numeric-v2"
 name = "native_math"
 version = "1.0.0"
 source = "src/native_math.cw"

@@ -1,10 +1,10 @@
 # Defines a declared method out of line within its owning namespace and invokes it.
 namespace Remote {
     class Method {
-        int value()
+        int64 value()
     }
 
-    int Method.value() {
+    int64 Method.value() {
         return 42
     }
 }

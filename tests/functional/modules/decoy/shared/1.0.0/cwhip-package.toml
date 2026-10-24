@@ -1,6 +1,7 @@
 # Copied into lower-precedence module roots; resolving it means the wrong
 # module root was searched.
 [package]
+sdk-abi = "numeric-v2"
 name = "shared"
 version = "1.0.0"
 source = "src/shared.cw"

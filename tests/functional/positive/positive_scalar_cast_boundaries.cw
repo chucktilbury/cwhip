@@ -1,15 +1,15 @@
 class Conversions {
-    unsigned toUnsigned(int value) { return unsigned(value) }
-    int toInt(unsigned value) { return int(value) }
-    int floatToInt(float value) { return int(value) }
-    unsigned floatToUnsigned(float value) { return unsigned(value) }
+    uint64 toUnsigned(int64 value) { return uint64(value) }
+    int64 toInt(uint64 value) { return int64(value) }
+    int64 floatToInt(fp64 value) { return int64(value) }
+    uint64 floatToUnsigned(fp64 value) { return uint64(value) }
 }
 
 start {
-    int x = -10
-    unsigned y = unsigned(x)
+    int64 x = -10
+    uint64 y = uint64(x)
     print(y)
-    print(unsigned(-10))
+    print(uint64(-10))
     Conversions conversions = Conversions()
     print(conversions.toUnsigned(-10))
     print(conversions.toUnsigned(0))
@@ -18,10 +18,10 @@ start {
     print(conversions.toInt(0u))
     print(conversions.toInt(9223372036854775806u))
     print(conversions.toInt(9223372036854775807u))
-    print(int(-9223372036854775808))
-    print(unsigned(18446744073709551615u))
-    print(float(9223372036854775807) == 9223372036854775808.0)
-    print(float(18446744073709551615u) == 18446744073709551616.0)
+    print(int64(-9223372036854775808))
+    print(uint64(18446744073709551615u))
+    print(fp64(9223372036854775807) == 9223372036854775808.0)
+    print(fp64(18446744073709551615u) == 18446744073709551616.0)
 
     print(conversions.toUnsigned(-1))
     print(conversions.toUnsigned(-9223372036854775808))
@@ -30,13 +30,13 @@ start {
     try { print(conversions.toInt(18446744073709551615u)) }
     except() as error { print(error) }
 
-    float nan = 0.0 / 0.0
-    float infinity = 1.0 / 0.0
-    float negativeInfinity = -1.0 / 0.0
-    float positiveZero = 0.0
-    float negativeZero = -0.0
-    float subnormal = 1e-300 / 1e20
-    float negativeSubnormal = -subnormal
+    fp64 nan = 0.0 / 0.0
+    fp64 infinity = 1.0 / 0.0
+    fp64 negativeInfinity = -1.0 / 0.0
+    fp64 positiveZero = 0.0
+    fp64 negativeZero = -0.0
+    fp64 subnormal = 1e-300 / 1e20
+    fp64 negativeSubnormal = -subnormal
     print(bool(nan))
     print(bool(infinity))
     print(bool(negativeInfinity))
@@ -46,11 +46,11 @@ start {
     print(bool(negativeSubnormal))
     print(bool(0.25))
     print(bool(-0.25))
-    print(float(nan) != nan)
-    print(float(infinity) == infinity)
-    print(float(negativeInfinity) == negativeInfinity)
-    print(1.0 / float(negativeZero) == negativeInfinity)
-    print(float(subnormal) == subnormal)
+    print(fp64(nan) != nan)
+    print(fp64(infinity) == infinity)
+    print(fp64(negativeInfinity) == negativeInfinity)
+    print(1.0 / fp64(negativeZero) == negativeInfinity)
+    print(fp64(subnormal) == subnormal)
     print(conversions.floatToInt(positiveZero))
     print(conversions.floatToInt(negativeZero))
     print(conversions.floatToUnsigned(positiveZero))
@@ -61,9 +61,9 @@ start {
     print(conversions.floatToInt(-0.25))
     print(conversions.floatToInt(-3.75))
     print(conversions.floatToUnsigned(3.75))
-    print(conversions.floatToInt(-9223372036854775808.0))
-    print(conversions.floatToInt(9223372036854774784.0))
-    print(conversions.floatToUnsigned(18446744073709549568.0))
+    print(conversions.floatToInt(-9223372036854775808.0f64))
+    print(conversions.floatToInt(9223372036854774784.0f64))
+    print(conversions.floatToUnsigned(18446744073709549568.0f64))
 
     try { print(conversions.floatToInt(nan)) }
     except() as error { print(error) }
@@ -81,10 +81,10 @@ start {
     except() as error { print(error) }
     try { print(conversions.floatToUnsigned(-0.25)) }
     except() as error { print(error) }
-    try { print(conversions.floatToInt(9223372036854775808.0)) }
+    try { print(conversions.floatToInt(9223372036854775808.0f64)) }
     except() as error { print(error) }
-    try { print(conversions.floatToInt(-9223372036854777856.0)) }
+    try { print(conversions.floatToInt(-9223372036854777856.0f64)) }
     except() as error { print(error) }
-    try { print(conversions.floatToUnsigned(18446744073709551616.0)) }
+    try { print(conversions.floatToUnsigned(18446744073709551616.0f64)) }
     except() as error { print(error) }
 }

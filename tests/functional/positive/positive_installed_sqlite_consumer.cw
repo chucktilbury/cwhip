@@ -11,7 +11,7 @@ start {
 
     SQL.Statement insert = database.prepare("INSERT INTO sample VALUES (?)")
     print(insert != null)
-    print(insert.bind(1, SQL.Value(42)))
+    print(insert.bind(1, SQL.Value(int64(42))))
     print(insert.step() == false)
     print(insert.isDone())
     print(insert.close())

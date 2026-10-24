@@ -1,43 +1,43 @@
 # Exercises C-bound methods across scalar and reference types alongside an ordinary out-of-line method.
 class Native {
-    int marker
+    int64 marker
 
-    Native(int initialMarker) {
+    Native(int64 initialMarker) {
         marker = initialMarker
     }
 
-    int absolute(int value)
-    int stringLength(strg text)
+    int64 absolute(int64 value)
+    int64 stringLength(strg text)
     strg stringIdentity(strg text)
     list identityArray(list items)
     dict identityMap(dict items)
     Counter identityCounter(Counter value)
-    void ignore(int value)
+    void ignore(int64 value)
 }
 
 class Doubler {
-    int compute(int x)
+    int64 compute(int64 x)
 }
 
 # Counter is deliberately declared after Native: signatures resolve across
 # the whole source unit, including native-bound reference parameters/results.
 class Counter {
-    int value
+    int64 value
 
-    Counter(int initial) {
+    Counter(int64 initial) {
         value = initial
     }
 }
 
-int Native.absolute(int value) from "cwhip_method_demo_abs"
-int Native.stringLength(strg text) from "cwhip_method_demo_string_length"
+int64 Native.absolute(int64 value) from "cwhip_method_demo_abs"
+int64 Native.stringLength(strg text) from "cwhip_method_demo_string_length"
 strg Native.stringIdentity(strg text) from "cwhip_method_demo_string_identity"
 list Native.identityArray(list items) from "cwhip_method_demo_identity"
 dict Native.identityMap(dict items) from "cwhip_method_demo_identity"
 Counter Native.identityCounter(Counter value) from "cwhip_method_demo_identity"
-void Native.ignore(int value) from "cwhip_method_demo_ignore"
+void Native.ignore(int64 value) from "cwhip_method_demo_ignore"
 
-int Doubler.compute(int x) {
+int64 Doubler.compute(int64 x) {
     return x * 2
 }
 

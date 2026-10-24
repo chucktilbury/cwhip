@@ -1,20 +1,20 @@
 class FirstBase {
     public:
-    int bar
-    int foo
+    int64 bar
+    int64 foo
     FirstBase() {
         bar = 24
         foo = 123
     }
-    int method(int n) { return foo + n }
-    int method(bool n) { if (n) { return foo } else { return 0 } }
+    int64 method(int64 n) { return foo + n }
+    int64 method(bool n) { if (n) { return foo } else { return 0 } }
 }
 
 class SecondBase {
     public:
-    int foo
+    int64 foo
     SecondBase() { foo = 42 }
-    int method(int n) { return foo + n }
+    int64 method(int64 n) { return foo + n }
 }
 
 class Child: public FirstBase, private SecondBase {
@@ -44,15 +44,15 @@ class Child: public FirstBase, private SecondBase {
 }
 
 class Root {
-    int value
-    unsigned bits
-    float fraction
+    int64 value
+    uint64 bits
+    fp64 fraction
     Root() {
         value = 3
         bits = 10
         fraction = 1.5
     }
-    int read() { return value }
+    int64 read() { return value }
 }
 class Left: Root { Left() { super Root() } }
 class Right: Root { Right() { super Root() } }
@@ -84,18 +84,18 @@ class Shared: VirtualLeft, VirtualRight {
 }
 
 class DispatchBase {
-    int read() { return 11 }
+    int64 read() { return 11 }
 }
-class Padding { int unused }
+class Padding { int64 unused }
 class DispatchChild: Padding, DispatchBase {
-    int read() { return 99 }
-    int qualified() { return DispatchBase.read() }
+    int64 read() { return 99 }
+    int64 qualified() { return DispatchBase.read() }
 }
 
 class Object {
-    int foo
+    int64 foo
     Object() { foo = 88 }
-    int method() { return foo }
+    int64 method() { return foo }
 }
 class FieldCollision: FirstBase {
     Object FirstBase
@@ -118,9 +118,9 @@ class LocalCollision: FirstBase {
 
 namespace N {
     class Base {
-        int value
+        int64 value
         Base() { value = 17 }
-        int read() { return value }
+        int64 read() { return value }
     }
     class Derived: Base {
         Derived() { super Base() }

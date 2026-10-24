@@ -1,6 +1,6 @@
 # Rejects constructing a derived class without providing required arguments for its virtual base.
 class Root {
-    Root(int value) {
+    Root(int64 value) {
     }
 }
 

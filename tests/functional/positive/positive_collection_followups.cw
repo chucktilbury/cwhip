@@ -1,10 +1,10 @@
 # Covers ordered dict slices and removal, mutation during iteration, list iteration, and nested collection references.
 class Node {
-    int value
-    Node(int initial) {
+    int64 value
+    Node(int64 initial) {
         value = initial
     }
-    int read() {
+    int64 read() {
         return value
     }
 }
@@ -20,7 +20,7 @@ start {
     print(table.remove("third"))
     print(table.remove("missing"))
     table["third"] = 30
-    int seen = 0
+    int64 seen = 0
     for (value in table) {
         print(value)
         if (seen == 0) {
@@ -54,7 +54,7 @@ start {
     list recoveredInner = recovered[0]
     Node retained = recoveredInner[0]
     Node scratch = Node(0)
-    int churn = 0
+    int64 churn = 0
     while (churn < 8) {
         scratch = Node(churn)
         churn = churn + 1

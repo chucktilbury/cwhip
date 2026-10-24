@@ -1,13 +1,13 @@
 # Exercises typed subclass matching, mismatch propagation, runtime errors, and rethrow.
 class DomainError : Exception {
-  int code
-  DomainError(strg text, int value) {
+  int64 code
+  DomainError(strg text, int64 value) {
     super Exception(text)
     code = value
   }
 }
 class SpecificError : DomainError {
-  SpecificError(strg text, int value) {
+  SpecificError(strg text, int64 value) {
     super DomainError(text, value)
   }
 }
@@ -24,9 +24,9 @@ namespace errors {
   }
 }
 class ExceptionProbe {
-  int same(Exception left, Exception right)
+  int64 same(Exception left, Exception right)
 }
-int ExceptionProbe.same(Exception left, Exception right) from "cwhip_method_demo_exception_identity"
+int64 ExceptionProbe.same(Exception left, Exception right) from "cwhip_method_demo_exception_identity"
 
 start {
   try {
@@ -77,7 +77,7 @@ start {
     try {
       raise(SpecificError("rethrow preserved", 7))
     } except(DomainError) as caught {
-      int churn = 0
+      int64 churn = 0
       while (churn < 8) {
         Exception discarded = Exception("temporary")
         churn = churn + 1
@@ -94,7 +94,7 @@ start {
   }
 
   try {
-    int result = 1 / 0
+    int64 result = 1 / 0
   } except(DomainError) {
     print("incorrect runtime exception match")
   } except(Exception) as caught {
@@ -110,7 +110,7 @@ start {
 
   list empty = []
   try {
-    int missing = empty[0]
+    int64 missing = empty[0]
   } except(Exception) {
     print("bounds caught as Exception")
   }

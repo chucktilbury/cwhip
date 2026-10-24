@@ -1,12 +1,12 @@
 # Runtime failures in nested methods report the active Cwhip call frames.
 class Worker {
-  int inner(Worker self) {
+  int64 inner(Worker self) {
     return 8 / 0
   }
-  int middle(Worker self) {
+  int64 middle(Worker self) {
     return self.inner(self)
   }
-  int outer(Worker self) {
+  int64 outer(Worker self) {
     return self.middle(self)
   }
 }

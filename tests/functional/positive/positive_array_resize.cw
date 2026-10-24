@@ -1,15 +1,15 @@
 class Node {
-    int value
-    Node(int initial) {
+    int64 value
+    Node(int64 initial) {
         value = initial
     }
-    int read() {
+    int64 read() {
         return value
     }
 }
 
 class Grower {
-    int grow(list values) {
+    int64 grow(list values) {
         values.resize(12)
         return 7
     }
@@ -47,7 +47,7 @@ start {
     }
     list refs = []
     refs.append(Node(55))
-    int churn = 0
+    int64 churn = 0
     while (churn < 20) {
         Node unused = Node(churn)
         churn = churn + 1

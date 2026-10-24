@@ -1,5 +1,5 @@
 class SharedTwo {
-    int version() {
+    int64 version() {
         return 2
     }
 }

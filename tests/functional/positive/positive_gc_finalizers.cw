@@ -1,7 +1,7 @@
 # Checks explicit destruction and garbage-collector finalization of unreachable objects.
 class Resource {
-    int code
-    Resource(int value) {
+    int64 code
+    Resource(int64 value) {
         code = value
     }
     destroy {

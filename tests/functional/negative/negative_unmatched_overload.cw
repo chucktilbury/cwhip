@@ -4,11 +4,11 @@
 class Printer {
     Printer() {}
 
-    int show(int value) {
+    int64 show(int64 value) {
         return value
     }
 
-    int show(float value) {
+    int64 show(fp64 value) {
         return 2
     }
 }

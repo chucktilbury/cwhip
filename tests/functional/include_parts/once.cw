@@ -1,5 +1,5 @@
 class IncludedOnce {
-    int answer() {
+    int64 answer() {
         return 7
     }
 }

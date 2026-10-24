@@ -180,7 +180,7 @@ The language is intended to have full object-oriented programming support. Broad
   false, and `int(nullInt)` yields a non-null 0, not an exception.
   See the normative table in [LANGUAGE-REFERENCE.md](LANGUAGE-REFERENCE.md).
 - String-to-number conversion uses ordinary native-bound `String` methods:
-  `toInt()`, `toFloat()`, and `toUnsigned()`.
+  `toInt64()`, `toFp64()`, and `toUint64()`.
 - **Checked extraction with `as` (implemented):** `value as Target` checks a
   dynamic collection payload's exact scalar/reference/type tag; class targets
   also accept subclasses and adjust to the unique requested base subobject.
@@ -789,7 +789,7 @@ statements.
   `==`/`!=` compare identity, while `.equals(other)` compares exact bytes.
 - A private `buffer _bytes` owns UTF-8 bytes; `length` reads its byte count.
   `.append(other)` changes that buffer in place, including for aliases.
-  `.toInt()`, `.toUnsigned()`, and `.toFloat()` are checked conversions.
+  `.toInt64()`, `.toUint64()`, and `.toFp64()` are checked conversions.
 - The class declares `byteAt`, `slice`, `insert`, `removeRange`, `clear`,
   `find`, `contains`, `startsWith`, `endsWith`, `split`, `replace`, `trim`,
   `toUpper`, and `toLower`. Their indices and ranges are **byte offsets**:
@@ -1493,7 +1493,7 @@ inline {
     /* C code */
 }
 
-inline (int n, strg msg) {
+inline (int64 n, strg msg) {
     printf("%s: %d\n", cwhip_string_cstr(msg), *n);
 }
 
@@ -1644,11 +1644,11 @@ Cwhip body outside the class or a C symbol binding in place of that body:
 
 ```cwhip
 class Foo {
-    int compute(int x)
+    int64 compute(int64 x)
     strg echo(strg value)
 }
 
-int Foo.compute(int x) {
+int64 Foo.compute(int64 x) {
     return x * 2
 }
 
@@ -1864,7 +1864,7 @@ The goal is to turn the requirements into stages, not to estimate Copilot credit
   inline C or external/native libraries, which the GC cannot see or control
   and remains that native code's own responsibility.
 - String-to-number conversion is implemented as native-bound `String` methods
-  (`s.toInt()`, `s.toUnsigned()`, `s.toFloat()`), not general cast syntax
+  (`s.toInt64()`, `s.toUint64()`, `s.toFp64()`), not general cast syntax
   or an implicit conversion (see "String-to-number conversion
   (implemented)" under "Strings" below for exact semantics).
 - Direct `String` indexing/slicing syntax is deferred; the documented

@@ -1,4 +1,4 @@
 start {
-    int answer = 40 + 2
+    int64 answer = 40 + 2
     print(answer)
 }
