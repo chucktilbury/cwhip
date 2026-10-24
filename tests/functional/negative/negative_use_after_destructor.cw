@@ -1,7 +1,7 @@
 # Raises a runtime error when a field is read after the object has been explicitly destroyed.
 class Resource {
-    int value
-    Resource(int initial) {
+    int64 value
+    Resource(int64 initial) {
         value = initial
     }
     destroy {

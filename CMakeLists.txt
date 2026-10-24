@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(cwhip VERSION 0.0.1 LANGUAGES C CXX)
+project(cwhip VERSION 0.0.2 LANGUAGES C CXX)
 
 include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/CwhipInstallPrefix.cmake")
 

@@ -1,5 +1,5 @@
 {
-  "friendly_name": "functional float remainder rejected",
-  "expected_diagnostic": "float remainder is unsupported",
+  "friendly_name": "functional fp64 remainder rejected",
+  "expected_diagnostic": "remainder requires integer operands",
   "enabled": true
 }

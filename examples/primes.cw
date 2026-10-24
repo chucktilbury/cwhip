@@ -4,12 +4,12 @@
 */
 
 start {
-    int limit
-    int n
-    int d
-    int is_prime
-    int rem
-    int count
+    int64 limit
+    int64 n
+    int64 d
+    int64 is_prime
+    int64 rem
+    int64 count
 
     limit = 30
     count = 0

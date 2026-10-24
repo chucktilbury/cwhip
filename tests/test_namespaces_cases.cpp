@@ -20,7 +20,7 @@ const TestGroupRegistration registration{5, {
               const auto tokens = lexer.tokenize();
               require(tokens.front().type == cwhip::TokenType::Namespace,
                       "namespace keyword was not recognized case-insensitively");
-              expectDiagnostic("start {\n int Namespace = 1\n}",
+              expectDiagnostic("start {\n int64 Namespace = 1\n}",
                                "keywords are reserved");
          }},
          {"namespace declarations require single identifiers and reopen", [] {
@@ -43,8 +43,8 @@ const TestGroupRegistration registration{5, {
          {"out-of-line methods resolve within their namespace", [] {
               expectValid(
                   "namespace Remote {\n"
-                  "  class Method { int value() }\n"
-                  "  int Method.value() { return 42 }\n"
+                  "  class Method { int64 value() }\n"
+                  "  int64 Method.value() { return 42 }\n"
                   "}\n"
                   "start { print(Remote.Method().value()) }");
          }},
@@ -74,7 +74,7 @@ const TestGroupRegistration registration{5, {
          }},
          {"qualified construction lowers to a constructor AST node", [] {
               const auto program = parse(
-                  "namespace Foo { class Bar { int method() { return 42 } } }\n"
+                  "namespace Foo { class Bar { int64 method() { return 42 } } }\n"
                   "start { print(Foo.Bar().method()) }");
               std::ostringstream output;
               cwhip::dumpAst(program, output);
@@ -85,8 +85,8 @@ const TestGroupRegistration registration{5, {
               const auto program = parse(
                   "namespace Foo {\n"
                   "  class Bar {\n"
-                  "    int value\n"
-                  "    Bar(int initial) { value = initial }\n"
+                  "    int64 value\n"
+                  "    Bar(int64 initial) { value = initial }\n"
                   "  }\n"
                   "}\n"
                   "start { Foo.Bar item(42)\n print(item.value) }");

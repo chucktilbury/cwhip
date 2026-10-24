@@ -33,6 +33,8 @@ typedef struct InlineCStringBuffer {
 
 static _Thread_local InlineCStringBuffer *inline_cstring_buffers = NULL;
 
+void cwhip_runtime_abi_numeric_v2(void) {}
+
 void cwhip_inline_cstr_end(void) {
     while (inline_cstring_buffers != NULL) {
         InlineCStringBuffer *buffer = inline_cstring_buffers;
@@ -75,7 +77,7 @@ static void raise_conversion_error(const char *message, const char *file,
                          column);
 }
 
-int64_t cwhip_string_to_int(const char *data, uint64_t length, const char *file,
+int64_t cwhip_string_to_int64(const char *data, uint64_t length, const char *file,
                            uint64_t file_length, uint64_t line, uint64_t column) {
     static const char invalid[] = "string does not contain a valid integer";
     static const char range[] = "string integer value is out of range";
@@ -105,7 +107,7 @@ int64_t cwhip_string_to_int(const char *data, uint64_t length, const char *file,
     return -(int64_t)magnitude;
 }
 
-uint64_t cwhip_string_to_unsigned(const char *data, uint64_t length, const char *file,
+uint64_t cwhip_string_to_uint64(const char *data, uint64_t length, const char *file,
                                  uint64_t file_length, uint64_t line, uint64_t column) {
     static const char invalid[] = "string does not contain a valid unsigned integer";
     static const char range[] = "string unsigned integer value is out of range";
@@ -129,25 +131,75 @@ uint64_t cwhip_string_to_unsigned(const char *data, uint64_t length, const char 
     return value;
 }
 
-double cwhip_string_to_float(const char *data, uint64_t length, const char *file,
-                            uint64_t file_length, uint64_t line, uint64_t column) {
-    static const char invalid[] = "string does not contain a valid float";
-    static const char too_long[] = "string is too long to convert to a float";
-    char stack_buffer[128];
-    if (length == 0) raise_conversion_error(invalid, file, file_length, line, column);
-    if (length >= sizeof(stack_buffer)) {
-        raise_conversion_error(too_long, file, file_length, line, column);
-    }
-    memcpy(stack_buffer, data, (size_t)length);
-    stack_buffer[length] = '\0';
-    char *end = NULL;
-    errno = 0;
-    const double result = strtod(stack_buffer, &end);
-    if (end != stack_buffer + length || errno == ERANGE) {
-        raise_conversion_error(invalid, file, file_length, line, column);
-    }
-    return result;
+#define DEFINE_INTEGER_PARSER(name, ctype, base, wide, out_of_range) \
+ctype cwhip_string_to_##name(const char *data, uint64_t length, const char *file, \
+                            uint64_t file_length, uint64_t line, uint64_t column) { \
+    const base value = cwhip_string_to_##wide(data, length, file, file_length, line, column); \
+    if (out_of_range) { \
+        raise_conversion_error("string " #name " value is out of range", \
+                               file, file_length, line, column); \
+    } \
+    return (ctype)value; \
 }
+
+/* The wide parsers check decimal overflow before any destination narrowing. */
+DEFINE_INTEGER_PARSER(int8, int8_t, int64_t, int64, value < INT8_MIN || value > INT8_MAX)
+DEFINE_INTEGER_PARSER(uint8, uint8_t, uint64_t, uint64, value > UINT8_MAX)
+DEFINE_INTEGER_PARSER(int16, int16_t, int64_t, int64, value < INT16_MIN || value > INT16_MAX)
+DEFINE_INTEGER_PARSER(uint16, uint16_t, uint64_t, uint64, value > UINT16_MAX)
+DEFINE_INTEGER_PARSER(int32, int32_t, int64_t, int64, value < INT32_MIN || value > INT32_MAX)
+DEFINE_INTEGER_PARSER(uint32, uint32_t, uint64_t, uint64, value > UINT32_MAX)
+#undef DEFINE_INTEGER_PARSER
+
+#define DEFINE_FLOAT_PARSER(name, ctype, parse) \
+ctype cwhip_string_to_##name(const char *data, uint64_t length, const char *file, \
+                            uint64_t file_length, uint64_t line, uint64_t column) { \
+    char text[128]; \
+    if (length == 0 || length >= sizeof(text)) { \
+        raise_conversion_error("invalid " #name " text length", file, file_length, line, column); \
+    } \
+    uint64_t index = (data[0] == '+' || data[0] == '-') ? 1 : 0; \
+    int digits = 0; \
+    int nonzero = 0; \
+    while (index < length && data[index] >= '0' && data[index] <= '9') { \
+        nonzero |= data[index++] != '0'; \
+        digits = 1; \
+    } \
+    if (index < length && data[index] == '.') { \
+        ++index; \
+        while (index < length && data[index] >= '0' && data[index] <= '9') { \
+            nonzero |= data[index++] != '0'; \
+            digits = 1; \
+        } \
+    } \
+    if (!digits) goto invalid; \
+    if (index < length && (data[index] == 'e' || data[index] == 'E')) { \
+        ++index; \
+        if (index < length && (data[index] == '+' || data[index] == '-')) ++index; \
+        const uint64_t first = index; \
+        while (index < length && data[index] >= '0' && data[index] <= '9') ++index; \
+        if (index == first) goto invalid; \
+    } \
+    if (index != length) goto invalid; \
+    memcpy(text, data, (size_t)length); \
+    text[length] = '\0'; \
+    char *end = NULL; \
+    const ctype result = parse(text, &end); \
+    if (end != text + length || !isfinite(result) || (nonzero && result == 0)) { \
+        raise_conversion_error("string " #name " value is out of range", \
+                               file, file_length, line, column); \
+    } \
+    return result; \
+invalid: \
+    raise_conversion_error("string does not contain a valid " #name, \
+                           file, file_length, line, column); \
+    return 0; \
+}
+
+/* Parse directly into the destination format; nonzero subnormals are valid. */
+DEFINE_FLOAT_PARSER(fp32, float, strtof)
+DEFINE_FLOAT_PARSER(fp64, double, strtod)
+#undef DEFINE_FLOAT_PARSER
 
 typedef struct HeapNode {
     struct HeapNode *next;
@@ -2003,26 +2055,24 @@ int32_t cwhip_string_equals(void *receiver, void *other) {
            (left_length == 0 || memcmp(left, right, (size_t)left_length) == 0);
 }
 
-int64_t cwhip_string_method_to_int(void *receiver) {
-    const char *data;
-    uint64_t length;
-    cwhip_string_bytes(receiver, &data, &length);
-    return cwhip_string_to_int(data, length, native_file, sizeof(native_file) - 1, 0, 0);
+#define DEFINE_STRING_NUMERIC_METHOD(name, ctype) \
+ctype cwhip_string_method_to_##name(void *receiver) { \
+    const char *data; \
+    uint64_t length; \
+    cwhip_string_bytes(receiver, &data, &length); \
+    return cwhip_string_to_##name(data, length, native_file, sizeof(native_file) - 1, 0, 0); \
 }
-
-uint64_t cwhip_string_method_to_unsigned(void *receiver) {
-    const char *data;
-    uint64_t length;
-    cwhip_string_bytes(receiver, &data, &length);
-    return cwhip_string_to_unsigned(data, length, native_file, sizeof(native_file) - 1, 0, 0);
-}
-
-double cwhip_string_method_to_float(void *receiver) {
-    const char *data;
-    uint64_t length;
-    cwhip_string_bytes(receiver, &data, &length);
-    return cwhip_string_to_float(data, length, native_file, sizeof(native_file) - 1, 0, 0);
-}
+DEFINE_STRING_NUMERIC_METHOD(int8, int8_t)
+DEFINE_STRING_NUMERIC_METHOD(uint8, uint8_t)
+DEFINE_STRING_NUMERIC_METHOD(int16, int16_t)
+DEFINE_STRING_NUMERIC_METHOD(uint16, uint16_t)
+DEFINE_STRING_NUMERIC_METHOD(int32, int32_t)
+DEFINE_STRING_NUMERIC_METHOD(uint32, uint32_t)
+DEFINE_STRING_NUMERIC_METHOD(int64, int64_t)
+DEFINE_STRING_NUMERIC_METHOD(uint64, uint64_t)
+DEFINE_STRING_NUMERIC_METHOD(fp32, float)
+DEFINE_STRING_NUMERIC_METHOD(fp64, double)
+#undef DEFINE_STRING_NUMERIC_METHOD
 
 uint64_t cwhip_string_method_byte_at(void *receiver, int64_t index) {
     CwhipBuffer *buffer = string_buffer(receiver);

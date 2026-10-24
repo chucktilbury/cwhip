@@ -1,6 +1,6 @@
 # Rejects placing a virtual-base initializer after a direct-base initializer.
 class Root {
-    Root(int value) {
+    Root(int64 value) {
     }
 }
 

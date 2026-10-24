@@ -1,6 +1,6 @@
 # Rejects an unqualified field lookup when two non-virtual base subobjects provide that field.
 class Root {
-    int value
+    int64 value
 }
 
 class Left : Root {

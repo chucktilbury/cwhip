@@ -11,29 +11,29 @@ from program_runner import environment, invoke
 
 NATIVE = """
 class Native {
-    handle register(callback<int(int)> cb)
-    int invoke(handle registration, int value)
+    handle register(callback<int64(int64)> cb)
+    int64 invoke(handle registration, int64 value)
     void release(handle registration)
     void dispose(handle registration)
     void collect()
     void foreign(handle registration)
     void registeredForeign(handle registration)
     void unlocked(handle registration)
-    handle transfer(callback<int(int)> cb)
+    handle transfer(callback<int64(int64)> cb)
     handle accept(handle transfer)
     void cancel(handle transfer)
     void transferWorker(handle transfer)
     void unregisteredEnter()
 }
-handle Native.register(callback<int(int)> cb) from "fixture_callback_register"
-int Native.invoke(handle registration, int value) from "fixture_callback_invoke"
+handle Native.register(callback<int64(int64)> cb) from "fixture_callback_register"
+int64 Native.invoke(handle registration, int64 value) from "fixture_callback_invoke"
 void Native.release(handle registration) from "fixture_callback_release"
 void Native.dispose(handle registration) from "fixture_callback_dispose"
 void Native.collect() from "fixture_callback_collect"
 void Native.foreign(handle registration) from "fixture_callback_foreign"
 void Native.registeredForeign(handle registration) from "fixture_callback_registered_foreign"
 void Native.unlocked(handle registration) from "fixture_callback_unlocked"
-handle Native.transfer(callback<int(int)> cb) from "fixture_callback_transfer"
+handle Native.transfer(callback<int64(int64)> cb) from "fixture_callback_transfer"
 handle Native.accept(handle transfer) from "fixture_callback_accept"
 void Native.cancel(handle transfer) from "fixture_callback_cancel"
 void Native.transferWorker(handle transfer) from "fixture_callback_transfer_worker"
@@ -67,7 +67,7 @@ def main():
         cases = [
             ("transfer_roots", NATIVE + """
 class Payload {
-    int run(int n) { return n + 2 }
+    int64 run(int64 n) { return n + 2 }
     destroy { print("disposed") }
 }
 class Factory {
@@ -116,13 +116,13 @@ class Payload { void run() {} }
 start {
     callback<void()> cb = Payload().run
     inline(callback<void()> cb) {
-        cwhip_callback_transfer_prepare(*cb, "callback<int(int)>");
+        cwhip_callback_transfer_prepare(*cb, "callback<int64(int64)>");
     }
 }
 """, "", "signature mismatch"),
             ("native_abis", NATIVE + """
 class W {
-    strg mixed(strg text, int i, unsigned u, float f, bool b,
+    strg mixed(strg text, int64 i, uint64 u, fp64 f, bool b,
                list xs, dict d, buffer bytes, handle opaque) {
         Native().collect()
         print("{} {} {} {} {} {} {} {}", i, u, f, b,
@@ -130,40 +130,40 @@ class W {
         return text
     }
     bool yes(bool b) { return not b }
-    unsigned twice(unsigned n) { return n + n }
-    float half(float n) { return n / 2.0 }
+    uint64 twice(uint64 n) { return n + n }
+    fp64 half(fp64 n) { return n / 2.0 }
     void ping() { print("ping") }
     list keepList(list values) { Native().collect()
         return values }
-    callback<int(int)> echo(callback<int(int)> cb) { return cb }
-    int add(int n) { return n + 2 }
+    callback<int64(int64)> echo(callback<int64(int64)> cb) { return cb }
+    int64 add(int64 n) { return n + 2 }
 }
 start {
     W w = W()
-    callback<strg(strg,int,unsigned,float,bool,list,dict,buffer,handle)> mixed = w.mixed
+    callback<strg(strg,int64,uint64,fp64,bool,list,dict,buffer,handle)> mixed = w.mixed
     callback<bool(bool)> yes = w.yes
-    callback<unsigned(unsigned)> twice = w.twice
-    callback<float(float)> half = w.half
+    callback<uint64(uint64)> twice = w.twice
+    callback<fp64(fp64)> half = w.half
     callback<void()> ping = w.ping
     callback<list(list)> keep = w.keepList
     list kept = null
-    callback<callback<int(int)>(callback<int(int)>)> echo = w.echo
-    callback<int(int)> add = w.add
-    callback<int(int)> echoed = null
+    callback<callback<int64(int64)>(callback<int64(int64)>)> echo = w.echo
+    callback<int64(int64)> add = w.add
+    callback<int64(int64)> echoed = null
     strg text = "native"
     strg output = null
     list xs = [1, 2]
     dict d = {"key": 3}
     buffer bytes = buffer(3)
-    inline(callback<strg(strg,int,unsigned,float,bool,list,dict,buffer,handle)> mixed,
-           callback<bool(bool)> yes, callback<unsigned(unsigned)> twice,
-           callback<float(float)> half, callback<void()> ping,
+    inline(callback<strg(strg,int64,uint64,fp64,bool,list,dict,buffer,handle)> mixed,
+           callback<bool(bool)> yes, callback<uint64(uint64)> twice,
+           callback<fp64(fp64)> half, callback<void()> ping,
            callback<list(list)> keep, list kept,
-           callback<callback<int(int)>(callback<int(int)>)> echo,
-           callback<int(int)> add, callback<int(int)> echoed,
+           callback<callback<int64(int64)>(callback<int64(int64)>)> echo,
+           callback<int64(int64)> add, callback<int64(int64)> echoed,
            strg text, strg output, list xs, dict d, buffer bytes) {
         CwhipCallbackContext *c = cwhip_callback_acquire(*mixed,
-            "callback<String(String,int,unsigned,float,bool,list,dict,buffer,handle)>");
+            "callback<String(String,int64,uint64,fp64,bool,list,dict,buffer,handle)>");
         typedef void *(*Mixed)(CwhipCallbackContext *, void *, int64_t, uint64_t,
                               double, _Bool, void *, void *, void *, void *);
         *output = ((Mixed)cwhip_callback_adapter(c))(c, *text, -4,
@@ -175,12 +175,12 @@ start {
             abort();
         cwhip_callback_release(c);
         cwhip_callback_dispose(c);
-        c = cwhip_callback_acquire(*twice, "callback<unsigned(unsigned)>");
+        c = cwhip_callback_acquire(*twice, "callback<uint64(uint64)>");
         if (((uint64_t (*)(CwhipCallbackContext *, uint64_t))cwhip_callback_adapter(c))(c, 10) != 20)
             abort();
         cwhip_callback_release(c);
         cwhip_callback_dispose(c);
-        c = cwhip_callback_acquire(*half, "callback<float(float)>");
+        c = cwhip_callback_acquire(*half, "callback<fp64(fp64)>");
         if (((double (*)(CwhipCallbackContext *, double))cwhip_callback_adapter(c))(c, 7.0) != 3.5)
             abort();
         cwhip_callback_release(c);
@@ -194,10 +194,10 @@ start {
         *kept = ((void *(*)(CwhipCallbackContext *, void *))cwhip_callback_adapter(c))(c, only_argument);
         cwhip_callback_release(c);
         cwhip_callback_dispose(c);
-        c = cwhip_callback_acquire(*echo, "callback<callback<int(int)>(callback<int(int)>)>");
+        c = cwhip_callback_acquire(*echo, "callback<callback<int64(int64)>(callback<int64(int64)>)>");
         CwhipCallbackArgument arguments[1] = {{0}}, result = {0};
         arguments[0].pointer = *add;
-        cwhip_callback_context_invoke(c, "callback<callback<int(int)>(callback<int(int)>)>",
+        cwhip_callback_context_invoke(c, "callback<callback<int64(int64)>(callback<int64(int64)>)>",
                                      arguments, &result);
         *echoed = result.pointer;
         cwhip_callback_release(c);
@@ -210,34 +210,36 @@ start {
 """, "-4 18446744073709551615 1.5 true 2 1 3 truepingnative425", None),
             ("contexts", """
 class W {
-    int run(int n) { return n + 1 }
-    float run(float n) { return n + 0.5 }
+    int64 run(int64 n) { return n + 1 }
+    fp64 run(fp64 n) { return n + 0.5 }
 }
 class Use {
-    int use(callback<int(int)> cb, int value) { return cb(value) }
-    float use(callback<float(float)> cb, float value) { return cb(value) }
-    callback<int(int)> saved
-    Use(callback<int(int)> cb) { saved = cb }
-    Use(callback<float(float)> cb, float value) { print(cb(value)) }
-    callback<int(int)> get()
+    int64 use(callback<int64(int64)> cb, int64 value) { return cb(value) }
+    fp64 use(callback<fp64(fp64)> cb, fp64 value) { return cb(value) }
+    callback<int64(int64)> saved
+    Use(callback<int64(int64)> cb) { saved = cb }
+    Use(callback<fp64(fp64)> cb, fp64 value) { print(cb(value)) }
+    callback<int64(int64)> get()
 }
-callback<int(int)> Use.get() { return saved }
+callback<int64(int64)> Use.get() { return saved }
 start {
     W w = W()
+    callback<int64(int64)> integerRun = w.run
+    callback<fp64(fp64)> floatingRun = w.run
     Use u = Use(w.run)
-    print(u.use(w.run, 41))
-    print(u.use(w.run, 1.5))
+    print(u.use(integerRun, 41))
+    print(u.use(floatingRun, 1.5))
     print(u.get()(9))
 }
 """, "42210", None),
             ("simple_roots", NATIVE + """
 class W {
-    int run(int n) { return n + 40 }
+    int64 run(int64 n) { return n + 40 }
     destroy { print("finalized") }
 }
 class Box {
-    callback<int(int)> cb
-    callback<int(int)> make() {
+    callback<int64(int64)> cb
+    callback<int64(int64)> make() {
         W local = W()
         return local.run
     }
@@ -253,21 +255,21 @@ start {
 """, "true42", None),
             ("values", """
 class Worker {
-    int bias
-    Worker(int initial) { bias = initial }
-    int add(int n) { return bias + n }
-    float add(float n) { return n + 0.5 }
+    int64 bias
+    Worker(int64 initial) { bias = initial }
+    int64 add(int64 n) { return bias + n }
+    fp64 add(fp64 n) { return n + 0.5 }
     strg echo(strg value) { return value }
     Worker object(Worker value) { return value }
     void ping() { print("ping") }
 }
 class Box {
-    callback<int(int)> value
-    callback<int(int)> pass(callback<int(int)> cb) { return cb }
-    int apply(callback<int(int)> cb, int x) { return cb(x) }
+    callback<int64(int64)> value
+    callback<int64(int64)> pass(callback<int64(int64)> cb) { return cb }
+    int64 apply(callback<int64(int64)> cb, int64 x) { return cb(x) }
 }
 class Factory {
-    int count
+    int64 count
     Worker make() {
         count += 1
         return Worker(10)
@@ -278,9 +280,9 @@ start {
     Box b
     b = Box()
     b.value = w.add
-    callback<int(int)> cb = b.pass(b.value)
+    callback<int64(int64)> cb = b.pass(b.value)
     print("{} {} {}", cb(2), b.value(3), b.apply(w.add, 4))
-    callback<float(float)> fp = w.add
+    callback<fp64(fp64)> fp = w.add
     print(fp(1.5))
     callback<strg(strg)> text = w.echo
     print(text("managed"))
@@ -290,63 +292,63 @@ start {
     callback<void()> ping = w.ping
     ping()
     Factory f = Factory()
-    callback<int(int)> once = f.make().add
+    callback<int64(int64)> once = f.make().add
     print("{} {}", f.count, once(7))
-    callback<int(int)> empty = null
+    callback<int64(int64)> empty = null
     print("{} {} {}", empty == null, cb == cb, cb != empty)
-    callback<int(int)> independent = w.add
+    callback<int64(int64)> independent = w.add
     print(cb != independent)
     print(type(empty))
     print(type(cb))
 }
-""", "22 23 242managed20ping1 17true true truetruenullcallback<int(int)>", None),
+""", "22 23 242managed20ping1 17true true truetruenullcallback<int64(int64)>", None),
             ("exceptions", """
 class Worker {
-    int fail(int n) { return 1 / n }
+    int64 fail(int64 n) { return 1 / n }
     destroy { print("destroyed") }
 }
 start {
     Worker w = Worker()
-    callback<int(int)> cb = w.fail
+    callback<int64(int64)> cb = w.fail
     try { print(cb(0)) } except(Exception) as e { print("caught") }
     w.destroy()
     try { print(cb(1)) } except(Exception) as e { print("dead") }
     try {
-        callback<int(int)> invalid = w.fail
+        callback<int64(int64)> invalid = w.fail
     } except(Exception) as e { print("capture dead") }
     Worker nil = null
     try {
-        callback<int(int)> invalid = nil.fail
+        callback<int64(int64)> invalid = nil.fail
     } except(Exception) as e { print("capture null") }
-    callback<int(int)> empty = null
+    callback<int64(int64)> empty = null
     try { print(empty(1)) } except(Exception) as e { print("empty") }
 }
 """, "caughtdestroyeddeadcapture deadcapture nullempty", None),
             ("virtual", """
-class First { int f() { return 1 } }
-class Base { int value(int n) { return n + 2 } }
-class Derived : First, Base { int value(int n) { return n + 20 } }
+class First { int64 f() { return 1 } }
+class Base { int64 value(int64 n) { return n + 2 } }
+class Derived : First, Base { int64 value(int64 n) { return n + 20 } }
 class Left : virtual Base {}
 class Right : virtual Base {}
-class Diamond : Left, Right { int value(int n) { return n + 200 } }
+class Diamond : Left, Right { int64 value(int64 n) { return n + 200 } }
 start {
     Derived d = Derived()
     Base b = d
-    callback<int(int)> secondary = b.value
-    callback<int(int)> qualified = d.Base.value
+    callback<int64(int64)> secondary = b.value
+    callback<int64(int64)> qualified = d.Base.value
     print("{} {}", secondary(1), qualified(2))
     Diamond diamond = Diamond()
     Base virtualBase = diamond
-    callback<int(int)> virtualCb = virtualBase.value
-    callback<int(int)> virtualQualified = diamond.Left.Base.value
+    callback<int64(int64)> virtualCb = virtualBase.value
+    callback<int64(int64)> virtualQualified = diamond.Left.Base.value
     print("{} {}", virtualCb(1), virtualQualified(2))
 }
 """, "21 22201 202", None),
             ("native_roots", NATIVE + """
 class Worker {
-    int base
-    Worker(int initial) { base = initial }
-    int add(int value) { return base + value }
+    int64 base
+    Worker(int64 initial) { base = initial }
+    int64 add(int64 value) { return base + value }
     destroy { print("finalized") }
 }
 class Factory {
@@ -359,7 +361,7 @@ class Factory {
         return native.register(w.add)
     }
 }
-class Quiet { int add(int value) { return value } }
+class Quiet { int64 add(int64 value) { return value } }
 start {
     Native n = Native()
     Factory factory = Factory()
@@ -369,7 +371,7 @@ start {
     n.release(registration)
     n.collect()
     n.dispose(registration)
-    int count = 0
+    int64 count = 0
     while (count < 50) {
         handle next = factory.quiet(n)
         n.invoke(next, count)
@@ -381,7 +383,7 @@ start {
 }
 """, "42finalized50", None),
             ("native_exception", NATIVE + """
-class Worker { int fail(int n) { return 1 / n } }
+class Worker { int64 fail(int64 n) { return 1 / n } }
 start {
     Native n = Native()
     Worker w = Worker()
@@ -390,7 +392,7 @@ start {
 }
 """, "", "uncaught Cwhip exception"),
             ("released", NATIVE + """
-class Worker { int run(int n) { return n } }
+class Worker { int64 run(int64 n) { return n } }
 start {
     Native n = Native()
     Worker w = Worker()
@@ -400,7 +402,7 @@ start {
 }
 """, "", "registration has been released"),
             ("foreign", NATIVE + """
-class Worker { int run(int n) { return n } }
+class Worker { int64 run(int64 n) { return n } }
 start {
     Native n = Native()
     Worker w = Worker()
@@ -412,11 +414,11 @@ start {
 class Worker {
     Native native
     handle registration
-    int depth
-    int run(int n) {
+    int64 depth
+    int64 run(int64 n) {
         if (depth == 0) {
             depth = 1
-            int inner = native.invoke(registration, n + 1)
+            int64 inner = native.invoke(registration, n + 1)
             depth = 0
             return inner + 10
         }
@@ -438,7 +440,7 @@ start {
 class Worker {
     Native native
     handle registration
-    int run(int n) { native.release(registration)
+    int64 run(int64 n) { native.release(registration)
         return n }
 }
 start {
@@ -450,18 +452,18 @@ start {
 }
 """, "", "in-flight registration"),
             ("native_signature", """
-class W { int run(int n) { return n } }
+class W { int64 run(int64 n) { return n } }
 start {
     W w = W()
-    callback<int(int)> cb = w.run
-    inline(callback<int(int)> cb) {
-        cwhip_callback_acquire(*cb, "callback<float(float)>");
+    callback<int64(int64)> cb = w.run
+    inline(callback<int64(int64)> cb) {
+        cwhip_callback_acquire(*cb, "callback<fp64(fp64)>");
     }
 }
 """, "", "signature mismatch"),
             ("native_destroyed", NATIVE + """
 class W {
-    int run(int n) { return n }
+    int64 run(int64 n) { return n }
     destroy {}
 }
 start {
@@ -474,7 +476,7 @@ start {
 """, "", "object has been destroyed"),
             ("native_caught", NATIVE + """
 class W {
-    int run(int n) {
+    int64 run(int64 n) {
         try { return 1 / n } except() { return -1 }
     }
 }
@@ -488,7 +490,7 @@ start {
 }
 """, "-1", None),
             ("registered_foreign", NATIVE + """
-class W { int run(int n) { return n } }
+class W { int64 run(int64 n) { return n } }
 start {
     Native n = Native()
     W w = W()
@@ -497,7 +499,7 @@ start {
 }
 """, "", "foreign-thread invocation"),
             ("unlocked", NATIVE + """
-class W { int run(int n) { return n } }
+class W { int64 run(int64 n) { return n } }
 start {
     Native n = Native()
     W w = W()
@@ -506,7 +508,7 @@ start {
 }
 """, "", "holding the runtime lock"),
             ("undisposed", NATIVE + """
-class W { int run(int n) { return n } }
+class W { int64 run(int64 n) { return n } }
 start {
     Native n = Native()
     W w = W()
@@ -515,7 +517,7 @@ start {
 }
 """, "", "undisposed callback registrations"),
             ("double_release", NATIVE + """
-class W { int run(int n) { return n } }
+class W { int64 run(int64 n) { return n } }
 start {
     Native n = Native()
     W w = W()
@@ -525,7 +527,7 @@ start {
 }
 """, "", "registration has been released"),
             ("early_dispose", NATIVE + """
-class W { int run(int n) { return n } }
+class W { int64 run(int64 n) { return n } }
 start {
     Native n = Native()
     W w = W()
@@ -535,16 +537,16 @@ start {
 """, "", "idle released owner-thread registration"),
             ("argument_destroys", """
 class W {
-    int run(int n) { return 42 }
+    int64 run(int64 n) { return 42 }
     destroy {}
 }
 class Killer {
-    int kill(W object) { object.destroy()
+    int64 kill(W object) { object.destroy()
         return 1 }
 }
 start {
     W w = W()
-    callback<int(int)> cb = w.run
+    callback<int64(int64)> cb = w.run
     try { print(cb(Killer().kill(w))) } except() { print("dead") }
 }
 """, "dead", None),
@@ -567,45 +569,45 @@ start {
             print(f"PASS {name}")
 
         prefix = """class W {
-    int run(int n) { return n }
-    float run(float n) { return n }
+    int64 run(int64 n) { return n }
+    fp64 run(fp64 n) { return n }
     private:
-    int secret(int n) { return n }
+    int64 secret(int64 n) { return n }
     destroy {}
 }
 """
         negative = [
-            ("mismatch", "callback<float(int)> cb = w.run", "does not match callback signature"),
-            ("arity", "callback<int(int)> cb = w.run\n cb()", "argument count mismatch"),
-            ("argument", 'callback<int(int)> cb = w.run\n cb("x")', "argument type mismatch"),
-            ("access", "callback<int(int)> cb = w.secret", "not accessible"),
+            ("mismatch", "callback<fp64(int64)> cb = w.run", "does not match callback signature"),
+            ("arity", "callback<int64(int64)> cb = w.run\n cb()", "argument count mismatch"),
+            ("argument", 'callback<int64(int64)> cb = w.run\n cb("x")', "argument type mismatch"),
+            ("access", "callback<int64(int64)> cb = w.secret", "not accessible"),
             ("ambiguity", "print(w.run)", "ambiguous callback capture"),
-            ("collection", "callback<int(int)> cb = w.run\n list values = [cb]", "list elements"),
-            ("type_test", "callback<int(int)> cb = w.run\n print(cb is int)", "does not support operand"),
-            ("conversion", "callback<int(int)> cb = w.run\n callback<float(float)> other = cb", "cannot initialize"),
-            ("void_argument", "callback<int(void)> cb = w.run", "expected type name"),
+            ("collection", "callback<int64(int64)> cb = w.run\n list values = [cb]", "list elements"),
+            ("type_test", "callback<int64(int64)> cb = w.run\n print(cb is int64)", "does not support operand"),
+            ("conversion", "callback<int64(int64)> cb = w.run\n callback<fp64(fp64)> other = cb", "cannot initialize"),
+            ("void_argument", "callback<int64(void)> cb = w.run", "expected type name"),
             ("descriptor", "callback<type()> cb = w.run", "type descriptors"),
-            ("free", "callback<int(int)> cb = W.run", "undefined variable"),
-            ("cast", "callback<int(int)> cb = w.run\n handle h = cb as handle", "does not support source"),
-            ("callback_test", "callback<int(int)> cb = w.run\n print(cb is callback<int(int)>)",
+            ("free", "callback<int64(int64)> cb = W.run", "undefined variable"),
+            ("cast", "callback<int64(int64)> cb = w.run\n handle h = cb as handle", "does not support source"),
+            ("callback_test", "callback<int64(int64)> cb = w.run\n print(cb is callback<int64(int64)>)",
              "callback type tests and casts are not supported"),
-            ("default", "callback<int(int)> cb\n cb(1)", "may be uninitialized"),
+            ("default", "callback<int64(int64)> cb\n cb(1)", "may be uninitialized"),
             ("overload_context", """Use u = Use()
  u.use(w.run)
 """, "ambiguous between overloads"),
             ("destructor", "callback<void()> cb = w.destroy", "destructors cannot be captured"),
-            ("map", 'callback<int(int)> cb = w.run\n dict d = {"cb": cb}', "dict values"),
-            ("inheritance_ambiguity", "Both b = Both()\n callback<int(int)> cb = b.run",
+            ("map", 'callback<int64(int64)> cb = w.run\n dict d = {"cb": cb}', "dict values"),
+            ("inheritance_ambiguity", "Both b = Both()\n callback<int64(int64)> cb = b.run",
              "ambiguous inherited callback method"),
-            ("private_base", "Hidden h = Hidden()\n callback<int(int)> cb = h.A.run",
+            ("private_base", "Hidden h = Hidden()\n callback<int64(int64)> cb = h.A.run",
              "not accessible"),
         ]
         prefix += """class Use {
-    int use(callback<int(int)> cb) { return cb(1) }
-    float use(callback<float(float)> cb) { return cb(1.0) }
+    int64 use(callback<int64(int64)> cb) { return cb(1) }
+    fp64 use(callback<fp64(fp64)> cb) { return cb(1.0) }
 }
-class A { int run(int n) { return n } }
-class B { int run(int n) { return n } }
+class A { int64 run(int64 n) { return n } }
+class B { int64 run(int64 n) { return n } }
 class Both : A, B {}
 class Hidden : private A {}
 """
@@ -618,13 +620,13 @@ class Hidden : private A {}
         module = work / "modules" / "callbacks" / "1.0.0"
         module.mkdir(parents=True)
         (module / "cwhip-package.toml").write_text(
-            '[package]\nname = "callbacks"\nversion = "1.0.0"\n'
+            '[package]\nsdk-abi = "numeric-v2"\nname = "callbacks"\nversion = "1.0.0"\n'
             'source = "model.cw"\nexport = "namespace:Model"\n')
         (module / "model.cw").write_text("""
 namespace Model {
     class Cell {
-        int n
-        Cell(int initial) { n = initial }
+        int64 n
+        Cell(int64 initial) { n = initial }
         Cell echo(Cell other) { return other }
         callback<Cell(Cell)> capture() { return echoReceiver().echo }
         Cell echoReceiver() { return Cell(n) }

@@ -1,41 +1,41 @@
 # Exercises independent base subobjects and qualified field access in a non-virtual diamond.
 class Node {
-    int value
+    int64 value
 
-    Node(int initial) {
+    Node(int64 initial) {
         value = initial
     }
 }
 
 class Root {
     Node item
-    int value
+    int64 value
 
-    int read() {
+    int64 read() {
         return value
     }
 }
 
 class Left : Root {
-    int left
+    int64 left
 
-    int sum() {
+    int64 sum() {
         return value + left
     }
 }
 
 class Right : Root {
-    int right
+    int64 right
 
-    int sumRight() {
+    int64 sumRight() {
         return value + right
     }
 }
 
 class Diamond : Left, Right {
-    int extra
+    int64 extra
 
-    int sum() {
+    int64 sum() {
         return left + extra
     }
 }

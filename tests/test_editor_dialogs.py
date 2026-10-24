@@ -13,51 +13,51 @@ from program_runner import environment, invoke
 
 DRIVER = r"""
 class Fixture {
-    void choose(String path, int accept, int overwrite)
+    void choose(String path, int64 accept, int64 overwrite)
     void collect()
     void edit(String text)
     bool shortcut(String trigger)
-    int height()
+    int64 height()
     void resize()
     void tick()
     bool entryFocus(String text)
-    void chooseMany(String folder, int count)
+    void chooseMany(String folder, int64 count)
     bool alert(String fragments)
     bool alertOpen()
-    void select(int first, int last)
+    void select(int64 first, int64 last)
     bool searchDialog(bool replaceMode)
     bool closeSearchDialog()
     bool monospace()
-    bool press(String marker, int keyval)
-    void selectMarked(String marker, int first, int last)
+    bool press(String marker, int64 keyval)
+    void selectMarked(String marker, int64 first, int64 last)
     void cleanup()
 }
-void Fixture.choose(String path, int accept, int overwrite) from "fixture_editor_choose"
+void Fixture.choose(String path, int64 accept, int64 overwrite) from "fixture_editor_choose"
 void Fixture.collect() from "fixture_editor_collect"
 void Fixture.edit(String text) from "fixture_editor_edit"
 bool Fixture.shortcut(String trigger) from "fixture_editor_shortcut"
-int Fixture.height() from "fixture_editor_height"
+int64 Fixture.height() from "fixture_editor_height"
 void Fixture.resize() from "fixture_editor_resize"
 void Fixture.tick() from "fixture_preferences_tick"
 bool Fixture.entryFocus(String text) from "fixture_editor_entry_focus"
-void Fixture.chooseMany(String folder, int count) from "fixture_editor_choose_many"
+void Fixture.chooseMany(String folder, int64 count) from "fixture_editor_choose_many"
 bool Fixture.alert(String fragments) from "fixture_editor_alert"
 bool Fixture.alertOpen() from "fixture_editor_alert_open"
-void Fixture.select(int first, int last) from "fixture_editor_select"
+void Fixture.select(int64 first, int64 last) from "fixture_editor_select"
 bool Fixture.searchDialog(bool replaceMode) from "fixture_editor_search_dialog"
 bool Fixture.closeSearchDialog() from "fixture_editor_close_search_dialog"
 bool Fixture.monospace() from "fixture_editor_monospace"
-bool Fixture.press(String marker, int keyval) from "fixture_editor_type"
-void Fixture.selectMarked(String marker, int first, int last) from "fixture_editor_select_marked"
+bool Fixture.press(String marker, int64 keyval) from "fixture_editor_type"
+void Fixture.selectMarked(String marker, int64 first, int64 last) from "fixture_editor_select_marked"
 void Fixture.cleanup() from "fixture_editor_cleanup"
 
 class EditorChecks {
     Cedit editor
-    int stage
-    int checks
-    int originalHeight
-    int resizeAttempts
-    int documentsBeforeMany
+    int64 stage
+    int64 checks
+    int64 originalHeight
+    int64 resizeAttempts
+    int64 documentsBeforeMany
     EditorDocument saved
     EditorDocument search
     callback<void()> nextAction
@@ -76,7 +76,7 @@ class EditorChecks {
         return result
     }
     EditorDocument documentAt(String name) {
-        int index = 0
+        int64 index = 0
         while (index < editor.documents.length) {
             EditorDocument document = editor.documents[index] as EditorDocument
             if (document.path.equals(path(name))) {
@@ -127,7 +127,7 @@ class EditorChecks {
             require(editor.documents.length == 2, "menu New")
             editor.currentDocument().view.setText("created\nsecond line\n")
             Fixture().choose("", 0, 0)
-            editor.menu.activateItem(editor.documentItems[0] as int)
+            editor.menu.activateItem(editor.documentItems[0] as int64)
         }
         if (stage == 1) {
             require(editor.currentDocument().path.equals("") && editor.currentDocument().view.modified(), "cancel untitled Save")
@@ -139,15 +139,15 @@ class EditorChecks {
             require(saved.path.equals(path("created.cw")) && !saved.view.modified(), "Save creates identity")
             require(contents(saved.path).equals("created\nsecond line\n"), "Save contents")
             saved.view.setText("updated\n")
-            editor.menu.activateItem(editor.documentItems[0] as int)
+            editor.menu.activateItem(editor.documentItems[0] as int64)
             require(contents(saved.path).equals("updated\n") && !saved.view.modified(), "named Save")
             Fixture().choose(path("overwrite.cw"), 1, -1)
-            editor.menu.activateItem(editor.documentItems[1] as int)
+            editor.menu.activateItem(editor.documentItems[1] as int64)
         }
         if (stage == 3) {
             require(saved.path.equals(path("created.cw")) && contents(path("overwrite.cw")).equals("original\n"), "overwrite cancel preserves identity and contents")
             Fixture().choose(path("overwrite.cw"), 1, 1)
-            editor.menu.activateItem(editor.documentItems[1] as int)
+            editor.menu.activateItem(editor.documentItems[1] as int64)
         }
         if (stage == 4) {
             require(saved.path.equals(path("overwrite.cw")) && contents(saved.path).equals("updated\n"), "overwrite confirmed")
@@ -168,13 +168,13 @@ class EditorChecks {
             editor.activateDocument(saved)
             saved.view.setText("must not overwrite other\n")
             Fixture().choose(path("other.cw"), 1, 1)
-            editor.menu.activateItem(editor.documentItems[1] as int)
+            editor.menu.activateItem(editor.documentItems[1] as int64)
         }
         if (stage == 7) {
             require(editor.status.text().contains("another open document") && contents(path("other.cw")).equals("other\n") && saved.path.equals(path("overwrite.cw")), "identity collision rejected")
             editor.menu.activateItem(editor.newItem)
             editor.currentDocument().view.setText("unsaved\n")
-            editor.menu.activateItem(editor.documentItems[3] as int)
+            editor.menu.activateItem(editor.documentItems[3] as int64)
             require(editor.pendingCloseDocument == editor.currentDocument(), "dirty Close prompts")
             Fixture().choose("", 0, 0)
             editor.closeSaveAction()
@@ -230,15 +230,15 @@ class EditorChecks {
         }
         if (stage == 12) {
             require(editor.currentDocument().view.text().equals("undo this\n"), "Paste clipboard")
-            editor.menu.activateItem(editor.documentItems[5] as int)
+            editor.menu.activateItem(editor.documentItems[5] as int64)
             require(editor.currentDocument().view.hasSelection(), "menu Select All")
             editor.findEntry.setText("undo")
-            editor.menu.activateItem(editor.documentItems[6] as int)
+            editor.menu.activateItem(editor.documentItems[6] as int64)
             require(Fixture().entryFocus("undo"), "Find menu focuses query")
             editor.findAction()
             require(editor.currentDocument().view.hasSelection(), "Find selection")
             editor.replaceEntry.setText("replace")
-            editor.menu.activateItem(editor.documentItems[7] as int)
+            editor.menu.activateItem(editor.documentItems[7] as int64)
             require(Fixture().entryFocus("replace"), "Replace menu focuses replacement")
             editor.replaceAction()
             require(editor.currentDocument().view.text().contains("replace this"), "Replace contents")

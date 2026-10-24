@@ -3,7 +3,7 @@ start {
     strg greeting = "café\n"
     strg copy
     copy = greeting
-    int value = 42
+    int64 value = 42
     print(copy)
     print(format("value: {}", value))
     print(format("sum {} {}", 20 + 1, 21))

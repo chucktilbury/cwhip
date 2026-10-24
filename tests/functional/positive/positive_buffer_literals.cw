@@ -1,24 +1,24 @@
 # Explicit buffer literals evaluate their integer elements once from left to right.
 class Builder {
-    int calls
+    int64 calls
 
     Builder() {
         calls = 0
     }
 
-    int next(int value) {
+    int64 next(int64 value) {
         calls = calls + 1
         print(calls)
         return value
     }
 
-    unsigned nextUnsigned(unsigned value) {
+    uint64 nextUnsigned(uint64 value) {
         calls = calls + 1
         print(calls)
         return value
     }
 
-    int count() {
+    int64 count() {
         return calls
     }
 
@@ -26,7 +26,7 @@ class Builder {
         return value
     }
 
-    int fail() {
+    int64 fail() {
         raise(Exception("buffer literal stopped"))
     }
 }

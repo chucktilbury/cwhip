@@ -137,7 +137,7 @@ set(module_root "${work}/modules/multi_module/1.0.0")
 file(MAKE_DIRECTORY "${module_root}")
 configure_file("${module_source}" "${module_root}/module.cw" COPYONLY)
 file(WRITE "${module_root}/cwhip-package.toml"
-    "[package]\nname = \"multi_module\"\nversion = \"1.0.0\"\n"
+    "[package]\nsdk-abi = \"numeric-v2\"\nname = \"multi_module\"\nversion = \"1.0.0\"\n"
     "source = \"module.cw\"\nexport = \"class:Imported\"\n")
 set(import_source "${work}/import.cw")
 set(import_object "${work}/import.o")

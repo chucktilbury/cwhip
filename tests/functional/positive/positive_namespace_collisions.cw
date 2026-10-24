@@ -2,7 +2,7 @@
 namespace Branch {
     namespace Left {
         class Item {
-            int value() {
+            int64 value() {
                 return 10
             }
         }
@@ -12,7 +12,7 @@ namespace Branch {
 namespace Branch {
     namespace Right {
         class Item {
-            int value() {
+            int64 value() {
                 return 32
             }
         }

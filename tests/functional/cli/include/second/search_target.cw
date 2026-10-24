@@ -1,5 +1,5 @@
 class SearchTarget {
-    int answer() {
+    int64 answer() {
         return 99
     }
 }

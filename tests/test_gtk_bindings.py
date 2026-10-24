@@ -12,39 +12,39 @@ NATIVE = """
 import gtk
 class F {
     void collect()
-    int dialogs()
-    int finalizedObjects()
-    int finalizedConfirmations()
-    void drain(int expected)
-    int receivers()
+    int64 dialogs()
+    int64 finalizedObjects()
+    int64 finalizedConfirmations()
+    void drain(int64 expected)
+    int64 receivers()
     void track()
     void respond(String path, bool accept)
     void confirm(bool accept)
-    void waitSize(int token, int width, int height, callback<void()> ready)
-    void assertMenu(int token)
-    void resize(int token, int width, int height)
+    void waitSize(int64 token, int64 width, int64 height, callback<void()> ready)
+    void assertMenu(int64 token)
+    void resize(int64 token, int64 width, int64 height)
 }
 void F.collect() from "binding_collect"
-int F.dialogs() from "binding_dialogs"
-int F.finalizedObjects() from "binding_finalized_objects"
-int F.finalizedConfirmations() from "binding_finalized_confirmations"
-void F.drain(int expected) from "binding_drain"
-int F.receivers() from "binding_receivers"
+int64 F.dialogs() from "binding_dialogs"
+int64 F.finalizedObjects() from "binding_finalized_objects"
+int64 F.finalizedConfirmations() from "binding_finalized_confirmations"
+void F.drain(int64 expected) from "binding_drain"
+int64 F.receivers() from "binding_receivers"
 void F.track() from "binding_track"
 void F.respond(String path, bool accept) from "binding_respond"
 void F.confirm(bool accept) from "binding_confirm"
-void F.waitSize(int token, int width, int height, callback<void()> ready)
+void F.waitSize(int64 token, int64 width, int64 height, callback<void()> ready)
     from "binding_wait_size"
-void F.assertMenu(int token) from "binding_assert_menu"
-void F.resize(int token, int width, int height) from "binding_resize"
+void F.assertMenu(int64 token) from "binding_assert_menu"
+void F.resize(int64 token, int64 width, int64 height) from "binding_resize"
 """
 
 SHORTCUT_NATIVE = """
 import sourceview
 class Keys {
-    bool press(int token, String trigger)
+    bool press(int64 token, String trigger)
 }
-bool Keys.press(int token, String trigger) from "binding_shortcut"
+bool Keys.press(int64 token, String trigger) from "binding_shortcut"
 """
 
 MENU = """
@@ -59,12 +59,12 @@ class Stop {
 class UI {
     Gtk.Window window
     Gtk.MenuBar menus
-    int item
+    int64 item
     void activate() {
         window = Gtk.Window("Menu bindings")
         menus = Gtk.MenuBar()
         window.setChild(menus)
-        int menu = menus.addMenu("File")
+        int64 menu = menus.addMenu("File")
         item = menus.addItem(menu, "Open", Handler().action)
         F().assertMenu(menus._widgetToken())
         F().collect()
@@ -73,7 +73,7 @@ class UI {
         menus.activateItem(item)
         menus.setItemEnabled(item, true)
         menus.activateItem(item)
-        int stop = menus.addItem(menu, "Shutdown", Stop().action)
+        int64 stop = menus.addItem(menu, "Shutdown", Stop().action)
         menus.activateItem(stop)
         print(menus.disposed())
     }
@@ -99,7 +99,7 @@ class UI {
     Gtk.Window window
     Gtk.FileDialog dialog
     callback<void(String)> resultAction
-    int phase
+    int64 phase
     void show(bool save, String path) {
         dialog = Gtk.FileDialog(window, save, path, Relay(resultAction).deliver)
         print(dialog.pending())
@@ -369,7 +369,7 @@ class UI {
         print(firstView.bindShortcut("<Control>w", Action(window, notebook, first).run))
         print(secondView.bindShortcut("<Control>q", Action(window, notebook, null).run))
         window.present()
-        int closing = firstView._widgetToken()
+        int64 closing = firstView._widgetToken()
         print(Keys().press(closing, "<Control>w"))
         print(Keys().press(secondView._widgetToken(), "<Control>q"))
     }

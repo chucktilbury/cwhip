@@ -1,3 +1,3 @@
 start {
-    int is = 1
+    int64 is = 1
 }

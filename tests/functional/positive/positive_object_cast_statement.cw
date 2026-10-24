@@ -1,13 +1,13 @@
 class Bar {
-    int val
-    Bar(int v) { val = v }
+    int64 val
+    Bar(int64 v) { val = v }
     void show() { print(format("class Bar {}", val)) }
 }
 class Foo {
     list flarp
     Foo() {
         flarp = []
-        int i = 0
+        int64 i = 0
         while (i <= 10) {
             flarp.append(Bar(i))
             i += 1

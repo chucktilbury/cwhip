@@ -1,6 +1,6 @@
 # Rejects accessing a field absent from the Counter class.
 class Counter {
-    int value
+    int64 value
 }
 
 start {

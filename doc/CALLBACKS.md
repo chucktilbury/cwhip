@@ -9,16 +9,16 @@ types are allowed. `any` and `type` descriptors are not supported in signatures.
 ```cwhip
 // test: {"stdout": "42"}
 class Counter {
-    int base
-    Counter(int initial) { base = initial }
-    int add(int value) { return base + value }
+    int64 base
+    Counter(int64 initial) { base = initial }
+    int64 add(int64 value) { return base + value }
 }
 class Apply {
-    int run(callback<int(int)> action, int value) { return action(value) }
+    int64 run(callback<int64(int64)> action, int64 value) { return action(value) }
 }
 start {
     Counter counter(40)
-    callback<int(int)> action = counter.add
+    callback<int64(int64)> action = counter.add
     print(Apply().run(action, 2))
 }
 ```
@@ -58,7 +58,7 @@ callback's rooted Cwhip slot. Do not dereference a callback's private layout or
 call Cwhip method symbols from C.
 
 `cwhip_callback_acquire(callback, signature)` creates a retained registration.
-The signature string is **canonical**, e.g. `callback<int(int)>`,
+The signature string is **canonical**, e.g. `callback<int64(int64)>`,
 `callback<String(String)>`, or `callback<Model.Cell(Model.Cell)>`, with no
 spaces. Namespace/import aliases must be expanded to the declared namespace.
 An incorrect signature is a fatal native-boundary error, not a function-pointer
@@ -74,7 +74,7 @@ typedef int64_t (*OnValue)(CwhipCallbackContext *, int64_t);
 
 /* Called by a native-bound method or inline shim on a Cwhip thread. */
 CwhipCallbackContext *context =
-    cwhip_callback_acquire(callback, "callback<int(int)>");
+    cwhip_callback_acquire(callback, "callback<int64(int64)>");
 OnValue function = (OnValue)cwhip_callback_adapter(context);
 int64_t answer = function(context, 42);
 /* Disconnect the C API's registration before releasing the retained root. */
@@ -84,7 +84,8 @@ cwhip_callback_dispose(context);
 ```
 
 The generated adapter's ABI is `R(CwhipCallbackContext *, P1, P2, ...)`.
-`int` is `int64_t`, `unsigned` is `uint64_t`, `float` is `double`, `bool` is
+`int8`/`uint8` through `int64`/`uint64` use their exact-width C integer types;
+`fp32` is C `float`, `fp64` is `double`, and `bool` is
 C `_Bool`, and managed references/handles are `void *`. A `void` result really
 returns C `void`. Parameters keep their order. Use a small statically compiled
 C forwarding function for APIs placing `void *user_data` last or otherwise
@@ -97,15 +98,15 @@ The same API works in a hermetic inline shim:
 ```cwhip
 // test: {"stdout": "42"}
 class Worker {
-    int add(int value) { return value + 2 }
+    int64 add(int64 value) { return value + 2 }
 }
 start {
     Worker worker = Worker()
-    callback<int(int)> action = worker.add
-    int result = 0
-    inline(callback<int(int)> action, int result) {
+    callback<int64(int64)> action = worker.add
+    int64 result = 0
+    inline(callback<int64(int64)> action, int64 result) {
         CwhipCallbackContext *context =
-            cwhip_callback_acquire(*action, "callback<int(int)>");
+            cwhip_callback_acquire(*action, "callback<int64(int64)>");
         typedef int64_t (*OnValue)(CwhipCallbackContext *, int64_t);
         OnValue function = (OnValue)cwhip_callback_adapter(context);
         *result = function(context, 40);

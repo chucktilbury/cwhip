@@ -4,27 +4,27 @@
 # member access on a null reference raises an exception; every other use
 # of a null scalar decays to that type's zero value.
 class Holder {
-    int value
+    int64 value
 
-    Holder(int initialValue) {
+    Holder(int64 initialValue) {
         value = initialValue
     }
 }
 
 start {
-    int declaredNullInt = null
+    int64 declaredNullInt = null
     print(declaredNullInt)
 
-    int reassigned = 12
+    int64 reassigned = 12
     reassigned = declaredNullInt
     print(reassigned)
     print(reassigned == null)
     print(reassigned != null)
 
-    unsigned nullUnsigned = null
+    uint64 nullUnsigned = null
     print(nullUnsigned)
 
-    float nullFloat = null
+    fp64 nullFloat = null
     print(nullFloat)
 
     bool nullBool = null

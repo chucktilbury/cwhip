@@ -245,14 +245,9 @@ void CodeGenerator::emitPrintDynamicValue(const Value& value,
         } else {
             const auto widthType = "i" + std::to_string(numeric->width);
             const auto narrow = newTemporary();
-            const auto extended = newTemporary();
-            const auto extension = numeric->category == NumericCategory::SignedInteger
-                                       ? "sext" : "zext";
             instructions_ += "  " + narrow + " = trunc i64 " + raw + " to " +
-                             widthType + "\n"
-                             "  " + extended + " = " + extension + " " + widthType +
-                             " " + narrow + " to i64\n";
-            emitPrintValue({type, extended}, {});
+                             widthType + "\n";
+            emitPrintValue({type, narrow}, {});
         }
         instructions_ += "  br label %" + endLabel + "\n";
     }

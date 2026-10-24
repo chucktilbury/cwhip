@@ -1,21 +1,21 @@
 # Exercises inherited and overridden destruction across single, multiple, and diamond inheritance, including failures.
 class Primary {
-  int primaryCode
+  int64 primaryCode
   destroy {
     print(primaryCode)
   }
 }
 
 class Secondary {
-  int secondaryCode
+  int64 secondaryCode
   destroy {
     print(secondaryCode)
   }
 }
 
 class Single : Primary {
-  int ownCode
-  Single(int code) {
+  int64 ownCode
+  Single(int64 code) {
     super Primary()
     primaryCode = code
     ownCode = code + 1
@@ -26,8 +26,8 @@ class Single : Primary {
 }
 
 class Multiple : Primary, Secondary {
-  int ownCode
-  Multiple(int code) {
+  int64 ownCode
+  Multiple(int64 code) {
     super Primary()
     primaryCode = code
     secondaryCode = code + 1
@@ -39,7 +39,7 @@ class Multiple : Primary, Secondary {
 }
 
 class InheritedOnly : Primary, Secondary {
-  InheritedOnly(int code) {
+  InheritedOnly(int64 code) {
     super Primary()
     primaryCode = code
     secondaryCode = code + 1

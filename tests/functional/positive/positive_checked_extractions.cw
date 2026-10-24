@@ -1,10 +1,10 @@
 class Base {
-    int value
-    Base(int initial) { value = initial }
-    int read() { return value }
+    int64 value
+    Base(int64 initial) { value = initial }
+    int64 read() { return value }
 }
 class Derived : Base {
-    Derived(int initial) { super Base(initial) }
+    Derived(int64 initial) { super Base(initial) }
 }
 class Native {
     handle saved
@@ -13,15 +13,16 @@ start {
     handle token inline {
         *token = (void *)(uintptr_t)0x1234;
     }
-    list payloads = [42, 9u, true, 2.5, "text", [7], {"key": 8},
-                     buffer(1), token, Derived(11), int, null]
-    dict descriptors = {"kind": int}
+    list payloads = [int64(42), uint64(9u), true, fp64(2.5), "text",
+                     [int64(7)], {"key": int64(8)},
+                     buffer(1), token, Derived(11), int64, null]
+    dict descriptors = {"kind": int64}
     list descriptorList = []
     descriptorList.append(bool)
-    int integer = payloads[0] as int
-    unsigned count = payloads[1] as unsigned
+    int64 integer = payloads[0] as int64
+    uint64 count = payloads[1] as uint64
     bool flag = payloads[2] as bool
-    float real = payloads[3] as float
+    fp64 real = payloads[3] as fp64
     strg text = payloads[4] as strg
     list sequence = payloads[5] as list
     dict mapping = payloads[6] as dict
@@ -51,7 +52,7 @@ start {
     print(mappedDescriptor)
     print(appendedDescriptor)
     print(payloads[0] as any)
-    print((7 as any) as int)
+    print((int64(7) as any) as int64)
     print(null as any)
     print(type(payloads[11] as null))
     print((payloads[11] as any) == null)
@@ -73,16 +74,16 @@ start {
     print(type(emptyHandle as null))
 
     try {
-        int wrong = payloads[1] as int
+        int64 wrong = payloads[1] as int64
     } except(Exception) { print("int mismatch") }
     try {
-        unsigned wrong = payloads[0] as unsigned
+        uint64 wrong = payloads[0] as uint64
     } except(Exception) { print("unsigned mismatch") }
     try {
         bool wrong = payloads[0] as bool
     } except(Exception) { print("bool mismatch") }
     try {
-        float wrong = payloads[0] as float
+        fp64 wrong = payloads[0] as fp64
     } except(Exception) { print("float mismatch") }
     try {
         strg wrong = payloads[0] as strg
@@ -119,7 +120,7 @@ start {
         dict wrong = payloads[11] as dict
     } except(Exception) { print("null dict extraction mismatch") }
     try {
-        int wrong = null as int
+        int64 wrong = null as int64
     } except(Exception) { print("null scalar mismatch") }
     try {
         Base wrong = payloads[0] as Base

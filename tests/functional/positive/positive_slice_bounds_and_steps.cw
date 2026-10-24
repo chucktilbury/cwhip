@@ -1,20 +1,20 @@
 # Covers omitted slice bounds for arrays, maps, and buffers plus list steps.
 start {
-    list values = [0, 1, 2, 3, 4, 5]
+    list values = [int64(0), int64(1), int64(2), int64(3), int64(4), int64(5)]
     print(values[-1])
-    int previous = values[-2]
+    int64 previous = values[-2]
     values[-2] = previous + 10
     print(values[-2])
-    values[-6] = 7
+    values[-6] = int64(7)
     print(values[0])
     try {
-        int invalidIndex = values[-values.length - 1]
+        int64 invalidIndex = values[-values.length - 1]
         print("unreachable")
     } except(Exception) as error {
         print(error.message)
     }
     try {
-        int boundaryIndex = values[-6]
+        int64 boundaryIndex = values[-6]
         print(boundaryIndex)
     } except(Exception) {
         print("negative length should be valid")
@@ -65,7 +65,7 @@ start {
     print(mixedNegativeStep[0])
     print(mixedNegativeStep[2])
 
-    int zero = 0
+    int64 zero = 0
     try {
         list invalid = values[1:5:zero]
         print("unreachable")
@@ -104,7 +104,7 @@ start {
     bytes[-4] = 11
     print(bytes[0])
     try {
-        unsigned invalidIndex = bytes[-bytes.length - 1]
+        uint64 invalidIndex = bytes[-bytes.length - 1]
         print("unreachable")
     } except(Exception) as error {
         print(error.message)

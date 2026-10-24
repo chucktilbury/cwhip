@@ -72,7 +72,7 @@ const TestGroupRegistration registration{3, {
     }},
     {"protected virtual initialization preserves ownership and ordering", [] {
         const std::string virtualBases =
-            "class V { V(int n) {} }\nclass W { W(int n) {} }\n"
+            "class V { V(int64 n) {} }\nclass W { W(int64 n) {} }\n"
             "class L: virtual V, virtual W { L() {} }\n";
         expectValid(virtualBases +
             "class C: L { C() { try { super virtual V(1)\n super virtual W(2)\n"

@@ -8,13 +8,13 @@ using namespace cwhip_test;
 const TestGroupRegistration registration{1, {
     {"inline capture paths preserve the C parameter name", [] {
         auto program = parse(
-            "class Base { int value }\n"
+            "class Base { int64 value }\n"
             "class Child : Base {\n"
             " void update() {\n"
-            "  inline (int Base.value) { *value = 7; }\n"
-            "  int value = 1\n"
-            "  inline (int .value) { *value += 2; }\n"
-            "  inline (int value) { *value = 3; }\n"
+            "  inline (int64 Base.value) { *value = 7; }\n"
+            "  int64 value = 1\n"
+            "  inline (int64 .value) { *value += 2; }\n"
+            "  inline (int64 value) { *value = 3; }\n"
             " }\n}\nstart {}");
         const auto child = std::find_if(program.classes.begin(), program.classes.end(),
             [](const auto& owner) { return owner.name == "Child"; });
@@ -31,57 +31,57 @@ const TestGroupRegistration registration{1, {
     }},
     {"inline captures use field access checks and exact types", [] {
         expectDiagnostic(
-            "class Base { private: int value }\n"
-            "class Child : Base { void update() { inline (int value) {} } }\nstart {}",
+            "class Base { private: int64 value }\n"
+            "class Child : Base { void update() { inline (int64 value) {} } }\nstart {}",
             "field 'value' is not accessible");
         expectDiagnostic(
-            "class Base { private: int value }\n"
-            "class Child : Base { void update() { inline (int Base.value) {} } }\nstart {}",
+            "class Base { private: int64 value }\n"
+            "class Child : Base { void update() { inline (int64 Base.value) {} } }\nstart {}",
             "field 'value' is not accessible");
         expectDiagnostic(
-            "class A { int value }\nclass B { int value }\n"
-            "class C : A, B { void update() { inline (int value) {} } }\nstart {}",
+            "class A { int64 value }\nclass B { int64 value }\n"
+            "class C : A, B { void update() { inline (int64 value) {} } }\nstart {}",
             "ambiguous inherited field 'value'");
         expectDiagnostic(
-            "class Box { int value\nvoid update() { inline (float value) {} } }\nstart {}",
-            "inline capture type 'float' does not match int");
-        expectDiagnostic("start { inline (int .value) {} }",
+            "class Box { int64 value\nvoid update() { inline (fp64 value) {} } }\nstart {}",
+            "inline capture type 'fp64' does not match int64");
+        expectDiagnostic("start { inline (int64 .value) {} }",
                          "instance field inline capture requires an instance context");
-        expectDiagnostic("start { inline (int value) {} }", "undefined inline capture");
+        expectDiagnostic("start { inline (int64 value) {} }", "undefined inline capture");
         expectDiagnostic(
-            "class Box { int value }\nstart { Box box = Box()\n"
-            " inline (int box.value) {} }",
+            "class Box { int64 value }\nstart { Box box = Box()\n"
+            " inline (int64 box.value) {} }",
             "instance field inline capture requires an instance context");
         expectDiagnostic(
-            "class Box { int value\nvoid update(Box other) { inline (int other.value) {} } }\n"
+            "class Box { int64 value\nvoid update(Box other) { inline (int64 other.value) {} } }\n"
             "start {}",
             "qualified inline capture must name an instance field");
         expectDiagnostic(
-            "class Inner { int value }\n"
-            "class Outer { Inner item\nvoid update() { inline (int .item.value) {} } }\n"
+            "class Inner { int64 value }\n"
+            "class Outer { Inner item\nvoid update() { inline (int64 .item.value) {} } }\n"
             "start {}",
             "inline capture field path must contain only base classes");
         expectDiagnostic(
-            "class A { int value }\nclass B : A {\n"
-            " void update() { inline (int value, int A.value) {} }\n}\nstart {}",
+            "class A { int64 value }\nclass B : A {\n"
+            " void update() { inline (int64 value, int64 A.value) {} }\n}\nstart {}",
             "duplicate inline capture 'value'");
-        expectDiagnostic("start { inline (int .) {} }", "expected capture name");
+        expectDiagnostic("start { inline (int64 .) {} }", "expected capture name");
         expectDiagnostic(
-            "class Box { int value\nvoid update() { inline (int .missing) {} } }\nstart {}",
+            "class Box { int64 value\nvoid update() { inline (int64 .missing) {} } }\nstart {}",
             "has no field 'missing'");
     }},
     {"inline fields respect private inheritance and parameter shadowing", [] {
         expectDiagnostic(
-            "class A { int value }\nclass B : private A {}\n"
-            "class C : B { void update() { inline (int B.A.value) {} } }\nstart {}",
+            "class A { int64 value }\nclass B : private A {}\n"
+            "class C : B { void update() { inline (int64 B.A.value) {} } }\nstart {}",
             "field 'value' is not accessible");
         expectValid(
-            "class A { private: int value }\nclass B : A {\n"
-            " void update(float value) { inline (float value) { *value += 1.0; } }\n"
+            "class A { private: int64 value }\nclass B : A {\n"
+            " void update(fp64 value) { inline (fp64 value) { *value += 1.0; } }\n"
             "}\nstart {}");
         expectValid(
-            "namespace N {\nclass Base { int value }\n"
-            "class Child : Base { void update() { inline (int N.Base.value) {} } }\n"
+            "namespace N {\nclass Base { int64 value }\n"
+            "class Child : Base { void update() { inline (int64 N.Base.value) {} } }\n"
             "}\nstart {}");
     }},
 }};

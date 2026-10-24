@@ -1,35 +1,35 @@
 class IntBox {
-    int value
+    int64 value
 
-    IntBox(int initial) {
+    IntBox(int64 initial) {
         value = initial
     }
 
-    int get() {
+    int64 get() {
         return value
     }
 
-    int echo(int argument) {
+    int64 echo(int64 argument) {
         return argument
     }
 }
 
 class Native {
-    int marker
+    int64 marker
 
-    Native(int initialMarker) {
+    Native(int64 initialMarker) {
         marker = initialMarker
     }
 
-    int absolute(int value)
+    int64 absolute(int64 value)
 }
 
-int Native.absolute(int value) from "cwhip_method_demo_abs"
+int64 Native.absolute(int64 value) from "cwhip_method_demo_abs"
 
 start {
-    int above32 = 2147483648
-    int minimum = -9223372036854775808
-    int maximum = 9223372036854775807
+    int64 above32 = 2147483648
+    int64 minimum = -9223372036854775808
+    int64 maximum = 9223372036854775807
 
     print(above32)
     print(minimum)
@@ -52,10 +52,10 @@ start {
     list values = [minimum, maximum, above32]
     print(values[0])
     print(values[1])
-    int arrayValue = values[2]
+    int64 arrayValue = values[2]
     print(arrayValue)
     try {
-        int invalidIndex = values[4294967296]
+        int64 invalidIndex = values[4294967296]
         print("unexpected list index")
     } except(Exception) as error {
         print(error.message)
@@ -67,19 +67,19 @@ start {
 
     strg minText = "-9223372036854775808"
     strg maxText = "9223372036854775807"
-    print(minText.toInt())
-    print(maxText.toInt())
+    print(minText.toInt64())
+    print(maxText.toInt64())
 
     try {
         strg aboveMaxText = "9223372036854775808"
-        print(aboveMaxText.toInt())
+        print(aboveMaxText.toInt64())
     } except() as error {
         print(error)
     }
 
     try {
         strg belowMinText = "-9223372036854775809"
-        print(belowMinText.toInt())
+        print(belowMinText.toInt64())
     } except() as error {
         print(error)
     }

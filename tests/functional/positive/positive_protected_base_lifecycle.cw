@@ -7,9 +7,9 @@ class Other : Exception {
 class Record {
     Exception original
     Record() { original = null }
-    int same(Exception left, Exception right)
+    int64 same(Exception left, Exception right)
 }
-int Record.same(Exception left, Exception right) from "cwhip_method_demo_exception_identity"
+int64 Record.same(Exception left, Exception right) from "cwhip_method_demo_exception_identity"
 
 class First {
     First() { print("first initialized") }
@@ -63,7 +63,7 @@ class CleanupOnly : Fails {
     }
 }
 class Good {
-    Good(int value) { print(value) }
+    Good(int64 value) { print(value) }
 }
 class Direct : Good {
     Direct() {
@@ -91,7 +91,7 @@ class MultiGood : Good, More {
     }
 }
 class Argument {
-    int fail() { raise(Failure("argument failure")) }
+    int64 fail() { raise(Failure("argument failure")) }
 }
 class ArgumentFailure : Good {
     ArgumentFailure(Argument argument) {

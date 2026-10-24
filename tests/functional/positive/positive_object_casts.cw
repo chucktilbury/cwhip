@@ -1,15 +1,15 @@
 class Foo {
-    int value
-    Foo(int initial) { value = initial }
-    int read() { return value }
-    int with(int extra) { return value + extra }
+    int64 value
+    Foo(int64 initial) { value = initial }
+    int64 read() { return value }
+    int64 with(int64 extra) { return value + extra }
 }
 class Bar : Foo {
-    Bar(int initial) { super Foo(initial) }
-    int read() { return value + 100 }
+    Bar(int64 initial) { super Foo(initial) }
+    int64 read() { return value + 100 }
 }
 class Other {}
-class First { int marker }
+class First { int64 marker }
 class Secondary : First, Foo {
     Secondary() {
         super First()
@@ -38,22 +38,22 @@ class Ambiguous : NonvirtualLeft, NonvirtualRight {
     }
 }
 class Factory {
-    int calls
+    int64 calls
     Foo make() {
         calls += 1
         return Bar(calls)
     }
-    int index() {
+    int64 index() {
         calls += 1
         return 0
     }
-    int collect() {
+    int64 collect() {
         inline { cwhip_gc_collect(); }
         return 1
     }
 }
 namespace model {
-    class Named { int read() { return 47 } }
+    class Named { int64 read() { return 47 } }
 }
 start {
     list values = [Foo(7), Bar(11), null, Other(), 42, "text", [1], {"x": 1}, buffer(1)]
@@ -126,7 +126,7 @@ start {
         cwhip_gc_collect();
     }
     list pressure = []
-    int count = 0
+    int64 count = 0
     while (count < 2000) {
         pressure = [Foo(count)]
         count += 1

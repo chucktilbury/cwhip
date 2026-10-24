@@ -5,6 +5,7 @@
  */
 #include "cwhip/PackageRegistry.hpp"
 #include "cwhip/PackageIntegrity.hpp"
+#include "cwhip/Stdlib.h"
 
 #include <algorithm>
 #include <cctype>
@@ -393,7 +394,7 @@ PackageManifest readManifest(const std::filesystem::path& path,
         }
         if (section == "package" &&
             key != "name" && key != "version" && key != "source" &&
-            key != "export") {
+            key != "export" && key != "sdk-abi") {
             throw std::runtime_error(path.string() + ":" +
                                      std::to_string(lineNumber) +
                                      ": unknown key '" + key + "' in [package]");
@@ -426,6 +427,13 @@ PackageManifest readManifest(const std::filesystem::path& path,
         }
         return found->second;
     };
+    const auto abi = scalars.find("package.sdk-abi");
+    if (abi == scalars.end() || abi->second != CWHIP_SDK_ABI) {
+        throw std::runtime_error(path.string() +
+            ": incompatible package SDK ABI (expected '" +
+            CWHIP_SDK_ABI + "'); migrate source and rebuild native artifacts, then set "
+            "[package] sdk-abi = \"" CWHIP_SDK_ABI "\"");
+    }
     manifest.name = required("name");
     manifest.version = required("version");
     const auto source = required("source");
@@ -468,7 +476,7 @@ PackageManifest readManifest(const std::filesystem::path& path,
         }
         manifest.dependencies.push_back({name, versionText});
     }
-    manifest.signature = manifest.name + "\n" + manifest.version + "\n" + source +
+    manifest.signature = std::string(CWHIP_SDK_ABI) + "\n" + manifest.name + "\n" + manifest.version + "\n" + source +
                          "\n" + manifest.exportKind + ":" + manifest.exportName;
     for (const auto& [key, value] : scalars) {
         if (key.rfind("sources.", 0) != 0) continue;

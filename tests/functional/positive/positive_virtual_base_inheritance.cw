@@ -1,22 +1,22 @@
 # Verifies a diamond shares one virtual base and cleans up correctly when virtual-base construction fails.
 class Payload {
-    int value
+    int64 value
 
-    Payload(int initial) {
+    Payload(int64 initial) {
         value = initial
     }
 }
 
 class Root {
     Payload item
-    int value
+    int64 value
 
     Root() {
         print("Root+")
         value = 41
     }
 
-    int read() {
+    int64 read() {
         return value
     }
 
@@ -52,7 +52,7 @@ class Diamond : Left, Right {
         print("Diamond+")
     }
 
-    int read() {
+    int64 read() {
         return 77
     }
 

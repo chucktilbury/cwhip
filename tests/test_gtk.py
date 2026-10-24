@@ -19,10 +19,10 @@ class F {
     handle button()
     handle entry()
     handle window()
-    int clicked(handle object, callback<void()> cb)
-    int changed(handle object, callback<void()> cb)
-    int closeSignal(handle object, callback<bool()> cb)
-    bool disconnect(int token)
+    int64 clicked(handle object, callback<void()> cb)
+    int64 changed(handle object, callback<void()> cb)
+    int64 closeSignal(handle object, callback<bool()> cb)
+    bool disconnect(int64 token)
     void emit(handle object)
     void text(handle object)
     bool updated(handle object)
@@ -31,7 +31,7 @@ class F {
     void collect()
     void owner()
     void destroyed()
-    int count()
+    int64 count()
     void unblock(handle sem)
     void foreign()
     void unlocked(callback<void()> cb)
@@ -40,16 +40,16 @@ class F {
     void releasePublic()
     bool registered()
     void trackPublic()
-    int finalized()
+    int64 finalized()
     String badUtf8()
 }
 handle F.button() from "fixture_gtk_button"
 handle F.entry() from "fixture_gtk_entry"
 handle F.window() from "fixture_gtk_window"
-int F.clicked(handle object, callback<void()> cb) from "fixture_gtk_clicked"
-int F.changed(handle object, callback<void()> cb) from "fixture_gtk_changed"
-int F.closeSignal(handle object, callback<bool()> cb) from "fixture_gtk_close"
-bool F.disconnect(int token) from "fixture_gtk_disconnect"
+int64 F.clicked(handle object, callback<void()> cb) from "fixture_gtk_clicked"
+int64 F.changed(handle object, callback<void()> cb) from "fixture_gtk_changed"
+int64 F.closeSignal(handle object, callback<bool()> cb) from "fixture_gtk_close"
+bool F.disconnect(int64 token) from "fixture_gtk_disconnect"
 void F.emit(handle object) from "fixture_gtk_emit"
 void F.text(handle object) from "fixture_gtk_text"
 bool F.updated(handle object) from "fixture_gtk_is_updated"
@@ -58,7 +58,7 @@ void F.drop(handle object) from "fixture_gtk_drop"
 void F.collect() from "fixture_gtk_collect"
 void F.owner() from "fixture_gtk_owner"
 void F.destroyed() from "fixture_gtk_destroyed"
-int F.count() from "fixture_gtk_count"
+int64 F.count() from "fixture_gtk_count"
 void F.unblock(handle sem) from "fixture_gtk_unblock"
 void F.foreign() from "fixture_gtk_foreign"
 void F.unlocked(callback<void()> cb) from "fixture_gtk_unlocked_post"
@@ -67,7 +67,7 @@ void F.destroyPublic() from "fixture_gtk_public_destroy"
 void F.releasePublic() from "fixture_gtk_public_release"
 bool F.registered() from "fixture_gtk_public_registered"
 void F.trackPublic() from "fixture_gtk_public_track"
-int F.finalized() from "fixture_gtk_finalized"
+int64 F.finalized() from "fixture_gtk_finalized"
 String F.badUtf8() from "fixture_gtk_bad_utf8"
 class Thread {
     handle launch()
@@ -76,11 +76,11 @@ class Thread {
 handle Thread.launch() from "cwhip_thread_start"
 void Thread.join(handle thread) from "cwhip_thread_join"
 class Sem {
-    handle create(int n)
+    handle create(int64 n)
     void wait(handle sem)
     void release(handle sem)
 }
-handle Sem.create(int n) from "cwhip_semaphore_create"
+handle Sem.create(int64 n) from "cwhip_semaphore_create"
 void Sem.wait(handle sem) from "cwhip_semaphore_wait"
 void Sem.release(handle sem) from "cwhip_semaphore_release"
 """
@@ -92,7 +92,7 @@ namespace Gtk {
             super Entry("right") }
     }
     class FixtureMarker {
-        int value
+        int64 value
         FixtureMarker() { value = 7 }
     }
     class FixtureDerived : FixtureMarker, Button {
@@ -123,12 +123,12 @@ class UI {
     callback<bool()> allowAction
     callback<void()> finishAction
     String saved
-    int nesting
+    int64 nesting
     void edited(String text) {
         F().collect()
         saved = text
         label.setText(text)
-        int n = 0
+        int64 n = 0
         while (n < 200) { String garbage = format("allocate {}", n)
             n = n + 1 }
         F().collect()
@@ -315,9 +315,9 @@ start {
 class Handler {
     handle button
     handle entry
-    int clicked
-    int changed
-    int nesting
+    int64 clicked
+    int64 changed
+    int64 nesting
     Handler(handle b, handle e) { button = b
         entry = e }
     void click() {
@@ -354,7 +354,7 @@ start {
     Handler h = Handler(b, e)
     h.clicked = F().clicked(b, h.click)
     h.changed = F().changed(e, h.edit)
-    int close = F().closeSignal(w, h.closeYes)
+    int64 close = F().closeSignal(w, h.closeYes)
     print(F().request(w))
     print(F().disconnect(close))
     close = F().closeSignal(w, h.closeNo)
@@ -372,7 +372,7 @@ start {
     ("destroy_during_signal", """
 class Handler {
     handle button
-    int token
+    int64 token
     Handler(handle b) { button = b }
     void click() {
         F().drop(button)
@@ -381,7 +381,7 @@ class Handler {
     }
 }
 class Setup {
-    int install(handle button) {
+    int64 install(handle button) {
         Handler handler = Handler(button)
         return F().clicked(button, handler.click)
     }
@@ -389,7 +389,7 @@ class Setup {
 start {
     Gtk.Application().initialize()
     handle button = F().button()
-    int token = Setup().install(button)
+    int64 token = Setup().install(button)
     F().collect()
     F().emit(button)
     print(F().disconnect(token))
@@ -410,13 +410,13 @@ class Payload {
 }
 void Payload.note() from "fixture_gtk_destroyed"
 class Setup {
-    int submit() { return Gtk.Application().post(Payload().work) }
-    int connect(handle button) { return F().clicked(button, Payload().work) }
+    int64 submit() { return Gtk.Application().post(Payload().work) }
+    int64 connect(handle button) { return F().clicked(button, Payload().work) }
 }
 start {
     Gtk.Application app = Gtk.Application()
     app.initialize()
-    int cancel = Setup().submit()
+    int64 cancel = Setup().submit()
     F().collect()
     print(F().count())
     print(app.cancel(cancel))
@@ -440,8 +440,8 @@ start {
 """, "0truefalse112retained4", None),
     ("worker_progress", """
 class Payload {
-    int value
-    Payload(int n) { value = n }
+    int64 value
+    Payload(int64 n) { value = n }
     void done() {
         F().owner()
         F().collect()
@@ -452,10 +452,10 @@ class Payload {
 class Worker : Thread {
     handle gate
     Worker(handle sem) { gate = sem }
-    void submit(int n) { Gtk.Application().post(Payload(n).done) }
+    void submit(int64 n) { Gtk.Application().post(Payload(n).done) }
     void run() {
         Sem().wait(gate)
-        int n = 0
+        int64 n = 0
         while (n < 10000) { n = n + 1 }
         submit(n)
         F().collect()
@@ -491,7 +491,7 @@ start {
     Gtk.Application().initialize()
     handle b = F().button()
     Handler h = Handler(b)
-    int token = F().clicked(b, h.click)
+    int64 token = F().clicked(b, h.click)
     Gtk.Application().post(h.trigger)
     Gtk.Application().post(h.pending)
     Gtk.Application().run()
@@ -774,7 +774,7 @@ class UI {
         label = Gtk.Label("")
         window.setChild(label)
         window.present()
-        int token = Gtk.Application().post(pending)
+        int64 token = Gtk.Application().post(pending)
         print(Gtk.Application().cancel(token))
         gate = Sem().create(0)
         worker = Worker(window, label, gate)
@@ -896,7 +896,7 @@ start {
 
 COMPILE_CASES = [
     ("wrong_callback", """
-class Handler { void click(int n) {} }
+class Handler { void click(int64 n) {} }
 start { Gtk.Button button = null
     button.onClicked(Handler().click) }
 """, "callback"),
@@ -985,7 +985,7 @@ def main():
             source.write_text("""import gtk
 import system
 class UI {
-    int count
+    int64 count
     Gtk.Window window
     void activate() {
         count = count + 1

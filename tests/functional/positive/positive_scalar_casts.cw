@@ -1,60 +1,60 @@
 # All sixteen ordered scalar pairs, including identities.
 class Scalars {
     bool flag() { return true }
-    int signedValue() { return -7 }
-    unsigned unsignedValue() { return 12u }
-    float fraction() { return 3.75 }
-    int fromBool(bool value) { return int(value) }
+    int64 signedValue() { return -7 }
+    uint64 unsignedValue() { return 12u }
+    fp64 fraction() { return 3.75 }
+    int64 fromBool(bool value) { return int64(value) }
 }
 
 start {
-    int i = 7
-    unsigned u = 12
-    float f = 3.75
+    int64 i = 7
+    uint64 u = 12
+    fp64 f = 3.75
 
-    print(float(i))
-    print(float(u))
-    print(int(f))
-    print(unsigned(f))
-    print(int(-3.99))
+    print(fp64(i))
+    print(fp64(u))
+    print(int64(f))
+    print(uint64(f))
+    print(int64(-3.99))
 
-    float sum = float(i) + f
+    fp64 sum = fp64(i) + f
     print(sum)
 
     bool b = true
     print(bool(b))
-    print(int(b))
-    print(unsigned(b))
-    print(float(b))
+    print(int64(b))
+    print(uint64(b))
+    print(fp64(b))
     print(bool(i))
-    print(int(i))
-    print(unsigned(i))
+    print(int64(i))
+    print(uint64(i))
     print(bool(u))
-    print(int(u))
-    print(unsigned(u))
+    print(int64(u))
+    print(uint64(u))
     print(bool(f))
-    print(float(f))
+    print(fp64(f))
 
-    print(int(false))
-    print(unsigned(false))
-    print(float(false))
+    print(int64(false))
+    print(uint64(false))
+    print(fp64(false))
     print(bool(0))
     print(bool(0u))
     print(bool(-1))
     print(bool(-9223372036854775808))
     print(bool(18446744073709551615u))
-    print(int(true))
-    print(unsigned(true))
-    print(float(true))
+    print(int64(true))
+    print(uint64(true))
+    print(fp64(true))
 
     Scalars values = Scalars()
-    print(int(values.flag()))
+    print(int64(values.flag()))
     print(bool(values.signedValue()))
-    print(int(values.unsignedValue()))
-    print(unsigned(values.fraction()))
-    i = int(values.fraction())
-    u = unsigned(i)
-    f = float(u)
+    print(int64(values.unsignedValue()))
+    print(uint64(values.fraction()))
+    i = int64(values.fraction())
+    u = uint64(i)
+    f = fp64(u)
     b = bool(f)
     print(i)
     print(u)
@@ -64,29 +64,29 @@ start {
 
     # Casts consume null flags, including identity casts.
     bool nullBool = null
-    int nullInt = null
-    unsigned nullUnsigned = null
-    float nullFloat = null
+    int64 nullInt = null
+    uint64 nullUnsigned = null
+    fp64 nullFloat = null
     print(bool(nullBool))
-    print(int(nullBool))
-    print(unsigned(nullBool))
-    print(float(nullBool))
+    print(int64(nullBool))
+    print(uint64(nullBool))
+    print(fp64(nullBool))
     print(bool(nullInt))
-    print(int(nullInt))
-    print(unsigned(nullInt))
-    print(float(nullInt))
+    print(int64(nullInt))
+    print(uint64(nullInt))
+    print(fp64(nullInt))
     print(bool(nullUnsigned))
-    print(int(nullUnsigned))
-    print(unsigned(nullUnsigned))
-    print(float(nullUnsigned))
+    print(int64(nullUnsigned))
+    print(uint64(nullUnsigned))
+    print(fp64(nullUnsigned))
     print(bool(nullFloat))
-    print(int(nullFloat))
-    print(unsigned(nullFloat))
-    print(float(nullFloat))
+    print(int64(nullFloat))
+    print(uint64(nullFloat))
+    print(fp64(nullFloat))
     nullBool = bool(nullBool)
-    nullInt = int(nullInt)
-    nullUnsigned = unsigned(nullUnsigned)
-    nullFloat = float(nullFloat)
+    nullInt = int64(nullInt)
+    nullUnsigned = uint64(nullUnsigned)
+    nullFloat = fp64(nullFloat)
     print(nullBool == null)
     print(nullInt == null)
     print(nullUnsigned == null)

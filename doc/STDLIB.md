@@ -26,10 +26,16 @@ error as a string (or an empty string when no error is recorded). It is not a
 numeric error-code API. `lastError()` is an instance method; with the `Sys`
 alias, call it as `Sys.System().lastError()`.
 
-Cwhip `int` parameters and results in these APIs are signed 64-bit values;
-`unsigned` values are unsigned 64-bit. The native-binding documentation in
+Cwhip `int64` parameters and results in these APIs are signed 64-bit values;
+`uint64` values are unsigned 64-bit. The native-binding documentation in
 the [language reference](LANGUAGE-REFERENCE.md#native-bindings-for-library-authors)
 describes their C/LLVM ABI representations.
+
+SDK 0.0.2 replaces former `int`/`unsigned`/`float` API types with
+`int64`/`uint64`/`fp64`, preserving public counts and indices. String numeric
+parsers are destination-specific; see
+[NUMERIC-MIGRATION.md](NUMERIC-MIGRATION.md) for the incompatible source,
+package, and native-artifact migration.
 
 For native APIs accepting a function pointer plus user context, the installed
 `<cwhip/Callbacks.h>` facade provides retained registrations and generated typed
@@ -46,7 +52,7 @@ activation; the single run ends with deterministic shutdown.
 and `ScrolledWindow`. Typed signals return `SignalConnection` with `disconnect()`
 and `connected()`. Explicit GUI-thread `dispose()` recursively disposes attached
 children and invalidates aliases; GC never tears down GTK objects.
-Only `int post(callback<void()>)` is worker-callable; `bool cancel(int)` and all
+Only `int64 post(callback<void()>)` is worker-callable; `bool cancel(int64)` and all
 widget/connection operations require the GUI thread. See [GTK.md](GTK.md) for
 the compact API, runnable example, ownership, compatibility changes, and limits.
 
@@ -60,10 +66,10 @@ the exported classes are available directly as `Sys.Process`, `Sys.File`,
 `Sys.Process` provides command-line and environment access:
 
 ```text
-int argc()
+int64 argc()
 list argv()
-String arg(int index)
-void exit(int code)
+String arg(int64 index)
+void exit(int64 code)
 void abort()
 String getEnv(String name)
 bool setEnv(String name, String value)
@@ -85,14 +91,14 @@ String path()
 String mode()
 bool isOpen()
 bool eof()
-String read(int size)
+String read(int64 size)
 String readAll()
 String readLine()
 list readLines()
-int write(String data)
-int writeLine(String line)
-int seek(int offset, int whence)
-int tell()
+int64 write(String data)
+int64 writeLine(String line)
+int64 seek(int64 offset, int64 whence)
+int64 tell()
 void flush()
 void close()
 ```
@@ -104,16 +110,16 @@ string/list or the operation's failure value and set `lastError()`.
 `write`/`writeLine` return the number of bytes written (including the newline
 for `writeLine` when successful); failed writes may return a partial count.
 `seek` returns zero on success and `-1` on failure; `tell` returns the
-position, capped at the signed 64-bit `int` range, or `-1`. `isOpen()` indicates
+position, capped at the signed 64-bit `int64` range, or `-1`. `isOpen()` indicates
 whether the file is currently open (false after `close()`); close it explicitly.
 
 For binary files, use an `fopen` binary mode such as `"rb"`, `"wb"`, `"ab"`,
 or `"r+b"` and the byte-buffer methods:
 
 ```text
-buffer readBytes(int size)
+buffer readBytes(int64 size)
 buffer readAllBytes()
-int writeBytes(buffer data)
+int64 writeBytes(buffer data)
 ```
 
 `readBytes(size)` reads up to `size` bytes; `readAllBytes()` reads through
@@ -134,7 +140,7 @@ the existing `String` methods retain their text behavior.
 bool exists(String path)
 bool isFile(String path)
 bool isDir(String path)
-int fileSize(String path)
+int64 fileSize(String path)
 bool remove(String path)
 bool rename(String oldPath, String newPath)
 bool copy(String src, String dest)
@@ -178,14 +184,14 @@ Recursive `**` and brace expansion are not provided.
 `Sys.StandardIO`, obtained with `Sys.System().io()`, has these methods:
 
 ```text
-String read(int size)
+String read(int64 size)
 String readLine()
-int write(String text)
-int writeLine(String text)
-int writeBytes(buffer data)
-int writeError(String text)
-int writeErrorLine(String text)
-int writeErrorBytes(buffer data)
+int64 write(String text)
+int64 writeLine(String text)
+int64 writeBytes(buffer data)
+int64 writeError(String text)
+int64 writeErrorLine(String text)
+int64 writeErrorBytes(buffer data)
 void flush()
 void flushError()
 ```
@@ -212,39 +218,39 @@ Import with `import math as M`; the alias names the package namespace and its
 exported class is available directly as `M.Math`.
 
 ```text
-float pi()
-float e()
-float tau()
-float abs(float x)
-int absInt(int x)
-float min(float a, float b)
-float max(float a, float b)
-int minInt(int a, int b)
-int maxInt(int a, int b)
-float clamp(float x, float minVal, float maxVal)
-float floor(float x)
-float ceil(float x)
-float round(float x)
-float trunc(float x)
-float sqrt(float x)
-float cbrt(float x)
-float pow(float base, float exp)
-float exp(float x)
-float log(float x)
-float log10(float x)
-float log2(float x)
-float sin(float x)
-float cos(float x)
-float tan(float x)
-float asin(float x)
-float acos(float x)
-float atan(float x)
-float atan2(float y, float x)
-float degrees(float radians)
-float radians(float degrees)
-float sinh(float x)
-float cosh(float x)
-float tanh(float x)
+fp64 pi()
+fp64 e()
+fp64 tau()
+fp64 abs(fp64 x)
+int64 absInt(int64 x)
+fp64 min(fp64 a, fp64 b)
+fp64 max(fp64 a, fp64 b)
+int64 minInt(int64 a, int64 b)
+int64 maxInt(int64 a, int64 b)
+fp64 clamp(fp64 x, fp64 minVal, fp64 maxVal)
+fp64 floor(fp64 x)
+fp64 ceil(fp64 x)
+fp64 round(fp64 x)
+fp64 trunc(fp64 x)
+fp64 sqrt(fp64 x)
+fp64 cbrt(fp64 x)
+fp64 pow(fp64 base, fp64 exp)
+fp64 exp(fp64 x)
+fp64 log(fp64 x)
+fp64 log10(fp64 x)
+fp64 log2(fp64 x)
+fp64 sin(fp64 x)
+fp64 cos(fp64 x)
+fp64 tan(fp64 x)
+fp64 asin(fp64 x)
+fp64 acos(fp64 x)
+fp64 atan(fp64 x)
+fp64 atan2(fp64 y, fp64 x)
+fp64 degrees(fp64 radians)
+fp64 radians(fp64 degrees)
+fp64 sinh(fp64 x)
+fp64 cosh(fp64 x)
+fp64 tanh(fp64 x)
 ```
 
 The angle conversions convert between radians and degrees; trigonometric
@@ -258,7 +264,7 @@ import math as M
 
 start {
     M.Math math = M.Math()
-    float root = math.sqrt(9.0)
+    fp64 root = math.sqrt(9.0)
     print(root == 3.0)
 }
 ```
@@ -273,16 +279,16 @@ so its classes are available directly as `Net.Socket`, `Net.ServerSocket`, and
 
 ```text
 Socket()
-Socket(int fd)
-bool connect(String host, int port)
-int send(buffer data)
-int sendString(String data)
-buffer recv(int maxBytes)
-String recvString(int maxBytes)
+Socket(int64 fd)
+bool connect(String host, int64 port)
+int64 send(buffer data)
+int64 sendString(String data)
+buffer recv(int64 maxBytes)
+String recvString(int64 maxBytes)
 void close()
 bool isConnected()
-void setTimeout(int milliseconds)
-int getPort()
+void setTimeout(int64 milliseconds)
+int64 getPort()
 String getHost()
 ```
 
@@ -297,13 +303,13 @@ value); negative timeout values are ignored. `close` releases the descriptor.
 
 ```text
 ServerSocket()
-bool bind(int port)
-bool bindAddress(String host, int port)
-bool listen(int backlog)
+bool bind(int64 port)
+bool bindAddress(String host, int64 port)
+bool listen(int64 backlog)
 Socket accept()
 void close()
 bool isBound()
-int getPort()
+int64 getPort()
 ```
 
 Binding also creates a listening socket (with the requested address and
@@ -318,7 +324,7 @@ native lookup fails. Socket and DNS failures use the methods' return sentinels;
 Url(String urlString)
 String scheme()
 String host()
-int port()
+int64 port()
 String path()
 String query()
 String fragment()
@@ -345,10 +351,10 @@ Import with `import time as T`; the alias names the package namespace, making
 the exported class directly available as `T.Clock`.
 
 ```text
-unsigned epochSeconds()
-unsigned epochMilliseconds()
-unsigned monotonicMilliseconds()
-bool sleepMilliseconds(unsigned milliseconds)
+uint64 epochSeconds()
+uint64 epochMilliseconds()
+uint64 monotonicMilliseconds()
+bool sleepMilliseconds(uint64 milliseconds)
 ```
 
 Epoch values are Unix wall-clock time; monotonic milliseconds are for elapsed
@@ -363,7 +369,7 @@ import time as T
 
 start {
     T.Clock clock = T.Clock()
-    unsigned before = clock.monotonicMilliseconds()
+    uint64 before = clock.monotonicMilliseconds()
     print(clock.epochSeconds() > 0u)
     print(clock.monotonicMilliseconds() >= before)
 }
@@ -373,7 +379,7 @@ start {
 
 `import sql as SQL` provides the backend-neutral tagged `SQL.Value` type.
 It has exactly five variants: SQL NULL (the zero-argument `Value()`),
-signed 64-bit integer (`Value(int)`), 64-bit real (`Value(float)`), text
+signed 64-bit integer (`Value(int64)`), 64-bit real (`Value(fp64)`), text
 (`Value(String)`), and blob (`Value(buffer)`). NULL is an explicit value; it
 is never represented by an absent value, zero, or empty string. A null
 `String` or `buffer` cannot be used to construct the text/blob variants.
@@ -395,9 +401,9 @@ The shared class signatures are:
 Connection: bool isOpen(), String error(), bool execute(String sql),
             Statement prepare(String sql), Transaction beginTransaction(),
             bool close()
-Statement:  String error(), bool bind(int oneBasedIndex, Value value),
+Statement:  String error(), bool bind(int64 oneBasedIndex, Value value),
             bool step(), bool hasRow(), bool isDone(), bool failed(),
-            Value value(int zeroBasedColumnIndex), bool close()
+            Value value(int64 zeroBasedColumnIndex), bool close()
 Transaction: bool isActive(), bool commit(), bool rollback(), bool close()
 ```
 
@@ -409,17 +415,17 @@ bool isOpen()
 String Statement.error()
 bool execute(String sql)
 Statement prepare(String sql)
-bool setBusyTimeout(int milliseconds)
+bool setBusyTimeout(int64 milliseconds)
 Transaction beginTransaction()
 bool close()
 
 String error()
-bool bind(int oneBasedIndex, SQL.Value value)
+bool bind(int64 oneBasedIndex, SQL.Value value)
 bool step()
 bool hasRow()
 bool isDone()
 bool failed()
-SQL.Value value(int zeroBasedColumnIndex)
+SQL.Value value(int64 zeroBasedColumnIndex)
 bool close()
 
 Transaction.isActive()
@@ -553,7 +559,7 @@ the exported class is available directly as `P.Process`.
 Process(String executable, list arguments)
 bool started()
 bool wait()
-int exitCode()
+int64 exitCode()
 String stdout()
 String stderr()
 void close()
@@ -600,24 +606,24 @@ AsyncProcess(String executable, list arguments, String workingDirectory)
 AsyncProcess(String executable, list arguments, String workingDirectory, bool interactive)
 enum { RUNNING = 0, EXITED, SIGNALED, CANCELLED, LAUNCH_FAILED, WAIT_FAILED }
 bool started()
-ProcessEvent next(int timeoutMilliseconds)
-bool wait(int timeoutMilliseconds)
+ProcessEvent next(int64 timeoutMilliseconds)
+bool wait(int64 timeoutMilliseconds)
 bool finished()
-bool cancel(int graceMilliseconds)
-int state()
-int exitCode()
-int signal()
+bool cancel(int64 graceMilliseconds)
+int64 state()
+int64 exitCode()
+int64 signal()
 String error()
 bool interactive()
 bool write(String text)
 bool closeInput()
-int pendingInput()
+int64 pendingInput()
 String inputError()
 void close()
 
 ProcessEvent
 enum { STDOUT = 1, STDERR, COMPLETED }
-int kind()
+int64 kind()
 bool isStdout()
 bool isStderr()
 bool isCompleted()
@@ -626,7 +632,7 @@ buffer data()
 OutputDecoder()
 String decode(buffer chunk)
 String finish()
-int pending()
+int64 pending()
 ```
 
 **Launching.** `arguments` is the argv list after argv[0] and must contain only
@@ -830,8 +836,8 @@ so the exported class is available directly as `Term.Terminal`.
 ```text
 bool isInteractive()
 bool isOutputInteractive()
-int columns()
-int rows()
+int64 columns()
+int64 rows()
 bool supportsColor()
 ```
 
@@ -857,7 +863,7 @@ Import with `import random as R`; the alias names the package namespace, so the
 exported class is available directly as `R.SecureRandom`.
 
 ```text
-buffer bytes(int size)
+buffer bytes(int64 size)
 bool fill(buffer target)
 ```
 
@@ -899,7 +905,7 @@ bool signal()
 bool broadcast()
 bool close()
 
-Semaphore(int initialCount)
+Semaphore(int64 initialCount)
 void wait()
 void signal()
 void close()
@@ -985,9 +991,9 @@ private runtime functions are not part of this facade.
 ```cwhip
 start {
     // test: {"stdout": "<WORK_DIR>\n3"}
-    float root = 0.0
+    fp64 root = 0.0
     strg directory
-    inline (float root, strg directory) {
+    inline (fp64 root, strg directory) {
         *root = cwhip_math_sqrt(NULL, 9.0);
         *directory = cwhip_fs_get_cwd(NULL);
         printf("%s\n", cwhip_string_cstr(directory));
@@ -998,7 +1004,7 @@ start {
 
 ### Values, ownership, and errors
 
-- Cwhip `int`/`unsigned` map to `int64_t`/`uint64_t`, `float` to `double`.
+- Cwhip `int64`/`uint64` map to `int64_t`/`uint64_t`, `fp64` to `double`.
   Native boolean results are `int32_t` (zero/one); a captured Cwhip boolean
   is `_Bool *`. String/list/buffer API arguments and results are opaque
   managed object pointers, **not C strings or private structs**. Pass `*text`,
@@ -1072,14 +1078,14 @@ private layouts, and bindings are not covered by that contract.
 
 ```text
 handle fileOpen(String path, String mode)
-String fileRead(handle fp, int size)
+String fileRead(handle fp, int64 size)
 String fileReadAll(handle fp)
 String fileReadLine(handle fp)
 list fileReadLines(handle fp)
-int fileWrite(handle fp, String data)
-int fileWriteLine(handle fp, String line)
-int fileSeek(handle fp, int offset, int whence)
-int fileTell(handle fp)
+int64 fileWrite(handle fp, String data)
+int64 fileWriteLine(handle fp, String line)
+int64 fileSeek(handle fp, int64 offset, int64 whence)
+int64 fileTell(handle fp)
 void fileFlush(handle fp)
 void fileClose(handle fp)
 bool fileEof(handle fp)
@@ -1088,18 +1094,18 @@ bool fileEof(handle fp)
 `Net.Runtime` socket and server operations:
 
 ```text
-int socketCreate()
-bool socketConnect(int fd, String host, int port)
-int socketSend(int fd, buffer data)
-int socketSendString(int fd, String data)
-buffer socketRecv(int fd, int maxBytes)
-String socketRecvString(int fd, int maxBytes)
-void socketClose(int fd)
-void socketSetTimeout(int fd, int milliseconds)
-int serverBind(String host, int port, int backlog)
-int serverAccept(int fd)
-int serverPort(int fd)
-bool serverListen(int fd, int backlog)
+int64 socketCreate()
+bool socketConnect(int64 fd, String host, int64 port)
+int64 socketSend(int64 fd, buffer data)
+int64 socketSendString(int64 fd, String data)
+buffer socketRecv(int64 fd, int64 maxBytes)
+String socketRecvString(int64 fd, int64 maxBytes)
+void socketClose(int64 fd)
+void socketSetTimeout(int64 fd, int64 milliseconds)
+int64 serverBind(String host, int64 port, int64 backlog)
+int64 serverAccept(int64 fd)
+int64 serverPort(int64 fd)
+bool serverListen(int64 fd, int64 backlog)
 ```
 
 `P.Runtime` process operations:
@@ -1107,7 +1113,7 @@ bool serverListen(int fd, int backlog)
 ```text
 handle spawn(String executable, list arguments)
 bool wait(handle process)
-int exitCode(handle process)
+int64 exitCode(handle process)
 String stdout(handle process)
 String stderr(handle process)
 void close(handle process)
@@ -1115,22 +1121,22 @@ handle asyncStart(String executable, list arguments, String workingDirectory)
 handle asyncStartInteractive(String executable, list arguments, String workingDirectory)
 bool asyncWrite(handle process, String text)
 bool asyncCloseInput(handle process)
-int asyncPendingInput(handle process)
+int64 asyncPendingInput(handle process)
 String asyncInputError(handle process)
-handle asyncNext(handle process, int timeoutMilliseconds)
-int asyncEventKind(handle event)
+handle asyncNext(handle process, int64 timeoutMilliseconds)
+int64 asyncEventKind(handle event)
 buffer asyncEventData(handle event)
 void asyncEventRelease(handle event)
-bool asyncWait(handle process, int timeoutMilliseconds)
-bool asyncCancel(handle process, int graceMilliseconds)
-int asyncState(handle process)
-int asyncExitCode(handle process)
-int asyncSignal(handle process)
+bool asyncWait(handle process, int64 timeoutMilliseconds)
+bool asyncCancel(handle process, int64 graceMilliseconds)
+int64 asyncState(handle process)
+int64 asyncExitCode(handle process)
+int64 asyncSignal(handle process)
 String asyncError(handle process)
 void asyncShutdown(handle process)
 void asyncClose(handle process)
 String textDecode(buffer bytes)
-int textIncompleteTail(buffer bytes)
+int64 textIncompleteTail(buffer bytes)
 ```
 
 `Sync.Runtime` synchronization operations:
@@ -1145,7 +1151,7 @@ bool conditionWait(handle condition, handle mutex)
 bool conditionSignal(handle condition)
 bool conditionBroadcast(handle condition)
 bool conditionRelease(handle condition)
-handle semaphoreCreate(int initialCount)
+handle semaphoreCreate(int64 initialCount)
 void semaphoreWait(handle semaphore)
 void semaphoreSignal(handle semaphore)
 void semaphoreRelease(handle semaphore)

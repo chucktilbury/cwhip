@@ -1,10 +1,10 @@
 # Checks parenthesized return expressions and an empty return in an out-of-line void method.
 class Foo {
-    int compute(int x)
+    int64 compute(int64 x)
     void announce()
 }
 
-int Foo.compute(int x) {
+int64 Foo.compute(int64 x) {
     return (x * 2)
 }
 

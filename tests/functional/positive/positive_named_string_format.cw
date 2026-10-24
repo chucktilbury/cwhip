@@ -1,10 +1,10 @@
 # Checks named formatting, escaped braces, supported values, and single evaluation.
 class Counter {
-    int calls
+    int64 calls
     Counter() {
         calls = 0
     }
-    int next() {
+    int64 next() {
         calls += 1
         return calls
     }

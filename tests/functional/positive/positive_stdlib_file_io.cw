@@ -22,7 +22,7 @@ start {
 
     Sys.File binary = Sys.File("file-io-test.bin", "wb")
     buffer bytes = buffer(256)
-    int index = 0
+    int64 index = 0
     while (index < bytes.length) {
         bytes[index] = index
         index = index + 1

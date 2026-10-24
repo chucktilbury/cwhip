@@ -55,6 +55,7 @@ Package directories have the shape `modules/NAME/VERSION/`:
 
 ```toml
 [package]
+sdk-abi = "numeric-v2"
 name = "geometry"
 version = "1.2.3"
 source = "src/geometry.cw"
@@ -70,6 +71,12 @@ vectors = "your-org/vectors"
 libraries = ["geometry_native"]
 library-paths = ["lib"]
 ```
+
+`sdk-abi` is mandatory and must match the compiler's `numeric-v2` contract.
+Missing or old identifiers are rejected before source/native linking. Rebuild
+native archives and migrate source before declaring this identifier; see
+[NUMERIC-MIGRATION.md](NUMERIC-MIGRATION.md). Existing lockfiles must be
+regenerated because package content hashes change.
 
 The package name and export name must be non-keyword Cwhip identifiers.
 `name` and `version` must match the installed directory names; a fetched tag

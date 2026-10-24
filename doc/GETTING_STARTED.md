@@ -325,13 +325,13 @@ a method, a loop, and formatted output:
 ```cwhip
 // test: {"stdout": "total=6\n"}
 class Counter {
-    int value
+    int64 value
 
     Counter() {
         value = 0
     }
 
-    int add(int amount) {
+    int64 add(int64 amount) {
         value += amount
         return value
     }
@@ -339,8 +339,8 @@ class Counter {
 
 start {
     Counter counter = Counter()
-    int next = 1
-    int total = 0
+    int64 next = 1
+    int64 total = 0
     while (next <= 3) {
         total = counter.add(next)
         next += 1
@@ -372,7 +372,7 @@ only the SDK's bundled `math` package:
 import math as M
 
 start {
-    float root = M.Math().sqrt(9.0)
+    fp64 root = M.Math().sqrt(9.0)
     print("sqrt(9)={}\n", root)
 }
 ```
@@ -542,10 +542,10 @@ ordinary non-GUI programs.
 
 ## Build and start cedit and cdbg
 
-These are independent repositories consuming the installed **0.0.1** SDK,
+These are independent repositories consuming the installed **0.0.2** SDK,
 including its `Cwhip_APPLICATION_OUTPUT_DIRECTORIES` capability. They do not
-need a compiler source checkout or an umbrella workspace. Older installations
-with the same version but without that capability must be rebuilt/reinstalled.
+need a compiler source checkout or an umbrella workspace. Older 0.0.1
+installations must be rebuilt/reinstalled for the numeric-v2 ABI.
 
 With the GUI SDK selected as above:
 

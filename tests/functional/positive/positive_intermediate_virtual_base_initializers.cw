@@ -1,9 +1,9 @@
 # A class can initialize its virtual base directly; when used as a base,
 # its initializer and argument expression are skipped.
 class A {
-    int value
+    int64 value
 
-    A(int initial) {
+    A(int64 initial) {
         value = initial
         print(format("A:{}", initial))
     }
@@ -14,7 +14,7 @@ class A {
 }
 
 class B : virtual A {
-    int initializerArgument() {
+    int64 initializerArgument() {
         print("B initializer argument")
         return 1
     }

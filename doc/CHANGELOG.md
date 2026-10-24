@@ -25,6 +25,17 @@ proof of concept and compiler-testing tool, not a production IDE/debugger.
 
 ## Implemented milestones
 
+### Unreleased: Fixed-width numeric SDK (0.0.2)
+
+The `numeric-v2` SDK migrates bundled source APIs to exact numeric types while
+preserving 64-bit public counts/indices. String parsers name every destination
+width and reject textual range loss. Packages require an explicit SDK ABI
+declaration, object sidecars are versioned, and generated entry points require
+the new runtime ABI symbol. The installed GUI-capable SDK is exercised with
+external CMake/native consumers and headless SourceView numeric APIs.
+See [NUMERIC-MIGRATION.md](NUMERIC-MIGRATION.md) for source replacements,
+compatibility limits, and an isolated build recipe.
+
 ### Unreleased: Dedicated SDK configuration
 
 Install registration now writes `cwhip/sdk.toml` instead of app preferences

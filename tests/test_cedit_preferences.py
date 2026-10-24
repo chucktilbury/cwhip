@@ -21,11 +21,11 @@ class PreferenceFixture {
     bool close()
     bool commandVisible(String name)
     bool commandClick(String name, String label)
-    bool views(int size, int tabs, bool spaces, bool numbers, bool wrap, bool highlight, bool report)
+    bool views(int64 size, int64 tabs, bool spaces, bool numbers, bool wrap, bool highlight, bool report)
     bool record(String trigger)
     bool grid()
     bool tabs()
-    bool closeTab(int index)
+    bool closeTab(int64 index)
     bool noEmoji()
     void tick()
 }
@@ -36,12 +36,12 @@ bool PreferenceFixture.click(String label) from "fixture_preferences_click"
 bool PreferenceFixture.close() from "fixture_preferences_close"
 bool PreferenceFixture.commandVisible(String name) from "fixture_preferences_command_visible"
 bool PreferenceFixture.commandClick(String name, String label) from "fixture_preferences_command_click"
-bool PreferenceFixture.views(int size, int tabs, bool spaces, bool numbers, bool wrap, bool highlight, bool report)
+bool PreferenceFixture.views(int64 size, int64 tabs, bool spaces, bool numbers, bool wrap, bool highlight, bool report)
     from "fixture_preferences_views"
 bool PreferenceFixture.record(String trigger) from "fixture_preferences_record"
 bool PreferenceFixture.grid() from "fixture_preferences_grid_readonly"
 bool PreferenceFixture.tabs() from "fixture_editor_tabs"
-bool PreferenceFixture.closeTab(int index) from "fixture_editor_close_tab"
+bool PreferenceFixture.closeTab(int64 index) from "fixture_editor_close_tab"
 bool PreferenceFixture.noEmoji() from "fixture_editor_no_emoji"
 void PreferenceFixture.tick() from "fixture_preferences_tick"
 
@@ -50,10 +50,10 @@ class PreferencesChecks {
     callback<void()> nextAction
     callback<void(String)> shutdownAction
     bool shutdownCallbackRan
-    int stage
-    int checks
-    int waits
-    int viewWaits
+    int64 stage
+    int64 checks
+    int64 waits
+    int64 viewWaits
     String mode
     void require(bool condition, String label) {
         if (!condition) {
@@ -64,7 +64,7 @@ class PreferencesChecks {
         }
         checks = checks + 1
     }
-    bool viewsReady(int size, int tabs, bool spaces, bool numbers, bool wrap, bool highlight, String label) {
+    bool viewsReady(int64 size, int64 tabs, bool spaces, bool numbers, bool wrap, bool highlight, String label) {
         if (PreferenceFixture().views(size, tabs, spaces, numbers, wrap, highlight, viewWaits >= 500)) {
             viewWaits = 0
             return true
@@ -76,7 +76,7 @@ class PreferencesChecks {
         return false
     }
     KeyboardPreference row(String command) {
-        int i = 0
+        int64 i = 0
         while (i < editor.keyboardRows.length) {
             KeyboardPreference item = editor.keyboardRows[i] as KeyboardPreference
             if (item.binding.id.equals(command)) { return item }

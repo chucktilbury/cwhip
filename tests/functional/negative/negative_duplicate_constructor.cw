@@ -1,6 +1,6 @@
 class Duplicate {
-    Duplicate(int value) {}
-    Duplicate(int other) {}
+    Duplicate(int64 value) {}
+    Duplicate(int64 other) {}
 }
 
 start {

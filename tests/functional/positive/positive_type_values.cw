@@ -2,10 +2,10 @@
 class Base {}
 class Derived : Base {}
 class Native {
-    int marker
+    int64 marker
     handle saved
 
-    Native(int initial) {
+    Native(int64 initial) {
         marker = initial
     }
 
@@ -22,10 +22,10 @@ class TypeHolder {
 }
 
 start {
-    int integer = 1
+    int64 integer = 1
     bool boolean = true
-    float real = 2.5
-    unsigned count = 5u
+    fp64 real = 2.5
+    uint64 count = 5u
     strg text = "text"
     list sequence = [1]
     dict dictionary = {"key": 1}
@@ -50,10 +50,10 @@ start {
     print(type(qualified))
     print(type(type(integer)))
 
-    print(type(integer) == int)
+    print(type(integer) == int64)
     print(type(boolean) == bool)
-    print(type(real) == float)
-    print(type(count) == unsigned)
+    print(type(real) == fp64)
+    print(type(count) == uint64)
     print(type(text) == strg)
     print(type(sequence) == list)
     print(type(dictionary) == dict)
@@ -67,10 +67,10 @@ start {
 
     list dynamicValues = [integer, boolean, real, count, text, sequence,
                            dictionary, bytes, handleValue, base, null]
-    print(type(dynamicValues[0]) == int)
+    print(type(dynamicValues[0]) == int64)
     print(type(dynamicValues[1]) == bool)
-    print(type(dynamicValues[2]) == float)
-    print(type(dynamicValues[3]) == unsigned)
+    print(type(dynamicValues[2]) == fp64)
+    print(type(dynamicValues[3]) == uint64)
     print(type(dynamicValues[4]) == strg)
     print(type(dynamicValues[5]) == list)
     print(type(dynamicValues[6]) == dict)

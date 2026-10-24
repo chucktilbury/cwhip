@@ -1,12 +1,12 @@
 # Exercises scalar compound arithmetic, field targets, and one-time receiver evaluation.
 class Box {
-    int value
+    int64 value
     Box() {}
 }
 
 class Factory {
     Box box
-    int calls
+    int64 calls
     Factory(Box value) { box = value }
     Box get() {
         calls += 1
@@ -15,7 +15,7 @@ class Factory {
 }
 
 start {
-    int signed = 10
+    int64 signed = 10
     signed += 5
     signed -= 2
     signed *= 3
@@ -23,7 +23,7 @@ start {
     signed %= 4
     print(signed)
 
-    unsigned count = 20u
+    uint64 count = 20u
     count += 5u
     count -= 5u
     count *= 2u
@@ -31,7 +31,7 @@ start {
     count %= 3u
     print(count)
 
-    float measure = 5.0
+    fp64 measure = 5.0
     measure += 1.5
     measure -= 0.5
     measure *= 2.0
@@ -45,7 +45,11 @@ start {
     print(box.value)
     print(factory.calls)
 
-    int wrapped = 9223372036854775807
-    wrapped += 1
+    int64 wrapped = 9223372036854775807
+    try {
+        wrapped += 1
+    } except() as error {
+        print(error)
+    }
     print(wrapped)
 }

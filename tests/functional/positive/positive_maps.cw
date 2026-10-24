@@ -1,10 +1,10 @@
 # Covers heterogeneous maps, aliases, string keys, nested collections, typed extraction, and retained references.
 class Node {
-    int value
-    Node(int initial) {
+    int64 value
+    Node(int64 initial) {
         value = initial
     }
-    int read() {
+    int64 read() {
         return value
     }
 }
@@ -20,17 +20,17 @@ class Catalog {
 }
 
 start {
-    dict table = {"number": 7, "text": "seven", "node": Node(64), "items": [Node(77)], "child": {"value": 9, "node": Node(88)}}
+    dict table = {"number": int64(7), "text": "seven", "node": Node(64), "items": [Node(77)], "child": {"value": 9, "node": Node(88)}}
     Catalog catalog = Catalog(table)
     print(table.length)
     print(table["number"])
-    int number = table["number"]
+    int64 number = table["number"]
     strg text = table["text"]
     print(number)
     print(text)
 
     dict alias = table
-    alias["number"] = 11
+    alias["number"] = int64(11)
     print(table["number"])
     dict repeated = {"same": 1, "same": 2}
     print(repeated.length)
@@ -46,7 +46,7 @@ start {
     dict recovered = holder[0]
     dict recoveredAgain = recovered
     Node scratch = Node(0)
-    int count = 0
+    int64 count = 0
     while (count < 8) {
         scratch = Node(count)
         count = count + 1

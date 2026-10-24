@@ -1,2 +1,2 @@
 # Rejects a program that has a declaration but no top-level start block.
-int value = 1
+int64 value = 1

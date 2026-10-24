@@ -1,9 +1,9 @@
 # Exercises byte buffers, opaque native handles, dynamic values, collections, and inline capture.
 class Native {
-    int marker
+    int64 marker
     handle saved
 
-    Native(int initial) {
+    Native(int64 initial) {
         marker = initial
     }
 
@@ -61,7 +61,7 @@ start {
     bytes.clear()
     print(bytes.length)
     try {
-        unsigned missing = bytes[0]
+        uint64 missing = bytes[0]
     } except() as message {
         print(message)
     }

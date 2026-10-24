@@ -1,5 +1,5 @@
 # Rejects reading a local integer before any value has been assigned to it.
 start {
-    int value
+    int64 value
     print(value)
 }

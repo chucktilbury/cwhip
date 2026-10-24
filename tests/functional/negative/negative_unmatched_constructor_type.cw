@@ -1,5 +1,5 @@
 class OnlyInt {
-    OnlyInt(int value) {}
+    OnlyInt(int64 value) {}
 }
 
 start {

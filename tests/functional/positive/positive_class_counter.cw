@@ -1,17 +1,17 @@
 # Verifies object fields can be updated by methods and then read through both methods and direct member access.
 class Counter {
-    int value
+    int64 value
 
-    Counter(int initial) {
+    Counter(int64 initial) {
         value = initial
     }
 
-    int add(int amount) {
+    int64 add(int64 amount) {
         value = value + amount
         return value
     }
 
-    int get() {
+    int64 get() {
         return value
     }
 }

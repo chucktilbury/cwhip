@@ -1,9 +1,9 @@
 
 class Bar {
 
-    int val
+    int64 val
 
-    Bar(int v) {
+    Bar(int64 v) {
         val = v
     }
 
@@ -18,7 +18,7 @@ class Foo {
 
     Foo() {
         flarp = []
-        int i = 0
+        int64 i = 0
         while(i <= 10) {
             flarp.append(Bar(i))
             i += 1

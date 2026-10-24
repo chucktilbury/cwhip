@@ -2,8 +2,8 @@ import math as M
 import system as Sys
 
 start {
-    float root = 0.0
-    unsigned clock = 0u
+    fp64 root = 0.0
+    uint64 clock = 0u
     bool ok = false
     strg path
     strg mode = "w+"
@@ -23,7 +23,7 @@ start {
     strg childOutput
     strg missing = "/this/path/does/not/exist"
     bool failed = false
-    inline (float root, unsigned clock, bool ok, strg path, strg mode,
+    inline (fp64 root, uint64 clock, bool ok, strg path, strg mode,
             strg message, strg result, strg error, strg pattern, list matches,
             buffer bytes, handle file, handle mutex, handle condition, handle semaphore,
             handle child, strg executable, list arguments, strg childOutput,

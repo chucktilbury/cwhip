@@ -1,7 +1,7 @@
 # Exercises integer comparison, modulo, branching, assignment, and repeated loop execution.
 start {
-    int counter = 0
-    int total = 0
+    int64 counter = 0
+    int64 total = 0
     while (counter < 5) {
         counter = counter + 1
         if (counter % 2 == 0) {

@@ -1,9 +1,9 @@
 # Rejects declared any types in native method return values.
 class Native {
-    any dynamicValue(int value)
+    any dynamicValue(int64 value)
 }
 
-any Native.dynamicValue(int value) from "some_symbol"
+any Native.dynamicValue(int64 value) from "some_symbol"
 
 start {
     print(1)

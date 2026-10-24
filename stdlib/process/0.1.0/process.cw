@@ -2,7 +2,7 @@ namespace Process {
     class Runtime {
         handle spawn(String executable, list arguments)
         bool wait(handle process)
-        int exitCode(handle process)
+        int64 exitCode(handle process)
         String stdout(handle process)
         String stderr(handle process)
         void close(handle process)
@@ -11,22 +11,22 @@ namespace Process {
         handle asyncStartInteractive(String executable, list arguments, String workingDirectory)
         bool asyncWrite(handle process, String text)
         bool asyncCloseInput(handle process)
-        int asyncPendingInput(handle process)
+        int64 asyncPendingInput(handle process)
         String asyncInputError(handle process)
-        handle asyncNext(handle process, int timeoutMilliseconds)
-        int asyncEventKind(handle event)
+        handle asyncNext(handle process, int64 timeoutMilliseconds)
+        int64 asyncEventKind(handle event)
         buffer asyncEventData(handle event)
         void asyncEventRelease(handle event)
-        bool asyncWait(handle process, int timeoutMilliseconds)
-        bool asyncCancel(handle process, int graceMilliseconds)
-        int asyncState(handle process)
-        int asyncExitCode(handle process)
-        int asyncSignal(handle process)
+        bool asyncWait(handle process, int64 timeoutMilliseconds)
+        bool asyncCancel(handle process, int64 graceMilliseconds)
+        int64 asyncState(handle process)
+        int64 asyncExitCode(handle process)
+        int64 asyncSignal(handle process)
         String asyncError(handle process)
         void asyncShutdown(handle process)
         void asyncClose(handle process)
         String textDecode(buffer bytes)
-        int textIncompleteTail(buffer bytes)
+        int64 textIncompleteTail(buffer bytes)
     }
 
     class Process {
@@ -46,7 +46,7 @@ namespace Process {
             return Runtime().wait(_native)
         }
 
-        int exitCode() {
+        int64 exitCode() {
             return Runtime().exitCode(_native)
         }
 
@@ -75,16 +75,16 @@ namespace Process {
         }
 
         private:
-        int _kind
+        int64 _kind
         buffer _data
 
         public:
-        ProcessEvent(int kind, buffer data) {
+        ProcessEvent(int64 kind, buffer data) {
             _kind = kind
             _data = data
         }
 
-        int kind() {
+        int64 kind() {
             return _kind
         }
 
@@ -116,13 +116,13 @@ namespace Process {
 
         String decode(buffer chunk) {
             if (chunk != null) {
-                int index = 0
+                int64 index = 0
                 while (index < chunk.length) {
                     _pending.append(chunk[index])
                     index = index + 1
                 }
             }
-            int complete = _pending.length - Runtime().textIncompleteTail(_pending)
+            int64 complete = _pending.length - Runtime().textIncompleteTail(_pending)
             buffer ready = _pending[0:complete]
             _pending = _pending[complete:]
             return Runtime().textDecode(ready)
@@ -134,7 +134,7 @@ namespace Process {
             return rest
         }
 
-        int pending() {
+        int64 pending() {
             return _pending.length
         }
     }
@@ -153,9 +153,9 @@ namespace Process {
         private:
         handle _native
         bool _closed
-        int _state
-        int _exitCode
-        int _signal
+        int64 _state
+        int64 _exitCode
+        int64 _signal
         String _error
         bool _interactive
         String _inputError
@@ -187,7 +187,7 @@ namespace Process {
             return state() != AsyncProcess.LAUNCH_FAILED
         }
 
-        ProcessEvent next(int timeoutMilliseconds) {
+        ProcessEvent next(int64 timeoutMilliseconds) {
             if (_closed) {
                 return null
             }
@@ -195,14 +195,14 @@ namespace Process {
             if (raw == null) {
                 return null
             }
-            int kind = Runtime().asyncEventKind(raw)
+            int64 kind = Runtime().asyncEventKind(raw)
             buffer data = Runtime().asyncEventData(raw)
             ProcessEvent event = ProcessEvent(kind, data)
             Runtime().asyncEventRelease(raw)
             return event
         }
 
-        bool wait(int timeoutMilliseconds) {
+        bool wait(int64 timeoutMilliseconds) {
             if (_closed) {
                 return true
             }
@@ -213,28 +213,28 @@ namespace Process {
             return wait(0)
         }
 
-        bool cancel(int graceMilliseconds) {
+        bool cancel(int64 graceMilliseconds) {
             if (_closed) {
                 return false
             }
             return Runtime().asyncCancel(_native, graceMilliseconds)
         }
 
-        int state() {
+        int64 state() {
             if (_closed) {
                 return _state
             }
             return Runtime().asyncState(_native)
         }
 
-        int exitCode() {
+        int64 exitCode() {
             if (_closed) {
                 return _exitCode
             }
             return Runtime().asyncExitCode(_native)
         }
 
-        int signal() {
+        int64 signal() {
             if (_closed) {
                 return _signal
             }
@@ -266,7 +266,7 @@ namespace Process {
             return Runtime().asyncCloseInput(_native)
         }
 
-        int pendingInput() {
+        int64 pendingInput() {
             if (_closed) {
                 return 0
             }
@@ -302,7 +302,7 @@ namespace Process {
 
     handle Runtime.spawn(String executable, list arguments) from "cwhip_process_spawn"
     bool Runtime.wait(handle process) from "cwhip_process_wait"
-    int Runtime.exitCode(handle process) from "cwhip_process_exit_code"
+    int64 Runtime.exitCode(handle process) from "cwhip_process_exit_code"
     String Runtime.stdout(handle process) from "cwhip_process_stdout"
     String Runtime.stderr(handle process) from "cwhip_process_stderr"
     void Runtime.close(handle process) from "cwhip_process_close"
@@ -310,20 +310,20 @@ namespace Process {
     handle Runtime.asyncStartInteractive(String executable, list arguments, String workingDirectory) from "cwhip_process_async_start_interactive"
     bool Runtime.asyncWrite(handle process, String text) from "cwhip_process_async_write"
     bool Runtime.asyncCloseInput(handle process) from "cwhip_process_async_close_input"
-    int Runtime.asyncPendingInput(handle process) from "cwhip_process_async_pending_input"
+    int64 Runtime.asyncPendingInput(handle process) from "cwhip_process_async_pending_input"
     String Runtime.asyncInputError(handle process) from "cwhip_process_async_input_error"
-    handle Runtime.asyncNext(handle process, int timeoutMilliseconds) from "cwhip_process_async_next"
-    int Runtime.asyncEventKind(handle event) from "cwhip_process_async_event_kind"
+    handle Runtime.asyncNext(handle process, int64 timeoutMilliseconds) from "cwhip_process_async_next"
+    int64 Runtime.asyncEventKind(handle event) from "cwhip_process_async_event_kind"
     buffer Runtime.asyncEventData(handle event) from "cwhip_process_async_event_data"
     void Runtime.asyncEventRelease(handle event) from "cwhip_process_async_event_release"
-    bool Runtime.asyncWait(handle process, int timeoutMilliseconds) from "cwhip_process_async_wait"
-    bool Runtime.asyncCancel(handle process, int graceMilliseconds) from "cwhip_process_async_cancel"
-    int Runtime.asyncState(handle process) from "cwhip_process_async_state"
-    int Runtime.asyncExitCode(handle process) from "cwhip_process_async_exit_code"
-    int Runtime.asyncSignal(handle process) from "cwhip_process_async_signal"
+    bool Runtime.asyncWait(handle process, int64 timeoutMilliseconds) from "cwhip_process_async_wait"
+    bool Runtime.asyncCancel(handle process, int64 graceMilliseconds) from "cwhip_process_async_cancel"
+    int64 Runtime.asyncState(handle process) from "cwhip_process_async_state"
+    int64 Runtime.asyncExitCode(handle process) from "cwhip_process_async_exit_code"
+    int64 Runtime.asyncSignal(handle process) from "cwhip_process_async_signal"
     String Runtime.asyncError(handle process) from "cwhip_process_async_error"
     void Runtime.asyncShutdown(handle process) from "cwhip_process_async_shutdown"
     void Runtime.asyncClose(handle process) from "cwhip_process_async_close"
     String Runtime.textDecode(buffer bytes) from "cwhip_process_text_decode"
-    int Runtime.textIncompleteTail(buffer bytes) from "cwhip_process_text_incomplete_tail"
+    int64 Runtime.textIncompleteTail(buffer bytes) from "cwhip_process_text_incomplete_tail"
 }

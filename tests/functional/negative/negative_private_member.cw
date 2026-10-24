@@ -1,8 +1,8 @@
 # Rejects reading a private field through an external object reference.
 class Hidden {
     private:
-    int value
-    int read() {
+    int64 value
+    int64 read() {
         return value
     }
 }

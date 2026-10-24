@@ -1,4 +1,5 @@
 [package]
+sdk-abi = "numeric-v2"
 name = "beta"
 version = "1.0.0"
 source = "src/beta.cw"

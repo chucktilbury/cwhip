@@ -92,11 +92,11 @@ dynamic operations, and the installed C bridge are specified in
 ```cwhip
 // test: {"stdout": "42"}
 class Worker {
-    int answer(int value) { return value + 2 }
+    int64 answer(int64 value) { return value + 2 }
 }
 start {
     Worker worker = Worker()
-    callback<int(int)> action = worker.answer
+    callback<int64(int64)> action = worker.answer
     print(action(40))
 }
 ```
@@ -200,8 +200,8 @@ and `relational`.
 // Complete program: null locals, casts, and runtime type tests.
 // test: {"stdout": "no integer value"}
 start {
-    int maybe = null
-    if (maybe is int) {
+    int64 maybe = null
+    if (maybe is int64) {
         print(maybe)
     } else {
         print("no integer value")
@@ -240,9 +240,9 @@ arithmetic operators.
 // Complete program: an inner value shadows, rather than changes, the outer value.
 // test: {"stdout": "340"}
 start {
-    int value = 40
+    int64 value = 40
     {
-        int value = 2
+        int64 value = 2
         value = value + 1
         print(value)
     }
@@ -324,9 +324,9 @@ nullable-scalar behavior is introduced.
 Use `(items[index] as Foo).method()` for member calls without a temporary
 local. Qualified targets work, for example
 `(mapping["item"] as model.Foo).method()`. Casts bind at postfix precedence.
-`Foo(value)` remains construction, never a cast, and scalar conversions retain
-their existing `int(value)`, `bool(value)`, `unsigned(value)`, and
-`float(value)` syntax.
+`Foo(value)` remains construction, never a cast. Scalar conversions use
+`bool(value)` or an exact numeric destination, such as `int8(value)`,
+`uint64(value)`, or `fp32(value)`.
 
 Literal text can be formatted with the `format` intrinsic and positional
 arguments, such as `format("value: {}", value)`, or with named arguments, such as
@@ -353,7 +353,7 @@ not full `std::format` compatibility:
 
 | Specifier | Meaning |
 |---|---|
-| `d` | Decimal `int` or `unsigned` |
+| `d` | Decimal integer of any signed or unsigned width |
 | `x`, `X` | Lower-/upper-case hexadecimal, without prefix; negative signed values use sign plus magnitude |
 | `c` | One ASCII byte from an integral value in 0..127, including NUL |
 | Width | Minimum field width, at most 1000000; never truncates |
@@ -375,8 +375,8 @@ invalid UTF-8. See `format-expression` and `print-statement` in the grammar.
 // Complete program: arithmetic, logical operators, and formatting.
 // test: {"stdout": "answer=42"}
 start {
-    int first = 20
-    int second = 22
+    int64 first = 20
+    int64 second = 22
     bool ready = first > 0 and second > 0
     if (ready) {
         print(format("answer={}", first + second))
@@ -403,10 +403,10 @@ variable has type `String`. `break` and `continue` are valid only in loops.
 // test: {"stdout": "6"}
 start {
     list values = [2, 3, 4]
-    int total = 0
+    int64 total = 0
     for (value in values) {
-        if (value is int) {
-            int number = value
+        if (value is int8) {
+            int8 number = value
             if (number == 3) {
                 continue
             }
@@ -559,20 +559,20 @@ start {
 // Complete program: inheritance, construction, override, and dispatch.
 // test: {"stdout": "42"}
 class Meter {
-    int value
-    Meter(int initial) {
+    int64 value
+    Meter(int64 initial) {
         value = initial
     }
-    int read() {
+    int64 read() {
         return value
     }
 }
 
 class AdjustedMeter : public Meter {
-    AdjustedMeter(int initial) {
+    AdjustedMeter(int64 initial) {
         super Meter(initial)
     }
-    int read() {
+    int64 read() {
         return value + 1
     }
 }
@@ -616,7 +616,7 @@ not enable `Base.field` or `Base.method()` outside an applicable class body.
 A `super` base initializer is only for constructor initialization and must
 appear before ordinary constructor statements. Field visibility uses sections
 such as `public:` followed by separate field declarations, not inline
-`public int field` declarations.
+`public int64 field` declarations.
 
 Explicit `object.destroy()` invokes the destructor but does not immediately
 reclaim the object's storage, and no compiler warning is emitted. The call
@@ -638,11 +638,11 @@ be in the same namespace scope as the class they define. See
 // test: {"stdout": "7"}
 namespace Geometry {
     class Point {
-        int x
-        Point(int value) {
+        int64 x
+        Point(int64 value) {
             x = value
         }
-        int coordinate() {
+        int64 coordinate() {
             return x
         }
     }
@@ -777,13 +777,14 @@ start {
 
 `buffer(length)` creates a mutable byte buffer of `length` zero-filled bytes.
 `buffer[byte, ...]` creates a new buffer initialized from its elements;
-`buffer[]` creates an empty buffer. Each element must have type `int` or
-`unsigned`, is evaluated once from left to right, and contributes its low 8
+`buffer[]` creates an empty buffer. Each element must have an integer type,
+is evaluated once from left to right, and contributes its low 8
 bits, matching indexed writes and `append`. Bare `[ ... ]` remains a
 heterogeneous list literal. A buffer has a read-only `length`, supports
 integer indexing and slicing, and provides `resize`, `clear`, and
-`append(int-or-unsigned)` methods. Indexed values are `unsigned`; indexed
-assignment accepts `int` or `unsigned`. Bounds and allocation failures are
+`append(integer)` methods. Indexed values are `uint8`; indexed
+assignment accepts every integer type. Source lengths/indices are int64.
+Bounds and allocation failures are
 checked by the runtime.
 
 `handle` is an opaque, nullable native/runtime handle. It has no language
@@ -815,7 +816,7 @@ type descriptors, class references, lists, dicts, buffers, handles, and
 `null`. Values are
 stored with dynamic tags, but `any` is not a type that can be declared for an
 element, variable, field, parameter, or return.
-`list.length` is read-only; `append(value)` and `resize(int)` mutate it.
+`list.length` is read-only and int64; `append(value)` and `resize(int64)` mutate it.
 Type descriptors are also accepted by `append`. Although literals accept
 buffers and handles, the current `append` semantic check does not accept those
 two element types directly. There is no list
@@ -853,8 +854,8 @@ stable complexity guarantee. See `list-literal`, `dict-literal`,
 // test: {"stdout": "42"}
 start {
     list values = [42, "text"]
-    if (values[0] is int) {
-        int number = values[0]
+    if (values[0] is int8) {
+        int8 number = values[0]
         print(number)
     }
 }
@@ -976,8 +977,9 @@ String System.lastError() from "cwhip_system_last_error"
 
 The external symbol must be linkable by Clang and use the runtime's expected
 ABI. Primitive parameters/results use the corresponding C/LLVM scalar
-representation (`int` is signed 64-bit, `bool` is 1-bit in IR, `float` is double,
-`unsigned` is 64-bit); strings, lists, dicts, buffers, handles, and class
+representation (exact-width C integers, C `float` for fp32, `double` for fp64,
+and the existing bool boundary). Narrow integer parameters/results include the
+target's required extension attributes. Strings, lists, dicts, buffers, handles, and class
 references are pointer-based. `void` is allowed only as a method result.
 Declarations and definitions must have matching names, parameter types, and
 return types, and native definitions must be in the same compilation unit
@@ -996,7 +998,8 @@ expressions. The final field name becomes the C parameter name; two captures
 with the same final name are rejected even if their paths differ.
 
 Captures are mutable references to the actual storage slot, not copies.
-For example, `*count += 1` in C updates the captured Cwhip `int`. Managed
+For example, `*count += 1` in C updates the captured Cwhip `int64` when the
+capture is int64 (the C pointer is then `int64_t *`). Managed
 reference slots remain traced through rooted locals or the rooted receiver;
 buffers use `CwhipBuffer **`, other managed references use `void **`.
 Primary, secondary, repeated nonvirtual, and shared virtual bases use the same
@@ -1005,7 +1008,7 @@ sugar below still declares a **local**, never a field.
 
 ```cwhip
 // Fragment: the declared local is implicitly captured by this inline C block.
-int result inline {
+int64 result inline {
     *result = 42;
 }
 ```
@@ -1013,10 +1016,10 @@ int result inline {
 ```cwhip
 class Counter {
     // test: {"stdout": "101"}
-    int count
+    int64 count
     Counter() { count = 0 }
-    void add(int count) {
-        inline (int .count) { *count += 1; }
+    void add(int64 count) {
+        inline (int64 .count) { *count += 1; }
         // The parameter still shadows the field in ordinary unqualified access.
         print(count)
     }

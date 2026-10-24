@@ -1,6 +1,6 @@
 class Greeter {
     Greeter() {}
-    int answer() {
+    int64 answer() {
         return 42
     }
 }

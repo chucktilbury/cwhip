@@ -1,32 +1,32 @@
 # Exercises the optional 'u' suffix: an unsuffixed integer literal is a
 # valid unsigned literal wherever the context already expects `unsigned`.
 class Counter {
-    unsigned value
+    uint64 value
 
-    Counter(unsigned initial) {
+    Counter(uint64 initial) {
         value = initial
     }
 
-    unsigned get() {
+    uint64 get() {
         return 7
     }
 }
 
 start {
-    unsigned declared = 5
+    uint64 declared = 5
     print(declared)
 
-    unsigned assigned = 0u
+    uint64 assigned = 0u
     assigned = 9
     print(assigned)
 
-    unsigned large = 5000000000
+    uint64 large = 5000000000
     print(large)
 
     Counter counter = Counter(3)
     print(counter.value)
     print(counter.get())
 
-    int plain = 5
+    int64 plain = 5
     print(plain)
 }

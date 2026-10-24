@@ -16,8 +16,8 @@ class Collector {
     buffer err
     String outText
     String errText
-    int completions
-    int events
+    int64 completions
+    int64 events
     P.OutputDecoder outDecoder
     P.OutputDecoder errDecoder
 
@@ -33,7 +33,7 @@ class Collector {
     }
 
     void add(buffer target, buffer chunk) {
-        int index = 0
+        int64 index = 0
         while (index < chunk.length) {
             target.append(chunk[index])
             index = index + 1
@@ -70,9 +70,9 @@ class Collector {
 
 # Counts byte totals only, for output much larger than a pipe's capacity.
 class Counter {
-    int outBytes
-    int errBytes
-    int outChunks
+    int64 outBytes
+    int64 errBytes
+    int64 outChunks
 
     void drain(P.AsyncProcess child) {
         outBytes = 0
@@ -100,7 +100,7 @@ class Counter {
 }
 
 class Ticker : Thread {
-    int ticks
+    int64 ticks
     bool stop
 
     Ticker() {
@@ -178,7 +178,7 @@ start {
     mixedOutput.drain(mixed)
     String expectedOut = ""
     String expectedErr = ""
-    int index = 0
+    int64 index = 0
     while (index < 40) {
         expectedOut.append(format("o{},", index))
         expectedErr.append(format("e{},", index))
@@ -289,14 +289,14 @@ start {
     sleeper.close()
 
     # A child ignoring SIGTERM is killed after the grace period.
-    unsigned before = T.Clock().monotonicMilliseconds()
+    uint64 before = T.Clock().monotonicMilliseconds()
     P.AsyncProcess stubborn = P.AsyncProcess("/bin/sh", ["-c",
         "trap '' TERM; echo ready; sleep 30"])
     P.ProcessEvent ready = stubborn.next(10000)
     print(ready.isStdout())
     print(stubborn.cancel(300))
     print(stubborn.wait(10000))
-    unsigned elapsed = T.Clock().monotonicMilliseconds() - before
+    uint64 elapsed = T.Clock().monotonicMilliseconds() - before
     print(stubborn.state() == P.AsyncProcess.CANCELLED)
     print(stubborn.signal() == 9)
     print(elapsed >= 300u)
@@ -328,7 +328,7 @@ start {
     P.AsyncProcess slow = P.AsyncProcess("/bin/sh", ["-c", "sleep 0.3; printf done"])
     Collector slowOutput = Collector()
     slowOutput.drain(slow)
-    int afterNext = ticker.ticks
+    int64 afterNext = ticker.ticks
     P.AsyncProcess slower = P.AsyncProcess("/bin/sleep", ["0.3"])
     slower.wait(-1)
     ticker.stop = true

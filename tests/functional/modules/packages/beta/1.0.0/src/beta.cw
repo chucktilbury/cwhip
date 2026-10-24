@@ -1,5 +1,5 @@
 class Beta {
-    int value() {
+    int64 value() {
         return 0
     }
 }

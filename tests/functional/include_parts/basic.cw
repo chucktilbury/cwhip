@@ -1,5 +1,5 @@
 class IncludedValue {
-    int answer() {
+    int64 answer() {
         return 42
     }
 }

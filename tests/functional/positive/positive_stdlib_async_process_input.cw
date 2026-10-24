@@ -10,7 +10,7 @@ handle Thread.launch() from "cwhip_thread_start"
 void Thread.join(handle worker) from "cwhip_thread_join"
 
 class Check {
-    int failures
+    int64 failures
 
     Check() {
         failures = 0
@@ -30,7 +30,7 @@ class Check {
 class Reader {
     String out
     String err
-    int outBytes
+    int64 outBytes
     bool completed
     P.OutputDecoder decoder
 
@@ -91,17 +91,17 @@ class Reader {
 # Writes numbered lines from another Cwhip thread while the main thread reads.
 class LineWriter : Thread {
     P.AsyncProcess child
-    int count
+    int64 count
     bool ok
 
-    LineWriter(P.AsyncProcess target, int lines) {
+    LineWriter(P.AsyncProcess target, int64 lines) {
         child = target
         count = lines
         ok = true
     }
 
     void run() {
-        int index = 0
+        int64 index = 0
         while (index < count) {
             if (!child.write(format("line{}\n", index))) {
                 ok = false
@@ -115,7 +115,7 @@ class LineWriter : Thread {
 }
 
 class Counter {
-    int bytes
+    int64 bytes
     bool completed
 
     Counter() {
@@ -132,7 +132,7 @@ class Counter {
         }
     }
 
-    void poll(P.AsyncProcess child, int timeoutMilliseconds) {
+    void poll(P.AsyncProcess child, int64 timeoutMilliseconds) {
         P.ProcessEvent event = child.next(timeoutMilliseconds)
         while (event != null) {
             take(event)
@@ -229,9 +229,9 @@ start {
     }
     P.AsyncProcess pipe = P.AsyncProcess("/bin/cat", [], null, true)
     Counter pipeOut = Counter()
-    int sent = 0
-    int rejected = 0
-    int blocks = 64
+    int64 sent = 0
+    int64 rejected = 0
+    int64 blocks = 64
     while (sent < blocks) {
         if (pipe.write(block)) {
             sent = sent + 1
@@ -255,7 +255,7 @@ start {
     # Backpressure against a child that never reads: the queue is bounded,
     # whole writes are rejected atomically, and oversized writes fail fast.
     P.AsyncProcess stalled = P.AsyncProcess("/bin/sleep", ["30"], null, true)
-    int accepted = 0
+    int64 accepted = 0
     bool full = false
     while (!full && accepted < 64) {
         if (stalled.write(block)) {
@@ -266,12 +266,12 @@ start {
     }
     check.that("queue fills", full)
     check.that("full message", stalled.inputError().startsWith("stdin queue is full"))
-    int pending = stalled.pendingInput()
+    int64 pending = stalled.pendingInput()
     check.that("pending positive", pending > 0)
     check.that("pending within limit", pending <= 1048576)
     check.that("small write still fits", pending + 1 > 1048576 || stalled.write("z"))
     String oversized = block.slice(0, block.length)
-    int grow = 0
+    int64 grow = 0
     while (grow < 5) {
         String piece = oversized.slice(0, oversized.length)
         oversized.append(piece)
@@ -295,7 +295,7 @@ start {
     Reader closerOut = Reader()
     check.that("closer ready", closerOut.until(closer, "closed\n"))
     bool broken = false
-    int attempts = 0
+    int64 attempts = 0
     while (!broken && attempts < 400) {
         if (!closer.write("data\n")) {
             broken = true
@@ -315,7 +315,7 @@ start {
 
     # A child that exits while input is queued: data is discarded and reported.
     P.AsyncProcess quitter = P.AsyncProcess("/bin/sh", ["-c", "head -c 1 >/dev/null; exit 3"], null, true)
-    int quitterWrites = 0
+    int64 quitterWrites = 0
     while (quitterWrites < 20 && quitter.write(block)) {
         quitterWrites = quitterWrites + 1
     }
@@ -357,7 +357,7 @@ start {
     writer.join(writerThread)
     check.that("writer ok", writer.ok)
     String expected = ""
-    int line = 0
+    int64 line = 0
     while (line < 500) {
         expected.append(format("line{}\n", line))
         line = line + 1

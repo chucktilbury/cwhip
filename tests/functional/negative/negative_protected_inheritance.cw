@@ -1,6 +1,6 @@
 # Rejects exposing a protected base field through an external qualified access.
 class Base {
-    int value
+    int64 value
 }
 
 class ProtectedChild : protected Base {

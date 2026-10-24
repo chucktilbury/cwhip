@@ -1,9 +1,9 @@
 # Fails to link when a native method names a C symbol that does not exist.
 class Native {
-    int missing(int value)
+    int64 missing(int64 value)
 }
 
-int Native.missing(int value) from "cwhip_symbol_that_does_not_exist"
+int64 Native.missing(int64 value) from "cwhip_symbol_that_does_not_exist"
 
 start {
     print(Native().missing(1))

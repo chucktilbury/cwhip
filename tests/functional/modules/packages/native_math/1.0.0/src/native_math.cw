@@ -1,5 +1,5 @@
 class NativeMath {
-    int answer()
+    int64 answer()
 }
 
-int NativeMath.answer() from "cwhip_native_math_answer"
+int64 NativeMath.answer() from "cwhip_native_math_answer"

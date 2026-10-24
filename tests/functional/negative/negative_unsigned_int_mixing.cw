@@ -1,4 +1,6 @@
-# Rejects implicit mixing of unsigned and signed int operands.
+# Rejects arithmetic between unsigned and signed 64-bit values with no common type.
 start {
-    unsigned invalid = 42u + 1
+    uint64 unsignedValue = 1u
+    int64 signedValue = 1
+    uint64 invalid = unsignedValue + signedValue
 }

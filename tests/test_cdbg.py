@@ -65,7 +65,7 @@ start {
     parser.parse("1^done,msg=\"\\777\"")
     test.require(!parser.valid, "invalid byte escape rejected")
     String deep = "1^done,x="
-    int i = 0
+    int64 i = 0
     while (i < 40) { deep.append("[")
         i = i + 1 }
     deep.append("\"x\"")
@@ -104,9 +104,9 @@ class DebugUiFixture {
     bool noEmoji()
     bool centered()
     void track()
-    int changes()
+    int64 changes()
     bool bordered()
-    int closeButtons()
+    int64 closeButtons()
     bool closeTab(String name)
     bool sourceVisible()
     bool findVisible()
@@ -114,12 +114,12 @@ class DebugUiFixture {
     bool shortcut(String trigger)
     void choose(String path)
     bool compact()
-    bool lineClick(String pane, int line, String action)
-    int marks(String file, int line)
+    bool lineClick(String pane, int64 line, String action)
+    int64 marks(String file, int64 line)
     bool watchDialog(String expression, bool accept)
     bool noBreakMenus()
-    bool disabled(int line)
-    bool setup(int startState, String arguments, String action)
+    bool disabled(int64 line)
+    bool setup(int64 startState, String arguments, String action)
     bool clipboard(String expected)
     bool step(String name, bool keyboard)
 }
@@ -128,9 +128,9 @@ bool DebugUiFixture.panes() from "cdbg_fixture_panes"
 bool DebugUiFixture.noEmoji() from "cdbg_fixture_no_emoji"
 bool DebugUiFixture.centered() from "cdbg_fixture_centered"
 void DebugUiFixture.track() from "cdbg_fixture_track"
-int DebugUiFixture.changes() from "cdbg_fixture_changes"
+int64 DebugUiFixture.changes() from "cdbg_fixture_changes"
 bool DebugUiFixture.bordered() from "cdbg_fixture_bordered"
-int DebugUiFixture.closeButtons() from "cdbg_fixture_close_buttons"
+int64 DebugUiFixture.closeButtons() from "cdbg_fixture_close_buttons"
 bool DebugUiFixture.closeTab(String name) from "cdbg_fixture_close_tab"
 bool DebugUiFixture.sourceVisible() from "cdbg_fixture_source_visible"
 bool DebugUiFixture.findVisible() from "cdbg_fixture_find_visible"
@@ -138,20 +138,20 @@ bool DebugUiFixture.findClick(String name) from "cdbg_fixture_find_click"
 bool DebugUiFixture.shortcut(String trigger) from "cdbg_fixture_shortcut"
 void DebugUiFixture.choose(String path) from "cdbg_fixture_choose"
 bool DebugUiFixture.compact() from "cdbg_fixture_compact"
-bool DebugUiFixture.lineClick(String pane, int line, String action) from "cdbg_fixture_line_click"
-int DebugUiFixture.marks(String file, int line) from "cdbg_fixture_marks"
+bool DebugUiFixture.lineClick(String pane, int64 line, String action) from "cdbg_fixture_line_click"
+int64 DebugUiFixture.marks(String file, int64 line) from "cdbg_fixture_marks"
 bool DebugUiFixture.watchDialog(String expression, bool accept) from "cdbg_fixture_watch"
 bool DebugUiFixture.noBreakMenus() from "cdbg_fixture_no_break_menus"
-bool DebugUiFixture.disabled(int line) from "cdbg_fixture_disabled"
-bool DebugUiFixture.setup(int startState, String arguments, String action) from "cdbg_fixture_setup"
+bool DebugUiFixture.disabled(int64 line) from "cdbg_fixture_disabled"
+bool DebugUiFixture.setup(int64 startState, String arguments, String action) from "cdbg_fixture_setup"
 bool DebugUiFixture.clipboard(String expected) from "cdbg_fixture_clipboard"
 bool DebugUiFixture.step(String name, bool keyboard) from "cdbg_fixture_step"
 
 class DebugChecks {
     Cdbg ui
-    int stage
-    int stops
-    unsigned deadline
+    int64 stage
+    int64 stops
+    uint64 deadline
     String mode
     String oldPid
     String previousPc
@@ -159,7 +159,7 @@ class DebugChecks {
         stops = ui.stopCount
         require(DebugUiFixture().step(name, keyboard), format("{} control ready", name))
     }
-    void stepped(String file, int line) {
+    void stepped(String file, int64 line) {
         require(ui.stopCount == stops + 1, "one activation produces exactly one stop")
         require(ui.location.contains(file) && ui.source.line() == line,
             format("single step reaches {}:{}, got {}", file, line, ui.location))
@@ -193,7 +193,7 @@ class DebugChecks {
                 singleStep("Step Into", false)
             }
             if (stage == 6) {
-                stepped("RuntimeGc.c", System.Process().getEnv("CDBG_RUNTIME_ENTRY").toInt())
+                stepped("RuntimeGc.c", System.Process().getEnv("CDBG_RUNTIME_ENTRY").toInt64())
                 require(ui.location.contains("cwhip_gc_require_alive"), "step enters real runtime")
                 require(ui.watches.text().contains("counter = <") &&
                     !ui.locals.text().contains("fields; members unavailable"),
@@ -205,13 +205,13 @@ class DebugChecks {
                 return true
             }
             if (stage == 7) {
-                stepped("RuntimeGc.c", System.Process().getEnv("CDBG_RUNTIME_CALL").toInt())
+                stepped("RuntimeGc.c", System.Process().getEnv("CDBG_RUNTIME_CALL").toInt64())
                 ui.inspection.setCurrentPage(1)
                 stage = 30
                 return true
             }
             if (stage == 8) {
-                stepped("RuntimeGc.c", System.Process().getEnv("CDBG_RUNTIME_CALL").toInt() + 1)
+                stepped("RuntimeGc.c", System.Process().getEnv("CDBG_RUNTIME_CALL").toInt64() + 1)
                 singleStep("Step Out", true)
             }
             if (stage == 9) {
@@ -300,7 +300,7 @@ class DebugChecks {
             require(ui.selectedFrame == 1 && ui.location.contains("stepping.cw:10"),
                 "stack click browses caller")
             require(ui.locals.text().contains("counter = 21") && ui.watches.text().contains("counter = 21") &&
-                ui.runtimeValues.text().contains("counter : int = 21"),
+                ui.runtimeValues.text().contains("counter : int64 = 21"),
                 "caller selection refreshes friendly and runtime values together")
             singleStep("Step Over", false)
             stage = 8
@@ -311,7 +311,7 @@ class DebugChecks {
             stage = 16
         }
         if (stage == 60 && ui.stopCount > stops && !ui.running && idle()) {
-            stepped("RuntimeGc.c", System.Process().getEnv("CDBG_RUNTIME_ENTRY").toInt())
+            stepped("RuntimeGc.c", System.Process().getEnv("CDBG_RUNTIME_ENTRY").toInt64())
             require(!ui.stopAddress.equals(previousPc) &&
                 ui.status.text().contains("same source line (previous PC"),
                 "real same-line runtime stop displays changed PC, without an automatic extra step")
@@ -353,7 +353,7 @@ class DebugChecks {
             list names = ["counter", "positive", "truth", "fraction", "message", "missing",
                 "worker", "items", "mapping", "bytes", "longText", "not_in_scope",
                 "counter = 0", "print(counter)"]
-            int i = 0
+            int64 i = 0
             while (i < names.length) {
                 ui.addWatch(names[i] as String)
                 i = i + 1
@@ -377,7 +377,7 @@ class DebugChecks {
                 text.contains("bytes = buffer[3] {01 02 ff}") &&
                 text.contains("<truncated; 300 bytes>"), format("bounded containers/String: {}", text))
             list rows = text.split("\n")
-            int i = 0
+            int64 i = 0
             while (i < rows.length) {
                 String row = rows[i] as String
                 if (!row.equals("")) { require(ui.watches.text().contains(row), format("same local/watch formatter: {}", row)) }
@@ -394,7 +394,7 @@ class DebugChecks {
         }
         if (stage == 3 && ui.stopCount > stops && !ui.running && idle()) {
             require(ui.locals.text().contains("counter = 22") && ui.watches.text().contains("counter = 22") &&
-                ui.runtimeValues.text().contains("counter : int = 22"), "all representations update after step")
+                ui.runtimeValues.text().contains("counter : int64 = 22"), "all representations update after step")
             ui.selectFrame("0")
             stage = 4
         }
@@ -436,7 +436,7 @@ class DebugChecks {
         ui.loadTarget(System.Process().getEnv("CDBG_TEST_TARGET"))
         Gtk.Application().post(_self().tick)
     }
-    int pages
+    int64 pages
     // Open Source Code rejection: wait for the parented dialog, then require
     // the source notebook to be visible with its tabs unchanged.
     bool rejected(String label) {
@@ -559,7 +559,7 @@ class DebugChecks {
     bool persistenceTick() {
         if (!ui.loaded || !idle()) { return true }
         String path = System.Process().getEnv("CDBG_TEST_SOURCE")
-        int line = System.Process().getEnv("CDBG_TEST_LINE").toInt()
+        int64 line = System.Process().getEnv("CDBG_TEST_LINE").toInt64()
         if (mode.equals("state-save")) {
             if (stage == 0) {
                 require(ui.showSource(path, format("{}", line)), "source for saved breakpoint")
@@ -1110,7 +1110,7 @@ class DebugChecks {
             if (stage == 2 && ui.stopCount >= 1 && !ui.running && idle()) {
                 require(ui.location.contains(System.Process().getEnv("CDBG_TEST_SOURCE")), "source stop")
                 require(ui.source.text().contains("counter"), "source displayed")
-                require(ui.source.line() == System.Process().getEnv("CDBG_TEST_LINE").toInt(),
+                require(ui.source.line() == System.Process().getEnv("CDBG_TEST_LINE").toInt64(),
                     "current source line highlighted")
                 require(ui.locals.text().contains("counter = 21"), "DWARF scalar local")
                 require(ui.watches.text().contains("counter = 21") &&
@@ -1236,18 +1236,18 @@ int main(void) {
 BREAKS_FIXTURE = """\
 import system
 class Counter {
-    int double(int value) {
-        int doubled = value * 2
+    int64 double(int64 value) {
+        int64 doubled = value * 2
         return doubled
     }
-    int unused(int value) {
+    int64 unused(int64 value) {
         return value + 1
     }
 }
 start {
     Counter worker = Counter()
-    int counter = worker.double(21)
-    int i = 1
+    int64 counter = worker.double(21)
+    int64 i = 1
     while (i < System.Process().argc()) {
         print(format("arg[{}]=<{}>\\n", i, System.Process().arg(i)))
         i = i + 1
@@ -1258,14 +1258,14 @@ start {
 
 CW_FIXTURE = """\
 class Counter {
-    int double(int value) {
-        int doubled = value * 2
+    int64 double(int64 value) {
+        int64 doubled = value * 2
         return doubled
     }
 }
 start {
     Counter worker = Counter()
-    int counter = 21
+    int64 counter = 21
     counter = worker.double(counter)
     print(format("cwhip-output:{}", counter))
 }
@@ -1273,14 +1273,14 @@ start {
 
 STEPPING_FIXTURE = """\
 class Counter {
-    int double(int value) {
-        int doubled = value * 2
+    int64 double(int64 value) {
+        int64 doubled = value * 2
         return doubled
     }
 }
 start {
     Counter worker = Counter()
-    int counter = 21
+    int64 counter = 21
     counter = worker.double(counter)
     counter = counter + 1
     counter = counter + 2
@@ -1289,13 +1289,13 @@ start {
 """
 
 VALUES_FIXTURE = r'''class Counter {
-    int value
+    int64 value
 }
 start {
-    int counter = 21
-    unsigned positive = 42u
+    int64 counter = 21
+    uint64 positive = 42u
     bool truth = true
-    float fraction = 1.5
+    fp64 fraction = 1.5
     String message = "café\n\"quoted\"\\path"
     String missing = null
     Counter worker = Counter()

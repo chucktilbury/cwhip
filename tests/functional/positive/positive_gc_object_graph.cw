@@ -1,9 +1,9 @@
 # Keeps a linked object graph and nested object reference alive while allocation triggers collection.
 class Node {
-    int value
+    int64 value
     Node next
 
-    Node(int initial) {
+    Node(int64 initial) {
         value = initial
     }
 
@@ -23,7 +23,7 @@ class Pair {
 start {
     Node head = Node(0)
     Node tail = head
-    int index = 1
+    int64 index = 1
     while (index <= 64) {
         tail.setNext(Node(index))
         tail = tail.next

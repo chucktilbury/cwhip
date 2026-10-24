@@ -1,7 +1,7 @@
 # Rejects constructing a class through its private constructor from start code.
 class Hidden {
     private:
-    Hidden(int value) {
+    Hidden(int64 value) {
     }
 }
 
