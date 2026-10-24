@@ -127,6 +127,35 @@ CMake clean removes outputs/private work and the next build recreates them;
 configuration caches/input inventories remain. Changing SDK prefixes requires
 reconfiguration (a new binary directory is simplest).
 
+### Refreshing generated application locks
+
+After an intentional, verified SDK rebuild at the same prefix/version, an old
+application build can retain a private `cwhip-pkg.lock` whose bundled package
+hashes no longer match. Installation preserves file timestamps, so a newer
+generated lock is not proof that it describes the current SDK bytes. Merely
+rerunning configuration need not regenerate that lock.
+See [integrity mismatch diagnosis](PACKAGES.md#integrity-mismatch-after-an-sdk-rebuild)
+before trusting the changed SDK.
+
+Use a new, unused binary directory to explicitly create fresh generated locks
+without removing or editing the old ones. For standalone cedit/cdbg, select the
+verified SDK explicitly with `CWHIP_SDK` (which takes precedence over saved SDK
+settings) and keep the new outputs inside that binary directory:
+
+```sh
+# Run from the application's source directory, once for cedit and once for cdbg.
+CWHIP_SDK=/chosen/verified-sdk cmake -S . -B build-sdk-refresh \
+  -DCWHIP_BIN_DIR="$PWD/build-sdk-refresh/bin" \
+  -DCWHIP_LIB_DIR="$PWD/build-sdk-refresh/lib"
+cmake --build build-sdk-refresh --parallel 4
+```
+
+Choose another new directory if `build-sdk-refresh` already exists. This is a
+deliberate snapshot of the selected SDK, not an integrity bypass or a package
+version/ABI migration. It does not update a manually maintained source-project
+lock, install applications, or rewrite SDK settings. Subsequent unexpected
+package edits still fail the content check.
+
 ## GUI application resources
 
 Call `cwhip_require_sourceview([RESOURCE_DIRECTORY dir])` before
