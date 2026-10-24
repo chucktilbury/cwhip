@@ -41,8 +41,11 @@ builds; it does not assume binary installers or packaged application releases.
 the [macro language reference](https://github.com/chucktilbury/cmacros/blob/main/doc/LANGUAGE.md)
 and [examples guide](https://github.com/chucktilbury/cmacros/blob/main/examples/README.md)
 describe its input syntax and runnable examples. It is an optional standalone
-tool, not part of the compiler command or package workflow. `cparsegen` remains
-a bootstrapped placeholder, not a functioning parser-generation tool.
+tool, not part of the compiler command or package workflow. `cparsegen` is a
+separately built, bounded parser-generator prototype that emits parsers for
+Cwhip or standalone ISO C99. See its
+[input/output reference](https://github.com/chucktilbury/cparsegen/blob/main/doc/INPUT-OUTPUT.md)
+for supported grammar features, commands, and limits.
 
 ## Host prerequisites
 
@@ -307,9 +310,12 @@ template build code. See [project creation details](INSTALLATION.md#create-a-pro
 For the optional interactive shell, run `./scripts/setup` from inside Hello.
 It configures then starts Bash in `Hello/build`; run `cmake --build .` and
 `../bin/Hello`, then `exit` to leave. `release` selects Release and `profile`
-selects RelWithDebInfo; the default is `debug`. Execute the setup script;
-do not source it. Output paths can be overridden with `CWHIP_BIN_DIR` and
-`CWHIP_LIB_DIR`; see the generated project's `doc/BUILDING.md`.
+selects RelWithDebInfo. With no argument, the generated helper inherits the
+selected SDK's registered build type when available; existing CMake cache
+choices, explicit options, and environment overrides take precedence. If no
+build type is inherited or selected, CMake's default applies. Execute the setup
+script; do not source it. Output paths can be overridden with `CWHIP_BIN_DIR`
+and `CWHIP_LIB_DIR`; see the generated project's `doc/BUILDING.md`.
 
 ## Learn the source basics
 
@@ -351,9 +357,11 @@ start {
 }
 ```
 
-Construct an object with `ClassName(...)`, not a `new` keyword. `int` is signed
-64-bit, `unsigned` is unsigned 64-bit, `float` is double precision, and `bool`
-is required for conditions. `strg` and `String` name the managed string type.
+Construct an object with `ClassName(...)`, not a `new` keyword. Signed integer
+types are `int8`, `int16`, `int32`, and `int64`; unsigned integer types are
+`uint8`, `uint16`, `uint32`, and `uint64`; floating types are `fp32` and
+`fp64`. Conditions require `bool`. `strg` and `String` name the managed
+string type.
 `list`, `dict`, `buffer`, and native `handle` types are also available.
 Initialize fields in a constructor; field declarations have no in-class
 initializer syntax.

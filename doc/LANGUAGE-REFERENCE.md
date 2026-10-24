@@ -10,11 +10,13 @@ The canonical project website is [cwhip.org](https://cwhip.org).
 New source files use `.cw`; no alternate source suffix is accepted for
 existing programs. The compiler produces textual LLVM IR and invokes Clang
 to link the runtime. Fixed-width numeric types execute through width-correct
-LLVM IR, checked integer operations, and IEEE floating arithmetic. Broad SDK,
-stdlib, debugger/editor, and legacy-example migration remains separate work;
-older examples below may still use removed numeric names. Existing native
-modules and applications must be rebuilt; this is not an end-to-end ecosystem
-migration.
+LLVM IR, checked integer operations, and IEEE floating arithmetic. This
+repository's SDK and bundled standard-library packages use numeric-v2.
+Applications and native modules built against an earlier SDK must be rebuilt,
+and consumers using the removed `int`, `unsigned`, or `float` type names must
+migrate their source. External consumer repositories are not updated
+automatically. The separately indexed historical language notes provide design
+context, not the current language contract.
 
 The parser limits recursive syntax nesting to 128 active levels, counting
 namespaces, statement blocks, expressions, and unary operators. Excessive

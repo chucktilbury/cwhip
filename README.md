@@ -6,7 +6,7 @@ and the optional standalone editor/debugger.
 
 External projects can consume the [installed, relocatable CMake SDK](doc/CMAKE-SDK.md)
 without a compiler checkout. The complete prefix, not just its executables,
-is the supported prototype distribution boundary. compiler
+is the supported prototype distribution boundary.
 
 Cwhip is a statically typed language with classes, inheritance, managed strings
 and collections, exceptions, and native bindings. The name comes from the
@@ -118,15 +118,17 @@ in [`stdlib/README.md`](stdlib/README.md); its public APIs are in
 
 ## Implemented language highlights
 
-- `int` is signed 64-bit; integer literals support decimal and `0x` hexadecimal
+- Signed integer types are `int8`, `int16`, `int32`, and `int64`; unsigned
+  types are `uint8`, `uint16`, `uint32`, and `uint64`; floating types are
+  `fp32` and `fp64`. Integer literals support decimal and `0x` hexadecimal
   forms with checked ranges. The string type keyword is `strg`; double-quoted
   strings support `\e`. `format("value {}", value)` returns `strg`, and
   `print("{value:08X}", value=42)` formats directly. Literal templates support
   positional/named fields, alignment, width, decimal/hex integers, and
   ASCII-only `c`; string-literal calls are no longer supported.
-- Scalar `int`, `unsigned`, and `float` variables and fields support
-  `+=`, `-=`, `*=`, `/=`, and the applicable `%=` compound assignments.
-- Anonymous class enums declare immutable signed 64-bit `int` constants
+- Numeric variables and fields support `+=`, `-=`, `*=`, and `/=`; integer
+  types also support `%=` compound assignment.
+- Anonymous class enums declare immutable signed 64-bit `int64` constants
   accessible as `Class.NAME` or `object.NAME`, without creating a new type or
   per-instance storage.
 - Base constructors use dotless `super Base(args)` syntax; virtual bases use
