@@ -829,6 +829,9 @@ start {
 
 ## Integer ranges
 
+For small runnable programs and their expected output, see
+[the switches and ranges walkthrough](EXAMPLES.md#switches-and-integer-ranges).
+
 `first..last` forms a first-class `range<T>`, not a list or a syntax-only loop
 construct. Both endpoints are inclusive. Ascending iteration steps by `+1`;
 descending iteration steps by `-1`. Membership ignores direction. A singleton
@@ -888,6 +891,9 @@ final endpoint before advancing, including at `int64` minimum and `uint64`
 maximum. Iteration and membership use constant-size range storage, not a
 materialized list. Iterating a huge range still takes time proportional to
 the number of visited integers.
+This does not provide a full-domain count/length API or make a loop-body
+accumulator overflow-safe. There are no public endpoint accessors; use
+printing/formatting or the debugger to inspect captured bounds.
 
 `value in bounds` requires an integer value and a range. Integer comparison is
 exact across widths and signedness: a negative signed integer is not in

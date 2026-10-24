@@ -428,6 +428,13 @@ are strict inclusive indices. Existing colon slices remain half-open and
 clamped. Switch case-label expressions are restricted to compile-time integer
 values or a top-level range of compile-time integer endpoints; stored ranges
 and runtime endpoints remain forbidden there.
+Endpoint expressions run exactly once, left to right. Every formed interval
+is nonempty; guard zero-count index traversal. Endpoint types must have a
+lossless common integer type. Negative slice indices retain their ordinary
+length-relative meaning, and String slices select bytes whose result must be
+valid UTF-8. Null range consumers and invalid slice bounds throw catchable
+exceptions. See [the range contract](LANGUAGE-REFERENCE.md#integer-ranges) and
+[runnable examples](EXAMPLES.md#switches-and-integer-ranges).
 
 The `postfix` shorthand accepts a call suffix after any value expression.
 An identifier call is initially parsed as construction and resolves instead

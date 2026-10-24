@@ -1874,8 +1874,9 @@ The goal is to turn the requirements into stages, not to estimate Copilot credit
   compiler resolves versioned source packages and generates/import-links their IR.
 - The listed module priorities, examples, testing expectations, source-size guidance, documentation expectations, and CLI/tooling goals are project requirements.
 - The grammar proposals must be reconciled with examples and priorities before becoming a specification.
-- `switch`/`case` will not be implemented; `if`/`else if`/`else` chains are the
-  only multi-way branch construct.
+- `switch`/`case` is implemented with compile-time integer labels, grouped
+  inclusive intervals in either direction, and explicit `next`. It supersedes
+  the earlier decision to omit switches; there is no `else if` production.
 - `break` and `continue` are required loop-control statements.
 - `do { ... } while (<expr>)` is a required loop form in addition to `while`
   and `for`.

@@ -1,5 +1,12 @@
 # Standard library reference
 
+Integer ranges and list/String/buffer range-index slices are language
+operations, not additional standard-package methods. See the
+[range contract](LANGUAGE-REFERENCE.md#integer-ranges) and
+[runnable slice example](EXAMPLES.md#copies-inclusive-indices-and-utf-8).
+Range-index slices are inclusive and strict; they do not change existing
+half-open/clamped colon slices or String `.slice` methods.
+
 Standard packages are imported by package name. Without an alias, the manifest's
 declared namespace is exposed: `import system` provides `System.Process` and
 `System.System`. An optional alias itself names the

@@ -222,6 +222,8 @@ the `cwhip` executable in
 `${CMAKE_INSTALL_DOCDIR}` plus `${CMAKE_INSTALL_MANDIR}/man1/cwhip.1`.
 The documentation install also preserves the repository-relative
 `doc/`, `tests/`, and `stdlib/` indexes and references.
+The root `CWHIP-LANGUAGE-NOTES.md` entry links to the complete notes under
+`doc/`, where their relative language-reference and library links resolve.
 Installation directories must remain inside `CMAKE_INSTALL_PREFIX`.
 
 The compiler derives resources relative to its executable and the installation
