@@ -163,6 +163,39 @@ checks lock structure/freshness and the hashes and declared edges of packages
 used by the compilation. A changed bundled package therefore requires an
 intentional lock regeneration, not silent acceptance.
 
+## Integrity mismatch after an SDK rebuild
+
+An integrity mismatch means the selected package's bytes differ from the lock;
+it does not by itself distinguish a stale lock from an unexpected package edit.
+The compiler reports the package version/directory, lockfile path, and expected
+and actual SHA256 digests. For `repo = "builtin"` it also points out that an SDK
+rebuild can change bundled content without changing the package version.
+The prototype SDK version `0.0.2`, package version `0.1.0`, and ABI `numeric-v2`
+are not content identities. Source migrations (including callable syntax),
+native archive rebuilds, and package file additions/removals can all change the
+digest at the same version. Timestamps and permissions cannot change it.
+
+First verify which SDK and package root were selected (`cwhip --print-paths`
+with the same input and environment), and compare the installed package with
+the intended trusted build. Do not edit the lock's digest to suppress the error.
+If the installed tree differs unexpectedly, restore the intended complete SDK
+or package instead of accepting the changed bytes.
+
+If the SDK update was intentional and its contents have been verified:
+
+- For `cwhip_add_program` consumers such as standalone cedit/cdbg, configure and
+  build in a fresh binary directory. The helper creates a new private project
+  and locks the selected SDK there without modifying the old build's lock.
+  See [CMake SDK recovery](CMAKE-SDK.md#refreshing-generated-application-locks).
+- For a manually managed project, preserve the old lock outside the project,
+  then deliberately resolve the unchanged manifest with `cwhip-pkg install
+  --yes`. Review the full new lock before committing it: resolving without a
+  lock can also change remote commit identities, even at an existing tag.
+
+`cwhip-pkg init` refuses existing configuration; `cwhip-pkg install --yes` with
+an existing lock verifies it and **does not refresh mismatching hashes**.
+Neither compilation nor installation silently accepts changed contents.
+
 ## Network consent and plans
 
 No network operation starts without an explicit interactive confirmation or

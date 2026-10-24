@@ -3,11 +3,13 @@
 
 import argparse
 import errno
+import hashlib
 import os
 from pathlib import Path
 import subprocess
 import sys
 import tempfile
+import tomllib
 import unittest
 
 
@@ -24,9 +26,9 @@ class DiagnosticTests(unittest.TestCase):
         self.source = self.root / "source.cw"
         self.source.write_text("start {}\n", encoding="utf-8")
 
-    def run_tool(self, tool, *arguments, env=None):
+    def run_tool(self, tool, *arguments, env=None, cwd=None):
         return subprocess.run(
-            [str(tool), *map(str, arguments)], cwd=self.root,
+            [str(tool), *map(str, arguments)], cwd=cwd or self.root,
             env={**self.environment, **(env or {})}, text=True,
             capture_output=True, timeout=30, check=False,
         )
@@ -107,6 +109,89 @@ class DiagnosticTests(unittest.TestCase):
                                "--emit-llvm", output)
         self.assert_error(result, "cwhip", "CWHIP9001", 1)
         self.assertIn(str(output), result.stderr)
+
+    def test_package_integrity_reports_evidence_and_requires_explicit_refresh(self):
+        modules = self.root / "sdk-modules"
+        package = modules / "gtk/0.1.0"
+        package.mkdir(parents=True)
+        (package / "cwhip-package.toml").write_text(
+            '[package]\nsdk-abi = "numeric-v2"\nname = "gtk"\n'
+            'version = "0.1.0"\nsource = "gtk.cw"\nexport = "namespace:Gtk"\n',
+            encoding="utf-8",
+        )
+        package_source = package / "gtk.cw"
+        package_source.write_text("namespace Gtk {}\n", encoding="utf-8")
+        archive = package / "native.a"
+        archive.write_bytes(b"native archive fixture\0")
+        environment = {"CWHIP_STDLIB_MODULE_DIR": str(modules)}
+
+        for changed in (package_source, archive):
+            for builtin in (True, False):
+                with self.subTest(changed=changed.name, builtin=builtin):
+                    project = self.root / f"locked-{changed.name}-{builtin}"
+                    result = self.run_tool(self.args.package_tool, "init", project,
+                                           env=environment)
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    source = project / "main.cw"
+                    source.write_text("import gtk\nstart {}\n", encoding="utf-8")
+                    lock_path = project / "cwhip-pkg.lock"
+                    if not builtin:
+                        manifest_path = project / "cwhip-pkg.toml"
+                        old_manifest_hash = hashlib.sha256(manifest_path.read_bytes()).hexdigest()
+                        manifest_path.write_text(
+                            'schema = 1\n[dependencies.gtk]\nrepo = "acme/gtk"\nversion = "=0.1.0"\n',
+                            encoding="utf-8",
+                        )
+                        lock_path.write_text(
+                            lock_path.read_text()
+                            .replace(old_manifest_hash, hashlib.sha256(manifest_path.read_bytes()).hexdigest())
+                            .replace('repo = "builtin"', 'repo = "acme/gtk"')
+                            .replace('ref = "builtin"', 'ref = "refs/tags/0.1.0"')
+                            .replace('commit = "builtin"', 'commit = "' + "1" * 40 + '"'),
+                            encoding="utf-8",
+                        )
+                    lock = lock_path.read_bytes()
+                    manifest = (project / "cwhip-pkg.toml").read_bytes()
+                    expected = tomllib.loads(lock.decode())["packages"]["gtk"]["sha256"]
+                    changed.write_bytes(changed.read_bytes() + b"\n")
+                    files = {path.relative_to(package).as_posix(): path.read_bytes()
+                             for path in package.rglob("*") if path.is_file()}
+                    digest = hashlib.sha256()
+                    for name, content in sorted(files.items()):
+                        digest.update(name.encode() + b"\0" + content + b"\0")
+                    output = project / "must-not-exist"
+                    result = self.run_tool(self.args.compiler, source, "-M", modules,
+                                           "-o", output, env=environment)
+                    self.assert_error(result, "cwhip", "CWHIP9001", 1)
+                    for detail in ("package integrity mismatch for 'gtk' version '0.1.0'",
+                                   str(package), str(lock_path),
+                                   f"expects SHA256 {expected}",
+                                   f"actual SHA256 {digest.hexdigest()}",
+                                   "refusing to compile"):
+                        self.assertIn(detail, result.stderr)
+                    self.assertEqual("same-version SDK rebuild" in result.stderr, builtin)
+                    self.assertFalse(output.exists())
+                    result = self.run_tool(self.args.package_tool, "install", "--yes",
+                                           cwd=project, env=environment)
+                    self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
+                    self.assertIn("integrity mismatch", result.stderr)
+                    self.assertEqual(lock_path.read_bytes(), lock)
+                    self.assertEqual((project / "cwhip-pkg.toml").read_bytes(), manifest)
+                    self.assertEqual(files, {
+                        path.relative_to(package).as_posix(): path.read_bytes()
+                        for path in package.rglob("*") if path.is_file()
+                    })
+
+                    fresh = self.root / f"fresh-{changed.name}-{builtin}"
+                    result = self.run_tool(self.args.package_tool, "init", fresh,
+                                           env=environment)
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    fresh_source = fresh / "main.cw"
+                    fresh_source.write_bytes(source.read_bytes())
+                    result = self.run_tool(self.args.compiler, fresh_source, "-M", modules,
+                                           "--check-only", env=environment)
+                    self.assertEqual((result.returncode, result.stdout, result.stderr),
+                                     (0, "", ""))
 
     def test_package_usage_and_domain_error(self):
         for arguments in ([], ["unknown"], ["env", "--unknown"]):

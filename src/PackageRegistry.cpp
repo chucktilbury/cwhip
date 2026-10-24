@@ -833,10 +833,22 @@ private:
                     "requires '" + requiredVersion + "'");
             }
             const auto& entry = policy_->lockedPackages.at(name);
-            if (packageTreeSha256(selected->packageRoot) != entry.at("sha256")) {
+            const auto actualHash = packageTreeSha256(selected->packageRoot);
+            if (actualHash != entry.at("sha256")) {
+                const auto repository = entry.find("repo");
+                const auto help = repository != entry.end() && repository->second == "builtin"
+                    ? "; a same-version SDK rebuild can stale a builtin package lock; "
+                      "verify the SDK contents before intentionally regenerating the lock "
+                      "(for cwhip_add_program, use a fresh build directory)"
+                    : "";
                 throw std::runtime_error("package integrity mismatch for '" + name +
+                                         "' version '" + selected->version +
                                          "' at " + selected->packageRoot.string() +
-                                         "; refusing to compile modified locked code");
+                                         "; lockfile " + policy_->path.string() +
+                                         " expects SHA256 " + entry.at("sha256") +
+                                         "; actual SHA256 " + actualHash +
+                                         "; refusing to compile contents that differ from the lock" +
+                                         help);
             }
             std::vector<std::string> dependencies;
             for (const auto& dependency : selected->dependencies) {
