@@ -43,15 +43,15 @@ namespace GtkSource {
         bool _language(int64 token, String language)
         void _monospace(int64 token, bool monospace)
         void _emojiMenu(int64 token, bool enabled)
-        bool _bindShortcut(int64 token, String trigger, callback<void()> action)
+        bool _bindShortcut(int64 token, String trigger, void<> action)
         bool _hasShortcut(int64 token, String trigger)
         void _clearShortcuts(int64 token)
         void _configure(int64 token, String font, int64 size, int64 tabs, bool spaces,
                         bool numbers, bool wrap, bool highlight)
-        int64 _changed(int64 token, callback<void()> action)
-        int64 _cursorMoved(int64 token, callback<void()> action)
+        int64 _changed(int64 token, void<> action)
+        int64 _cursorMoved(int64 token, void<> action)
         void _lineSelection(int64 token, bool enabled)
-        int64 _lineActivated(int64 token, callback<void(int64)> action)
+        int64 _lineActivated(int64 token, void<int64> action)
         void _markStyle(int64 token, String category, String icon, String color)
         void _lineMark(int64 token, String category, int64 line)
         void _clearMarks(int64 token, String category)
@@ -112,7 +112,7 @@ namespace GtkSource {
         bool hasContextAt(String context, int64 offset) {
             return _hasContext(_widgetToken(), context, offset)
         }
-        bool bindShortcut(String trigger, callback<void()> action) {
+        bool bindShortcut(String trigger, void<> action) {
             return _bindShortcut(_widgetToken(), trigger, action)
         }
         bool hasShortcut(String trigger) { return _hasShortcut(_widgetToken(), trigger) }
@@ -121,14 +121,14 @@ namespace GtkSource {
                        bool numbers, bool wrap, bool highlight) {
             _configure(_widgetToken(), font, size, tabs, spaces, numbers, wrap, highlight)
         }
-        int64 onChanged(callback<void()> action) {
+        int64 onChanged(void<> action) {
             return _changed(_widgetToken(), action)
         }
-        int64 onCursorMoved(callback<void()> action) {
+        int64 onCursorMoved(void<> action) {
             return _cursorMoved(_widgetToken(), action)
         }
         void setLineSelection(bool enabled) { _lineSelection(_widgetToken(), enabled) }
-        int64 onLineActivated(callback<void(int64)> action) { return _lineActivated(_widgetToken(), action) }
+        int64 onLineActivated(void<int64> action) { return _lineActivated(_widgetToken(), action) }
         void setMarkStyle(String category, String icon, String background) {
             _markStyle(_widgetToken(), category, icon, background)
         }
@@ -174,7 +174,7 @@ namespace GtkSource {
     String View._selectedText(int64 token) from "cwhip_gtk_source_view_selected_text"
     String Content.languageFor(String path) from "cwhip_gtk_source_language_for"
     bool Content.isText(String data) from "cwhip_gtk_source_is_text"
-    bool View._bindShortcut(int64 token, String trigger, callback<void()> action)
+    bool View._bindShortcut(int64 token, String trigger, void<> action)
         from "cwhip_gtk_source_view_bind_shortcut"
     bool View._hasShortcut(int64 token, String trigger)
         from "cwhip_gtk_source_view_has_shortcut"
@@ -182,12 +182,12 @@ namespace GtkSource {
     void View._configure(int64 token, String font, int64 size, int64 tabs, bool spaces,
                          bool numbers, bool wrap, bool highlight)
         from "cwhip_gtk_source_view_configure"
-    int64 View._changed(int64 token, callback<void()> action)
+    int64 View._changed(int64 token, void<> action)
         from "cwhip_gtk_source_view_changed"
-    int64 View._cursorMoved(int64 token, callback<void()> action)
+    int64 View._cursorMoved(int64 token, void<> action)
         from "cwhip_gtk_source_view_cursor_moved"
     void View._lineSelection(int64 token, bool enabled) from "cwhip_gtk_source_view_line_selection"
-    int64 View._lineActivated(int64 token, callback<void(int64)> action)
+    int64 View._lineActivated(int64 token, void<int64> action)
         from "cwhip_gtk_source_view_line_activated"
     void View._markStyle(int64 token, String category, String icon, String color)
         from "cwhip_gtk_source_view_mark_style"

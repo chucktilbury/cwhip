@@ -23,7 +23,7 @@ class DebugSource {
     GtkSource.View view
     Gtk.ScrolledWindow scroll
     int64 centeredStop
-    callback<void(DebugSource)> closeAction
+    void<DebugSource> closeAction
     DebugSource(String filename, GtkSource.View text, Gtk.ScrolledWindow container) {
         path = filename
         view = text
@@ -175,7 +175,7 @@ class Cdbg {
         stateError = ""
         stateNote = ""
     }
-    Gtk.Button button(Gtk.Box row, String title, callback<void()> action) {
+    Gtk.Button button(Gtk.Box row, String title, void<> action) {
         Gtk.Button item = Gtk.Button(title)
         item.onClicked(action)
         row.append(item)

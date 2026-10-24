@@ -9,7 +9,7 @@ namespace Gtk {
         String remove(String text, String section, String key)
         String item(String text, String section, String key, int64 index, String field)
         int64 arraySize(String text, String section, String key)
-        void save(String path, String text, String expected, callback<void(String)> result)
+        void save(String path, String text, String expected, void<String> result)
         String saveNow(String path, String text, String expected)
     }
     String Config.validate(String text) from "cwhip_gtk_config_validate"
@@ -22,17 +22,17 @@ namespace Gtk {
     String Config.item(String text, String section, String key, int64 index, String field)
         from "cwhip_gtk_config_item"
     int64 Config.arraySize(String text, String section, String key) from "cwhip_gtk_config_array_size"
-    void Config.save(String path, String text, String expected, callback<void(String)> result)
+    void Config.save(String path, String text, String expected, void<String> result)
         from "cwhip_gtk_config_save"
     String Config.saveNow(String path, String text, String expected) from "cwhip_gtk_config_save_now"
 
     class Keyboard {
         String normalize(String trigger)
-        int64 record(Entry entry, callback<void(String)> result)
+        int64 record(Entry entry, void<String> result)
         bool cancel(int64 token)
     }
     String Keyboard.normalize(String trigger) from "cwhip_gtk_keyboard_normalize"
-    int64 Keyboard.record(Entry entry, callback<void(String)> result) from "cwhip_gtk_keyboard_record"
+    int64 Keyboard.record(Entry entry, void<String> result) from "cwhip_gtk_keyboard_record"
     bool Keyboard.cancel(int64 token) from "cwhip_gtk_keyboard_cancel"
 
     class Font {
@@ -48,53 +48,53 @@ namespace Gtk {
         Application(String id) { _create(id) }
         void initialize()
         String id()
-        SignalConnection onActivate(callback<void()> action) {
+        SignalConnection onActivate(void<> action) {
             return SignalConnection(_self(), action)
         }
         void run()
         void quit()
         void shutdown()
         void ready()
-        int64 post(callback<void()> action)
+        int64 post(void<> action)
         bool cancel(int64 token)
     }
 
     class SignalConnection {
         private:
         int64 _token
-        int64 _activate(Application source, callback<void()> action)
-        int64 _click(Button source, callback<void()> action)
-        int64 _changed(Entry source, callback<void(String)> action)
-        int64 _close(Window source, callback<bool()> action)
-        int64 _close(TransientWindow source, callback<bool()> action)
-        int64 _toggled(CheckButton source, callback<void(bool)> action)
-        int64 _pageChanged(Notebook source, callback<void()> action)
-        int64 _focusChanged(Window source, callback<void(bool)> action)
+        int64 _activate(Application source, void<> action)
+        int64 _click(Button source, void<> action)
+        int64 _changed(Entry source, void<String> action)
+        int64 _close(Window source, bool<> action)
+        int64 _close(TransientWindow source, bool<> action)
+        int64 _toggled(CheckButton source, void<bool> action)
+        int64 _pageChanged(Notebook source, void<> action)
+        int64 _focusChanged(Window source, void<bool> action)
         bool _disconnect(int64 token)
         bool _connected(int64 token)
         public:
-        SignalConnection(Application source, callback<void()> action) {
+        SignalConnection(Application source, void<> action) {
             _token = _activate(source, action)
         }
-        SignalConnection(Button source, callback<void()> action) {
+        SignalConnection(Button source, void<> action) {
             _token = _click(source, action)
         }
-        SignalConnection(Entry source, callback<void(String)> action) {
+        SignalConnection(Entry source, void<String> action) {
             _token = _changed(source, action)
         }
-        SignalConnection(Window source, callback<bool()> action) {
+        SignalConnection(Window source, bool<> action) {
             _token = _close(source, action)
         }
-        SignalConnection(TransientWindow source, callback<bool()> action) {
+        SignalConnection(TransientWindow source, bool<> action) {
             _token = _close(source, action)
         }
-        SignalConnection(CheckButton source, callback<void(bool)> action) {
+        SignalConnection(CheckButton source, void<bool> action) {
             _token = _toggled(source, action)
         }
-        SignalConnection(Notebook source, callback<void()> action) {
+        SignalConnection(Notebook source, void<> action) {
             _token = _pageChanged(source, action)
         }
-        SignalConnection(Window source, callback<void(bool)> action) {
+        SignalConnection(Window source, void<bool> action) {
             _token = _focusChanged(source, action)
         }
         bool disconnect() { return _disconnect(_token) }
@@ -106,7 +106,7 @@ namespace Gtk {
         int64 _id
         Widget _self()
         void _keepAlive() {}
-        int64 _create(int64 kind, String text, int64 orientation, int64 spacing, callback<void()> root)
+        int64 _create(int64 kind, String text, int64 orientation, int64 spacing, void<> root)
         void _dispose(int64 token)
         bool _disposed(int64 token)
         void _visible(int64 token, bool value)
@@ -161,7 +161,7 @@ namespace Gtk {
     class Window : Widget {
         private:
         Window _windowSelf()
-        bool _bindShortcut(int64 token, String trigger, callback<void()> action)
+        bool _bindShortcut(int64 token, String trigger, void<> action)
         bool _hasShortcut(int64 token, String trigger)
         bool _maximized(int64 token)
         void _maximize(int64 token, bool enabled)
@@ -182,14 +182,14 @@ namespace Gtk {
         void present() { _presentWindow() }
         void close() { _closeWindow() }
         // Binds a GTK accelerator such as "<Control>q" for the whole window.
-        bool bindShortcut(String trigger, callback<void()> action) {
+        bool bindShortcut(String trigger, void<> action) {
             return _bindShortcut(_widgetToken(), trigger, action)
         }
         bool hasShortcut(String trigger) { return _hasShortcut(_widgetToken(), trigger) }
-        SignalConnection onCloseRequest(callback<bool()> action) {
+        SignalConnection onCloseRequest(bool<> action) {
             return SignalConnection(_windowSelf(), action)
         }
-        SignalConnection onFocusChanged(callback<void(bool)> action) {
+        SignalConnection onFocusChanged(void<bool> action) {
             return SignalConnection(_windowSelf(), action)
         }
     }
@@ -209,7 +209,7 @@ namespace Gtk {
         void remove(Widget child) { _removeChild(child) }
         void present() { _presentWindow() }
         void close() { _closeWindow() }
-        SignalConnection onCloseRequest(callback<bool()> action) {
+        SignalConnection onCloseRequest(bool<> action) {
             return SignalConnection(_transientSelf(), action)
         }
     }
@@ -258,7 +258,7 @@ namespace Gtk {
         Button(String label) { super Widget(4, label, 0, 0) }
         void setLabel(String label) { _setText(label) }
         String label() { return _getText() }
-        SignalConnection onClicked(callback<void()> action) {
+        SignalConnection onClicked(void<> action) {
             return SignalConnection(_buttonSelf(), action)
         }
     }
@@ -271,7 +271,7 @@ namespace Gtk {
         Entry(String text) { super Widget(5, text, 0, 0) }
         void setText(String text) { _setText(text) }
         String text() { return _getText() }
-        SignalConnection onChanged(callback<void(String)> action) {
+        SignalConnection onChanged(void<String> action) {
             return SignalConnection(_entrySelf(), action)
         }
         void focus() { _grabFocus() }
@@ -281,14 +281,14 @@ namespace Gtk {
     class MenuBar : Widget {
         private:
         int64 _addMenu(int64 token, String label)
-        int64 _addItem(int64 token, int64 menu, String label, callback<void()> action)
+        int64 _addItem(int64 token, int64 menu, String label, void<> action)
         void _enabled(int64 token, int64 item, bool value)
         void _activate(int64 token, int64 item)
         void _separator(int64 token, int64 menu)
         public:
         MenuBar() { super Widget(10, "", 0, 0) }
         int64 addMenu(String label) { return _addMenu(_widgetToken(), label) }
-        int64 addItem(int64 menu, String label, callback<void()> action) {
+        int64 addItem(int64 menu, String label, void<> action) {
             return _addItem(_widgetToken(), menu, label, action)
         }
         // Draws a divider before the next item added to menu.
@@ -300,9 +300,9 @@ namespace Gtk {
     class FileSelection {
         private:
         list _paths
-        callback<void(list)> _result
+        void<list> _result
         public:
-        FileSelection(callback<void(list)> result) {
+        FileSelection(void<list> result) {
             _paths = []
             _result = result
         }
@@ -321,20 +321,20 @@ namespace Gtk {
         private:
         int64 _token
         FileSelection _selection
-        int64 _create(int64 parent, bool save, String initialPath, callback<void(String)> result)
-        int64 _createMultiple(int64 parent, String initialPath, callback<void(String)> path)
-        int64 _createFolder(int64 parent, String initialPath, callback<void(String)> result)
+        int64 _create(int64 parent, bool save, String initialPath, void<String> result)
+        int64 _createMultiple(int64 parent, String initialPath, void<String> path)
+        int64 _createFolder(int64 parent, String initialPath, void<String> result)
         void _cancel(int64 token)
         bool _pending(int64 token)
         public:
-        FileDialog(Window parent, bool save, String initialPath, callback<void(String)> result) {
+        FileDialog(Window parent, bool save, String initialPath, void<String> result) {
             _token = _create(parent._widgetToken(), save, initialPath, result)
         }
-        FileDialog(Window parent, String initialPath, callback<void(list)> results) {
+        FileDialog(Window parent, String initialPath, void<list> results) {
             _selection = FileSelection(results)
             _token = _createMultiple(parent._widgetToken(), initialPath, _selection.add)
         }
-        FileDialog(Window parent, String initialPath, callback<void(String)> folder) {
+        FileDialog(Window parent, String initialPath, void<String> folder) {
             _token = _createFolder(parent._widgetToken(), initialPath, folder)
         }
         void cancel() { _cancel(_token) }
@@ -360,7 +360,7 @@ namespace Gtk {
         String label() { return _getText() }
         void setActive(bool value) { _setActive(value) }
         bool active() { return _getActive() }
-        SignalConnection onToggled(callback<void(bool)> action) {
+        SignalConnection onToggled(void<bool> action) {
             return SignalConnection(_checkSelf(), action)
         }
     }
@@ -375,7 +375,7 @@ namespace Gtk {
     class Notebook : Widget {
         private:
         Notebook _notebookSelf()
-        void _closable(int64 token, int64 child, String title, callback<void()> close)
+        void _closable(int64 token, int64 child, String title, void<> close)
         void _bordered(int64 token)
         void _scrollable(int64 token, bool enabled)
         public:
@@ -383,7 +383,7 @@ namespace Gtk {
         void appendPage(Widget child, String title) {
             _notebookAppend(_widgetToken(), child._widgetToken(), title)
         }
-        void appendClosablePage(Widget child, String title, callback<void()> close) {
+        void appendClosablePage(Widget child, String title, void<> close) {
             _closable(_widgetToken(), child._widgetToken(), title, close)
         }
         // Draws a border around every tab label, as closable pages already do.
@@ -396,7 +396,7 @@ namespace Gtk {
             _notebookTitle(_widgetToken(), page, title)
         }
         void remove(Widget child) { _removeChild(child) }
-        SignalConnection onPageChanged(callback<void()> action) {
+        SignalConnection onPageChanged(void<> action) {
             return SignalConnection(_notebookSelf(), action)
         }
     }
@@ -415,7 +415,7 @@ namespace Gtk {
     class Tree : Widget {
         private:
         void _singleClick(int64 token, bool enabled)
-        void _setup(int64 token, callback<void(int64)> request, callback<void(int64)> activate)
+        void _setup(int64 token, void<int64> request, void<int64> activate)
         void _add(int64 token, int64 parent, int64 id, String label, String icon, bool expandable, String value, int64 data)
         void _clear(int64 token, int64 parent)
         void _expandRow(int64 token, int64 id, bool expanded)
@@ -425,7 +425,7 @@ namespace Gtk {
         int64 _find(int64 token, String value)
         int64 _count(int64 token, int64 parent)
         public:
-        Tree(callback<void(int64)> request, callback<void(int64)> activate) {
+        Tree(void<int64> request, void<int64> activate) {
             super Widget(13, "", 0, 0)
             _setup(_widgetToken(), request, activate)
         }
@@ -445,17 +445,17 @@ namespace Gtk {
     class DirectoryScan {
         private:
         int64 _token
-        int64 _start(int64 owner, String path, bool hidden, callback<void(int64, String)> result)
+        int64 _start(int64 owner, String path, bool hidden, void<int64, String> result)
         int64 _startFiltered(int64 owner, String path, bool hidden, String root, String excludes,
-            callback<void(int64, String)> result)
+            void<int64, String> result)
         void _cancel(int64 token)
         void _append(int64 token, int64 tree, int64 parent, int64 firstId, int64 count, String icons)
         public:
-        DirectoryScan(Tree owner, String path, bool hidden, callback<void(int64, String)> result) {
+        DirectoryScan(Tree owner, String path, bool hidden, void<int64, String> result) {
             _token = _start(owner._widgetToken(), path, hidden, result)
         }
         DirectoryScan(Tree owner, String path, bool hidden, String root, String excludes,
-            callback<void(int64, String)> result) {
+            void<int64, String> result) {
             _token = _startFiltered(owner._widgetToken(), path, hidden, root, excludes, result)
         }
         void cancel() { _cancel(_token) }
@@ -485,36 +485,36 @@ namespace Gtk {
     void Application.quit() from "cwhip_gtk_quit"
     void Application.shutdown() from "cwhip_gtk_shutdown"
     void Application.ready() from "cwhip_gtk_ready"
-    int64 Application.post(callback<void()> action) from "cwhip_gtk_post"
+    int64 Application.post(void<> action) from "cwhip_gtk_post"
     bool Application.cancel(int64 token) from "cwhip_gtk_cancel"
-    int64 SignalConnection._activate(Application source, callback<void()> action)
+    int64 SignalConnection._activate(Application source, void<> action)
         from "cwhip_gtk_activation_signal"
-    int64 SignalConnection._click(Button source, callback<void()> action) from "cwhip_gtk_button_signal"
-    int64 SignalConnection._changed(Entry source, callback<void(String)> action) from "cwhip_gtk_entry_signal"
-    int64 SignalConnection._close(Window source, callback<bool()> action) from "cwhip_gtk_window_signal"
-    int64 SignalConnection._close(TransientWindow source, callback<bool()> action)
+    int64 SignalConnection._click(Button source, void<> action) from "cwhip_gtk_button_signal"
+    int64 SignalConnection._changed(Entry source, void<String> action) from "cwhip_gtk_entry_signal"
+    int64 SignalConnection._close(Window source, bool<> action) from "cwhip_gtk_window_signal"
+    int64 SignalConnection._close(TransientWindow source, bool<> action)
         from "cwhip_gtk_window_signal"
-    int64 SignalConnection._toggled(CheckButton source, callback<void(bool)> action) from "cwhip_gtk_checkbox_signal"
-    int64 SignalConnection._pageChanged(Notebook source, callback<void()> action)
+    int64 SignalConnection._toggled(CheckButton source, void<bool> action) from "cwhip_gtk_checkbox_signal"
+    int64 SignalConnection._pageChanged(Notebook source, void<> action)
         from "cwhip_gtk_notebook_signal"
-    int64 SignalConnection._focusChanged(Window source, callback<void(bool)> action)
+    int64 SignalConnection._focusChanged(Window source, void<bool> action)
         from "cwhip_gtk_window_focus_signal"
     void Grid._attachAt(int64 token, int64 child, int64 column, int64 row, int64 width, int64 height)
         from "cwhip_gtk_grid_attach"
     void ContextMenu._bind(int64 token, int64 owner) from "cwhip_gtk_context_menu_bind"
     void Entry._editable(int64 token, bool editable) from "cwhip_gtk_entry_editable"
-    void Notebook._closable(int64 token, int64 child, String title, callback<void()> close)
+    void Notebook._closable(int64 token, int64 child, String title, void<> close)
         from "cwhip_gtk_notebook_closable"
     void Notebook._bordered(int64 token) from "cwhip_gtk_notebook_bordered"
     void Notebook._scrollable(int64 token, bool enabled) from "cwhip_gtk_notebook_scrollable"
-    bool Window._bindShortcut(int64 token, String trigger, callback<void()> action)
+    bool Window._bindShortcut(int64 token, String trigger, void<> action)
         from "cwhip_gtk_window_bind_shortcut"
     bool Window._hasShortcut(int64 token, String trigger) from "cwhip_gtk_window_has_shortcut"
     bool Window._maximized(int64 token) from "cwhip_gtk_window_maximized"
     void Window._maximize(int64 token, bool enabled) from "cwhip_gtk_window_maximize"
     bool SignalConnection._disconnect(int64 token) from "cwhip_gtk_connection_disconnect"
     bool SignalConnection._connected(int64 token) from "cwhip_gtk_connected"
-    int64 Widget._create(int64 kind, String text, int64 orientation, int64 spacing, callback<void()> root)
+    int64 Widget._create(int64 kind, String text, int64 orientation, int64 spacing, void<> root)
         from "cwhip_gtk_widget_create"
     void Widget._dispose(int64 token) from "cwhip_gtk_widget_dispose"
     bool Widget._disposed(int64 token) from "cwhip_gtk_widget_disposed"
@@ -523,23 +523,23 @@ namespace Gtk {
     void Widget._expand(int64 token, bool horizontal, bool value) from "cwhip_gtk_widget_expand"
     void Widget._focus(int64 token) from "cwhip_gtk_widget_focus"
     int64 MenuBar._addMenu(int64 token, String label) from "cwhip_gtk_menu_add"
-    int64 MenuBar._addItem(int64 token, int64 menu, String label, callback<void()> action)
+    int64 MenuBar._addItem(int64 token, int64 menu, String label, void<> action)
         from "cwhip_gtk_menu_item_add"
     void MenuBar._enabled(int64 token, int64 item, bool value) from "cwhip_gtk_menu_item_enabled"
     void MenuBar._activate(int64 token, int64 item) from "cwhip_gtk_menu_item_activate"
     void MenuBar._separator(int64 token, int64 menu) from "cwhip_gtk_menu_separator_add"
-    int64 FileDialog._create(int64 parent, bool save, String initialPath, callback<void(String)> result)
+    int64 FileDialog._create(int64 parent, bool save, String initialPath, void<String> result)
         from "cwhip_gtk_file_dialog_create"
-    int64 FileDialog._createMultiple(int64 parent, String initialPath, callback<void(String)> path)
+    int64 FileDialog._createMultiple(int64 parent, String initialPath, void<String> path)
         from "cwhip_gtk_file_dialog_create_multiple"
-    int64 FileDialog._createFolder(int64 parent, String initialPath, callback<void(String)> result)
+    int64 FileDialog._createFolder(int64 parent, String initialPath, void<String> result)
         from "cwhip_gtk_file_dialog_create_folder"
     void Paned._position(int64 token, int64 position) from "cwhip_gtk_paned_position"
     int64 Paned._getPosition(int64 token) from "cwhip_gtk_paned_get_position"
     bool Tree._isExpanded(int64 token, int64 id) from "cwhip_gtk_tree_is_expanded"
     int64 DirectoryScan._startFiltered(int64 owner, String path, bool hidden, String root,
-        String excludes, callback<void(int64, String)> result) from "cwhip_gtk_directory_start_filtered"
-    void Tree._setup(int64 token, callback<void(int64)> request, callback<void(int64)> activate)
+        String excludes, void<int64, String> result) from "cwhip_gtk_directory_start_filtered"
+    void Tree._setup(int64 token, void<int64> request, void<int64> activate)
         from "cwhip_gtk_tree_setup"
     void Tree._singleClick(int64 token, bool enabled) from "cwhip_gtk_tree_single_click"
     void Tree._add(int64 token, int64 parent, int64 id, String label, String icon, bool expandable, String value, int64 data)
@@ -550,7 +550,7 @@ namespace Gtk {
     int64 Tree._count(int64 token, int64 parent) from "cwhip_gtk_tree_count"
     void Tree._clear(int64 token, int64 parent) from "cwhip_gtk_tree_clear"
     void Tree._expandRow(int64 token, int64 id, bool expanded) from "cwhip_gtk_tree_expand"
-    int64 DirectoryScan._start(int64 owner, String path, bool hidden, callback<void(int64, String)> result)
+    int64 DirectoryScan._start(int64 owner, String path, bool hidden, void<int64, String> result)
         from "cwhip_gtk_directory_start"
     void DirectoryScan._cancel(int64 token) from "cwhip_gtk_directory_cancel"
     void DirectoryScan._append(int64 token, int64 tree, int64 parent, int64 firstId, int64 count, String icons)

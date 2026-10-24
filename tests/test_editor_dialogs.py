@@ -60,7 +60,7 @@ class EditorChecks {
     int64 documentsBeforeMany
     EditorDocument saved
     EditorDocument search
-    callback<void()> nextAction
+    void<> nextAction
     void require(bool condition, String label) {
         if (!condition) {
             System.StandardIO().writeErrorLine(format("FAIL stage {}: {}: {}", stage, label, editor.status.text()))

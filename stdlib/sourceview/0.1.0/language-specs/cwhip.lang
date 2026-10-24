@@ -45,9 +45,9 @@
       <keyword>public</keyword><keyword>private</keyword><keyword>protected</keyword>
       <keyword>virtual</keyword><keyword>override</keyword><keyword>from</keyword>
       <keyword>as</keyword><keyword>is</keyword><keyword>enum</keyword>
-      <keyword>callback</keyword><keyword>super</keyword><keyword>null</keyword>
+      <keyword>super</keyword><keyword>null</keyword>
       <keyword>true</keyword><keyword>false</keyword>
-      <keyword>int</keyword><keyword>unsigned</keyword><keyword>float</keyword>
+      <keyword>unsigned</keyword>
     </context>
     <context id="type" class="type" style-ref="type">
       <keyword>int8</keyword><keyword>uint8</keyword>
@@ -55,6 +55,7 @@
       <keyword>int32</keyword><keyword>uint32</keyword>
       <keyword>int64</keyword><keyword>uint64</keyword>
       <keyword>fp32</keyword><keyword>fp64</keyword>
+      <keyword>int</keyword><keyword>uint</keyword><keyword>float</keyword>
       <keyword>bool</keyword><keyword>String</keyword><keyword>list</keyword>
       <keyword>dict</keyword><keyword>buffer</keyword><keyword>handle</keyword>
       <keyword>range</keyword>

@@ -1,9 +1,11 @@
 # Bound-method callbacks and the native bridge
 
-`callback<R(P1,P2)>` is a nullable, GC-managed callable value. `R` is a
-declared return type (including `void`); `P1` and `P2` are declared parameter
-types, without names. Zero parameters use `callback<R()>`. Nested callback
-types are allowed. `any` and `type` descriptors are not supported in signatures.
+`R<P1,P2>` is a nullable, GC-managed callable value. `R` is a declared return
+type (including `void`); `P1` and `P2` are parameter types, without names.
+Zero parameters use `R<>`. Callable types are recursive: for example,
+`int64<int64><String>` takes a `String` and returns an `int64<int64>` callable.
+`range<T>` remains a range type, including when nested as a callable return or
+parameter. `any` and `type` descriptors are not supported in signatures.
 `strg` and `String` denote the same signature type.
 
 ```cwhip
@@ -14,11 +16,11 @@ class Counter {
     int64 add(int64 value) { return base + value }
 }
 class Apply {
-    int64 run(callback<int64(int64)> action, int64 value) { return action(value) }
+    int64 run(int64<int64> action, int64 value) { return action(value) }
 }
 start {
     Counter counter(40)
-    callback<int64(int64)> action = counter.add
+    int64<int64> action = counter.add
     print(Apply().run(action, 2))
 }
 ```
@@ -28,8 +30,7 @@ the receiver exactly once and checks it for null and destruction. A callback
 retains the receiver, including a secondary or virtual base view, through GC.
 Dispatch uses the receiver's virtual table, including overrides, rather than a
 public method symbol. Explicit destruction still invalidates invocation; holding
-a callback does not make destruction reversible. Cwhip invocation propagates
-exceptions normally.
+a callback does not make destruction reversible. Cwhip invocation propagates exceptions normally.
 
 Callbacks can be stored in locals and fields, passed, returned, and invoked.
 Callback fields initially hold null; locals must be initialized before use, as
@@ -58,9 +59,13 @@ callback's rooted Cwhip slot. Do not dereference a callback's private layout or
 call Cwhip method symbols from C.
 
 `cwhip_callback_acquire(callback, signature)` creates a retained registration.
-The signature string is **canonical**, e.g. `callback<int64(int64)>`,
+The signature string is **canonical ABI text**, e.g. `callback<int64(int64)>`,
 `callback<String(String)>`, or `callback<Model.Cell(Model.Cell)>`, with no
 spaces. Namespace/import aliases must be expanded to the declared namespace.
+Source declarations use `R<P...>`; these canonical strings intentionally keep
+the existing `callback<R(P...)>` encoding for native consumers and runtime
+interop. The syntax revision does not change callback bridge symbols or the
+SDK ABI version.
 An incorrect signature is a fatal native-boundary error, not a function-pointer
 cast. `cwhip_callback_signature(context)` returns the immutable canonical string.
 
@@ -102,9 +107,9 @@ class Worker {
 }
 start {
     Worker worker = Worker()
-    callback<int64(int64)> action = worker.add
+    int64<int64> action = worker.add
     int64 result = 0
-    inline(callback<int64(int64)> action, int64 result) {
+    inline(int64<int64> action, int64 result) {
         CwhipCallbackContext *context =
             cwhip_callback_acquire(*action, "callback<int64(int64)>");
         typedef int64_t (*OnValue)(CwhipCallbackContext *, int64_t);

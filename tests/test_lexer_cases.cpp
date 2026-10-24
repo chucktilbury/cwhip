@@ -20,8 +20,8 @@ const TestGroupRegistration registration{0, {
              cwhip::Lexer lexer("StArT {\n INT n = 12\n StRg s = \"a\\n\"\n}", "lexer.cw");
              const auto tokens = lexer.tokenize();
              require(tokens[0].type == cwhip::TokenType::Start, "START keyword not recognized");
-             require(tokens[3].type == cwhip::TokenType::RemovedInt,
-                     "removed INT spelling was not kept reserved");
+             require(tokens[3].type == cwhip::TokenType::NativeInt,
+                     "native INT spelling was not recognized");
              require(tokens[5].type == cwhip::TokenType::Equal, "assignment token missing");
              require(tokens[6].type == cwhip::TokenType::Integer && tokens[6].text == "12",
                      "integer token incorrect");
@@ -92,6 +92,27 @@ const TestGroupRegistration registration{0, {
         {"reserved keywords", [] {
              expectDiagnostic("start {\n bool While = false\n}", "keywords are reserved");
          }},
+        {"callback is an ordinary identifier", [] {
+             cwhip::Lexer lexer("class callback {}\nstart { callback value = callback() }",
+                               "callback-identifier.cw");
+             const auto tokens = lexer.tokenize();
+             require(tokens[1].type == cwhip::TokenType::Identifier &&
+                         tokens[1].text == "callback",
+                     "callback should be lexed as an identifier");
+             expectValid("namespace callback {\n"
+                         " class Item {\n"
+                         "  int32 callback\n"
+                         "  int32 method(int32 callback) { return callback }\n"
+                         " }\n"
+                         "}\n"
+                         "class Methods { int32 callback() { return 1 } }\n"
+                         "start {\n"
+                         " callback.Item item = callback.Item()\n"
+                         " callback.Item callback = item\n"
+                         " Methods methods = Methods()\n"
+                         " int32 result = methods.callback()\n"
+                         "}");
+         }},
          {"old string spelling is an identifier", [] {
               cwhip::Lexer lexer("start { int64 string = 1 }", "string-identifier.cw");
               const auto tokens = lexer.tokenize();
@@ -106,17 +127,17 @@ const TestGroupRegistration registration{0, {
              const auto tokens = lexer.tokenize();
              bool foundTrue = false;
              bool foundFloat = false;
-             bool foundRemovedFloat = false;
+             bool foundNativeFloat = false;
              bool foundRemovedUnsigned = false;
              for (const auto& token : tokens) {
                  foundTrue |= token.type == cwhip::TokenType::True;
                  foundFloat |= token.type == cwhip::TokenType::Float && token.text == "3.14";
-                 foundRemovedFloat |= token.type == cwhip::TokenType::RemovedFloat;
+                 foundNativeFloat |= token.type == cwhip::TokenType::NativeFloat;
                  foundRemovedUnsigned |= token.type == cwhip::TokenType::RemovedUnsigned;
              }
-             require(foundTrue && foundFloat && foundRemovedFloat &&
+             require(foundTrue && foundFloat && foundNativeFloat &&
                          foundRemovedUnsigned,
-                     "boolean, fp64, or removed numeric type token missing");
+                     "boolean, numeric type, or removed unsigned type token missing");
          }},
         {"scalar compound-assignment operators", [] {
              cwhip::Lexer lexer("a += 1 a -= 1 a *= 1 a /= 1 a %= 1",

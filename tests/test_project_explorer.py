@@ -27,7 +27,7 @@ class ExplorerFixture {
     bool monospace()
     bool icons()
     void stop()
-    void later(callback<void()> action)
+    void later(void<> action)
 }
 void ExplorerFixture.choose(String path, int64 accept, int64 overwrite) from "fixture_editor_choose"
 void ExplorerFixture.collect() from "fixture_editor_collect"
@@ -44,7 +44,7 @@ bool ExplorerFixture.virtualized() from "explorer_virtualized"
 bool ExplorerFixture.monospace() from "fixture_editor_monospace"
 bool ExplorerFixture.icons() from "explorer_icons"
 void ExplorerFixture.stop() from "explorer_stop"
-void ExplorerFixture.later(callback<void()> action) from "explorer_later"
+void ExplorerFixture.later(void<> action) from "explorer_later"
 
 class ExplorerChecks {
     Cedit editor
@@ -56,7 +56,7 @@ class ExplorerChecks {
     int64 before
     int64 errorPhase
     bool sawChooser
-    callback<void()> nextAction
+    void<> nextAction
     void require(bool condition, String label) {
         if (!condition) {
             System.StandardIO().writeErrorLine(format("FAIL stage {}: {}", stage, label))

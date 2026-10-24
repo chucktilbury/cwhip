@@ -20,7 +20,7 @@ class F {
     void track()
     void respond(String path, bool accept)
     void confirm(bool accept)
-    void waitSize(int64 token, int64 width, int64 height, callback<void()> ready)
+    void waitSize(int64 token, int64 width, int64 height, void<> ready)
     void assertMenu(int64 token)
     void resize(int64 token, int64 width, int64 height)
 }
@@ -33,7 +33,7 @@ int64 F.receivers() from "binding_receivers"
 void F.track() from "binding_track"
 void F.respond(String path, bool accept) from "binding_respond"
 void F.confirm(bool accept) from "binding_confirm"
-void F.waitSize(int64 token, int64 width, int64 height, callback<void()> ready)
+void F.waitSize(int64 token, int64 width, int64 height, void<> ready)
     from "binding_wait_size"
 void F.assertMenu(int64 token) from "binding_assert_menu"
 void F.resize(int64 token, int64 width, int64 height) from "binding_resize"
@@ -87,8 +87,8 @@ start {
 
 DIALOG = """
 class Relay {
-    callback<void(String)> target
-    Relay(callback<void(String)> action) { target = action }
+    void<String> target
+    Relay(void<String> action) { target = action }
     void deliver(String path) { F().collect()
         target(path) }
     void note()
@@ -98,7 +98,7 @@ void Relay.note() from "binding_released"
 class UI {
     Gtk.Window window
     Gtk.FileDialog dialog
-    callback<void(String)> resultAction
+    void<String> resultAction
     int64 phase
     void show(bool save, String path) {
         dialog = Gtk.FileDialog(window, save, path, Relay(resultAction).deliver)
@@ -244,10 +244,10 @@ import sourceview
 class UI {
     Gtk.Window window
     GtkSource.View view
-    callback<void()> allocatedAction
-    callback<void()> resizedAction
-    callback<void()> changedAction
-    callback<void()> cursorAction
+    void<> allocatedAction
+    void<> resizedAction
+    void<> changedAction
+    void<> cursorAction
     bool seenUndo
     bool seenRedo
     bool seenSelection

@@ -1598,6 +1598,9 @@ std::string SemanticAnalyzer::analyzeExpression(Expression& expression,
     case ExpressionKind::ObjectCast: {
         const auto operand = analyzeExpression(*expression.left);
         const auto& target = expression.value;
+        if (isCallbackType(target))
+            throw DiagnosticError(expression.typeLocation,
+                                  "callback type tests and casts are not supported");
         if (isRangeType(target)) validateType(target, expression.typeLocation);
         const bool targetKnown =
             isRangeType(target) || isNumericType(target) ||
@@ -1643,6 +1646,9 @@ std::string SemanticAnalyzer::analyzeExpression(Expression& expression,
     case ExpressionKind::TypeTest: {
         const auto operand = analyzeExpression(*expression.left);
         const auto& target = expression.value;
+        if (isCallbackType(target))
+            throw DiagnosticError(expression.typeLocation,
+                                  "callback type tests and casts are not supported");
         if (target == "any" || target == "void") {
             throw DiagnosticError(expression.typeLocation,
                                   "type test target '" + target + "' is not supported");

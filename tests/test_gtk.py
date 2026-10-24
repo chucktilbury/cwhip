@@ -19,9 +19,9 @@ class F {
     handle button()
     handle entry()
     handle window()
-    int64 clicked(handle object, callback<void()> cb)
-    int64 changed(handle object, callback<void()> cb)
-    int64 closeSignal(handle object, callback<bool()> cb)
+    int64 clicked(handle object, void<> cb)
+    int64 changed(handle object, void<> cb)
+    int64 closeSignal(handle object, bool<> cb)
     bool disconnect(int64 token)
     void emit(handle object)
     void text(handle object)
@@ -34,7 +34,7 @@ class F {
     int64 count()
     void unblock(handle sem)
     void foreign()
-    void unlocked(callback<void()> cb)
+    void unlocked(void<> cb)
     void clickPublic()
     void destroyPublic()
     void releasePublic()
@@ -46,9 +46,9 @@ class F {
 handle F.button() from "fixture_gtk_button"
 handle F.entry() from "fixture_gtk_entry"
 handle F.window() from "fixture_gtk_window"
-int64 F.clicked(handle object, callback<void()> cb) from "fixture_gtk_clicked"
-int64 F.changed(handle object, callback<void()> cb) from "fixture_gtk_changed"
-int64 F.closeSignal(handle object, callback<bool()> cb) from "fixture_gtk_close"
+int64 F.clicked(handle object, void<> cb) from "fixture_gtk_clicked"
+int64 F.changed(handle object, void<> cb) from "fixture_gtk_changed"
+int64 F.closeSignal(handle object, bool<> cb) from "fixture_gtk_close"
 bool F.disconnect(int64 token) from "fixture_gtk_disconnect"
 void F.emit(handle object) from "fixture_gtk_emit"
 void F.text(handle object) from "fixture_gtk_text"
@@ -61,7 +61,7 @@ void F.destroyed() from "fixture_gtk_destroyed"
 int64 F.count() from "fixture_gtk_count"
 void F.unblock(handle sem) from "fixture_gtk_unblock"
 void F.foreign() from "fixture_gtk_foreign"
-void F.unlocked(callback<void()> cb) from "fixture_gtk_unlocked_post"
+void F.unlocked(void<> cb) from "fixture_gtk_unlocked_post"
 void F.clickPublic() from "fixture_gtk_public_click"
 void F.destroyPublic() from "fixture_gtk_public_destroy"
 void F.releasePublic() from "fixture_gtk_public_release"
@@ -116,12 +116,12 @@ class UI {
     Gtk.SignalConnection changed
     Gtk.SignalConnection close
     Gtk.SignalConnection toggled
-    callback<void()> clickAction
-    callback<void(String)> editAction
-    callback<void(bool)> toggleAction
-    callback<bool()> preventAction
-    callback<bool()> allowAction
-    callback<void()> finishAction
+    void<> clickAction
+    void<String> editAction
+    void<bool> toggleAction
+    bool<> preventAction
+    bool<> allowAction
+    void<> finishAction
     String saved
     int64 nesting
     void edited(String text) {
@@ -245,7 +245,7 @@ class UI {
     Gtk.Button orphan
     Gtk.Button child
     Gtk.SignalConnection connection
-    callback<void()> clickAction
+    void<> clickAction
     void action() { print("must-not-run") }
     void activate() {
         window = Gtk.Window("Tree")
@@ -288,7 +288,7 @@ class UI {
     Gtk.Window window
     Gtk.Button button
     Gtk.SignalConnection connection
-    callback<void()> clickAction
+    void<> clickAction
     void click() { window.dispose()
         F().collect()
         print(connection.connected())
@@ -615,7 +615,7 @@ class UI {
     Gtk.Window window
     Gtk.Button button
     Gtk.SignalConnection connection
-    callback<void()> action
+    void<> action
     void click() {
         Gtk.Application().shutdown()
         F().collect()
@@ -768,7 +768,7 @@ class UI {
     handle gate
     Gtk.Label label
     void never() { print("must-not-run") }
-    callback<void()> pending
+    void<> pending
     void activate() {
         Gtk.Window window = Gtk.Window("Worker")
         label = Gtk.Label("")

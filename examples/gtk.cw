@@ -6,10 +6,10 @@ class Editor {
     Gtk.Label preview
     Gtk.Entry entry
     Gtk.CheckButton enabled
-    callback<void(String)> editAction
-    callback<void(bool)> toggleAction
-    callback<void()> closeAction
-    callback<void()> testAction
+    void<String> editAction
+    void<bool> toggleAction
+    void<> closeAction
+    void<> testAction
 
     void activate() {
         if (window != null) {

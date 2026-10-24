@@ -26,6 +26,46 @@ if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
                      "${CMAKE_CURRENT_BINARY_DIR}/include")
 endif()
 
+if(NOT DEFINED CWHIP_CLANG_EXECUTABLE OR NOT DEFINED CWHIP_TARGET_TRIPLE)
+    message(FATAL_ERROR "cwhip requires its configured Clang target for native type validation")
+endif()
+set(CWHIP_NATIVE_TYPE_CHECK "${CMAKE_CURRENT_BINARY_DIR}/cwhip-native-type-check.c")
+file(WRITE "${CWHIP_NATIVE_TYPE_CHECK}" [=[
+#include <float.h>
+#include <limits.h>
+#if !defined(__SIZEOF_INT__) || __SIZEOF_INT__ != 4 || __INT_MAX__ != 2147483647
+#error cwhip native int aliases require a 32-bit C int
+#endif
+#if !defined(__SIZEOF_FLOAT__) || __SIZEOF_FLOAT__ != 4 || \
+    !defined(__FLT_RADIX__) || __FLT_RADIX__ != 2 || \
+    !defined(__FLT_MANT_DIG__) || __FLT_MANT_DIG__ != 24 || \
+    !defined(__FLT_MIN_EXP__) || __FLT_MIN_EXP__ != -125 || \
+    !defined(__FLT_MAX_EXP__) || __FLT_MAX_EXP__ != 128 || \
+    !defined(__FLT_HAS_DENORM__) || __FLT_HAS_DENORM__ != 1
+#error cwhip native float alias requires IEEE-754 binary32
+#endif
+_Static_assert(INT_MIN == (-2147483647 - 1),
+               "cwhip native int alias requires two's-complement int");
+_Static_assert(sizeof(unsigned int) == 4 && UINT_MAX == 4294967295U,
+               "cwhip native uint alias requires a 32-bit unsigned int");
+_Static_assert(FLT_RADIX == 2 && FLT_MANT_DIG == 24 &&
+                   FLT_MIN_EXP == -125 && FLT_MAX_EXP == 128,
+               "cwhip native float alias requires IEEE-754 binary32");
+]=])
+execute_process(
+    COMMAND "${CWHIP_CLANG_EXECUTABLE}" -target "${CWHIP_TARGET_TRIPLE}"
+            -std=c11 -fsyntax-only "${CWHIP_NATIVE_TYPE_CHECK}"
+    RESULT_VARIABLE CWHIP_NATIVE_TYPE_CHECK_RESULT
+    OUTPUT_QUIET
+    ERROR_VARIABLE CWHIP_NATIVE_TYPE_CHECK_ERROR
+)
+if(NOT CWHIP_NATIVE_TYPE_CHECK_RESULT EQUAL 0)
+    message(FATAL_ERROR
+        "cwhip native aliases require target ${CWHIP_TARGET_TRIPLE} to provide "
+        "32-bit int/unsigned int and IEEE-754 binary32 float: "
+        "${CWHIP_NATIVE_TYPE_CHECK_ERROR}")
+endif()
+
 include(GNUInstallDirs)
 include("${CMAKE_CURRENT_SOURCE_DIR}/../cmake/Instrumentation.cmake")
 find_package(Python3 3.11 REQUIRED COMPONENTS Interpreter)

@@ -47,8 +47,8 @@ void PreferenceFixture.tick() from "fixture_preferences_tick"
 
 class PreferencesChecks {
     Cedit editor
-    callback<void()> nextAction
-    callback<void(String)> shutdownAction
+    void<> nextAction
+    void<String> shutdownAction
     bool shutdownCallbackRan
     int64 stage
     int64 checks

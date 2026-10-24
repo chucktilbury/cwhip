@@ -1,5 +1,5 @@
 {
-  "friendly_name": "functional removed int type name rejected",
-  "expected_diagnostic": "removed numeric type name",
+  "friendly_name": "functional native int constructor return rejected",
+  "expected_diagnostic": "constructor 'Counter' must omit the return type",
   "enabled": true
 }

@@ -13,10 +13,11 @@ to link the runtime. Fixed-width numeric types execute through width-correct
 LLVM IR, checked integer operations, and IEEE floating arithmetic. This
 repository's SDK and bundled standard-library packages use numeric-v2.
 Applications and native modules built against an earlier SDK must be rebuilt,
-and consumers using the removed `int`, `unsigned`, or `float` type names must
-migrate their source. External consumer repositories are not updated
-automatically. The separately indexed historical language notes provide design
-context, not the current language contract.
+and consumers using the removed `unsigned` type name must migrate their source.
+`int`, `uint`, and `float` are native aliases for `int32`, `uint32`, and `fp32`.
+External consumer repositories are not updated automatically. The separately
+indexed historical language notes provide design context, not the current
+language contract.
 
 The parser limits recursive syntax nesting to 128 active levels, counting
 namespaces, statement blocks, expressions, and unary operators. Excessive
@@ -60,9 +61,11 @@ lines. Double quotes support `\e` (ESC, byte `0x1b`), `\n`, `\r`, `\t`,
 `\\`, and `\"`; single quotes do not interpret escapes. See `INTEGER`,
 `UNSIGNED_INT`, `FLOAT`, `STRING`, and `ESCAPE`.
 
-The spellings `int`, `unsigned`, and `float` are removed type names, but
-remain reserved rather than becoming identifiers. Diagnostics recommend
-`int64`, `uint64`, and `fp64`. `float32` and `float64` are not aliases.
+`int`, `uint`, and `float` name the target C ABI's 32-bit signed integer,
+unsigned integer, and binary32 float, and normalize to `int32`, `uint32`, and
+`fp32`. The configured Clang target is checked for those widths and format.
+`unsigned` remains reserved but is not a type alias. `float32` and `float64`
+are not aliases.
 
 ## Program structure and entry point
 
@@ -83,7 +86,7 @@ start {
 
 ## Types and values
 
-`callback<R(P1,P2)>` declares a bound-instance-method callable signature.
+`R<P1,P2>` declares a bound-instance-method callable signature.
 Capture with `object.method` (no invocation parentheses), then call the value
 with `action(arguments)`. Callback locals, fields, parameters, and results
 are supported with exact signature checking, contextual overload selection,
@@ -98,7 +101,7 @@ class Worker {
 }
 start {
     Worker worker = Worker()
-    callback<int64(int64)> action = worker.answer
+    int64<int64> action = worker.answer
     print(action(40))
 }
 ```

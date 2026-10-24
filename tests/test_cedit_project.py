@@ -22,7 +22,7 @@ class ProjectFixture {
     void collect()
     bool alert(String fragments)
     bool alertOpen()
-    void later(callback<void()> action)
+    void later(void<> action)
     int64 now()
     bool click(String title, String label)
     bool visible(String title)
@@ -33,7 +33,7 @@ void ProjectFixture.choose(String path, int64 accept, int64 overwrite) from "fix
 void ProjectFixture.collect() from "fixture_editor_collect"
 bool ProjectFixture.alert(String fragments) from "fixture_editor_alert"
 bool ProjectFixture.alertOpen() from "fixture_editor_alert_open"
-void ProjectFixture.later(callback<void()> action) from "explorer_later"
+void ProjectFixture.later(void<> action) from "explorer_later"
 int64 ProjectFixture.now() from "explorer_now"
 bool ProjectFixture.click(String title, String label) from "project_click"
 bool ProjectFixture.visible(String title) from "project_window_visible"
@@ -42,7 +42,7 @@ int64 ProjectFixture.tabWidth() from "project_tab_width"
 
 class ProjectChecks {
     Cedit editor
-    callback<void()> nextAction
+    void<> nextAction
     String mode
     int64 stage
     int64 checks

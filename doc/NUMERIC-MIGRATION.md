@@ -6,10 +6,11 @@ prefixes. FP8, FP16, BF16, parser recovery, and new library facilities are defer
 
 ## Source and API replacements
 
-Replace old `int`, `unsigned`, and `float` declarations with `int64`, `uint64`,
-and `fp64` when preserving previous storage/API widths. The old names are reserved
-and rejected, not compatibility aliases. The complete numeric set is `int8`,
-`uint8`, `int16`, `uint16`, `int32`, `uint32`, `int64`, `uint64`, `fp32`, `fp64`.
+`int`, `uint`, and `float` are target-checked aliases for `int32`, `uint32`, and
+`fp32`; they do not introduce new numeric identities or widths. The old
+`unsigned` spelling remains reserved and rejected. The complete fixed-width
+numeric set is `int8`, `uint8`, `int16`, `uint16`, `int32`, `uint32`, `int64`,
+`uint64`, `fp32`, and `fp64`.
 
 This replacement alone does not preserve every expression:
 
@@ -91,8 +92,9 @@ arbitrary replacement native archive was compiled.
 Native numeric arguments/results use `int8_t`/`uint8_t` through
 `int64_t`/`uint64_t`, C `float` for fp32, and C `double` for fp64, including
 required target extension attributes for narrow arguments/results. Inline
-captures point at storage of those exact types. Callback signature strings
-must use the new exact source types, e.g. `callback<int8(int8)>`.
+captures point at storage of those exact types. Callable source types use `R<P...>` (for example `int8<int8>`), while native
+callback signature strings retain the canonical ABI spelling
+`callback<int8(int8)>`.
 
 The boxed layout remains `{ uint64_t tag; int64_t integer; void *pointer;
 uint64_t length; }`. Numeric tag IDs are int64=1, fp64=7, uint64=8, int8=12,
