@@ -59,6 +59,17 @@ case so CMake discovers it; no central test list needs editing.
 
 ## Unit and CLI tests
 
+`test_switch_cases.cpp` covers switch syntax/AST, compile-time labels,
+representability, overlap diagnostics, scopes, reachability, and control-flow
+restrictions. `cwhip_switch_execution` compiles and runs dispatch across all
+eight integer types at both `-O0` and `-O2`, including ascending/descending
+full-width intervals, grouped/mixed ranges, cross-class enum endpoints,
+single selector evaluation, `next` chains, nested control flow, and
+return/exception/finally/destruction behavior. Run these with
+`ctest --test-dir build --output-on-failure -R
+'cwhip_(unit_and_functional|switch_execution)$'`.
+`CWHIP_GC_STRESS=1` can also be used with the switch execution test.
+
 `cwhip_cli_diagnostics` checks the compiler/package
 [diagnostic contract](../doc/DIAGNOSTICS.md): coded errors, preserved source and
 backend detail, stdout/stderr, exit status, and plain text on redirected output

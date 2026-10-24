@@ -64,6 +64,7 @@ private:
     Statement parsePrint();
     Statement parseIf();
     Statement parseWhile();
+    Statement parseSwitch();
     Statement parseDoWhile();
     Statement parseForEach();
     Statement parseLoopControl();

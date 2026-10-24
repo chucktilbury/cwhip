@@ -11,6 +11,7 @@
 #include "cwhip/Diagnostic.hpp"
 
 #include <algorithm>
+#include <charconv>
 
 namespace cwhip {
 
@@ -20,8 +21,110 @@ void SemanticAnalyzer::analyzeStatements(std::vector<Statement>& statements) {
     }
 }
 
+void SemanticAnalyzer::analyzeSwitch(Statement& statement) {
+    const auto selectorType = analyzeExpression(*statement.expressions.front());
+    if (!isIntegerType(selectorType)) {
+        throw DiagnosticError(statement.expressions.front()->location,
+                              "switch selector must have an integer type");
+    }
+    const auto* selector = numericType(selectorType);
+    const bool signedSelector = selector->category == NumericCategory::SignedInteger;
+    std::uint64_t maximum = 0;
+    std::from_chars(selector->range.maximum.data(),
+                    selector->range.maximum.data() + selector->range.maximum.size(), maximum);
+    std::int64_t minimum = 0;
+    if (signedSelector) {
+        std::from_chars(selector->range.minimum.data(),
+                        selector->range.minimum.data() + selector->range.minimum.size(), minimum);
+    }
+    const auto evaluate = [&](Expression& expression, std::string& text) {
+        if (!isIntegerType(analyzeExpression(expression))) {
+            throw DiagnosticError(expression.location,
+                                  "case value must be a compile-time integer expression");
+        }
+        const auto value = evaluateIntegerConstant(expression);
+        const auto bits = static_cast<std::uint64_t>(value);
+        const bool negative = numericType(expression.resolvedType)->category ==
+                                  NumericCategory::SignedInteger && value < 0;
+        if ((negative && (!signedSelector || value < minimum)) ||
+            (!negative && bits > maximum)) {
+            throw DiagnosticError(expression.location,
+                                  "case value is not losslessly representable in " + selectorType);
+        }
+        text = negative ? std::to_string(value) : std::to_string(bits);
+        // Sign-extended signed values become monotonically ordered unsigned keys.
+        return signedSelector ? bits ^ (std::uint64_t{1} << 63) : bits;
+    };
+    struct Interval {
+        std::uint64_t lower;
+        std::uint64_t upper;
+        SourceLocation location;
+    };
+    std::vector<Interval> intervals;
+    for (auto& branch : statement.switchBranches) {
+        for (auto& label : branch.labels) {
+            auto lower = evaluate(*label.lower, label.lowerValue);
+            auto upper = label.upper ? evaluate(*label.upper, label.upperValue) : lower;
+            if (!label.upper) label.upperValue = label.lowerValue;
+            if (lower > upper) {
+                std::swap(lower, upper);
+                std::swap(label.lowerValue, label.upperValue);
+            }
+            intervals.push_back({lower, upper, label.lower->location});
+        }
+    }
+    std::sort(intervals.begin(), intervals.end(),
+              [](const Interval& left, const Interval& right) {
+                  return left.lower < right.lower;
+              });
+    for (std::size_t index = 1; index < intervals.size(); ++index) {
+        if (intervals[index].lower <= intervals[index - 1].upper) {
+            throw DiagnosticError(intervals[index].location,
+                                  "duplicate or overlapping case values");
+        }
+    }
+
+    const auto before = initializationState();
+    auto merged = before;
+    const bool hasDefault = !statement.switchBranches.empty() &&
+                           statement.switchBranches.back().isDefault;
+    bool first = hasDefault;
+    const auto outerLoopDepth = loopDepth_;
+    for (std::size_t index = 0; index < statement.switchBranches.size(); ++index) {
+        auto& branch = statement.switchBranches[index];
+        restoreInitializationState(before);
+        scopes_.emplace_back();
+        loopDepth_ = 0;
+        for (std::size_t child = 0; child < branch.body.size(); ++child) {
+            auto& item = branch.body[child];
+            if (item.kind == StatementKind::Next && child + 1 == branch.body.size()) {
+                if (index + 1 == statement.switchBranches.size()) {
+                    throw DiagnosticError(item.location,
+                                          "'next' requires a following switch branch");
+                }
+            } else {
+                analyzeStatement(item);
+            }
+        }
+        loopDepth_ = outerLoopDepth;
+        scopes_.pop_back();
+        const auto state = initializationState();
+        for (std::size_t symbol = 0; symbol < before.size(); ++symbol) {
+            merged[symbol] = first ? state[symbol] : merged[symbol] && state[symbol];
+        }
+        first = false;
+    }
+    restoreInitializationState(merged);
+}
+
 void SemanticAnalyzer::analyzeStatement(Statement& statement) {
     switch (statement.kind) {
+    case StatementKind::Switch:
+        analyzeSwitch(statement);
+        return;
+    case StatementKind::Next:
+        throw DiagnosticError(statement.location,
+                              "'next' must be the final direct statement of a switch branch");
     case StatementKind::Declaration: {
         validateType(statement.declaredType, statement.location);
         auto& scope = scopes_.back();

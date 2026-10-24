@@ -31,13 +31,15 @@
       <match>&quot;([^&quot;\\]|\\.)*&quot;</match>
     </context>
     <context id="number" class="number" style-ref="number">
-      <match extended="true">(?&lt;![\w.])(0[xX][0-9a-fA-F]+[uU]?|([0-9]+(\.[0-9]*)?|\.[0-9]+)([eE][+-]?[0-9]+)?(f64|[uU])?)(?!\w)</match>
+      <match extended="true">(?&lt;!\w)(?&lt;!\w\.)(0[xX][0-9a-fA-F]+[uU]?|([0-9]+(\.(?!\.)[0-9]*)?|\.[0-9]+)([eE][+-]?[0-9]+)?(f64|[uU])?)(?!\w)</match>
     </context>
     <context id="keyword" class="keyword" style-ref="keyword">
       <keyword>class</keyword><keyword>namespace</keyword><keyword>import</keyword>
       <keyword>start</keyword><keyword>if</keyword><keyword>else</keyword>
       <keyword>while</keyword><keyword>for</keyword><keyword>foreach</keyword>
       <keyword>in</keyword><keyword>break</keyword><keyword>continue</keyword>
+      <keyword>switch</keyword><keyword>case</keyword><keyword>default</keyword>
+      <keyword>next</keyword>
       <keyword>return</keyword><keyword>try</keyword><keyword>catch</keyword>
       <keyword>finally</keyword><keyword>raise</keyword><keyword>throw</keyword>
       <keyword>public</keyword><keyword>private</keyword><keyword>protected</keyword>

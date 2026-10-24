@@ -131,6 +131,9 @@ in [`stdlib/README.md`](stdlib/README.md); its public APIs are in
 - Anonymous class enums declare immutable signed 64-bit `int64` constants
   accessible as `Class.NAME` or `object.NAME`, without creating a new type or
   per-instance storage.
+- Integral `switch` statements support constant alternatives, inclusive ranges,
+  a final optional `default`, and explicit `next` continuation without implicit
+  fallthrough. See [constant switches](doc/LANGUAGE-REFERENCE.md#constant-switches).
 - Base constructors use dotless `super Base(args)` syntax; virtual bases use
   `super virtual Base(args)` or `virtual super Base(args)`.
 - Collection type keywords are `list` and `dict`; `array` and `map` are

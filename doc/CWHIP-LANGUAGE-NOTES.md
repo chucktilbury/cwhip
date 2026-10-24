@@ -760,6 +760,22 @@ statements.
   `for` loop. `continue` proceeds to that loop's next condition or iteration
   step. Both are valid inside nested conditional, exception-handler, and
   `finally` blocks within a loop, and are compile-time errors outside a loop.
+  A switch branch is a boundary: neither statement may escape it to an outer
+  loop, but loops introduced inside the branch retain their normal controls.
+- `switch (integer) { case (constant, low..high) { ... } default { ... } }`
+  dispatches on one evaluation of an integral selector. Case parentheses and
+  all branch braces are required. Ranges are inclusive, labels must fit the
+  selector losslessly, and overlaps are diagnosed after normalizing endpoints.
+  Ascending and descending intervals match the same inclusive set; groups such
+  as `case (1..3, 5..8)` may mix either direction and discrete alternatives.
+  There is at
+  most one optional final `default`, without parentheses. Completion exits
+  the switch unless the branch's final direct statement is `next`; this
+  executes the following body unconditionally in its own scope, after normal
+  cleanup. Nested/conditional and final-branch `next` are rejected. `return`
+  still returns from the enclosing method. `next` is contextual as a standalone
+  statement so existing `next` identifiers remain valid. See
+  [constant switches](LANGUAGE-REFERENCE.md#constant-switches).
 - Logical operands and results are `bool`; there is no integer truthiness.
 - Logical negation is written `!expr` or `not expr`; conjunction is
   `left && right` or `left and right`; disjunction is `left || right` or

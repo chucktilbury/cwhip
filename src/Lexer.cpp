@@ -131,6 +131,9 @@ const char* tokenTypeName(TokenType type) noexcept {
     case TokenType::Is: return "'is'";
     case TokenType::Break: return "'break'";
     case TokenType::Continue: return "'continue'";
+    case TokenType::Switch: return "'switch'";
+    case TokenType::Case: return "'case'";
+    case TokenType::Default: return "'default'";
     case TokenType::And: return "'and'";
     case TokenType::Or: return "'or'";
     case TokenType::Print: return "'print'";
@@ -147,6 +150,7 @@ const char* tokenTypeName(TokenType type) noexcept {
     case TokenType::RightBracket: return "']'";
     case TokenType::Comma: return "','";
     case TokenType::Dot: return "'.'";
+    case TokenType::DotDot: return "'..'";
     case TokenType::Colon: return "':'";
     case TokenType::Newline: return "newline";
     case TokenType::Plus: return "'+'";
@@ -305,7 +309,7 @@ Token Lexer::scanIdentifierOrInteger() {
         } else {
             while (peek() >= '0' && peek() <= '9') text.push_back(advance());
         }
-        if (!leadingDot && peek() == '.') {
+        if (!leadingDot && peek() == '.' && peek(1) != '.') {
             /* strtod-style trailing-dot float, e.g. "5."; digits after the
              * dot are optional. */
             floating = true;
@@ -369,6 +373,8 @@ Token Lexer::scanIdentifierOrInteger() {
         {"do", TokenType::Do}, {"for", TokenType::For},
         {"in", TokenType::In}, {"is", TokenType::Is}, {"break", TokenType::Break},
         {"continue", TokenType::Continue}, {"and", TokenType::And},
+        {"switch", TokenType::Switch}, {"case", TokenType::Case},
+        {"default", TokenType::Default},
         {"or", TokenType::Or}, {"not", TokenType::Bang},
         {"print", TokenType::Print}, {"raise", TokenType::Raise},
         {"try", TokenType::Try}, {"except", TokenType::Except},
@@ -539,7 +545,9 @@ std::vector<Token> Lexer::tokenize() {
         case '[': type = TokenType::LeftBracket; break;
         case ']': type = TokenType::RightBracket; break;
         case ',': type = TokenType::Comma; break;
-        case '.': type = TokenType::Dot; break;
+        case '.':
+            type = peek() == '.' ? (advance(), TokenType::DotDot) : TokenType::Dot;
+            break;
         case ':': type = TokenType::Colon; break;
         case '+':
             type = peek() == '=' ? (advance(), TokenType::PlusEqual) : TokenType::Plus;
