@@ -9,10 +9,12 @@ and the runtime is written in C. CPL and CWPL are optional informal shorthand.
 The canonical project website is [cwhip.org](https://cwhip.org).
 New source files use `.cw`; no alternate source suffix is accepted for
 existing programs. The compiler produces textual LLVM IR and invokes Clang
-to link the runtime. The numeric frontend supports fixed-width types and their
-semantic rules, but the LLVM backend deliberately rejects programs that use
-numeric values until execution and ABI rules are implemented. Some older
-runtime examples below have not yet been migrated to the new numeric names.
+to link the runtime. Fixed-width numeric types execute through width-correct
+LLVM IR, checked integer operations, and IEEE floating arithmetic. Broad SDK,
+stdlib, debugger/editor, and legacy-example migration remains separate work;
+older examples below may still use removed numeric names. Existing native
+modules and applications must be rebuilt; this is not an end-to-end ecosystem
+migration.
 
 The parser limits recursive syntax nesting to 128 active levels, counting
 namespaces, statement blocks, expressions, and unary operators. Excessive
@@ -142,20 +144,51 @@ use the same range/precision model. Potentially lossy implicit conversions
 produce a warning with an explicit-cast suggestion; explicit casts acknowledge
 that loss.
 
-These are frontend semantics only. Numeric execution, checked signed
-overflow, unsigned modular execution, shift behavior, native ABI lowering,
-and numeric runtime values remain future backend work. Until then, compilation
-stops with an explicit unsupported-numeric-execution diagnostic.
+Signed addition, subtraction, multiplication, and negation throw catchable
+exceptions on overflow at the expression's result width. Assignment does not
+widen an intermediate: `int32 value = int8(127) + int8(1)` throws. Unsigned
+arithmetic wraps modulo the result width. Integer division truncates toward
+zero, and remainder has the dividend's sign. Division/remainder by zero and
+signed minimum divided or remaindered by `-1` throw before LLVM can evaluate
+an invalid operation. Failures carry operation/source information.
+
+Bitwise operations use fixed-width integer patterns and the normal common
+integer type. `~` preserves type. Shifts retain the left type and validate the
+original right operand before conversion: negative counts or counts at least
+the left width throw. Left shift discards high bits, even for signed operands;
+right shift is arithmetic for signed and logical for unsigned operands.
+Compound assignments evaluate their receiver/target once, then convert the
+result back to the target type.
+
+`fp32`/`fp64` operations round at their selected precision, nearest/ties-to-even,
+with signed zero, gradual underflow, infinities, and unordered NaN comparisons.
+Floating overflow and division by zero do not throw integer exceptions.
+Constrained LLVM arithmetic prevents reassociation and multiply/add contraction;
+there is no implicit fast math. The execution environment must retain IEEE
+rounding and subnormals. Native code that changes that environment must restore
+it before returning to Cwhip.
 
 Explicit numeric casts use the numeric type-name call forms such as
-`int8(expr)`, `uint64(expr)`, and `fp32(expr)`. Compile-time checking covers
-all numeric source/target directions; runtime conversion behavior is not
-available until backend lowering is implemented. Compatible class-reference
-conversions and dynamic collection extraction remain separate behaviors.
+`int8(expr)`, `uint64(expr)`, and `fp32(expr)`. Integer conversions reduce modulo
+the destination width, with sign extension before widening a negative source.
+For example, `int8(255)` is `-1` and `uint16(int8(-1))` is `65535`.
+Integer-to-floating and floating narrowing round to the destination IEEE
+format; floating narrowing may produce infinity or signed zero.
+Floating-to-integer conversions truncate first, then range-check: `uint8(-0.75)`
+is `0`, while `uint8(-1.0)`, NaN, infinity, and out-of-range results throw.
+Explicit casts acknowledge loss, not invalid conversions. Explicit bool casts
+map zero to false and other numeric values, including NaN, to true.
+Compatible class-reference conversions and dynamic collection extraction
+remain separate behaviors.
 
-`null` is a universal null value and can initialize nullable locals. Numeric
-nullability is currently checked by the frontend, but cannot execute because
-the numeric backend is not yet implemented.
+Numeric arguments, returns, fields, callbacks, inline captures, and dynamic
+values preserve their actual widths. Native bindings use exact-width C integer
+types and `float`/`double`, including target ABI extension attributes for narrow
+values. Native execution coverage currently exercises the Linux x86-64 ABI.
+Inline C retains C arithmetic semantics, not Cwhip overflow checking.
+
+`null` is a universal null value and can initialize nullable numeric locals.
+An explicit numeric cast consumes a local's null state using its zero payload.
 Null assignment does not make
 primitive fields, collection values, arguments, or returns nullable in the
 same way: those contexts retain their declared representation. Object and
@@ -192,12 +225,13 @@ name in the same scope is an error. The compiler diagnoses a read that may
 occur before initialization. Parameters and fields are introduced by their
 declarations; fields have no initializer syntax, and `for` loop variables
 exist only in the loop body. Assignment operators are statements, not
-expressions. `=` assigns normally; `+=`, `-=`, `*=`, `/=`, and `%=` update an
-`int`, `unsigned`, or `float` variable or object field using the corresponding
-arithmetic operation.
-Both operands must have a matching arithmetic type, and `%=` is limited to
-`int` and `unsigned`. Collections, buffers, `any`, booleans, and object
-references do not support compound assignment. A compound assignment evaluates
+expressions. `=` assigns normally; arithmetic, bitwise, and shift compound
+assignments update numeric variables or object fields using the corresponding
+operation and conversion back to the target type.
+Operands follow the normal common-type rules; `%=` and bitwise/shift forms
+require integers. Collection/buffer references, `any`, booleans, and object
+references and indexed elements do not support compound assignment.
+A compound assignment evaluates
 its target once; for a member target, its receiver is evaluated once. Integer
 overflow and integer division/remainder errors follow the corresponding
 arithmetic operators.
@@ -235,22 +269,26 @@ Operators from lowest to highest precedence:
 | `or`, `\|\|` | left |
 | `and`, `&&` | left |
 | `not`, `!` | right prefix |
+| `\|` | left |
+| `^` | left |
+| `&` | left |
 | `==`, `!=` | left |
 | `is`, `<`, `<=`, `>`, `>=` | left |
+| `<<`, `>>` | left |
 | `+`, `-` | left |
 | `*`, `/`, `%` | left |
-| unary `+`, unary `-` | right prefix |
+| unary `+`, unary `-`, `~` | right prefix |
 | `.`, calls, `[]` indexing/slicing, `as` checked extraction | repeated postfix |
 
 Logical operators require booleans. Arithmetic and comparison support depend
 on operand types; unsupported combinations are rejected during semantic
-analysis. Assignment is not an expression. There are no bitwise, increment,
-or ternary operators.
+analysis. Bitwise/shift operands must be integers, not bool or floating values.
+Assignment is not an expression. There are no increment or ternary operators.
 
 ### Checked extraction with `as`
 
 `value as Target` is checked extraction/identity, not a numeric conversion.
-Targets are `int`, `unsigned`, `bool`, `float`, `strg` (also spelled `String`),
+Targets include every fixed-width numeric type, `bool`, `strg` (also spelled `String`),
 `list`, `dict`, `buffer`, `handle`, `type`, `null`, `any`, or a declared class
 (including a qualified class name). `void` and unknown names are compile-time
 errors. The source is evaluated exactly once.
@@ -327,7 +365,7 @@ The order is `[alignment][width][type]`, for example `{:x}`, `{:08X}`,
 Default alignment is right for numeric values and left otherwise. Width counts
 Unicode code points, not bytes or terminal display columns. Floating-point
 precision, custom fill characters, positional indices, and other type codes
-are unsupported. Explicit type codes require `int`/`unsigned`; statically
+are unsupported. Explicit type codes require an integer type; statically
 known incompatible types and malformed templates are compile-time errors.
 Dynamic type mismatches and ASCII range violations raise catchable exceptions
 located at the argument expression. Negative values and 128+ never generate
@@ -394,7 +432,7 @@ the class body or declared there and defined out of line. See
 `destructor-declaration`, `method-declaration`, and
 `out-of-line-definition`.
 
-An anonymous class-scoped enum block declares immutable signed 64-bit `int`
+An anonymous class-scoped enum block declares immutable signed 64-bit `int64`
 constants, not an enum type:
 
 ```cwhip
@@ -410,21 +448,30 @@ class Status {
 
 start {
     Status status = Status()
-    int code = status.RUNNING
+    int64 code = status.RUNNING
     print(Status.COMPLETE)
 }
 ```
 
 The first omitted value in each block is `0`; each later omitted value is the
 preceding value plus one. Explicit values may use integer literals, unary
-`+`/`-`, `+`, `-`, `*`, `/`, `%`, and previously resolved enum members. Values
-are checked for signed 64-bit overflow, including implicit increments;
+`+`/`-`/`~`, arithmetic, bitwise operations, shifts, numeric casts, and previously
+resolved enum members. Each intermediate follows its ordinary numeric type,
+including narrow signed overflow, unsigned wrapping, and IEEE rounding within
+casts. The final value must fit `int64`. Implicit increments are checked too;
 duplicate numeric values are allowed, but duplicate names and class-member
 collisions are errors. Forward/cyclic references, nonconstant expressions,
 division by zero, and out-of-range values are compile-time errors. Multiple
 blocks may appear in one class, with distinct member names.
 
-Constants are usable anywhere an `int` expression is accepted, including
+Invalid operations in these required constant contexts are compile-time
+diagnostics. Ordinary expressions are not evaluated by this evaluator:
+constant-looking overflow, bad shifts, and invalid conversions still raise
+catchable runtime exceptions; unreachable branches do not acquire execution
+errors during compilation. Literal range/syntax errors remain compile-time
+diagnostics. Zero list-slice steps are likewise checked at runtime.
+
+Constants are usable anywhere an `int64` expression is accepted, including
 method arguments, collection values, and scalar casts. They follow the
 declaring member's public/protected/private access and ordinary inherited
 member lookup; ambiguous inherited constants need explicit base qualification.
@@ -543,7 +590,7 @@ the receiver may be omitted: `Base.field` and `Base.method(args)` refer to the
 current object's base subobject, not static or class-level storage.
 `Left.Root.field` and `Left.Root.method(args)` select successive direct bases;
 the path cannot skip an inheritance edge. Reads, assignments, and supported
-scalar compound assignments (`+=`, `-=`, `*=`, `/=`, `%=`) use the same base
+numeric compound assignments use the same base
 layout and accessibility rules as explicit-object access. Method calls retain
 runtime dispatch, just like `object.Base.method()`; qualification selects a
 base view, not a non-virtual call.

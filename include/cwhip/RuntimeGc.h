@@ -47,17 +47,27 @@ typedef struct CwhipClassMeta {
  * while the managed heap is nonempty; the collector caches their validation. */
 
 typedef enum CwhipArrayValueTag {
-    CWHIP_ARRAY_INTEGER = 1,
+    CWHIP_ARRAY_INT64 = 1,
+    CWHIP_ARRAY_INTEGER = CWHIP_ARRAY_INT64,
     CWHIP_ARRAY_STRING = 2,
     CWHIP_ARRAY_OBJECT = 3,
     CWHIP_ARRAY_MAP = 4,
     CWHIP_ARRAY_ARRAY = 5,
     CWHIP_ARRAY_BOOLEAN = 6,
-    CWHIP_ARRAY_FLOAT = 7,
-    CWHIP_ARRAY_UNSIGNED = 8,
+    CWHIP_ARRAY_FP64 = 7,
+    CWHIP_ARRAY_FLOAT = CWHIP_ARRAY_FP64,
+    CWHIP_ARRAY_UINT64 = 8,
+    CWHIP_ARRAY_UNSIGNED = CWHIP_ARRAY_UINT64,
     CWHIP_ARRAY_BUFFER = 9,
     CWHIP_ARRAY_HANDLE = 10,
-    CWHIP_ARRAY_TYPE = 11
+    CWHIP_ARRAY_TYPE = 11,
+    CWHIP_ARRAY_INT8 = 12,
+    CWHIP_ARRAY_UINT8 = 13,
+    CWHIP_ARRAY_INT16 = 14,
+    CWHIP_ARRAY_UINT16 = 15,
+    CWHIP_ARRAY_INT32 = 16,
+    CWHIP_ARRAY_UINT32 = 17,
+    CWHIP_ARRAY_FP32 = 18
 } CwhipArrayValueTag;
 
 typedef struct CwhipArrayValue {

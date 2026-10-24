@@ -6,6 +6,7 @@
 #include "cwhip/CodeGenerator.hpp"
 
 #include "cwhip/Diagnostic.hpp"
+#include "cwhip/NumericType.hpp"
 
 #include <algorithm>
 #include <cstdint>
@@ -42,14 +43,14 @@ void CodeGenerator::emitInlineC(const Statement& statement) {
             cParameters += ", ";
         }
         llvmArguments += "ptr " + emitAddress(binding, capture.location);
-        if (capture.type == "int") {
-            cParameters += "int64_t *" + capture.name;
+        if (isIntegerType(capture.type)) {
+            cParameters += capture.type + "_t *" + capture.name;
         } else if (capture.type == "bool") {
             cParameters += "_Bool *" + capture.name;
-        } else if (capture.type == "float") {
+        } else if (capture.type == "fp64") {
             cParameters += "double *" + capture.name;
-        } else if (capture.type == "unsigned") {
-            cParameters += "uint64_t *" + capture.name;
+        } else if (capture.type == "fp32") {
+            cParameters += "float *" + capture.name;
         } else if (isBufferType(capture.type)) {
             // Buffers are managed references: the shim receives the address of
             // the variable's slot, so inline C works with the live buffer
@@ -255,7 +256,8 @@ void CodeGenerator::emitStatement(const Statement& statement) {
             return;
         }
         if (bufferElementTarget) {
-            const auto& value64 = value.operand;
+            const auto value64 = convertNumericValue(
+                value, "uint64", statement.expressions.front()->location).operand;
             const auto file = internString(statement.target->location.file);
             instructions_ += "  call void @cwhip_buffer_set(ptr " + bufferPointer + ", i64 " +
                              bufferIndex.operand + ", i64 " + value64 + ", ptr " + file +
@@ -357,7 +359,7 @@ void CodeGenerator::emitStatement(const Statement& statement) {
             const auto converted = convertObjectValue(value,
                                                        constructor->parameters[index].type,
                                                        statement.expressions[index]->location);
-            arguments += ", " + llvmType(constructor->parameters[index].type) + " " +
+            arguments += ", " + abiParameterType(constructor->parameters[index].type) + " " +
                          converted.operand;
         }
         instructions_ += "  call void " + methodSymbol(statement.name, *constructor) +

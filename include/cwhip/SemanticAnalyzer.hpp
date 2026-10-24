@@ -78,6 +78,9 @@ private:
     std::int64_t evaluateEnumExpression(Expression& expression,
                                         ClassDeclaration& declaration,
                                         std::size_t memberIndex);
+    double evaluateFloatingConstant(Expression& expression,
+                                    ClassDeclaration& declaration,
+                                    std::size_t memberIndex);
     const MethodDeclaration* findMethod(const ClassDeclaration& declaration,
                                         const std::string& name) const;
     std::vector<const MethodDeclaration*> findOverloads(const ClassDeclaration& declaration,

@@ -74,6 +74,10 @@ private:
     std::unique_ptr<Expression> parseOr();
     std::unique_ptr<Expression> parseAnd();
     std::unique_ptr<Expression> parseNot();
+    std::unique_ptr<Expression> parseBitwiseOr();
+    std::unique_ptr<Expression> parseBitwiseXor();
+    std::unique_ptr<Expression> parseBitwiseAnd();
+    std::unique_ptr<Expression> parseShift();
     std::unique_ptr<Expression> parseComparison();
     std::unique_ptr<Expression> parseRelational();
     std::string parseTypeTestName(const std::string& operatorName);

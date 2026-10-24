@@ -381,7 +381,6 @@ void SemanticAnalyzer::analyze(Program& program) {
                                std::istreambuf_iterator<char>()};
         Parser parser(Lexer(text, builtinPath.string()).tokenize());
         auto builtin = parser.parseProgram(false);
-        for (auto& declaration : builtin.classes) declaration.builtin = true;
         program.classes.insert(program.classes.begin() + 1,
                                std::make_move_iterator(builtin.classes.begin()),
                                std::make_move_iterator(builtin.classes.end()));

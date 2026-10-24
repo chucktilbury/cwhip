@@ -6,6 +6,7 @@
 #include "cwhip/CodeGenerator.hpp"
 #include "cwhip/CallbackType.hpp"
 #include "cwhip/NumericType.hpp"
+#include "cwhip/NumericRuntimeType.hpp"
 
 #include "cwhip/Diagnostic.hpp"
 
@@ -41,22 +42,24 @@ std::string llvmIntegerConstant(const std::string& literal) {
     return literal;
 }
 
-bool isMinimumIntegerMagnitude(const Expression& expression) {
-    if (expression.kind != ExpressionKind::Integer) return false;
-    std::uint64_t magnitude = 0;
-    const auto& literal = expression.value;
-    const auto* begin = literal.data();
-    const auto* end = begin + literal.size();
-    const bool hexadecimal = literal.size() >= 2 && literal[0] == '0' &&
-                              (literal[1] == 'x' || literal[1] == 'X');
-    if (hexadecimal) begin += 2;
-    const auto parsed = std::from_chars(begin, end, magnitude, hexadecimal ? 16 : 10);
-    return parsed.ec == std::errc{} && parsed.ptr == end &&
-           magnitude == (std::uint64_t{1} << 63);
-}
-
-std::string llvmDoubleConstant(const std::string& literal) {
-    const auto value = std::stod(literal);
+std::string llvmFloatingConstant(const std::string& literal, const std::string& type) {
+    auto text = literal;
+    if (text.size() >= 3 && text.compare(text.size() - 3, 3, "f64") == 0)
+        text.resize(text.size() - 3);
+    double value = 0;
+    if (type == "fp32") {
+        float rounded = 0;
+        const auto parsed = std::from_chars(text.data(), text.data() + text.size(), rounded,
+                                            std::chars_format::general);
+        if (parsed.ec != std::errc{} || parsed.ptr != text.data() + text.size())
+            throw std::runtime_error("invalid semantically checked fp32 literal");
+        value = rounded;
+    } else {
+        const auto parsed = std::from_chars(text.data(), text.data() + text.size(), value,
+                                            std::chars_format::general);
+        if (parsed.ec != std::errc{} || parsed.ptr != text.data() + text.size())
+            throw std::runtime_error("invalid semantically checked fp64 literal");
+    }
     std::uint64_t bits = 0;
     static_assert(sizeof(bits) == sizeof(value), "double must be 64-bit");
     std::memcpy(&bits, &value, sizeof(bits));
@@ -190,8 +193,8 @@ std::string CodeGenerator::llvmType(const std::string& type) const {
 std::string CodeGenerator::externReturnLlvmType(const std::string& type) const {
     // 'String' is a managed class reference, so it crosses the native boundary
     // as a single object pointer; no type needs an aggregate ABI form.
-    if (type == "bool") return "zeroext i1";
-    return llvmType(type);
+    const auto extension = numericAbiExtension(type);
+    return (extension.empty() ? "" : extension + " ") + llvmType(type);
 }
 
 std::string CodeGenerator::externMethodDeclaration(const ClassDeclaration& owner,
@@ -201,11 +204,8 @@ std::string CodeGenerator::externMethodDeclaration(const ClassDeclaration& owner
     for (const auto& parameter : method.parameters) {
         parameters += ", ";
         const auto& type = parameter.type;
-        if (type == "bool") {
-            parameters += "i1 zeroext";
-        } else {
-            parameters += llvmType(type);
-        }
+        const auto extension = numericAbiExtension(type);
+        parameters += llvmType(type) + (extension.empty() ? "" : " " + extension);
     }
     return "declare " + externReturnLlvmType(method.returnType) + " @" +
            method.externalSymbol + "(" + parameters + ") ; receiver: " + owner.name + "\n";
@@ -410,79 +410,106 @@ CodeGenerator::Value CodeGenerator::emitStringNullComparison(const Value& operan
 }
 
 CodeGenerator::Value CodeGenerator::emitIntegerExpression(const Expression& expression) {
-    if (expression.kind == ExpressionKind::Integer) return {"int", expression.value};
     const auto value = emitExpression(expression);
-    if (value.type != "int") {
+    if (!isIntegerType(value.type)) {
         throw DiagnosticError(expression.location, "integer expression required");
     }
-    return value;
+    return convertNumericValue(value, "int64", expression.location);
 }
 
 CodeGenerator::Value CodeGenerator::emitArithmeticOperation(
     const std::string& operation, const SourceLocation& location,
     const Value& left, const Value& right) {
+    const bool shift = operation == "<<" || operation == ">>";
+    const auto common = shift ? left.type : *commonNumericType(left.type, right.type);
+    const auto lhs = convertNumericValue(left, common, location);
+    auto rhs = shift ? right : convertNumericValue(right, common, location);
+    const auto* numeric = numericType(common);
+    const auto irType = llvmType(common);
     const auto result = newTemporary();
-    if (left.type == "float") {
-        const char* instruction = operation == "+" ? "fadd" :
-                                  operation == "-" ? "fsub" :
-                                  operation == "*" ? "fmul" :
-                                  operation == "/" ? "fdiv" : nullptr;
-        if (instruction == nullptr) {
-            unsupported(location, "floating-point remainder");
-        }
-        instructions_ += "  " + result + " = " + instruction + " double " +
-                         left.operand + ", " + right.operand + "\n";
-        return {"float", result};
+    const bool signedInteger = numeric->category == NumericCategory::SignedInteger;
+    if (isFloatingType(common)) {
+        const auto instruction = operation == "+" ? "fadd" :
+                                 operation == "-" ? "fsub" :
+                                 operation == "*" ? "fmul" : "fdiv";
+        const auto intrinsic = "llvm.experimental.constrained." +
+                               std::string(instruction) + ".f" +
+                               std::to_string(numeric->width);
+        if (declaredInlineSymbols_.emplace(intrinsic).second)
+            inlineDeclarations_ += "declare " + irType + " @" + intrinsic +
+                "(" + irType + ", " + irType + ", metadata, metadata)\n";
+        instructions_ += "  " + result + " = call " + irType + " @" + intrinsic +
+                         "(" + irType + " " + lhs.operand + ", " + irType + " " +
+                         rhs.operand +
+                         ", metadata !\"round.tonearest\", metadata !\"fpexcept.ignore\")\n";
+        return {common, result};
     }
-    const auto llvmIntegerType = "i64";
+    if (shift) {
+        const auto count = newTemporary();
+        const auto invalid = newTemporary();
+        instructions_ += "  " + count +
+            (numericType(rhs.type)->category == NumericCategory::SignedInteger
+                ? " = sext " : " = zext ") + llvmType(rhs.type) + " " +
+            rhs.operand + " to i65\n"
+            "  " + invalid + " = icmp uge i65 " + count + ", " +
+            std::to_string(numeric->width) + "\n";
+        emitNumericFailureIf(invalid, "invalid shift count", location);
+        rhs = convertNumericValue(rhs, common, location);
+        instructions_ += "  " + result + " = " +
+            (operation == "<<" ? "shl" : signedInteger ? "ashr" : "lshr") + " " +
+            irType + " " + lhs.operand + ", " + rhs.operand + "\n";
+        return {common, result};
+    }
+    if (signedInteger && (operation == "+" || operation == "-" || operation == "*")) {
+        const auto opcode = operation == "+" ? "sadd" : operation == "-" ? "ssub" : "smul";
+        const auto intrinsic = "llvm." + std::string(opcode) + ".with.overflow." + irType;
+        if (declaredInlineSymbols_.emplace(intrinsic).second) {
+            inlineDeclarations_ += "declare { " + irType + ", i1 } @" + intrinsic +
+                                   "(" + irType + ", " + irType + ")\n";
+        }
+        const auto pair = newTemporary();
+        const auto overflow = newTemporary();
+        instructions_ += "  " + pair + " = call { " + irType + ", i1 } @" +
+                         intrinsic + "(" + irType + " " + lhs.operand + ", " +
+                         irType + " " + rhs.operand + ")\n"
+                         "  " + result + " = extractvalue { " + irType +
+                         ", i1 } " + pair + ", 0\n"
+                         "  " + overflow + " = extractvalue { " + irType +
+                         ", i1 } " + pair + ", 1\n";
+        emitNumericFailureIf(overflow, "integer overflow (" + operation + ")", location);
+        return {common, result};
+    }
     if (operation == "/" || operation == "%") {
         const auto zero = newTemporary();
-        const auto failureLabel = freshLabel("division.zero");
-        const auto successLabel = freshLabel("division.ok");
-        instructions_ += "  " + zero + " = icmp eq " + llvmIntegerType + " " +
-                         right.operand + ", 0\n"
-                         "  br i1 " + zero + ", label %" + failureLabel +
-                         ", label %" + successLabel + "\n"
-                         + failureLabel + ":\n"
-                         "  call void @cwhip_exception_raise(ptr @.cw.division.message, i64 16, ptr " +
-                         internString(location.file) + ", i64 " +
-                         std::to_string(location.file.size()) + ", i64 " +
-                         std::to_string(location.line) + ", i64 " +
-                         std::to_string(location.column) + ")\n"
-                         "  unreachable\n"
-                         + successLabel + ":\n";
-        if (left.type == "int") {
+        instructions_ += "  " + zero + " = icmp eq " + irType + " " +
+                         rhs.operand + ", 0\n";
+        emitNumericFailureIf(zero, "division by zero", location);
+        if (signedInteger) {
             const auto minimum = newTemporary();
             const auto minusOne = newTemporary();
             const auto overflow = newTemporary();
-            const auto overflowLabel = freshLabel("division.overflow");
-            const auto divisionLabel = freshLabel("division.valid");
-            instructions_ += "  " + minimum + " = icmp eq i64 " + left.operand +
-                             ", -9223372036854775808\n"
-                             "  " + minusOne + " = icmp eq i64 " + right.operand + ", -1\n"
+            instructions_ += "  " + minimum + " = icmp eq " + irType + " " +
+                             lhs.operand + ", " + std::string(numeric->range.minimum) + "\n"
+                             "  " + minusOne + " = icmp eq " + irType + " " +
+                             rhs.operand + ", -1\n"
                              "  " + overflow + " = and i1 " + minimum + ", " + minusOne +
-                             "\n"
-                             "  br i1 " + overflow + ", label %" + overflowLabel +
-                             ", label %" + divisionLabel + "\n"
-                             + overflowLabel + ":\n"
-                             "  call void @cwhip_exception_raise(ptr @.cw.overflow.message, i64 16, ptr " +
-                             internString(location.file) + ", i64 " +
-                             std::to_string(location.file.size()) + ", i64 " +
-                             std::to_string(location.line) + ", i64 " +
-                             std::to_string(location.column) + ")\n"
-                             "  unreachable\n"
-                             + divisionLabel + ":\n";
+                             "\n";
+            emitNumericFailureIf(overflow, "integer overflow (" + operation + ")", location);
         }
     }
     const char* instruction = nullptr;
     if (operation == "+") instruction = "add";
     else if (operation == "-") instruction = "sub";
     else if (operation == "*") instruction = "mul";
-    else if (operation == "/") instruction = left.type == "unsigned" ? "udiv" : "sdiv";
-    else if (operation == "%") instruction = left.type == "unsigned" ? "urem" : "srem";
-    instructions_ += "  " + result + " = " + instruction + " " + llvmIntegerType + " " +
-                     left.operand + ", " + right.operand + "\n";
-    return {left.type, result};
+    else if (operation == "/") instruction = signedInteger ? "sdiv" : "udiv";
+    else if (operation == "%") instruction = signedInteger ? "srem" : "urem";
+    else if (operation == "&") instruction = "and";
+    else if (operation == "|") instruction = "or";
+    else if (operation == "^") instruction = "xor";
+    if (!instruction) unsupported(location, "numeric operator " + operation);
+    instructions_ += "  " + result + " = " + instruction + " " + irType + " " +
+                     lhs.operand + ", " + rhs.operand + "\n";
+    return {common, result};
 }
 
 CodeGenerator::Value CodeGenerator::copyBufferValue(Value value,
@@ -534,23 +561,46 @@ CodeGenerator::Value CodeGenerator::buildDynamicValue(Value value,
         value.type = "null";
     }
     const auto tag = newTemporary();
-    const auto valueTag = value.type == "int" ? "1" :
+    const auto numericTag = numericRuntimeTag(value.type);
+    const auto valueTag = numericTag != 0 ? std::to_string(numericTag) :
                           isMapType(value.type) ? "4" :
                           isArrayType(value.type) ? "5" :
                           value.type == "bool" ? "6" :
-                          value.type == "float" ? "7" :
-                          value.type == "unsigned" ? "8" :
                           isBufferType(value.type) ? "9" :
                           value.type == "handle" ? "10" :
                           value.type == "type" ? "11" : "3";
     instructions_ += "  " + tag + " = insertvalue %CwhipArrayValue zeroinitializer, i64 " +
                      valueTag + ", 0\n";
     std::string stored = tag;
-    if (value.type == "int") {
-        const auto withInteger = newTemporary();
-        instructions_ += "  " + withInteger + " = insertvalue %CwhipArrayValue " + stored +
-                         ", i64 " + value.operand + ", 1\n";
-        stored = withInteger;
+    if (const auto* numeric = numericType(value.type)) {
+        std::string integerBits;
+        if (numeric->category == NumericCategory::FloatingPoint) {
+            const auto bits = newTemporary();
+            if (numeric->width == 32) {
+                const auto wideBits = newTemporary();
+                instructions_ += "  " + bits + " = bitcast float " + value.operand +
+                                 " to i32\n"
+                                 "  " + wideBits + " = zext i32 " + bits + " to i64\n";
+                integerBits = wideBits;
+            } else {
+                instructions_ += "  " + bits + " = bitcast double " + value.operand +
+                                 " to i64\n";
+                integerBits = bits;
+            }
+        } else if (numeric->width == 64) {
+            integerBits = value.operand;
+        } else {
+            integerBits = newTemporary();
+            const auto extension = numeric->category == NumericCategory::SignedInteger
+                                       ? "sext" : "zext";
+            instructions_ += "  " + integerBits + " = " + extension + " " +
+                             std::string(numeric->llvmType) + " " + value.operand +
+                             " to i64\n";
+        }
+        const auto withNumeric = newTemporary();
+        instructions_ += "  " + withNumeric + " = insertvalue %CwhipArrayValue " + stored +
+                         ", i64 " + integerBits + ", 1\n";
+        stored = withNumeric;
     } else if (value.type == "bool") {
         const auto extended = newTemporary();
         const auto withInteger = newTemporary();
@@ -558,18 +608,6 @@ CodeGenerator::Value CodeGenerator::buildDynamicValue(Value value,
                          "  " + withInteger + " = insertvalue %CwhipArrayValue " + stored +
                          ", i64 " + extended + ", 1\n";
         stored = withInteger;
-    } else if (value.type == "unsigned") {
-        const auto withInteger = newTemporary();
-        instructions_ += "  " + withInteger + " = insertvalue %CwhipArrayValue " + stored +
-                         ", i64 " + value.operand + ", 1\n";
-        stored = withInteger;
-    } else if (value.type == "float") {
-        const auto bits = newTemporary();
-        const auto withFloat = newTemporary();
-        instructions_ += "  " + bits + " = bitcast double " + value.operand + " to i64\n"
-                         "  " + withFloat + " = insertvalue %CwhipArrayValue " + stored +
-                         ", i64 " + bits + ", 1\n";
-        stored = withFloat;
     } else if (value.type == "type") {
         const auto data = newTemporary();
         const auto length = newTemporary();
@@ -605,11 +643,11 @@ CodeGenerator::Value CodeGenerator::extractTypedValue(Value value,
     const auto column = std::to_string(location.column);
     const auto tag = newTemporary();
     instructions_ += "  " + tag + " = extractvalue %CwhipArrayValue " + value.operand + ", 0\n";
-    if (expectedType == "int" || expectedType == "bool" ||
-        expectedType == "float" || expectedType == "unsigned") {
-        const auto expectedTag = expectedType == "int" ? "1" :
-                                 expectedType == "bool" ? "6" :
-                                 expectedType == "float" ? "7" : "8";
+    const auto* expectedNumeric = numericType(expectedType);
+    if (expectedNumeric != nullptr || expectedType == "bool") {
+        const auto expectedTag = expectedNumeric != nullptr
+                                     ? std::to_string(numericRuntimeTag(expectedType))
+                                     : std::to_string(CWHIP_ARRAY_BOOLEAN);
         instructions_ += "  call void @cwhip_value_require_tag(i64 " + tag + ", i64 " +
                          expectedTag + ", ptr " + file + ", i64 " + fileLength + ", i64 " +
                          line + ", i64 " + column + ")\n";
@@ -617,12 +655,22 @@ CodeGenerator::Value CodeGenerator::extractTypedValue(Value value,
         instructions_ += "  " + stored + " = extractvalue %CwhipArrayValue " + value.operand +
                          ", 1\n";
         const auto result = newTemporary();
-        if (expectedType == "int" || expectedType == "unsigned") {
+        if (expectedNumeric != nullptr &&
+            expectedNumeric->category == NumericCategory::FloatingPoint) {
+            if (expectedNumeric->width == 32) {
+                const auto bits = newTemporary();
+                instructions_ += "  " + bits + " = trunc i64 " + stored + " to i32\n"
+                                 "  " + result + " = bitcast i32 " + bits + " to float\n";
+            } else {
+                instructions_ += "  " + result + " = bitcast i64 " + stored + " to double\n";
+            }
+        } else if (expectedNumeric != nullptr && expectedNumeric->width < 64) {
+            instructions_ += "  " + result + " = trunc i64 " + stored + " to " +
+                             std::string(expectedNumeric->llvmType) + "\n";
+        } else if (expectedNumeric != nullptr) {
             instructions_ += "  " + result + " = add i64 " + stored + ", 0\n";
-        } else if (expectedType == "bool") {
+        } else {
             instructions_ += "  " + result + " = trunc i64 " + stored + " to i1\n";
-        } else if (expectedType == "float") {
-            instructions_ += "  " + result + " = bitcast i64 " + stored + " to double\n";
         }
         return {expectedType, result};
     }
@@ -748,15 +796,13 @@ CodeGenerator::Value CodeGenerator::emitExpression(const Expression& expression,
     case ExpressionKind::CallbackCall:
         return emitCallbackCall(expression);
     case ExpressionKind::Integer:
-        if (expectedType == "unsigned") {
-            return {"unsigned", llvmIntegerConstant(expression.value)};
-        }
-        return {"int", llvmIntegerConstant(expression.value)};
+        return {expression.resolvedType, llvmIntegerConstant(expression.value)};
     case ExpressionKind::Unsigned:
-        return {"unsigned",
+        return {expression.resolvedType,
                 llvmIntegerConstant(expression.value.substr(0, expression.value.size() - 1))};
     case ExpressionKind::Float:
-        return {"float", llvmDoubleConstant(expression.value)};
+        return {expression.resolvedType,
+                llvmFloatingConstant(expression.value, expression.resolvedType)};
     case ExpressionKind::Boolean:
         return {"bool", expression.value == "true" ? "1" : "0"};
     case ExpressionKind::String:
@@ -901,7 +947,9 @@ CodeGenerator::Value CodeGenerator::emitExpression(const Expression& expression,
                          std::to_string(expression.location.column) + ")\n";
         rootObjectValue({"buffer", result}, expression.location);
         for (std::size_t index = 0; index < expression.arguments.size(); ++index) {
-            const auto value = emitExpression(*expression.arguments[index]);
+            const auto value = convertNumericValue(
+                emitExpression(*expression.arguments[index]), "uint64",
+                expression.arguments[index]->location);
             instructions_ += "  call void @cwhip_buffer_set(ptr " + result + ", i64 " +
                              std::to_string(index) + ", i64 " + value.operand + ", ptr " +
                              file + ", i64 " +
@@ -947,7 +995,7 @@ CodeGenerator::Value CodeGenerator::emitExpression(const Expression& expression,
                 resolveBaseQualifier(*expression.left, root, owner, basePath);
             (void)emitExpression(baseQualified ? *root : *expression.left);
         }
-        return {"int", expression.value};
+        return {"int64", expression.value};
     case ExpressionKind::Member: {
         const Expression* root = nullptr;
         const ClassDeclaration* owner = nullptr;
@@ -969,7 +1017,7 @@ CodeGenerator::Value CodeGenerator::emitExpression(const Expression& expression,
                              ", i32 0, i32 1\n"
                              "  " + length + " = load i64, ptr " + lengthAddress + "\n"
                              "  " + result + " = add i64 " + length + ", 0\n";
-            return {"int", result};
+            return {"int64", result};
         }
         if (!qualified && isMapType(receiver.type)) {
             if (expression.value != "length") {
@@ -985,7 +1033,7 @@ CodeGenerator::Value CodeGenerator::emitExpression(const Expression& expression,
                              ", i32 0, i32 1\n"
                              "  " + length + " = load i64, ptr " + lengthAddress + "\n"
                              "  " + result + " = add i64 " + length + ", 0\n";
-            return {"int", result};
+            return {"int64", result};
         }
         if (!qualified && isStringType(receiver.type) && expression.value == "length") {
             // 'length' is a compiler intrinsic property: the String class has no
@@ -995,7 +1043,7 @@ CodeGenerator::Value CodeGenerator::emitExpression(const Expression& expression,
             emitStringBytesAccess(receiver, expression.location, data, length);
             const auto result = newTemporary();
             instructions_ += "  " + result + " = add i64 " + length + ", 0\n";
-            return {"int", result};
+            return {"int64", result};
         }
         if (!qualified && isBufferType(receiver.type)) {
             if (expression.value != "length") {
@@ -1011,7 +1059,7 @@ CodeGenerator::Value CodeGenerator::emitExpression(const Expression& expression,
                              ", i32 0, i32 1\n"
                              "  " + length + " = load i64, ptr " + lengthAddress + "\n"
                              "  " + result + " = add i64 " + length + ", 0\n";
-            return {"int", result};
+            return {"int64", result};
         }
         const auto object = qualified ? emitExpression(*root) : receiver;
         if (classes_.find(object.type) == classes_.end()) {
@@ -1061,7 +1109,7 @@ CodeGenerator::Value CodeGenerator::emitExpression(const Expression& expression,
                              std::to_string(expression.location.file.size()) + ", i64 " +
                              std::to_string(expression.location.line) + ", i64 " +
                              std::to_string(expression.location.column) + ")\n";
-            return {"unsigned", result};
+            return convertNumericValue({"uint64", result}, "uint8", expression.location);
         } else {
             const auto key = emitExpression(*expression.arguments.front());
             std::string keyData;
@@ -1085,13 +1133,13 @@ CodeGenerator::Value CodeGenerator::emitExpression(const Expression& expression,
         const auto collection = emitExpression(*expression.left);
         const auto start = expression.sliceHasStart
                                ? emitIntegerExpression(*expression.arguments[0])
-                               : Value{"int", "0"};
+                               : Value{"int64", "0"};
         const auto end = expression.sliceHasEnd
                              ? emitIntegerExpression(*expression.arguments[1])
-                             : Value{"int", "0"};
+                             : Value{"int64", "0"};
         const auto step = expression.sliceHasStep
                               ? emitIntegerExpression(*expression.arguments[2])
-                              : Value{"int", "1"};
+                              : Value{"int64", "1"};
         const auto file = internString(expression.location.file);
         const auto result = newTemporary();
         const auto function = isBufferType(collection.type)
@@ -1202,7 +1250,7 @@ CodeGenerator::Value CodeGenerator::emitExpression(const Expression& expression,
                 const auto converted = convertObjectValue(
                     value, constructor->parameters[index].type,
                                                            expression.arguments[index]->location);
-                arguments += ", " + llvmType(constructor->parameters[index].type) + " " +
+                arguments += ", " + abiParameterType(constructor->parameters[index].type) + " " +
                              converted.operand;
             }
             instructions_ += "  call void " + methodSymbol(owner->name, *constructor) +
@@ -1231,8 +1279,9 @@ CodeGenerator::Value CodeGenerator::emitExpression(const Expression& expression,
                                   std::to_string(target.location.line) + ", i64 " +
                                   std::to_string(target.location.column) + ")\n";
             if (target.value == "resize") {
+                const auto length = convertNumericValue(argument, "int64", target.location);
                 instructions_ += "  call void @cwhip_array_resize(ptr " + receiver.operand +
-                                 ", i64 " + argument.operand + position;
+                                 ", i64 " + length.operand + position;
             } else {
                 const auto dynamic =
                     buildDynamicValue(argument, expression.arguments.front()->location);
@@ -1267,7 +1316,7 @@ CodeGenerator::Value CodeGenerator::emitExpression(const Expression& expression,
                              std::to_string(target.location.file.size()) + ", i64 " +
                              std::to_string(target.location.line) + ", i64 " +
                              std::to_string(target.location.column) + ")\n";
-            return {"int", result};
+            return {"int64", result};
         }
         if (isBufferType(receiver.type)) {
             emitNullCheck(receiver.operand, target.location);
@@ -1284,7 +1333,8 @@ CodeGenerator::Value CodeGenerator::emitExpression(const Expression& expression,
                 instructions_ += "  call void @cwhip_buffer_clear(ptr " + receiver.operand +
                                  common;
             } else if (target.value == "append") {
-                const auto value = emitExpression(*expression.arguments.front());
+                const auto value = convertNumericValue(
+                    emitExpression(*expression.arguments.front()), "uint64", target.location);
                 instructions_ += "  call void @cwhip_buffer_append(ptr " + receiver.operand +
                                  ", i64 " + value.operand + common;
             } else {
@@ -1360,7 +1410,7 @@ CodeGenerator::Value CodeGenerator::emitExpression(const Expression& expression,
             const auto value = emitExpression(*expression.arguments[index], method->parameters[index].type);
             const auto converted = convertObjectValue(value, method->parameters[index].type,
                                                        expression.arguments[index]->location);
-            arguments += ", " + llvmType(method->parameters[index].type) + " " +
+            arguments += ", " + abiParameterType(method->parameters[index].type) + " " +
                          converted.operand;
         }
         const auto function = emitMethodCode(receiver, *owner, target.value,
@@ -1370,73 +1420,15 @@ CodeGenerator::Value CodeGenerator::emitExpression(const Expression& expression,
             return {"void", ""};
         }
         const auto result = newTemporary();
-        instructions_ += "  " + result + " = call " + llvmType(method->returnType) + " " +
+        instructions_ += "  " + result + " = call " + externReturnLlvmType(method->returnType) + " " +
                          function + "(" + arguments + ")\n";
         return rootObjectValue({method->returnType, result}, expression.location);
     }
     case ExpressionKind::Cast: {
         const auto operand = emitExpression(*expression.arguments.front());
-        const auto& target = expression.value;
-        const auto result = newTemporary();
-        const auto checkRange = [&](const std::string& valid) {
-            const auto validLabel = freshLabel("cast.valid");
-            const auto invalidLabel = freshLabel("cast.invalid");
-            instructions_ += "  br i1 " + valid + ", label %" + validLabel + ", label %" +
-                             invalidLabel + "\n" + invalidLabel + ":\n"
-                             "  call void @cwhip_exception_raise(ptr @.cw.overflow.message, i64 16, ptr " +
-                             internString(expression.location.file) + ", i64 " +
-                             std::to_string(expression.location.file.size()) + ", i64 " +
-                             std::to_string(expression.location.line) + ", i64 " +
-                             std::to_string(expression.location.column) + ")\n"
-                             "  unreachable\n" + validLabel + ":\n";
-        };
-        if (target == operand.type) {
-            return {target, operand.operand};
-        } else if (target == "bool") {
-            instructions_ += "  " + result +
-                             (operand.type == "float" ? " = fcmp une double " : " = icmp ne i64 ") +
-                             operand.operand + (operand.type == "float" ? ", 0.0\n" : ", 0\n");
-        } else if (operand.type == "bool") {
-            instructions_ += "  " + result +
-                             (target == "float" ? " = uitofp i1 " : " = zext i1 ") +
-                             operand.operand + (target == "float" ? " to double\n" : " to i64\n");
-        } else if (target == "unsigned" && operand.type == "int") {
-            // Both types use i64; retaining the bits implements conversion modulo 2^64.
-            return {target, operand.operand};
-        } else if (target == "int" && operand.type == "unsigned") {
-            const auto valid = newTemporary();
-            instructions_ += "  " + valid + " = icmp ule i64 " +
-                             operand.operand + ", 9223372036854775807\n";
-            checkRange(valid);
-            return {target, operand.operand};
-        } else if (target == "float" && operand.type == "int") {
-            instructions_ += "  " + result + " = sitofp i64 " + operand.operand + " to double\n";
-        } else if (target == "float" && operand.type == "unsigned") {
-            instructions_ += "  " + result + " = uitofp i64 " + operand.operand + " to double\n";
-        } else if (operand.type == "float" &&
-                   (target == "int" || target == "unsigned")) {
-            const auto lower = newTemporary();
-            const auto upper = newTemporary();
-            const auto valid = newTemporary();
-            instructions_ += "  " + lower + " = fcmp oge double " + operand.operand +
-                             (target == "int" ? ", -9223372036854775808.0\n" : ", 0.0\n") +
-                             "  " + upper + " = fcmp olt double " + operand.operand +
-                             (target == "int" ? ", 9223372036854775808.0\n" :
-                                                ", 18446744073709551616.0\n") +
-                             "  " + valid + " = and i1 " + lower + ", " + upper + "\n";
-            checkRange(valid);
-            instructions_ += "  " + result + (target == "int" ? " = fptosi double " :
-                                               " = fptoui double ") +
-                             operand.operand + " to i64\n";
-        } else {
-            unsupported(expression.location,
-                       "cast '" + operand.type + "' to '" + target + "'");
-        }
-        // A cast is a consumption boundary for a null scalar local (see the
-        // "Nullability model (confirmed)" note): the null-holding operand's
-        // raw zero payload is what gets converted, so the result is simply
-        // the cast of 0 and carries no null flag of its own.
-        return {target, result};
+        auto converted = convertNumericValue(operand, expression.value, expression.location);
+        converted.nullFlag.clear();
+        return converted;
     }
     case ExpressionKind::ObjectCast: {
         auto operand = rootObjectValue(emitExpression(*expression.left), expression.location);
@@ -1479,12 +1471,11 @@ CodeGenerator::Value CodeGenerator::emitExpression(const Expression& expression,
             const auto pointer = newTemporary();
             const auto matches = newTemporary();
             const auto result = newTemporary();
-            const auto expectedTag = target == "int" ? "1" :
+            const auto expectedTag = isNumericType(target) ?
+                                         std::to_string(numericRuntimeTag(target)) :
                                      target == "dict" ? "4" :
                                      target == "list" ? "5" :
                                      target == "bool" ? "6" :
-                                     target == "float" ? "7" :
-                                     target == "unsigned" ? "8" :
                                      target == "buffer" ? "9" :
                                      target == "handle" ? "10" :
                                      target == "type" ? "11" : "3";
@@ -1524,18 +1515,23 @@ CodeGenerator::Value CodeGenerator::emitExpression(const Expression& expression,
     }
     case ExpressionKind::Unary: {
         if (expression.value == "-" && expression.left &&
-            isMinimumIntegerMagnitude(*expression.left)) {
-            return {"int", "-9223372036854775808"};
+            expression.left->kind == ExpressionKind::Integer) {
+            return {expression.resolvedType, "-" + llvmIntegerConstant(expression.left->value)};
         }
         const auto operand = emitExpression(*expression.left);
         if (expression.value == "+") return operand;
         const auto result = newTemporary();
         if (expression.value == "-") {
-            if (operand.type == "float") {
-                instructions_ += "  " + result + " = fneg double " + operand.operand + "\n";
+            if (isFloatingType(operand.type)) {
+                instructions_ += "  " + result + " = fneg " + llvmType(operand.type) +
+                                 " " + operand.operand + "\n";
             } else {
-                instructions_ += "  " + result + " = sub i64 0, " + operand.operand + "\n";
+                return emitArithmeticOperation("-", expression.location,
+                                               {operand.type, "0"}, operand);
             }
+        } else if (expression.value == "~") {
+            instructions_ += "  " + result + " = xor " + llvmType(operand.type) +
+                             " " + operand.operand + ", -1\n";
         } else if (expression.value == "!") {
             instructions_ += "  " + result + " = xor i1 " + operand.operand + ", true\n";
         } else {
@@ -1578,12 +1574,16 @@ CodeGenerator::Value CodeGenerator::emitExpression(const Expression& expression,
         const auto right = emitExpression(*expression.right,
                                           left.type == "type" ? "type" : "");
         if (operation == "+" || operation == "-" || operation == "*" ||
-            operation == "/" || operation == "%") {
+            operation == "/" || operation == "%" || operation == "&" ||
+            operation == "|" || operation == "^" ||
+            operation == "<<" || operation == ">>") {
             return emitArithmeticOperation(operation, expression.location, left, right);
         }
         const auto result = newTemporary();
         if (operation == "==" || operation == "!=" || operation == "<" ||
             operation == "<=" || operation == ">" || operation == ">=") {
+            if (isNumericType(left.type) && isNumericType(right.type))
+                return emitNumericComparison(operation, left, right, expression.location);
             if (left.type == "type" || right.type == "type") {
                 if (operation != "==" && operation != "!=") {
                     throw DiagnosticError(expression.location,
@@ -1674,30 +1674,13 @@ CodeGenerator::Value CodeGenerator::emitExpression(const Expression& expression,
                                  "\n";
                 return {"bool", result};
             }
-            if (left.type == "float") {
-                std::string predicate;
-                if (operation == "==") predicate = "oeq";
-                else if (operation == "!=") predicate = "une";
-                else if (operation == "<") predicate = "olt";
-                else if (operation == "<=") predicate = "ole";
-                else if (operation == ">") predicate = "ogt";
-                else predicate = "oge";
-                instructions_ += "  " + result + " = fcmp " + predicate + " double " +
-                                 left.operand + ", " + right.operand + "\n";
-                return {"bool", result};
-            }
             std::string predicate;
             if (operation == "==") predicate = "eq";
             else if (operation == "!=") predicate = "ne";
-            else if (operation == "<") {
-                predicate = left.type == "unsigned" ? "ult" : "slt";
-            } else if (operation == "<=") {
-                predicate = left.type == "unsigned" ? "ule" : "sle";
-            } else if (operation == ">") {
-                predicate = left.type == "unsigned" ? "ugt" : "sgt";
-            } else {
-                predicate = left.type == "unsigned" ? "uge" : "sge";
-            }
+            else if (operation == "<") predicate = "slt";
+            else if (operation == "<=") predicate = "sle";
+            else if (operation == ">") predicate = "sgt";
+            else predicate = "sge";
             instructions_ += "  " + result + " = icmp " + predicate + " " +
                              llvmType(left.type) + " " + left.operand + ", " + right.operand +
                              "\n";

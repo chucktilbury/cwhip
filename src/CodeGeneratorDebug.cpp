@@ -1,4 +1,5 @@
 #include "cwhip/CodeGenerator.hpp"
+#include "cwhip/NumericType.hpp"
 
 #include <filesystem>
 #include <sstream>
@@ -45,12 +46,13 @@ std::string CodeGenerator::debugType(const std::string& type) {
     const auto found = debugTypes_.find(type);
     if (found != debugTypes_.end()) return found->second;
     std::string id;
-    if (type == "int" || type == "c_int" || type == "unsigned" ||
-        type == "float" || type == "bool") {
-        const auto size = type == "bool" ? 8 : type == "c_int" ? 32 : 64;
-        const auto encoding = type == "float" ? "DW_ATE_float" :
+    const auto* numeric = numericType(type);
+    if (numeric || type == "c_int" || type == "bool") {
+        const auto size = numeric ? numeric->width : type == "bool" ? 8U : 32U;
+        const auto encoding = isFloatingType(type) ? "DW_ATE_float" :
                               type == "bool" ? "DW_ATE_boolean" :
-                              type == "unsigned" ? "DW_ATE_unsigned" : "DW_ATE_signed";
+                              numeric && numeric->category == NumericCategory::UnsignedInteger
+                                  ? "DW_ATE_unsigned" : "DW_ATE_signed";
         id = debugNode("!DIBasicType(name: " + debugQuote(type) + ", size: " +
                        std::to_string(size) + ", encoding: " + encoding + ")");
     } else if (type == "any" || type == "type") {

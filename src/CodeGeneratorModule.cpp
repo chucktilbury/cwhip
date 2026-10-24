@@ -250,7 +250,7 @@ void CodeGenerator::emitVirtualBaseInitializers(
                 const auto converted = convertObjectValue(
                     value, constructor->parameters[index].type,
                     initializer->expressions[index]->location);
-                arguments += ", " + llvmType(constructor->parameters[index].type) +
+                arguments += ", " + abiParameterType(constructor->parameters[index].type) +
                              " " + converted.operand;
             }
         }
@@ -325,7 +325,7 @@ void CodeGenerator::emitMethod(const ClassDeclaration& owner,
     unsigned argumentIndex = method.constructor ? 3 : 2;
     for (const auto& parameter : method.parameters) {
         const auto argument = "%arg." + parameter.name;
-        signature += ", " + llvmType(parameter.type) + " " + argument;
+        signature += ", " + abiParameterType(parameter.type) + " " + argument;
         const auto pointer = "%v" + std::to_string(nextVariable_++);
         scopes_.back().emplace(parameter.name,
                                Binding{parameter.type, pointer, {}, false});
@@ -336,7 +336,7 @@ void CodeGenerator::emitMethod(const ClassDeclaration& owner,
         functionPrologue_ += debugDeclaration(parameter.name, parameter.type, pointer,
                                                parameter.location, argumentIndex++);
     }
-    const auto returnType = llvmType(method.returnType);
+    const auto returnType = externReturnLlvmType(method.returnType);
     if (method.constructor &&
         (method.body.empty() || !method.body.front().protectedConstructorInitialization)) {
         emitVirtualBaseInitializers(owner, method.body);
@@ -345,8 +345,9 @@ void CodeGenerator::emitMethod(const ClassDeclaration& owner,
         std::string arguments = "ptr %this";
         for (const auto& parameter : method.parameters) {
             const auto argument = "%arg." + parameter.name;
+            const auto extension = numericAbiExtension(parameter.type);
             arguments += ", " + llvmType(parameter.type) +
-                         (parameter.type == "bool" ? " zeroext " : " ") + argument;
+                         (extension.empty() ? " " : " " + extension + " ") + argument;
         }
         const auto external = "@" + method.externalSymbol;
         if (method.returnType == "void") {
@@ -355,9 +356,7 @@ void CodeGenerator::emitMethod(const ClassDeclaration& owner,
             instructions_ += "  ret void\n";
         } else {
             const auto result = newTemporary();
-            const auto returnType = method.returnType == "bool"
-                                        ? "zeroext i1"
-                                        : llvmType(method.returnType);
+            const auto returnType = externReturnLlvmType(method.returnType);
             instructions_ += "  " + result + " = call " + returnType + " " + external + "(" +
                              arguments + ")\n";
             const auto rooted = rootObjectValue({method.returnType, result}, method.location);
@@ -417,9 +416,9 @@ void CodeGenerator::emitClassMethods(const Program& program) {
                 std::string signature = "ptr";
                 if (method.constructor) signature += ", i1";
                 for (const auto& parameter : method.parameters) {
-                    signature += ", " + llvmType(parameter.type);
+                    signature += ", " + abiParameterType(parameter.type);
                 }
-                functions += "declare " + llvmType(method.returnType) + " " +
+                functions += "declare " + externReturnLlvmType(method.returnType) + " " +
                              methodSymbol(owner.name, method) + "(" + signature + ")\n";
             }
             functions += "declare void @cwhip.finalize." + owner.name + "(ptr)\n";
@@ -444,12 +443,12 @@ void CodeGenerator::emitClassMethods(const Program& program) {
                 const auto thunkName = "@cwhip.thunk." + dynamicOwner.name + "." +
                                        subobjectTag(view.first, dynamicOwner) + "." +
                                        std::to_string(slotIndex);
-                const auto returnType = llvmType(implementation->returnType);
+                const auto returnType = externReturnLlvmType(implementation->returnType);
                 std::string signature = "ptr %this";
                 std::string callArguments = "ptr %impl.this";
                 for (const auto& parameter : implementation->parameters) {
-                    signature += ", " + llvmType(parameter.type) + " %arg." + parameter.name;
-                    callArguments += ", " + llvmType(parameter.type) + " %arg." + parameter.name;
+                    signature += ", " + abiParameterType(parameter.type) + " %arg." + parameter.name;
+                    callArguments += ", " + abiParameterType(parameter.type) + " %arg." + parameter.name;
                 }
                 const auto rootAddress = "%root.addr";
                 const std::string root = "%root";
@@ -484,7 +483,7 @@ void CodeGenerator::emitClassMethods(const Program& program) {
                 } else {
                     thunk += "  %result = musttail call " + returnType + " " +
                              methodSymbol(implementationOwner->name, *implementation) +
-                             "(" + callArguments + ")\n  ret " + returnType +
+                             "(" + callArguments + ")\n  ret " + llvmType(implementation->returnType) +
                              " %result\n}\n\n";
                 }
                 // Line zero describes compiler machinery, not an extra
@@ -686,95 +685,6 @@ void CodeGenerator::emitMain(const Program& program) {
 
 std::string CodeGenerator::generate(const Program& program,
                                     const std::string& moduleName) {
-    const auto containsNumericType = [](const auto& self, const std::string& type) -> bool {
-        if (isNumericType(type)) return true;
-        if (!isCallbackType(type)) return false;
-        const auto signature = callbackSignature(type);
-        return self(self, signature.result) ||
-               std::any_of(signature.parameters.begin(), signature.parameters.end(),
-                           [&self](const std::string& parameter) {
-                               return self(self, parameter);
-                           });
-    };
-    const auto rejectNumericType = [&containsNumericType](
-                                      const std::string& type,
-                                      const SourceLocation& location) {
-        if (containsNumericType(containsNumericType, type)) {
-            throw DiagnosticError(
-                location,
-                "fixed-width numeric execution (including " + type +
-                    ") is not yet implemented by the LLVM backend");
-        }
-    };
-    const auto checkExpression = [&rejectNumericType](const auto& self,
-                                                        const Expression& expression) -> void {
-        if (expression.kind == ExpressionKind::Integer ||
-            expression.kind == ExpressionKind::Unsigned ||
-            expression.kind == ExpressionKind::Float ||
-            expression.kind == ExpressionKind::Cast ||
-            isNumericType(expression.resolvedType) ||
-            ((expression.kind == ExpressionKind::ObjectCast ||
-              expression.kind == ExpressionKind::TypeTest ||
-              expression.kind == ExpressionKind::TypeName) &&
-             isNumericType(expression.value))) {
-            throw DiagnosticError(
-                expression.location,
-                "fixed-width numeric execution is not yet implemented by the LLVM backend");
-        }
-        if (expression.left) self(self, *expression.left);
-        if (expression.right) self(self, *expression.right);
-        for (const auto& argument : expression.arguments) self(self, *argument);
-    };
-    const auto checkStatements = [&rejectNumericType, &checkExpression](
-                                     const auto& self,
-                                     const std::vector<Statement>& statements) -> void {
-        for (const auto& statement : statements) {
-            rejectNumericType(statement.declaredType, statement.location);
-            for (const auto& capture : statement.inlineCaptures) {
-                rejectNumericType(capture.type, capture.location);
-                if (capture.target) checkExpression(checkExpression, *capture.target);
-            }
-            if (statement.target) checkExpression(checkExpression, *statement.target);
-            for (const auto& expression : statement.expressions) {
-                checkExpression(checkExpression, *expression);
-            }
-            self(self, statement.body);
-            self(self, statement.alternate);
-            self(self, statement.cleanup);
-            for (const auto& handler : statement.exceptionHandlers) {
-                self(self, handler.body);
-            }
-        }
-    };
-    for (const auto& declaration : program.classes) {
-        if (declaration.builtin) continue;
-        for (const auto& field : declaration.fields) {
-            rejectNumericType(field.type, field.location);
-        }
-        for (const auto& method : declaration.methods) {
-            rejectNumericType(method.returnType, method.location);
-            for (const auto& parameter : method.parameters) {
-                rejectNumericType(parameter.type, parameter.location);
-            }
-            checkStatements(checkStatements, method.body);
-        }
-    }
-    for (const auto& definition : program.outOfLineMethods) {
-        const bool builtinExternal = definition.method.externalBinding &&
-            std::any_of(program.classes.begin(), program.classes.end(),
-                        [&definition](const ClassDeclaration& declaration) {
-                            return declaration.builtin &&
-                                   declaration.name == definition.className;
-                        });
-        if (builtinExternal) continue;
-        rejectNumericType(definition.method.returnType, definition.location);
-        for (const auto& parameter : definition.method.parameters) {
-            rejectNumericType(parameter.type, parameter.location);
-        }
-        checkStatements(checkStatements, definition.method.body);
-    }
-    checkStatements(checkStatements, program.statements);
-
     generatingModule_ = moduleName;
     classes_.clear();
     methodDefinitions_.clear();

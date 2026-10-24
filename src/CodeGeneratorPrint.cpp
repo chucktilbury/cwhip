@@ -6,9 +6,13 @@
 #include "cwhip/CodeGenerator.hpp"
 
 #include "cwhip/Diagnostic.hpp"
+#include "cwhip/NumericType.hpp"
+#include "cwhip/NumericRuntimeType.hpp"
 
 #include <iomanip>
 #include <sstream>
+#include <utility>
+#include <vector>
 
 namespace cwhip {
 namespace {
@@ -76,15 +80,31 @@ void CodeGenerator::emitPrintValue(const Value& value, const SourceLocation& loc
         instructions_ += "  br label %" + endLabel + "\n" + endLabel + ":\n";
         return;
     }
-    if (value.type == "int") {
-        instructions_ += "  call i32 (ptr, ...) @printf(ptr @.cw.int.format, i64 " +
-                         value.operand + ")\n";
-    } else if (value.type == "unsigned") {
-        instructions_ += "  call i32 (ptr, ...) @printf(ptr @.cw.unsigned.format, i64 " +
-                         value.operand + ")\n";
-    } else if (value.type == "float") {
-        instructions_ += "  call i32 (ptr, ...) @printf(ptr @.cw.float.format, double " +
-                         value.operand + ")\n";
+    if (const auto* numeric = numericType(value.type)) {
+        if (numeric->category == NumericCategory::FloatingPoint) {
+            std::string floating = value.operand;
+            if (numeric->width == 32) {
+                floating = newTemporary();
+                instructions_ += "  " + floating + " = fpext float " + value.operand +
+                                 " to double\n";
+            }
+            instructions_ += "  call i32 (ptr, ...) @printf(ptr @.cw.float.format, double " +
+                             floating + ")\n";
+        } else {
+            std::string integer = value.operand;
+            if (numeric->width != 64) {
+                integer = newTemporary();
+                const auto extension = numeric->category == NumericCategory::SignedInteger
+                                           ? "sext" : "zext";
+                instructions_ += "  " + integer + " = " + extension + " " +
+                                 std::string(numeric->llvmType) + " " + value.operand +
+                                 " to i64\n";
+            }
+            const auto format = numeric->category == NumericCategory::SignedInteger
+                                    ? "@.cw.int.format" : "@.cw.unsigned.format";
+            instructions_ += "  call i32 (ptr, ...) @printf(ptr " + std::string(format) +
+                             ", i64 " + integer + ")\n";
+        }
     } else if (value.type == "bool") {
         const auto trueLabel = freshLabel("print.bool.true");
         const auto falseLabel = freshLabel("print.bool.false");
@@ -146,23 +166,42 @@ void CodeGenerator::emitPrintDynamicValue(const Value& value,
                                          const SourceLocation& location) {
     const auto tag = newTemporary();
     instructions_ += "  " + tag + " = extractvalue %CwhipArrayValue " + value.operand + ", 0\n";
-    const auto intLabel = freshLabel("print.any.int");
+    const auto int64Label = freshLabel("print.any.int64");
     const auto stringLabel = freshLabel("print.any.string");
     const auto boolLabel = freshLabel("print.any.bool");
-    const auto floatLabel = freshLabel("print.any.float");
-    const auto unsignedLabel = freshLabel("print.any.unsigned");
+    const auto fp64Label = freshLabel("print.any.fp64");
+    const auto uint64Label = freshLabel("print.any.uint64");
     const auto objectLabel = freshLabel("print.any.object");
     const auto nullLabel = freshLabel("print.any.null");
     const auto instanceLabel = freshLabel("print.any.instance");
     const auto invalidLabel = freshLabel("print.any.invalid");
     const auto endLabel = freshLabel("print.any.end");
-    instructions_ += "  switch i64 " + tag + ", label %" + objectLabel + " [ i64 1, label %" +
-                     intLabel + " i64 2, label %" + stringLabel + " i64 11, label %" +
-                     stringLabel + " i64 6, label %" + boolLabel +
-                     " i64 7, label %" + floatLabel + " i64 8, label %" + unsignedLabel +
-                     " i64 9, label %" + invalidLabel + " i64 10, label %" + invalidLabel +
-                     " ]\n";
-    instructions_ += intLabel + ":\n";
+    const std::vector<std::pair<std::string, std::string>> narrowNumericLabels{
+        {"int8", freshLabel("print.any.int8")},
+        {"uint8", freshLabel("print.any.uint8")},
+        {"int16", freshLabel("print.any.int16")},
+        {"uint16", freshLabel("print.any.uint16")},
+        {"int32", freshLabel("print.any.int32")},
+        {"uint32", freshLabel("print.any.uint32")},
+        {"fp32", freshLabel("print.any.fp32")},
+    };
+    instructions_ += "  switch i64 " + tag + ", label %" + objectLabel + " [ i64 " +
+                     std::to_string(CWHIP_ARRAY_INT64) + ", label %" + int64Label +
+                     " i64 " + std::to_string(CWHIP_ARRAY_STRING) + ", label %" +
+                     stringLabel + " i64 " + std::to_string(CWHIP_ARRAY_TYPE) +
+                     ", label %" + stringLabel + " i64 " +
+                     std::to_string(CWHIP_ARRAY_BOOLEAN) + ", label %" + boolLabel +
+                     " i64 " + std::to_string(CWHIP_ARRAY_FP64) + ", label %" + fp64Label +
+                     " i64 " + std::to_string(CWHIP_ARRAY_UINT64) + ", label %" +
+                     uint64Label + " i64 " + std::to_string(CWHIP_ARRAY_BUFFER) +
+                     ", label %" + invalidLabel + " i64 " +
+                     std::to_string(CWHIP_ARRAY_HANDLE) + ", label %" + invalidLabel;
+    for (const auto& [type, label] : narrowNumericLabels) {
+        instructions_ += " i64 " + std::to_string(numericRuntimeTag(type)) +
+                         ", label %" + label;
+    }
+    instructions_ += " ]\n";
+    instructions_ += int64Label + ":\n";
     const auto stored = newTemporary();
     instructions_ += "  " + stored + " = extractvalue %CwhipArrayValue " + value.operand +
                      ", 1\n"
@@ -177,20 +216,46 @@ void CodeGenerator::emitPrintDynamicValue(const Value& value,
                      "  " + boolValue + " = trunc i64 " + boolStored + " to i1\n";
     emitPrintValue({"bool", boolValue}, {});
     instructions_ += "  br label %" + endLabel + "\n";
-    instructions_ += floatLabel + ":\n";
+    instructions_ += fp64Label + ":\n";
     const auto floatStored = newTemporary();
     const auto floatValue = newTemporary();
     instructions_ += "  " + floatStored + " = extractvalue %CwhipArrayValue " + value.operand +
                      ", 1\n"
                      "  " + floatValue + " = bitcast i64 " + floatStored + " to double\n";
-    emitPrintValue({"float", floatValue}, {});
+    emitPrintValue({"fp64", floatValue}, {});
     instructions_ += "  br label %" + endLabel + "\n";
-    instructions_ += unsignedLabel + ":\n";
+    instructions_ += uint64Label + ":\n";
     const auto unsignedValue = newTemporary();
     instructions_ += "  " + unsignedValue + " = extractvalue %CwhipArrayValue " +
                      value.operand + ", 1\n";
-    emitPrintValue({"unsigned", unsignedValue}, {});
+    emitPrintValue({"uint64", unsignedValue}, {});
     instructions_ += "  br label %" + endLabel + "\n";
+    for (const auto& [type, label] : narrowNumericLabels) {
+        const auto* numeric = numericType(type);
+        const auto raw = newTemporary();
+        instructions_ += label + ":\n"
+                         "  " + raw + " = extractvalue %CwhipArrayValue " +
+                         value.operand + ", 1\n";
+        if (numeric->category == NumericCategory::FloatingPoint) {
+            const auto bits = newTemporary();
+            const auto single = newTemporary();
+            instructions_ += "  " + bits + " = trunc i64 " + raw + " to i32\n"
+                             "  " + single + " = bitcast i32 " + bits + " to float\n";
+            emitPrintValue({"fp32", single}, {});
+        } else {
+            const auto widthType = "i" + std::to_string(numeric->width);
+            const auto narrow = newTemporary();
+            const auto extended = newTemporary();
+            const auto extension = numeric->category == NumericCategory::SignedInteger
+                                       ? "sext" : "zext";
+            instructions_ += "  " + narrow + " = trunc i64 " + raw + " to " +
+                             widthType + "\n"
+                             "  " + extended + " = " + extension + " " + widthType +
+                             " " + narrow + " to i64\n";
+            emitPrintValue({type, extended}, {});
+        }
+        instructions_ += "  br label %" + endLabel + "\n";
+    }
     instructions_ += stringLabel + ":\n";
     const auto stringData = newTemporary();
     const auto stringLength = newTemporary();

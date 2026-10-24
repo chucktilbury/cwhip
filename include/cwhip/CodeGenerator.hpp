@@ -99,6 +99,14 @@ private:
     Value emitCallbackCall(const Expression& expression);
     std::string emitCallbackBridge(const std::string& type);
     Value emitIntegerExpression(const Expression& expression);
+    Value convertNumericValue(Value value, const std::string& target,
+                              const SourceLocation& location);
+    std::string numericAbiExtension(const std::string& type) const;
+    std::string abiParameterType(const std::string& type) const;
+    Value emitNumericComparison(const std::string& operation, Value left, Value right,
+                                const SourceLocation& location);
+    void emitNumericFailureIf(const std::string& condition, const std::string& message,
+                              const SourceLocation& location);
     Value emitArithmeticOperation(const std::string& operation,
                                   const SourceLocation& location,
                                   const Value& left, const Value& right);

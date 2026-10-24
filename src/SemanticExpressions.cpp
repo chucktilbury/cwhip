@@ -15,6 +15,7 @@
 #include <cstdint>
 #include <cmath>
 #include <limits>
+#include <cstring>
 
 namespace cwhip {
 namespace {
@@ -46,6 +47,24 @@ bool parseIntegerMagnitude(const std::string& literal, std::uint64_t& value) {
     const auto* end = literal.data() + literal.size();
     const auto parsed = std::from_chars(begin, end, value, hexadecimal ? 16 : 10);
     return parsed.ec == std::errc{} && parsed.ptr == end;
+}
+
+std::int64_t signedBits(std::uint64_t bits) {
+    std::int64_t value;
+    std::memcpy(&value, &bits, sizeof(value));
+    return value;
+}
+
+std::int64_t normalizeIntegerBits(std::uint64_t bits, const std::string& type) {
+    const auto* numeric = numericType(type);
+    if (numeric->width < 64) {
+        const auto mask = (std::uint64_t{1} << numeric->width) - 1;
+        bits &= mask;
+        if (numeric->category == NumericCategory::SignedInteger &&
+            (bits & (std::uint64_t{1} << (numeric->width - 1))))
+            bits |= ~mask;
+    }
+    return signedBits(bits);
 }
 
 std::string smallestSignedIntegerType(std::uint64_t magnitude, bool negative) {
@@ -98,11 +117,14 @@ std::string classifyFloatingLiteral(const std::string& literal,
     return "fp64";
 }
 
-bool isMinimumIntegerMagnitude(const Expression& expression) {
-    if (expression.kind != ExpressionKind::Integer) return false;
-    std::uint64_t magnitude = 0;
-    return parseIntegerMagnitude(expression.value, magnitude) &&
-           magnitude == (std::uint64_t{1} << 63);
+bool floatingConstant(const Expression& expression) {
+    if (expression.kind == ExpressionKind::Float) return true;
+    if (expression.kind == ExpressionKind::Cast) return isFloatingType(expression.value);
+    if (expression.kind == ExpressionKind::Unary && expression.left)
+        return floatingConstant(*expression.left);
+    return expression.kind == ExpressionKind::Binary && expression.left &&
+           expression.right &&
+           (floatingConstant(*expression.left) || floatingConstant(*expression.right));
 }
 
 bool constantInteger(const Expression& expression, std::int64_t& value) {
@@ -113,11 +135,6 @@ bool constantInteger(const Expression& expression, std::int64_t& value) {
         return parsed.ec == std::errc{} &&
                parsed.ptr == expression.value.data() + expression.value.size();
     }
-    if (expression.kind == ExpressionKind::Unary && expression.value == "-" &&
-        expression.left && isMinimumIntegerMagnitude(*expression.left)) {
-        value = std::numeric_limits<std::int64_t>::min();
-        return true;
-    }
     if (expression.kind == ExpressionKind::Integer) {
         std::uint64_t magnitude = 0;
         if (!parseIntegerMagnitude(expression.value, magnitude) ||
@@ -126,43 +143,6 @@ bool constantInteger(const Expression& expression, std::int64_t& value) {
             return false;
         }
         value = static_cast<std::int64_t>(magnitude);
-        return true;
-    }
-    if (expression.kind == ExpressionKind::Unary && expression.left != nullptr) {
-        if (!constantInteger(*expression.left, value)) return false;
-        if (expression.value == "-") {
-            if (value == std::numeric_limits<std::int64_t>::min()) return false;
-            value = -value;
-        }
-        return expression.value == "-" || expression.value == "+";
-    }
-    if (expression.kind != ExpressionKind::Binary || expression.left == nullptr ||
-        expression.right == nullptr) {
-        return false;
-    }
-    std::int64_t left = 0;
-    std::int64_t right = 0;
-    if (!constantInteger(*expression.left, left) ||
-        !constantInteger(*expression.right, right)) {
-        return false;
-    }
-    if (expression.value == "+") {
-        return !__builtin_add_overflow(left, right, &value);
-    }
-    if (expression.value == "-") {
-        return !__builtin_sub_overflow(left, right, &value);
-    }
-    if (expression.value == "*") {
-        return !__builtin_mul_overflow(left, right, &value);
-    }
-    if (expression.value == "/" && right != 0 &&
-        !(left == std::numeric_limits<std::int64_t>::min() && right == -1)) {
-        value = left / right;
-        return true;
-    }
-    if (expression.value == "%" && right != 0 &&
-        !(left == std::numeric_limits<std::int64_t>::min() && right == -1)) {
-        value = left % right;
         return true;
     }
     return false;
@@ -202,6 +182,12 @@ std::int64_t SemanticAnalyzer::resolveEnumValue(ClassDeclaration& declaration,
     try {
         if (member.initializer) {
             value = evaluateEnumExpression(*member.initializer, declaration, index);
+            if (!isIntegerType(member.initializer->resolvedType))
+                throw DiagnosticError(member.location,
+                                      "enum value must be a compile-time integer expression");
+            if (member.initializer->resolvedType == "uint64" && value < 0)
+                throw DiagnosticError(member.location,
+                                      "enum value is outside the signed int64 range");
         } else {
             std::size_t previousIndex = index;
             while (previousIndex != 0) {
@@ -317,69 +303,183 @@ std::int64_t SemanticAnalyzer::evaluateEnumExpression(Expression& expression,
         const auto value = resolveEnumValue(*mutableOwner, targetIndex);
         expression.kind = ExpressionKind::EnumConstant;
         expression.value = std::to_string(value);
+        expression.resolvedType = "int64";
         if (classQualified) expression.left.reset();
         return value;
     }
 
+    if (expression.kind == ExpressionKind::Boolean) {
+        expression.resolvedType = "bool";
+        return expression.value == "true" ? 1 : 0;
+    }
+    if (expression.kind == ExpressionKind::Unsigned) {
+        std::uint64_t value = 0;
+        if (!parseIntegerMagnitude(
+                expression.value.substr(0, expression.value.size() - 1), value))
+            throw DiagnosticError(expression.location, "enum unsigned literal is out of range");
+        expression.resolvedType = smallestUnsignedIntegerType(value);
+        return signedBits(value);
+    }
     if (expression.kind == ExpressionKind::Integer ||
         expression.kind == ExpressionKind::EnumConstant) {
         std::int64_t value = 0;
-        if (constantInteger(expression, value)) return value;
+        if (constantInteger(expression, value)) {
+            expression.resolvedType = expression.kind == ExpressionKind::EnumConstant
+                ? "int64" : smallestSignedIntegerType(static_cast<std::uint64_t>(value), false);
+            return value;
+        }
         throw DiagnosticError(expression.location,
                               "enum integer literal is outside the signed 64-bit range");
     }
     if (expression.kind == ExpressionKind::Unary && expression.left) {
-        if (expression.value == "-" &&
-            isMinimumIntegerMagnitude(*expression.left)) {
-            expression.left->kind = ExpressionKind::EnumConstant;
-            expression.left->value = "9223372036854775808";
-            return std::numeric_limits<std::int64_t>::min();
+        if (expression.value == "-" && expression.left->kind == ExpressionKind::Integer) {
+            std::uint64_t magnitude = 0;
+            if (!parseIntegerMagnitude(expression.left->value, magnitude) ||
+                (expression.resolvedType = smallestSignedIntegerType(magnitude, true)).empty())
+                throw DiagnosticError(expression.location, "enum integer literal is out of range");
+            return signedBits(std::uint64_t{0} - magnitude);
         }
         auto value = evaluateEnumExpression(*expression.left, declaration, memberIndex);
+        expression.resolvedType = expression.left->resolvedType;
+        if (!isIntegerType(expression.resolvedType))
+            throw DiagnosticError(expression.location, "integer unary operand required");
         if (expression.value == "+") return value;
+        if (expression.value == "~")
+            return normalizeIntegerBits(~static_cast<std::uint64_t>(value),
+                                        expression.resolvedType);
         if (expression.value == "-") {
-            if (value == std::numeric_limits<std::int64_t>::min()) {
+            const auto* type = numericType(expression.resolvedType);
+            if (type->category == NumericCategory::UnsignedInteger)
+                throw DiagnosticError(expression.location, "unary minus requires a signed operand");
+            std::int64_t minimum = 0;
+            std::from_chars(type->range.minimum.data(),
+                            type->range.minimum.data() + type->range.minimum.size(), minimum);
+            if (value == minimum) {
                 throw DiagnosticError(expression.location,
-                                      "enum constant expression overflows signed 64-bit range");
+                                      "integer overflow in required constant expression");
             }
             return -value;
         }
         throw DiagnosticError(expression.location,
                               "unsupported unary operator in enum constant expression");
     }
+    if (expression.kind == ExpressionKind::Cast && expression.arguments.size() == 1 &&
+        (isIntegerType(expression.value) || expression.value == "bool")) {
+        auto& argument = *expression.arguments.front();
+        expression.resolvedType = expression.value;
+        if (expression.value == "bool") {
+            return floatingConstant(argument)
+                ? evaluateFloatingConstant(argument, declaration, memberIndex) != 0.0
+                : evaluateEnumExpression(argument, declaration, memberIndex) != 0;
+        }
+        if (floatingConstant(argument)) {
+            const auto value = std::trunc(
+                evaluateFloatingConstant(argument, declaration, memberIndex));
+            const auto* target = numericType(expression.value);
+            const bool signedTarget = target->category == NumericCategory::SignedInteger;
+            const auto bound = std::ldexp(1.0, target->width - (signedTarget ? 1 : 0));
+            if (!std::isfinite(value) || value < (signedTarget ? -bound : 0.0) ||
+                value >= bound)
+                throw DiagnosticError(expression.location,
+                                      "invalid numeric conversion in required constant expression");
+            return signedTarget ? static_cast<std::int64_t>(value)
+                                : signedBits(static_cast<std::uint64_t>(value));
+        }
+        const auto value = evaluateEnumExpression(argument, declaration, memberIndex);
+        return normalizeIntegerBits(static_cast<std::uint64_t>(value), expression.value);
+    }
     if (expression.kind == ExpressionKind::Binary && expression.left && expression.right) {
         const auto left =
             evaluateEnumExpression(*expression.left, declaration, memberIndex);
         const auto right =
             evaluateEnumExpression(*expression.right, declaration, memberIndex);
+        const auto& operation = expression.value;
+        if (!isIntegerType(expression.left->resolvedType) ||
+            !isIntegerType(expression.right->resolvedType))
+            throw DiagnosticError(expression.location, "integer constant operands required");
+        const bool shift = operation == "<<" || operation == ">>";
+        const auto common = shift ? std::optional<std::string>(expression.left->resolvedType)
+                                  : commonIntegerType(expression.left->resolvedType,
+                                                      expression.right->resolvedType);
+        if (!common)
+            throw DiagnosticError(expression.location,
+                                  "no common numeric type in required constant expression");
+        expression.resolvedType = *common;
+        const auto* numeric = numericType(*common);
+        if (shift) {
+            const bool negative = numericType(expression.right->resolvedType)->category ==
+                                      NumericCategory::SignedInteger && right < 0;
+            if (negative || static_cast<std::uint64_t>(right) >= numeric->width)
+                throw DiagnosticError(expression.location,
+                                      "invalid shift count in required constant expression");
+            auto bits = static_cast<std::uint64_t>(left);
+            const auto count = static_cast<unsigned>(right);
+            if (operation == "<<") bits <<= count;
+            else {
+                bits >>= count;
+                if (numeric->category == NumericCategory::SignedInteger && left < 0 && count)
+                    bits |= (~std::uint64_t{0}) << (64 - count);
+            }
+            return normalizeIntegerBits(bits, *common);
+        }
+        const auto lhs = static_cast<std::uint64_t>(left);
+        const auto rhs = static_cast<std::uint64_t>(right);
+        if (operation == "&") return normalizeIntegerBits(lhs & rhs, *common);
+        if (operation == "|") return normalizeIntegerBits(lhs | rhs, *common);
+        if (operation == "^") return normalizeIntegerBits(lhs ^ rhs, *common);
+        if (numeric->category == NumericCategory::UnsignedInteger) {
+            std::uint64_t bits = 0;
+            if (operation == "+") bits = lhs + rhs;
+            else if (operation == "-") bits = lhs - rhs;
+            else if (operation == "*") bits = lhs * rhs;
+            else if ((operation == "/" || operation == "%") && rhs == 0)
+                throw DiagnosticError(expression.location,
+                                      "division by zero in required constant expression");
+            else if (operation == "/") bits = lhs / rhs;
+            else if (operation == "%") bits = lhs % rhs;
+            else throw DiagnosticError(expression.location, "invalid constant operator");
+            return normalizeIntegerBits(bits, *common);
+        }
+        std::int64_t minimum = 0;
+        std::int64_t maximum = 0;
+        std::from_chars(numeric->range.minimum.data(),
+                        numeric->range.minimum.data() + numeric->range.minimum.size(), minimum);
+        std::from_chars(numeric->range.maximum.data(),
+                        numeric->range.maximum.data() + numeric->range.maximum.size(), maximum);
+        const auto checked = [&](std::int64_t value) {
+            if (value < minimum || value > maximum)
+                throw DiagnosticError(expression.location,
+                                      "integer overflow in required constant expression");
+            return value;
+        };
         std::int64_t value = 0;
         if (expression.value == "+") {
             if (__builtin_add_overflow(left, right, &value)) {
                 throw DiagnosticError(expression.location,
                                       "enum constant expression overflows signed 64-bit range");
             }
-            return value;
+            return checked(value);
         }
         if (expression.value == "-") {
             if (__builtin_sub_overflow(left, right, &value)) {
                 throw DiagnosticError(expression.location,
                                       "enum constant expression overflows signed 64-bit range");
             }
-            return value;
+            return checked(value);
         }
         if (expression.value == "*") {
             if (__builtin_mul_overflow(left, right, &value)) {
                 throw DiagnosticError(expression.location,
                                       "enum constant expression overflows signed 64-bit range");
             }
-            return value;
+            return checked(value);
         }
         if (expression.value == "/" || expression.value == "%") {
             if (right == 0) {
                 throw DiagnosticError(expression.location,
                                       "division by zero in enum constant expression");
             }
-            if (left == std::numeric_limits<std::int64_t>::min() && right == -1) {
+            if (left == minimum && right == -1) {
                 throw DiagnosticError(expression.location,
                                       "enum constant expression overflows signed 64-bit range");
             }
@@ -388,6 +488,81 @@ std::int64_t SemanticAnalyzer::evaluateEnumExpression(Expression& expression,
     }
     throw DiagnosticError(expression.location,
                           "enum value must be a compile-time integer expression");
+}
+
+double SemanticAnalyzer::evaluateFloatingConstant(Expression& expression,
+                                                   ClassDeclaration& declaration,
+                                                   std::size_t memberIndex) {
+    static_assert(std::numeric_limits<float>::is_iec559 &&
+                  std::numeric_limits<float>::digits == 24 &&
+                  std::numeric_limits<double>::is_iec559 &&
+                  std::numeric_limits<double>::digits == 53,
+                  "constant evaluation requires IEEE binary32/binary64");
+    const auto operand = [&](Expression& child, const std::string& target) -> double {
+        if (floatingConstant(child)) {
+            const auto value = evaluateFloatingConstant(child, declaration, memberIndex);
+            return target == "fp32" ? static_cast<double>(static_cast<float>(value)) : value;
+        }
+        const auto value = evaluateEnumExpression(child, declaration, memberIndex);
+        if (child.resolvedType != "bool" &&
+            numericType(child.resolvedType)->category == NumericCategory::UnsignedInteger) {
+            const auto unsignedValue = static_cast<std::uint64_t>(value);
+            return target == "fp32" ? static_cast<double>(static_cast<float>(unsignedValue))
+                                    : static_cast<double>(unsignedValue);
+        }
+        return target == "fp32" ? static_cast<double>(static_cast<float>(value))
+                                : static_cast<double>(value);
+    };
+    if (expression.kind == ExpressionKind::Float) {
+        expression.resolvedType = classifyFloatingLiteral(expression.value, expression.location);
+        auto text = expression.value;
+        if (text.size() >= 3 && text.compare(text.size() - 3, 3, "f64") == 0)
+            text.resize(text.size() - 3);
+        if (expression.resolvedType == "fp32") {
+            float value = 0;
+            std::from_chars(text.data(), text.data() + text.size(), value);
+            return value;
+        }
+        double value = 0;
+        std::from_chars(text.data(), text.data() + text.size(), value);
+        return value;
+    }
+    if (expression.kind == ExpressionKind::Cast && expression.arguments.size() == 1 &&
+        isFloatingType(expression.value)) {
+        expression.resolvedType = expression.value;
+        return operand(*expression.arguments.front(), expression.value);
+    }
+    if (expression.kind == ExpressionKind::Unary && expression.left) {
+        const auto value = operand(*expression.left, "fp64");
+        expression.resolvedType = expression.left->resolvedType;
+        if (expression.value == "-") return -value;
+        if (expression.value == "+") return value;
+    }
+    if (expression.kind == ExpressionKind::Binary && expression.left && expression.right) {
+        const auto left = operand(*expression.left, "fp64");
+        const auto right = operand(*expression.right, "fp64");
+        const auto common = commonNumericType(expression.left->resolvedType,
+                                             expression.right->resolvedType);
+        if (!common || !isFloatingType(*common))
+            throw DiagnosticError(expression.location, "invalid floating constant operands");
+        expression.resolvedType = *common;
+        warnNumericConversion(*common, expression.left->resolvedType, expression.left->location);
+        warnNumericConversion(*common, expression.right->resolvedType, expression.right->location);
+        const auto calculate = [&](auto lhs, auto rhs) -> double {
+            using Number = decltype(lhs);
+            // Materialize each operation in its selected IEEE format.
+            volatile Number rounded;
+            if (expression.value == "+") rounded = lhs + rhs;
+            else if (expression.value == "-") rounded = lhs - rhs;
+            else if (expression.value == "*") rounded = lhs * rhs;
+            else if (expression.value == "/") rounded = lhs / rhs;
+            else throw DiagnosticError(expression.location, "invalid floating constant operator");
+            return rounded;
+        };
+        return *common == "fp32" ? calculate(static_cast<float>(left), static_cast<float>(right))
+                                 : calculate(left, right);
+    }
+    throw DiagnosticError(expression.location, "invalid floating constant expression");
 }
 
 void SemanticAnalyzer::resolveEnumConstants(Program& program) {
@@ -899,10 +1074,6 @@ std::string SemanticAnalyzer::analyzeExpression(Expression& expression,
                 auto& step = *expression.arguments[2];
                 if (!isIntegerType(analyzeExpression(step))) {
                     throw DiagnosticError(step.location, "list slice step must be an integer");
-                }
-                std::int64_t constantStep = 0;
-                if (constantInteger(step, constantStep) && constantStep == 0) {
-                    throw DiagnosticError(step.location, "list slice step cannot be zero");
                 }
             }
             return "list";
@@ -1482,6 +1653,10 @@ std::string SemanticAnalyzer::analyzeExpression(Expression& expression,
             expression.resolvedType = operand;
             return operand;
         }
+        if (expression.value == "~" && isIntegerType(operand)) {
+            expression.resolvedType = operand;
+            return operand;
+        }
         if (expression.value == "-" && isNumericType(operand) &&
             !isIntegerType(operand)) {
             expression.resolvedType = operand;
@@ -1519,6 +1694,16 @@ std::string SemanticAnalyzer::analyzeExpression(Expression& expression,
                 left == "type" || isCallbackType(left) ? left : "");
         }
         const auto& operation = expression.value;
+        if (operation == "<<" || operation == ">>" ||
+            operation == "&" || operation == "|" || operation == "^") {
+            if (!isIntegerType(left) || !isIntegerType(right))
+                throw DiagnosticError(expression.location,
+                                      "bitwise operators and shifts require integer operands");
+            if (operation == "<<" || operation == ">>") {
+                expression.resolvedType = left;
+                return left;
+            }
+        }
         if (operation == "&&" || operation == "||") {
             if (left != "bool" || right != "bool") {
                 throw DiagnosticError(expression.location,

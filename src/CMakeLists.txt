@@ -239,6 +239,7 @@ add_library(cwhip_frontend
     Ast.cpp
     CommandLine.cpp
     CodeGenerator.cpp
+    CodeGeneratorNumeric.cpp
     CodeGeneratorCallbacks.cpp
     CodeGeneratorDebug.cpp
     CodeGeneratorDispatch.cpp
@@ -262,6 +263,9 @@ add_library(cwhip_frontend
     SourceLoader.cpp
 )
 target_link_libraries(cwhip_frontend PUBLIC cwhip_headers)
+if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    target_compile_options(cwhip_frontend PRIVATE -ffp-contract=off)
+endif()
 if(CWHIP_FUZZ)
     target_compile_options(cwhip_frontend PRIVATE -fsanitize=fuzzer-no-link)
 endif()

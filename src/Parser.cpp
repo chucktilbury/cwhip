@@ -629,7 +629,10 @@ Statement Parser::parseExpressionStatement() {
     Token assignmentOperator;
     if (check(TokenType::Equal) || check(TokenType::PlusEqual) ||
         check(TokenType::MinusEqual) || check(TokenType::StarEqual) ||
-        check(TokenType::SlashEqual) || check(TokenType::PercentEqual)) {
+        check(TokenType::SlashEqual) || check(TokenType::PercentEqual) ||
+        check(TokenType::AmpersandEqual) || check(TokenType::PipeEqual) ||
+        check(TokenType::CaretEqual) || check(TokenType::ShiftLeftEqual) ||
+        check(TokenType::ShiftRightEqual)) {
         assignmentOperator = tokens_[current_++];
         Statement statement;
         statement.kind = StatementKind::Assignment;
@@ -910,7 +913,55 @@ std::unique_ptr<Expression> Parser::parseNot() {
         validateExpressionDepth(*expression);
         return expression;
     }
-    return parseComparison();
+    return parseBitwiseOr();
+}
+
+std::unique_ptr<Expression> Parser::parseBitwiseOr() {
+    auto expression = parseBitwiseXor();
+    while (match(TokenType::Pipe)) {
+        const auto operation = previous();
+        auto combined = std::make_unique<Expression>();
+        combined->kind = ExpressionKind::Binary;
+        combined->location = operation.location;
+        combined->value = operation.text;
+        combined->left = std::move(expression);
+        combined->right = parseBitwiseXor();
+        validateExpressionDepth(*combined);
+        expression = std::move(combined);
+    }
+    return expression;
+}
+
+std::unique_ptr<Expression> Parser::parseBitwiseXor() {
+    auto expression = parseBitwiseAnd();
+    while (match(TokenType::Caret)) {
+        const auto operation = previous();
+        auto combined = std::make_unique<Expression>();
+        combined->kind = ExpressionKind::Binary;
+        combined->location = operation.location;
+        combined->value = operation.text;
+        combined->left = std::move(expression);
+        combined->right = parseBitwiseAnd();
+        validateExpressionDepth(*combined);
+        expression = std::move(combined);
+    }
+    return expression;
+}
+
+std::unique_ptr<Expression> Parser::parseBitwiseAnd() {
+    auto expression = parseComparison();
+    while (match(TokenType::Ampersand)) {
+        const auto operation = previous();
+        auto combined = std::make_unique<Expression>();
+        combined->kind = ExpressionKind::Binary;
+        combined->location = operation.location;
+        combined->value = operation.text;
+        combined->left = std::move(expression);
+        combined->right = parseComparison();
+        validateExpressionDepth(*combined);
+        expression = std::move(combined);
+    }
+    return expression;
 }
 
 std::unique_ptr<Expression> Parser::parseComparison() {
@@ -930,7 +981,7 @@ std::unique_ptr<Expression> Parser::parseComparison() {
 }
 
 std::unique_ptr<Expression> Parser::parseRelational() {
-    auto expression = parseAddition();
+    auto expression = parseShift();
     while (check(TokenType::Is) || check(TokenType::Less) ||
            check(TokenType::LessEqual) || check(TokenType::Greater) ||
            check(TokenType::GreaterEqual)) {
@@ -945,8 +996,24 @@ std::unique_ptr<Expression> Parser::parseRelational() {
         } else {
             combined->kind = ExpressionKind::Binary;
             combined->value = operation.text;
-            combined->right = parseAddition();
+            combined->right = parseShift();
         }
+        validateExpressionDepth(*combined);
+        expression = std::move(combined);
+    }
+    return expression;
+}
+
+std::unique_ptr<Expression> Parser::parseShift() {
+    auto expression = parseAddition();
+    while (check(TokenType::ShiftLeft) || check(TokenType::ShiftRight)) {
+        const auto operation = tokens_[current_++];
+        auto combined = std::make_unique<Expression>();
+        combined->kind = ExpressionKind::Binary;
+        combined->location = operation.location;
+        combined->value = operation.text;
+        combined->left = std::move(expression);
+        combined->right = parseAddition();
         validateExpressionDepth(*combined);
         expression = std::move(combined);
     }
@@ -1027,7 +1094,7 @@ std::unique_ptr<Expression> Parser::parseMultiplication() {
 }
 
 std::unique_ptr<Expression> Parser::parseUnary() {
-    if (check(TokenType::Minus) || check(TokenType::Plus)) {
+    if (check(TokenType::Minus) || check(TokenType::Plus) || check(TokenType::Tilde)) {
         const NestingGuard nesting(*this);
         const auto operation = tokens_[current_++];
         auto expression = std::make_unique<Expression>();
