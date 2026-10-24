@@ -61,7 +61,7 @@ The `sourceview/0.1.0` package is enabled by
 5. It provides editor-oriented source buffers/views, search and replace,
 undo/redo, cursor information, and shortcut binding. The cwhip language syntax
 definition lives with that package. The Cwhip-written first-iteration editor
-is in `examples/editor/`; see [its guide](../doc/cwhip-EDITOR.md). Neither
+is in `examples/editor/`; see [its guide](../doc/CEDIT.md). Neither
 optional package is linked into the compiler or programs that do not import it.
 Fresh configurations default these options to available development dependencies;
 see [build and installation](../doc/INSTALLATION.md) for compiler-only settings.

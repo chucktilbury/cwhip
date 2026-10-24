@@ -143,13 +143,15 @@ treated as a Cwhip object merely because of its address.
 
 In Cwhip frames, identified by source-file DWARF and named DWARF types:
 
-- `int`, `unsigned`, `float` and `bool` have scalar values (`true`/`false`
-  for booleans); null object references show `null`.
+- Fixed-width integer types (`int8`, `int16`, `int32`, `int64`, `uint8`,
+  `uint16`, `uint32`, `uint64`), floating types (`fp32`, `fp64`), and `bool`
+  have scalar values (`true`/`false` for booleans); null object references
+  show `null`.
 - `String` shows quoted UTF-8 contents with escaped quotes, backslashes and
   control characters, including embedded NUL. Invalid UTF-8 bytes are escaped.
 - `list` and `dict` show their length and up to eight entries; `buffer` shows
-  its length and up to 256 bytes in hexadecimal. Runtime-tagged integer,
-  unsigned, float, boolean and String entries are decoded. Nested containers
+  its length and up to 256 bytes in hexadecimal. Runtime-tagged numeric,
+  boolean and String entries are decoded. Nested containers
   are bounded to two levels; other tags remain explicitly labeled runtime tags.
 - Classes show their DWARF type, runtime field count and address with
   **members unavailable**. The compiler currently emits forward declarations,
