@@ -115,6 +115,7 @@ and LLVM representation. Other built-in types include:
 | `list` | Ordered, dynamically sized, heterogeneous collection. |
 | `dict` | String-keyed collection with dynamically typed values. |
 | `buffer` | Mutable sequence of bytes. |
+| `range<T>` | Immutable inclusive integer interval, traversed in endpoint order; `T` is a fixed-width integer type. |
 | `handle` | Opaque native/runtime handle with no built-in language operations. |
 | `any` | Internal inferred type for dynamically tagged values, especially collection reads and loop values. It is not a user-declarable type. |
 | `type` | Runtime type descriptor, produced by `type(value)` or a type name used as a value. |
@@ -122,7 +123,7 @@ and LLVM representation. Other built-in types include:
 
 Although `any` is a reserved token and an internal inferred type name, users
 cannot declare `any` variables, fields, parameters, or return types. Collection
-reads and foreach values are inferred as `any` internally; that does not make
+reads and list/dict foreach values are inferred as `any` internally; that does not make
 `any` legal in a declaration. Such values can be inspected with `is` or
 `type(...)`, printed, compared with `null`, and stored or passed where the
 dynamic value is supported. To use a value in ordinary member access or
@@ -400,6 +401,8 @@ block; there is no `else if` production. The `do` body executes at least once.
 iterates dict keys and values. The value variable has type `any`; the key
 variable has type `String`. `break` and `continue` are valid only in loops.
 They cannot cross a switch branch boundary to reach an outer loop.
+`for (i in bounds)` also accepts [integer ranges](#integer-ranges), binding
+a read-only integer of the range's endpoint type rather than `any`.
 
 ```cwhip
 // Complete program: while, continue, and for-each.
@@ -824,6 +827,113 @@ start {
 }
 ```
 
+## Integer ranges
+
+`first..last` forms a first-class `range<T>`, not a list or a syntax-only loop
+construct. Both endpoints are inclusive. Ascending iteration steps by `+1`;
+descending iteration steps by `-1`. Membership ignores direction. A singleton
+such as `4..4` visits `4` once. **Every formed integer range is nonempty**:
+`0..-1` visits `0, -1`, not zero items. For index traversal, guard `count > 0`
+before constructing `0..count-1`, or iterate the collection directly.
+
+Endpoints are integer expressions evaluated **once, left to right**, when the
+range is formed. The values are captured, not live variable references.
+Changing either original variable is a normal write: it neither changes an
+existing range nor raises an error. A newly formed range sees the new values.
+
+```cwhip
+// Complete program: parameters, storage, return values, snapshots, and slicing.
+// test: {"stdout": "123/100/true/false/100true/dcb"}
+class Worker {
+    range<int64> processRange(range<int64> values) { return values }
+}
+start {
+    Worker worker = Worker()
+    int64 first = 1
+    int64 last = 3
+    range<int64> saved = worker.processRange(first..last)
+    for (i in saved) {
+        print(i)
+        last = 100 // This write does not extend the loop.
+    }
+    print("/{}/{}/{}/", last, 2 in saved, 100 in saved)
+    range<int64> updated = last..last
+    for (i in updated) { print(i) }
+    list stored = [saved]
+    range<int64> restored = stored[0]
+    print(2 in restored)
+    strg text = "abcd"
+    print("/")
+    print(text[3..1])
+}
+```
+
+`T` is the existing lossless common integer type of the two endpoint types.
+For example, `int8(-1)..uint8(255)` has type `range<int16>`. Small unsuffixed
+literal endpoints infer small types: `1..3` is `range<int8>`.
+Locals, fields, parameters, returns, callbacks, and overloads accept
+`range<int8>` through `range<uint64>`. Assigning/passing a range can widen its
+endpoint type losslessly (so `range<int64> r = 1..3` is valid), but cannot
+narrow it implicitly. Mixing any signed endpoint type with `uint64` has no
+lossless common type and requires explicit endpoint conversion, even when the
+current values happen to be small. Float, bool, object, null, and range
+endpoints are rejected; an explicit valid integer conversion may be used
+where appropriate.
+
+The loop binding has type `T` and is read-only, including compound writes and
+mutable inline captures. Copy it to a local before changing it. It has normal
+lexical scope, with nested shadowing permitted. `break`, `continue`, return,
+and exception/finally cleanup behave as in other loops. Iteration checks the
+final endpoint before advancing, including at `int64` minimum and `uint64`
+maximum. Iteration and membership use constant-size range storage, not a
+materialized list. Iterating a huge range still takes time proportional to
+the number of visited integers.
+
+`value in bounds` requires an integer value and a range. Integer comparison is
+exact across widths and signedness: a negative signed integer is not in
+`uint64(0)..uint64(18446744073709551615u)`. `..` binds less tightly than shifts
+and arithmetic and more tightly than `in` and comparisons, so
+`value in lower + 1..upper - 1` has the expected endpoints. Parenthesize
+bitwise endpoint expressions. `1..2..3` is invalid.
+
+Range values may be copied, reassigned, returned, and stored in lists/dicts.
+Payloads are immutable; copies can share the captured interval safely.
+`type(r)` and `r is range<int64>` expose the exact endpoint type. Collection
+extraction and `as range<int64>` check that exact type, rather than silently
+widening a dynamically tagged value; extract its actual type first to widen
+it. Printing or default formatting displays `first..last`. Range-to-range
+equality and custom strides are not implemented. A nullable range reference
+can hold `null`, but using it for iteration, membership, or slicing raises a
+catchable error; null is not an empty range.
+
+### Inclusive copy slices
+
+`items[first..last]` and `items[bounds]` accept range values for lists, Strings,
+and buffers. Endpoints are inclusive, and the normalized endpoint order
+controls traversal, so `"abcd"[3..1]` produces `"dcb"`. Both endpoints must
+identify existing elements; there is **no clamping**. Existing indexing rules
+apply: negative indices are relative to length (`-1` means the last element).
+Indices outside the collection, including `uint64` values too large to index
+it, raise a source-located catchable exception. Empty collections have no valid
+range slice, including `0..0`.
+
+The result has independent outer storage. List elements keep their ordinary
+reference semantics: referenced objects or nested collections are shared,
+not deep-cloned. Buffers and Strings copy their bytes. Slice assignment and
+views are not supported.
+
+String indices remain **UTF-8 byte offsets**, not code points or grapheme
+clusters. The selected byte sequence must be valid UTF-8, or slicing raises a
+catchable exception. For example, `"aéz"[1..2]` selects the two-byte `é`,
+whereas `[1..1]` splits it, and reversing its bytes is invalid. Reverse ASCII
+slices work normally; this feature does not add Unicode-aware reversal.
+
+Existing `list[start:end:step]`, `buffer[start:end]`, and String `.slice`
+methods keep their half-open/clamped semantics. Dicts retain colon
+insertion-order slices, not range-index slices. Switch case labels retain
+their separate compile-time integer restrictions, grouping, and
+direction-independent interval matching; a stored range cannot be a label.
+
 ## Strings and their methods
 
 String literals construct managed `String` values. Strings expose a
@@ -887,7 +997,7 @@ handle nativeResource = null
 ## Collections
 
 List literals use `[...]` and may mix supported scalar values, strings,
-type descriptors, class references, lists, dicts, buffers, handles, and
+type descriptors, integer ranges, class references, lists, dicts, buffers, handles, and
 `null`. Values are
 stored with dynamic tags, but `any` is not a type that can be declared for an
 element, variable, field, parameter, or return.
@@ -994,8 +1104,8 @@ instructions do not execute in parallel. Exceptions use the host C ABI's
 `setjmp`/`longjmp` mechanism rather than LLVM landing pads.
 
 Known language/backend boundaries include no free-standing functions, no
-automatic user-object `toString()` dispatch, no direct String index/slice
-syntax, no Unicode code-point operations, and no native-ABI lowering for
+automatic user-object `toString()` dispatch, no scalar String index syntax
+(range-index copy slices are supported), no Unicode code-point operations, and no native-ABI lowering for
 `any`. There is no general reflection API beyond `type(value)`. String
 methods, Cwhip class methods, and C-bound methods described elsewhere remain
 available; these limitations should not be confused with the obsolete claim

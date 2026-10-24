@@ -296,14 +296,6 @@ void SemanticAnalyzer::analyzeStatement(Statement& statement) {
             }
             (void)analyzeExpression(*statement.target);
         }
-        if (statement.target->kind == ExpressionKind::Identifier) {
-            const auto index = findSymbolIndex(statement.target->value);
-            if (index != symbols_.size() && symbols_[index].readOnly) {
-                throw DiagnosticError(statement.target->location,
-                                      "exception binding '" + statement.target->value +
-                                          "' is read-only");
-            }
-        }
         const auto valueType = analyzeExpression(
             *statement.expressions.front(), compoundAssignment ? "" : targetType);
         if (compoundAssignment) {
@@ -367,10 +359,10 @@ void SemanticAnalyzer::analyzeStatement(Statement& statement) {
         if (!types.empty() && !isNumericType(types.front()) &&
                    types.front() != "bool" &&
                    types.front() != "String" && types.front() != "any" &&
-                   types.front() != "type") {
+                   types.front() != "type" && !isRangeType(types.front())) {
             throw DiagnosticError(statement.location,
                                   "print supports int, bool, float, unsigned, strg, collection "
-                                  "element values, or 'type' values only");
+                                  "element values, ranges, or 'type' values only");
         }
         return;
     }
@@ -430,13 +422,15 @@ void SemanticAnalyzer::analyzeStatement(Statement& statement) {
         const auto collectionType = analyzeExpression(*statement.expressions.front());
         const bool list = collectionType == "list";
         const bool dict = collectionType == "dict";
-        if (!list && !dict) {
+        const bool range = isRangeType(collectionType);
+        if (!list && !dict && !range) {
             throw DiagnosticError(statement.expressions.front()->location,
-                                  "for-each requires a list or dict");
+                                  "for-each requires a list, dict, or integer range");
         }
-        if (list && !statement.keyName.empty()) {
+        if ((list || range) && !statement.keyName.empty()) {
             throw DiagnosticError(statement.location,
-                                  "list iteration accepts one value variable");
+                                  std::string(list ? "list" : "range") +
+                                      " iteration accepts one value variable");
         }
         if (!statement.keyName.empty() && statement.keyName == statement.name) {
             throw DiagnosticError(statement.location,
@@ -450,7 +444,8 @@ void SemanticAnalyzer::analyzeStatement(Statement& statement) {
             scopes_.back().emplace(statement.keyName, keyIndex);
         }
         const auto valueIndex = symbols_.size();
-        symbols_.push_back({statement.name, "any", true, statement.location});
+        symbols_.push_back({statement.name, range ? rangeElementType(collectionType) : "any",
+                            true, statement.location, range});
         scopes_.back().emplace(statement.name, valueIndex);
         ++loopDepth_;
         analyzeStatements(statement.body);

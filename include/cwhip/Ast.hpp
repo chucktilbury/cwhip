@@ -21,7 +21,8 @@ enum class ExpressionKind {
     Integer, Unsigned, Float, Boolean, String, FormatString, Identifier, ImplicitThis,
     Unary, Binary, Member, EnumConstant, Call,
     ConstructorCall, BufferConstructor, Null, ArrayLiteral, MapLiteral, Index, Slice, Cast,
-    ObjectCast, TypeTest, TypeOf, TypeName, BufferLiteral, BoundMethod, CallbackCall
+    ObjectCast, TypeTest, TypeOf, TypeName, BufferLiteral, BoundMethod, CallbackCall, Range,
+    RangeSlice
 };
 
 struct FormatSpec {

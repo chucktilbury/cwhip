@@ -17,6 +17,7 @@
 
 #include "cwhip/Ast.hpp"
 #include "cwhip/CallbackType.hpp"
+#include "cwhip/RangeType.hpp"
 
 #include <string>
 #include <vector>
@@ -25,6 +26,7 @@ namespace cwhip {
 
 /// Encodes one parameter type as a short, unambiguous code.
 inline std::string mangleTypeCode(const std::string& type) {
+    if (isRangeType(type)) return "R" + mangleTypeCode(rangeElementType(type));
     if (isCallbackType(type)) return callbackSymbol(type);
     if (type == "int8") return "i8";
     if (type == "uint8") return "u8";

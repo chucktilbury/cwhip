@@ -253,6 +253,11 @@ std::optional<std::string> SemanticAnalyzer::lookupClassName(
 void SemanticAnalyzer::normalizeType(
     std::string& type, const std::vector<std::string>& namespacePath,
     const SourceLocation& location) const {
+    if (isRangeType(type)) {
+        if (!isIntegerType(rangeElementType(type)))
+            throw DiagnosticError(location, "range element type must be a fixed-width integer");
+        return;
+    }
     if (isCallbackType(type)) {
         auto signature = callbackSignature(type);
         normalizeType(signature.result, namespacePath, location);
@@ -277,6 +282,7 @@ void SemanticAnalyzer::normalizeType(
 void SemanticAnalyzer::normalizeExpression(
     Expression& expression, const std::vector<std::string>& namespacePath) {
     if (expression.kind == ExpressionKind::ObjectCast &&
+        !isRangeType(expression.value) &&
         !isNumericType(expression.value) && expression.value != "bool" &&
         expression.value != "String" && expression.value != "list" &&
         expression.value != "dict" && expression.value != "buffer" &&
@@ -292,6 +298,7 @@ void SemanticAnalyzer::normalizeExpression(
                                              expression.typeLocation);
     }
     if (expression.kind == ExpressionKind::TypeTest &&
+        !isRangeType(expression.value) &&
         !isNumericType(expression.value) && expression.value != "bool" &&
         expression.value != "list" &&
         expression.value != "dict" && expression.value != "buffer" &&
@@ -307,6 +314,7 @@ void SemanticAnalyzer::normalizeExpression(
                                              expression.typeLocation);
     }
     if (expression.kind == ExpressionKind::TypeName &&
+        !isRangeType(expression.value) &&
         !isNumericType(expression.value) && expression.value != "bool" &&
         expression.value != "list" &&
         expression.value != "dict" && expression.value != "buffer" &&
@@ -860,6 +868,11 @@ void SemanticAnalyzer::analyze(Program& program) {
 
 void SemanticAnalyzer::validateType(const std::string& type, const SourceLocation& location,
                                    bool allowVoid) const {
+    if (isRangeType(type)) {
+        if (!isIntegerType(rangeElementType(type)))
+            throw DiagnosticError(location, "range element type must be a fixed-width integer");
+        return;
+    }
     if (isCallbackType(type)) {
         const auto signature = callbackSignature(type);
         validateType(signature.result, location, true);

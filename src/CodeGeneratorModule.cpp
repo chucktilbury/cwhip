@@ -58,6 +58,7 @@ void CodeGenerator::emitClassTypesAndMetadata(const Program& program) {
     typeDefinitions_ += "%CwhipString = type { ptr, i64 }\n";
     typeDefinitions_ += "%CwhipArrayValue = type { i64, i64, ptr, i64 }\n";
     typeDefinitions_ += "%CwhipArray = type { ptr, i64, i64, ptr }\n";
+    typeDefinitions_ += "%CwhipRange = type { ptr, i64, i64, i64 }\n";
     typeDefinitions_ += "%CwhipMap = type { ptr, i64, i64, ptr, i64, ptr }\n";
     typeDefinitions_ += "%CwhipMapEntry = type { ptr, i64, i64, %CwhipArrayValue }\n";
     typeDefinitions_ += "%CwhipBuffer = type { ptr, i64, i64, ptr }\n";
@@ -742,6 +743,12 @@ std::string CodeGenerator::generate(const Program& program,
            << "@.cw.division.message = private unnamed_addr constant [16 x i8] c\"division by zero\"\n"
            << "@.cw.overflow.message = private unnamed_addr constant [16 x i8] c\"integer overflow\"\n"
            << "@stdout = external global ptr\n"
+           << "declare ptr @cwhip_range_new(i64, i64, i64)\n"
+           << "declare ptr @cwhip_range_convert(ptr, i64)\n"
+           << "declare ptr @cwhip_value_require_range(i64, ptr, i64, ptr, i64, i64, i64)\n"
+           << "declare i32 @cwhip_value_is_range(i64, ptr, i64)\n"
+           << "declare ptr @cwhip_range_slice(ptr, ptr, i64, ptr, i64, i64, i64)\n"
+           << "declare void @cwhip_range_print(ptr)\n"
            << stringGlobals_ << metadataGlobals_ << "\n"
            << externDeclarations_
            << inlineDeclarations_

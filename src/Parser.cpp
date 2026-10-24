@@ -66,6 +66,7 @@ bool Parser::startsOutOfLineDefinition() const {
     case TokenType::FP64:
         ++afterType;
         break;
+    case TokenType::RangeType:
     case TokenType::CallbackType: {
         ++afterType;
         std::size_t depth = 0;
@@ -481,6 +482,7 @@ Statement Parser::parseStatement() {
         check(TokenType::DictType) || check(TokenType::BufferType) ||
         check(TokenType::HandleType) || check(TokenType::AnyType) ||
         check(TokenType::TypeType) || check(TokenType::CallbackType) ||
+        check(TokenType::RangeType) ||
         check(TokenType::Void)) {
         return parseDeclaration();
     }
@@ -790,7 +792,11 @@ Statement Parser::parseSwitch() {
             do {
                 SwitchLabel label;
                 label.lower = parseExpression();
-                if (match(TokenType::DotDot)) label.upper = parseExpression();
+                if (label.lower->kind == ExpressionKind::Range) {
+                    auto range = std::move(label.lower);
+                    label.upper = std::move(range->right);
+                    label.lower = std::move(range->left);
+                }
                 branch.labels.push_back(std::move(label));
             } while (match(TokenType::Comma));
             consume(TokenType::RightParen, "')' after case values");
@@ -1040,8 +1046,9 @@ std::unique_ptr<Expression> Parser::parseComparison() {
 }
 
 std::unique_ptr<Expression> Parser::parseRelational() {
-    auto expression = parseShift();
+    auto expression = parseRange();
     while (check(TokenType::Is) || check(TokenType::Less) ||
+           check(TokenType::In) ||
            check(TokenType::LessEqual) || check(TokenType::Greater) ||
            check(TokenType::GreaterEqual)) {
         const auto operation = tokens_[current_++];
@@ -1054,11 +1061,25 @@ std::unique_ptr<Expression> Parser::parseRelational() {
             combined->value = parseTypeTestName("'is'");
         } else {
             combined->kind = ExpressionKind::Binary;
-            combined->value = operation.text;
-            combined->right = parseShift();
+            combined->value = operation.type == TokenType::In ? "in" : operation.text;
+            combined->right = parseRange();
         }
         validateExpressionDepth(*combined);
         expression = std::move(combined);
+    }
+    return expression;
+}
+
+std::unique_ptr<Expression> Parser::parseRange() {
+    auto expression = parseShift();
+    if (match(TokenType::DotDot)) {
+        auto range = std::make_unique<Expression>();
+        range->kind = ExpressionKind::Range;
+        range->location = previous().location;
+        range->left = std::move(expression);
+        range->right = parseShift();
+        validateExpressionDepth(*range);
+        return range;
     }
     return expression;
 }
@@ -1080,6 +1101,7 @@ std::unique_ptr<Expression> Parser::parseShift() {
 }
 
 std::string Parser::parseTypeTestName(const std::string& operatorName) {
+    if (check(TokenType::RangeType)) return parseType();
     if (check(TokenType::RemovedInt) || check(TokenType::RemovedFloat) ||
         check(TokenType::RemovedUnsigned)) {
         error(current(), "removed numeric type name");
@@ -1168,6 +1190,10 @@ std::unique_ptr<Expression> Parser::parseUnary() {
 }
 
 std::unique_ptr<Expression> Parser::parsePrimary() {
+    if (check(TokenType::RangeType)) {
+        const auto token = current();
+        return parseTypeName(token, parseType());
+    }
     const auto token = current();
     if (match(TokenType::TypeType)) {
         auto expression = std::make_unique<Expression>();

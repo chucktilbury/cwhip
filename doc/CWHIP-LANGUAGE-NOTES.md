@@ -754,9 +754,10 @@ statements.
   testing the boolean condition at the end of each iteration. `if`, `while`,
   and `do ... while` conditions strictly require `bool`; integer truthiness is
   rejected.
-- `for (value in collection) { <statement>* }` iterates over a list or dict;
+- `for (value in collection) { <statement>* }` iterates over a list, dict, or
+  integer range;
   `for (key, value in dict) { <statement>* }` also binds dict keys.
-- `break` exits the innermost enclosing `while`, `do ... while`, or collection
+- `break` exits the innermost enclosing `while`, `do ... while`, or
   `for` loop. `continue` proceeds to that loop's next condition or iteration
   step. Both are valid inside nested conditional, exception-handler, and
   `finally` blocks within a loop, and are compile-time errors outside a loop.
@@ -830,8 +831,9 @@ statements.
   an empty String.
   `toUpper` and `toLower` convert ASCII letters only; all non-ASCII UTF-8 bytes
   are unchanged. Operations use explicit byte lengths, so embedded NUL bytes
-  remain ordinary String content. String indexing/slicing syntax and
-  buffer-to-String conversion remain deferred.
+  remain ordinary String content. Inclusive range-index copy slicing is
+  supported; scalar String indexing, colon slices, and buffer-to-String
+  conversion remain deferred.
 - Formatting `format("{} {}", left, right)` and `format("{first} {second}", second=b, first=a)`
   are expressions usable in declarations, calls, returns, arrays, and maps.
   Arguments are evaluated once in source order. Positional arity and named
@@ -1135,6 +1137,39 @@ taken when the loop starts. Mutations to the original collection during the
 loop—including inserting, deleting, or replacing entries/elements—do not
 change which values the current loop observes; referenced objects remain
 shared through the snapshot.
+
+### First-class integer ranges
+
+`first..last` also forms an immutable `range<T>` value outside switch labels,
+where `T` is the lossless common integer endpoint type. Endpoints are captured
+once, left to right; later writes to the source variables neither mutate the
+range nor raise an error. Newly formed ranges capture the updated values.
+`range<int64>` (and each other fixed-width integer variant) is legal for
+locals, fields, parameters, returns, and callbacks, with lossless widening.
+Collection storage retains the exact endpoint type and is traced by the GC.
+The numeric-v2 dynamic-value layout and numeric tags are unchanged; ranges add
+managed-reference tag 19 and use new runtime entry points. Native bindings
+pass them as object pointers (`CwhipRange` in `RuntimeGc.h`); native code must
+treat their payloads as immutable. Mutable inline range captures are not
+supported, and inline capture of a range loop's iteration binding is rejected.
+
+`for (i in r)` visits both inclusive endpoints in written direction without
+materializing a list, checking for the terminal endpoint before incrementing
+or decrementing. Its binding is a scoped, read-only integer of type `T`.
+`value in r` uses exact integer comparisons and ignores direction.
+`items[r]` makes an inclusive directional copy of a list, String, or buffer,
+with strict bounds and ordinary negative indices relative to length, not
+clamping. Lists copy their outer container and share referenced elements.
+String indices select UTF-8 bytes; an invalid resulting UTF-8 sequence raises
+a catchable error, including multibyte characters reversed bytewise.
+Empty collection range slices are bounds errors.
+
+All formed ranges, including singletons and descending intervals, are
+nonempty. Do not use `0..count-1` for possibly empty collections without a
+`count > 0` guard. A null range reference is not an empty interval and raises
+when consumed. Existing colon slices and switch labels are unchanged.
+See [Integer ranges](LANGUAGE-REFERENCE.md#integer-ranges) for tested examples,
+an explicit bound-changing loop, promotion, precedence, and limits.
 
 ### Examples that guide the design
 
@@ -1883,8 +1918,9 @@ The goal is to turn the requirements into stages, not to estimate Copilot credit
   (`s.toInt64()`, `s.toUint64()`, `s.toFp64()`), not general cast syntax
   or an implicit conversion (see "String-to-number conversion
   (implemented)" under "Strings" below for exact semantics).
-- Direct `String` indexing/slicing syntax is deferred; the documented
-  byte-oriented `byteAt` and `slice` methods are implemented.
+- Scalar `String` indexing and colon-slice syntax are deferred; inclusive
+  range-index copy slices and the byte-oriented `byteAt` and `slice` methods
+  are implemented.
 - `buffer` and `handle` are confirmed new built-in reference types (see
   "`buffer` and `handle` types" under "Strings" above): both are
   primitive-like (not classes, no user methods, no subclassing). `buffer`
@@ -1929,7 +1965,7 @@ The goal is to turn the requirements into stages, not to estimate Copilot credit
   support beyond x86-64 SysV.
 - Package-manager and IDE integration details; generated executables can
   already be debugged directly with GDB or LLDB using `-g`.
-- Direct `String` indexing/slicing syntax and buffer-to-String
+- Scalar `String` indexing/colon-slice syntax and buffer-to-String
   validation/conversion APIs (see "Strings" above).
 
 ### Suggested priority for the remaining open language/syntax decisions
@@ -1950,8 +1986,9 @@ next things to resolve, roughly in priority order:
    `==`/`!=`, and (for scalar locals) a documented decay-at-boundary rule.
    See the "Implemented, with a documented scope boundary for scalar
    locals" bullet above for the exact scope.
-3. Decide whether to add direct `String` indexing/slicing syntax; the current
-   method API remains byte-oriented and preserves UTF-8 validity.
+3. Decide whether to add scalar `String` indexing or colon-slice syntax;
+   range-index copy slices and the method API remain byte-oriented and
+   preserve UTF-8 validity.
 
 This file remains a design record for requirements and deferred decisions, not
 the normative language specification. The accepted syntax and implemented

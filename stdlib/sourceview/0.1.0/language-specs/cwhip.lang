@@ -57,6 +57,7 @@
       <keyword>fp32</keyword><keyword>fp64</keyword>
       <keyword>bool</keyword><keyword>String</keyword><keyword>list</keyword>
       <keyword>dict</keyword><keyword>buffer</keyword><keyword>handle</keyword>
+      <keyword>range</keyword>
       <keyword>type</keyword><keyword>void</keyword>
     </context>
     <context id="operators" style-ref="operator">

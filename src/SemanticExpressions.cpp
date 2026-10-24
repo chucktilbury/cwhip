@@ -721,7 +721,9 @@ std::string SemanticAnalyzer::analyzeExpression(Expression& expression,
         return expectedType == "type" ? "type" : "null";
     case ExpressionKind::TypeName: {
         const auto& target = expression.value;
-        const bool known = isNumericType(target) || target == "bool" || target == "String" ||
+        if (isRangeType(target)) validateType(target, expression.typeLocation);
+        const bool known = isRangeType(target) || isNumericType(target) ||
+                           target == "bool" || target == "String" ||
                            target == "list" || target == "dict" || target == "buffer" ||
                            target == "handle" || target == "any" || target == "type" ||
                            classes_.find(target) != classes_.end();
@@ -1001,7 +1003,8 @@ std::string SemanticAnalyzer::analyzeExpression(Expression& expression,
         // so nested arrays share the same precise GC tracing as maps.
         for (auto& element : expression.arguments) {
             const auto actualType = analyzeExpression(*element);
-            const bool validElement = isNumericType(actualType) || actualType == "bool" ||
+            const bool validElement = isRangeType(actualType) || isNumericType(actualType) ||
+                                      actualType == "bool" ||
                                       actualType == "String" ||
                                       actualType == "null" || actualType == "any" ||
                                       isMapType(actualType) || isArrayType(actualType) ||
@@ -1012,7 +1015,7 @@ std::string SemanticAnalyzer::analyzeExpression(Expression& expression,
             if (!validElement) {
                 throw DiagnosticError(element->location,
                                       "list elements must be scalar, strg, a type descriptor, "
-                                  "a class reference, a list, a dict, a buffer, a handle, null, "
+                                  "a class reference, a range, a list, a dict, a buffer, a handle, null, "
                                   "or 'any'; found " +
                                       actualType);
             }
@@ -1039,7 +1042,8 @@ std::string SemanticAnalyzer::analyzeExpression(Expression& expression,
                                       "dict keys must have type strg");
             }
             const auto valueType = analyzeExpression(*expression.arguments[index + 1]);
-            const bool validValue = isNumericType(valueType) || valueType == "bool" ||
+            const bool validValue = isRangeType(valueType) || isNumericType(valueType) ||
+                                    valueType == "bool" ||
                                     valueType == "String" ||
                                     valueType == "type" ||
                                     valueType == "null" || valueType == "any" ||
@@ -1049,16 +1053,42 @@ std::string SemanticAnalyzer::analyzeExpression(Expression& expression,
             if (!validValue) {
                 throw DiagnosticError(expression.arguments[index + 1]->location,
                                       "dict values must be scalar, strg, a type descriptor, "
-                                      "a collection, a class "
+                                      "a range, a collection, a class "
                                       "reference, a buffer, a handle, null, or 'any'; found " +
                                           valueType);
             }
         }
         return "dict";
     }
+    case ExpressionKind::Range: {
+        const auto first = analyzeExpression(*expression.left);
+        const auto last = analyzeExpression(*expression.right);
+        const auto common = commonIntegerType(first, last);
+        if (!common)
+            throw DiagnosticError(expression.location,
+                                  "range endpoints require a lossless common integer type; "
+                                  "convert an endpoint explicitly");
+        expression.resolvedType = rangeType(*common);
+        return expression.resolvedType;
+    }
+    case ExpressionKind::RangeSlice: {
+        const auto collection = analyzeExpression(*expression.left);
+        const auto bounds = analyzeExpression(*expression.arguments.front());
+        if (!isRangeType(bounds) ||
+            (collection != "list" && collection != "buffer" && collection != "String"))
+            throw DiagnosticError(expression.location,
+                                  "range slicing requires a list, strg, or buffer and an integer range");
+        expression.resolvedType = collection;
+        return collection;
+    }
     case ExpressionKind::Index:
     case ExpressionKind::Slice: {
         const auto collectionType = analyzeExpression(*expression.left);
+        if (expression.kind == ExpressionKind::Index &&
+            isRangeType(analyzeExpression(*expression.arguments.front()))) {
+            expression.kind = ExpressionKind::RangeSlice;
+            return analyzeExpression(expression);
+        }
         if (expression.kind == ExpressionKind::Slice && expression.sliceHasStep &&
             !isArrayType(collectionType)) {
             throw DiagnosticError(expression.location,
@@ -1354,7 +1384,7 @@ std::string SemanticAnalyzer::analyzeExpression(Expression& expression,
                     (type != "any" && type != "null" && !isNumericType(type) &&
                      type != "bool" &&
                      type != "String" && type != "type" &&
-                     !isArrayType(type) && !isMapType(type) &&
+                     !isArrayType(type) && !isMapType(type) && !isRangeType(type) &&
                      classes_.find(type) == classes_.end())) {
                     throw DiagnosticError(expression.arguments.front()->location,
                                           target.value == "resize"
@@ -1568,8 +1598,10 @@ std::string SemanticAnalyzer::analyzeExpression(Expression& expression,
     case ExpressionKind::ObjectCast: {
         const auto operand = analyzeExpression(*expression.left);
         const auto& target = expression.value;
+        if (isRangeType(target)) validateType(target, expression.typeLocation);
         const bool targetKnown =
-            isNumericType(target) || target == "bool" || target == "String" ||
+            isRangeType(target) || isNumericType(target) ||
+            target == "bool" || target == "String" ||
             target == "list" ||
             target == "dict" || target == "buffer" || target == "handle" ||
             target == "any" || target == "type" || target == "null" ||
@@ -1584,7 +1616,8 @@ std::string SemanticAnalyzer::analyzeExpression(Expression& expression,
                                   "checked cast target 'void' is not supported");
         }
         const bool supportedOperand =
-            operand == "any" || operand == "null" || isNumericType(operand) ||
+            operand == "any" || operand == "null" ||
+            isRangeType(operand) || isNumericType(operand) ||
             operand == "bool" ||
             operand == "String" || operand == "list" || operand == "dict" ||
             operand == "buffer" || operand == "handle" || operand == "type" ||
@@ -1596,7 +1629,7 @@ std::string SemanticAnalyzer::analyzeExpression(Expression& expression,
         if (target == "any" || operand == "any" || operand == "null" ||
             (target == "null" &&
              (operand == "String" || operand == "list" || operand == "dict" ||
-              operand == "buffer" || operand == "handle" ||
+              operand == "buffer" || operand == "handle" || isRangeType(operand) ||
               classes_.find(operand) != classes_.end())) ||
             operand == target ||
             (classes_.find(operand) != classes_.end() &&
@@ -1614,7 +1647,9 @@ std::string SemanticAnalyzer::analyzeExpression(Expression& expression,
             throw DiagnosticError(expression.typeLocation,
                                   "type test target '" + target + "' is not supported");
         }
-        const bool knownTarget = isNumericType(target) || target == "bool" ||
+        if (isRangeType(target)) validateType(target, expression.typeLocation);
+        const bool knownTarget = isRangeType(target) || isNumericType(target) ||
+                                 target == "bool" ||
                                  target == "String" || target == "list" ||
                                  target == "dict" || target == "buffer" ||
                                  target == "handle" || target == "type" ||
@@ -1623,7 +1658,7 @@ std::string SemanticAnalyzer::analyzeExpression(Expression& expression,
             throw DiagnosticError(expression.typeLocation,
                                   "unknown type name '" + target + "'");
         }
-        const bool knownOperand = operand == "null" || operand == "any" ||
+        const bool knownOperand = operand == "null" || operand == "any" || isRangeType(operand) ||
                                   isNumericType(operand) || operand == "bool" ||
                                   operand == "String" || operand == "list" ||
                                   operand == "dict" || operand == "buffer" ||
@@ -1705,6 +1740,13 @@ std::string SemanticAnalyzer::analyzeExpression(Expression& expression,
                 left == "type" || isCallbackType(left) ? left : "");
         }
         const auto& operation = expression.value;
+        if (operation == "in") {
+            if (!isIntegerType(left) || !isRangeType(right))
+                throw DiagnosticError(expression.location,
+                                      "membership requires an integer value and an integer range");
+            expression.resolvedType = "bool";
+            return "bool";
+        }
         if (operation == "<<" || operation == ">>" ||
             operation == "&" || operation == "|" || operation == "^") {
             if (!isIntegerType(left) || !isIntegerType(right))
@@ -1733,7 +1775,8 @@ std::string SemanticAnalyzer::analyzeExpression(Expression& expression,
             // null-capable type supports.
             const auto isNullComparable = [this](const std::string& type) {
                 if (isCallbackType(type)) return true;
-                return type == "any" || type == "buffer" || type == "handle" || type == "String" ||
+                return isRangeType(type) || type == "any" || type == "buffer" ||
+                       type == "handle" || type == "String" ||
                        type == "list" || type == "dict" || isNumericType(type) ||
                        type == "bool" ||
                        classes_.find(type) != classes_.end();
@@ -1837,6 +1880,11 @@ std::string SemanticAnalyzer::analyzeLValue(Expression& expression) {
     if (expression.kind == ExpressionKind::Identifier) {
         const auto index = findSymbolIndex(expression.value);
         if (index != symbols_.size()) {
+            if (symbols_[index].readOnly)
+                throw DiagnosticError(expression.location,
+                                      (isIntegerType(symbols_[index].type)
+                                           ? "range iteration binding '" : "exception binding '") +
+                                          expression.value + "' is read-only");
             return symbols_[index].type;
         }
         if (currentClass_ != nullptr) {
@@ -1871,6 +1919,9 @@ std::string SemanticAnalyzer::analyzeLValue(Expression& expression) {
     }
     if (expression.kind == ExpressionKind::Index) {
         const auto collectionType = analyzeExpression(*expression.left);
+        if (isRangeType(analyzeExpression(*expression.arguments.front())))
+            throw DiagnosticError(expression.location,
+                                  "slice expressions are copies and are not assignable");
         if (isArrayType(collectionType)) {
             if (!isIntegerType(analyzeExpression(*expression.arguments.front()))) {
                 throw DiagnosticError(expression.arguments.front()->location,
@@ -1896,7 +1947,7 @@ std::string SemanticAnalyzer::analyzeLValue(Expression& expression) {
         throw DiagnosticError(expression.location,
                               "index assignment requires a list, dict, or buffer");
     }
-    if (expression.kind == ExpressionKind::Slice) {
+    if (expression.kind == ExpressionKind::Slice || expression.kind == ExpressionKind::RangeSlice) {
         throw DiagnosticError(expression.location,
                               "slice expressions are copies and are not assignable");
     }

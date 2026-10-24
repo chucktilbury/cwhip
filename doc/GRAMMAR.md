@@ -65,7 +65,7 @@ OPERATOR        ::= "+=" | "-=" | "*=" | "/=" | "%="
 
 The reserved words include `start`, `bool`, `int8`, `uint8`, `int16`, `uint16`,
 `int32`, `uint32`, `int64`, `uint64`, `fp32`, `fp64`, `strg`, `callback`,
-`list`, `dict`, `buffer`, `handle`, `any`, `type`, `class`,
+`list`, `dict`, `buffer`, `handle`, `range`, `any`, `type`, `class`,
 `namespace`, `include`, `inline`, `import`, `as`, `public`, `protected`,
 `private`, `virtual`, `super`, `null`, `true`, `false`, `return`, `void`,
 `if`, `else`, `while`, `do`, `for`, `in`, `is`, `break`, `continue`, `and`,
@@ -187,7 +187,8 @@ out-of-line-definition
 return-type         ::= type | "void" ;
 parameter-list      ::= "(", [ parameter, { ",", parameter } ], ")" ;
 parameter           ::= type, IDENT ;
-type                ::= primitive-type | QUALIFIED_IDENT | callback-type ;
+type                ::= primitive-type | QUALIFIED_IDENT | callback-type | range-type ;
+range-type          ::= "range", "<", numeric-type-name, ">" ;
 callback-type       ::= "callback", "<", return-type, "(",
                         [ type, { ",", type } ], ")", ">" ;
 primitive-type      ::= numeric-type-name | "bool" | "strg"
@@ -264,7 +265,7 @@ switch-statement    ::= "switch", "(", expression, ")", { NEWLINE }, "{",
                         [ default-branch, { NEWLINE } ], "}" ;
 case-branch         ::= "case", "(", case-label, { ",", case-label }, ")",
                         { NEWLINE }, block ;
-case-label          ::= expression, [ "..", expression ] ;
+case-label          ::= expression ;
 default-branch      ::= "default", { NEWLINE }, block ;
 next-statement      ::= "next", terminator ;
 while-statement     ::= "while", "(", expression, ")", { NEWLINE }, block ;
@@ -343,12 +344,13 @@ unary operators associate right-to-left.
 | 5 | `^` | left |
 | 6 | `&` | left |
 | 7 | `==`, `!=` | left |
-| 8 | `is`, `<`, `<=`, `>`, `>=` | left |
-| 9 | `<<`, `>>` | left |
-| 10 | `+`, `-` | left |
-| 11 | `*`, `/`, `%` | left |
-| 12 | unary `+`, unary `-`, `~` | right (prefix) |
-| 13 | member access, calls, indexing, slicing, `as` checked extraction | repeated left-to-right |
+| 8 | `is`, `in`, `<`, `<=`, `>`, `>=` | left |
+| 9 | `..` | non-associative |
+| 10 | `<<`, `>>` | left |
+| 11 | `+`, `-` | left |
+| 12 | `*`, `/`, `%` | left |
+| 13 | unary `+`, unary `-`, `~` | right (prefix) |
+| 14 | member access, calls, indexing, slicing, `as` checked extraction | repeated left-to-right |
 
 `is` consumes a type name rather than a right-hand expression. Equality
 operators bind less tightly than `is` and relational operators because that
@@ -364,11 +366,13 @@ bitwise-or          ::= bitwise-xor, { "|", bitwise-xor } ;
 bitwise-xor         ::= bitwise-and, { "^", bitwise-and } ;
 bitwise-and         ::= comparison, { "&", comparison } ;
 comparison          ::= relational, { ("==" | "!="), relational } ;
-relational          ::= shift,
-                        { ("is", type-test-name | "<", shift
-                          | "<=", shift | ">", shift | ">=", shift) } ;
+relational          ::= range-expression,
+                        { ("is", type-test-name | "in", range-expression
+                          | "<", range-expression | "<=", range-expression
+                          | ">", range-expression | ">=", range-expression) } ;
+range-expression    ::= shift, [ "..", shift ] ;
 shift               ::= addition, { ("<<" | ">>"), addition } ;
-type-test-name      ::= QUALIFIED_IDENT | primitive-type | "void" ;
+type-test-name      ::= QUALIFIED_IDENT | primitive-type | range-type | "void" ;
 addition            ::= multiplication, { ("+" | "-"), multiplication } ;
 multiplication      ::= unary, { ("*" | "/" | "%"), unary } ;
 unary               ::= ("+" | "-" | "~"), unary | postfix ;
@@ -376,7 +380,7 @@ unary               ::= ("+" | "-" | "~"), unary | postfix ;
 postfix             ::= primary, { member-suffix | index-or-slice-suffix
                                   | call-suffix | object-cast-suffix } ;
 object-cast-suffix  ::= "as", cast-target ;
-cast-target         ::= QUALIFIED_IDENT | primitive-type | "void" | "null" ;
+cast-target         ::= QUALIFIED_IDENT | primitive-type | range-type | "void" | "null" ;
 member-suffix       ::= ".", IDENT ;
 index-or-slice-suffix
                     ::= "[", expression, [ ":", [ expression ],
@@ -407,10 +411,23 @@ list-literal        ::= "[", [ argument-list ], "]" ;
 dict-literal        ::= "{", [ dict-entry, { ",", dict-entry } ], "}" ;
 dict-entry          ::= expression, ":", expression ;
 type-value          ::= "strg" | "list" | "dict"
-                      | "handle" | "any"
+                      | "handle" | "any" | range-type
                       | "bool" | numeric-type-name (* only when not followed by "(" *)
                       | "buffer"                      (* only when not followed by "(" or "[" *) ;
 ```
+
+`range-type` accepts only the eight integer types semantically, not `fp32` or
+`fp64`. `first..last` forms an immutable, inclusive, directional integer value
+with snapshot endpoints. `..` binds more tightly than `in` and comparisons,
+but less tightly than shifts and arithmetic. Parenthesize bitwise endpoint
+expressions. Chained ranges (`1..2..3`) and range-valued endpoints are invalid.
+`value in bounds` accepts an integer and a range; `for (value in bounds)`
+binds a read-only integer. `collection[bounds]` is a copy slice when the index
+expression has a range type, for lists, Strings, and buffers only; its endpoints
+are strict inclusive indices. Existing colon slices remain half-open and
+clamped. Switch case-label expressions are restricted to compile-time integer
+values or a top-level range of compile-time integer endpoints; stored ranges
+and runtime endpoints remain forbidden there.
 
 The `postfix` shorthand accepts a call suffix after any value expression.
 An identifier call is initially parsed as construction and resolves instead

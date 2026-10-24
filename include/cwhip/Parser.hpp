@@ -81,6 +81,7 @@ private:
     std::unique_ptr<Expression> parseShift();
     std::unique_ptr<Expression> parseComparison();
     std::unique_ptr<Expression> parseRelational();
+    std::unique_ptr<Expression> parseRange();
     std::string parseTypeTestName(const std::string& operatorName);
     std::unique_ptr<Expression> parseAddition();
     std::unique_ptr<Expression> parseMultiplication();

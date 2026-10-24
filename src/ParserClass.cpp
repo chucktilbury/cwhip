@@ -228,7 +228,12 @@ OutOfLineMethodDefinition Parser::parseOutOfLineMethodDefinition() {
 std::string Parser::parseType(bool allowVoid) {
     const NestingGuard nesting(*this);
     std::string type;
-    if (match(TokenType::CallbackType)) {
+    if (match(TokenType::RangeType)) {
+        consume(TokenType::Less, "'<' after range");
+        type = "range<" + parseType() + ">";
+        consume(TokenType::Greater, "'>' after range element type");
+    }
+    else if (match(TokenType::CallbackType)) {
         consume(TokenType::Less, "'<' after callback");
         type = "callback<" + parseType(true);
         consume(TokenType::LeftParen, "'(' before callback parameter types");

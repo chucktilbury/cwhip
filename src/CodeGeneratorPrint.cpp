@@ -155,6 +155,8 @@ void CodeGenerator::emitPrintValue(const Value& value, const SourceLocation& loc
         instructions_ += "  call i64 @fwrite(ptr " + data + ", i64 1, i64 " + length +
                          ", ptr " + stream + ")\n";
         instructions_ += "  br label %" + endLabel + "\n" + endLabel + ":\n";
+    } else if (isRangeType(value.type)) {
+        instructions_ += "  call void @cwhip_range_print(ptr " + value.operand + ")\n";
     } else if (value.type == "any") {
         emitPrintDynamicValue(value, location);
     } else {
@@ -175,6 +177,7 @@ void CodeGenerator::emitPrintDynamicValue(const Value& value,
     const auto nullLabel = freshLabel("print.any.null");
     const auto instanceLabel = freshLabel("print.any.instance");
     const auto invalidLabel = freshLabel("print.any.invalid");
+    const auto rangeLabel = freshLabel("print.any.range");
     const auto endLabel = freshLabel("print.any.end");
     const std::vector<std::pair<std::string, std::string>> narrowNumericLabels{
         {"int8", freshLabel("print.any.int8")},
@@ -195,12 +198,19 @@ void CodeGenerator::emitPrintDynamicValue(const Value& value,
                      " i64 " + std::to_string(CWHIP_ARRAY_UINT64) + ", label %" +
                      uint64Label + " i64 " + std::to_string(CWHIP_ARRAY_BUFFER) +
                      ", label %" + invalidLabel + " i64 " +
-                     std::to_string(CWHIP_ARRAY_HANDLE) + ", label %" + invalidLabel;
+                     std::to_string(CWHIP_ARRAY_HANDLE) + ", label %" + invalidLabel +
+                     " i64 19, label %" + rangeLabel;
     for (const auto& [type, label] : narrowNumericLabels) {
         instructions_ += " i64 " + std::to_string(numericRuntimeTag(type)) +
                          ", label %" + label;
     }
     instructions_ += " ]\n";
+    const auto rangePointer = newTemporary();
+    instructions_ += rangeLabel + ":\n"
+                     "  " + rangePointer + " = extractvalue %CwhipArrayValue " +
+                     value.operand + ", 2\n"
+                     "  call void @cwhip_range_print(ptr " + rangePointer + ")\n"
+                     "  br label %" + endLabel + "\n";
     instructions_ += int64Label + ":\n";
     const auto stored = newTemporary();
     instructions_ += "  " + stored + " = extractvalue %CwhipArrayValue " + value.operand +
