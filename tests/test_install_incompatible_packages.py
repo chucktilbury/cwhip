@@ -185,6 +185,80 @@ class CheckerTests(unittest.TestCase):
         self.assertIn(f"moved {self.modules / 'cvm/1.0.0'}", result.stderr)
         self.assertTrue((self.modules / "cvmrun/1.0.0/cwhip-package.toml").is_file())
 
+    def test_restore_instructions_quote_paths(self):
+        root = self.work / "it's here; $(touch pwned)"
+        self.modules = root / "share/cwhip/modules"
+        self.backups = root / "share/cwhip/package-backups"
+        write_package(self.modules, "math", "0.1.0")
+        before = snapshot(write_package(self.modules, "cvm", abi=None))
+        result = self.run_checker("1")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        (backup,) = self.backups.iterdir()
+        command = next(line.strip() for line in (backup / "RESTORE.txt").read_text().splitlines()
+                       if line.strip().startswith("mkdir -p "))
+        restored = subprocess.run(["sh", "-c", command], cwd=self.work,
+                                  capture_output=True, text=True, check=False)
+        self.assertEqual(restored.returncode, 0, restored.stderr)
+        self.assertEqual(snapshot(self.modules / "cvm/1.0.0"), before)
+        self.assertFalse((self.work / "pwned").exists())
+
+    def symlink_fixture(self, link: Path, target: Path) -> None:
+        link.parent.mkdir(parents=True, exist_ok=True)
+        link.symlink_to(target, target_is_directory=True)
+
+    def test_symlinked_packages_refuse_repair_before_any_move(self):
+        external = self.work / "external-tree"
+        cases = {
+            "package": lambda: self.symlink_fixture(
+                self.modules / "cvmfile", write_package(external, "cvmfile", abi=None).parent),
+            "version": lambda: self.symlink_fixture(
+                self.modules / "cvmrun/1.0.0", write_package(external, "cvmrun", abi=None)),
+        }
+        for kind, make in cases.items():
+            with self.subTest(kind=kind):
+                for path in (self.modules / "cvm", self.modules / "cvmfile",
+                             self.modules / "cvmrun", external):
+                    if path.is_symlink():
+                        path.unlink()
+                    elif path.exists():
+                        shutil.rmtree(path)
+                stale = snapshot(write_package(self.modules, "cvm", abi=None))
+                make()
+                outside = snapshot(external)
+                report = self.run_checker()
+                self.assertEqual(report.returncode, 0, report.stderr)
+                self.assertIn("symlinked, so the repair below refuses it", report.stderr)
+                result = self.run_checker("1")
+                self.assertEqual(result.returncode, 1)
+                self.assertIn("refusing CWHIP_QUARANTINE_INCOMPATIBLE_PACKAGES=1 repair; "
+                              "nothing was moved", result.stderr)
+                self.assertIn("is a symlink", result.stderr)
+                self.assertFalse(self.backups.exists())
+                self.assertEqual(snapshot(self.modules / "cvm/1.0.0"), stale)
+                self.assertEqual(snapshot(external), outside)
+
+    def test_compatible_symlinked_package_is_left_alone(self):
+        target = write_package(self.work / "external-tree", "linked")
+        self.symlink_fixture(self.modules / "linked", target.parent)
+        self.stale_cvm()
+        result = self.run_checker("1")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertTrue((self.modules / "linked").is_symlink())
+        self.assertTrue((target / "cwhip-package.toml").is_file())
+
+    def test_backup_symlinked_into_modules_is_refused(self):
+        stale = self.stale_cvm()
+        self.backups.parent.mkdir(parents=True, exist_ok=True)
+        self.symlink_fixture(self.work / "share/cwhip/redirect", self.modules / "cvm")
+        self.backups = self.work / "share/cwhip/redirect/package-backups"
+        result = self.run_checker("1")
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("inside the package directory", result.stderr)
+        self.assertIn("nothing was moved", result.stderr)
+        self.assertFalse((self.modules / "cvm/package-backups").exists())
+        for name in STALE_CVM:
+            self.assertEqual(snapshot(self.modules / name / "1.0.0"), stale[name])
+
     def test_sdk_owned_incompatible_package_is_an_error(self):
         (self.modules / "math/0.1.0/cwhip-package.toml").write_text(
             '[package]\nname = "math"\nversion = "0.1.0"\n')

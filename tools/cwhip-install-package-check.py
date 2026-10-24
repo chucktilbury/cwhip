@@ -16,6 +16,7 @@ import argparse
 import datetime
 import os
 from pathlib import Path
+import shlex
 import sys
 
 if sys.version_info < (3, 11):
@@ -50,8 +51,12 @@ def quarantine_requested() -> bool:
                      f"or unset/0 (report only); got {value!r}")
 
 
-def package_versions(root: Path) -> list[tuple[str, str, Path]]:
-    """Return (name, version, directory) for each directory discovery would read."""
+def package_versions(root: Path) -> list[tuple[str, str, Path, bool]]:
+    """Return (name, version, directory, symlinked) for each directory discovery reads.
+
+    Discovery follows symlinks, so symlinked package or version directories are
+    listed too; `symlinked` marks them so a repair never moves through them.
+    """
     try:
         if not root.is_dir():
             raise CheckError(f"package directory {root} does not exist or is not a directory")
@@ -61,7 +66,8 @@ def package_versions(root: Path) -> list[tuple[str, str, Path]]:
                 continue
             for version_dir in sorted(package_dir.iterdir()):
                 if version_dir.is_dir() and (version_dir / MANIFEST).is_file():
-                    found.append((package_dir.name, version_dir.name, version_dir))
+                    symlinked = package_dir.is_symlink() or version_dir.is_symlink()
+                    found.append((package_dir.name, version_dir.name, version_dir, symlinked))
         return found
     except OSError as failure:
         raise CheckError(f"cannot scan package directory {root}: {failure}") from failure
@@ -86,6 +92,43 @@ def manifest_abi(manifest: Path) -> tuple[str | None, str | None]:
     return abi, None
 
 
+def nearest_existing(path: Path) -> Path:
+    while not path.exists() and path != path.parent:
+        path = path.parent
+    return path
+
+
+def check_repair_safety(incompatible: list[tuple[str, str, Path, str, bool]], modules: Path,
+                        backup_root: Path) -> None:
+    """Refuse the repair, before anything is created or moved, when it could be unsafe."""
+    problems = []
+    for _, _, directory, _, symlinked in incompatible:
+        if symlinked:
+            problems.append(f"{directory}: package or version directory is a symlink; "
+                            "remove the link or fix the package it points to manually")
+    try:
+        real_modules = modules.resolve(strict=True)
+        real_backup = backup_root.resolve()
+        if real_backup == real_modules or real_backup.is_relative_to(real_modules):
+            problems.append(f"backup directory {backup_root} resolves to {real_backup}, "
+                            f"inside the package directory {real_modules}")
+        backup_device = os.stat(nearest_existing(backup_root)).st_dev
+        for _, _, directory, _, symlinked in incompatible:
+            if symlinked:
+                continue
+            if not directory.resolve(strict=True).is_relative_to(real_modules):
+                problems.append(f"{directory}: resolves outside the package directory {real_modules}")
+            elif os.stat(directory).st_dev != backup_device:
+                problems.append(f"{directory}: on a different filesystem from {backup_root}; "
+                                "it cannot be moved without copying")
+    except OSError as failure:
+        raise CheckError(f"cannot inspect paths for the package repair; nothing was moved: "
+                         f"{failure}") from failure
+    if problems:
+        raise CheckError(f"refusing {QUARANTINE_VARIABLE}=1 repair; nothing was moved:\n  "
+                         + "\n  ".join(problems))
+
+
 def create_backup_directory(backup_root: Path) -> Path:
     stamp = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     try:
@@ -104,23 +147,31 @@ def create_backup_directory(backup_root: Path) -> Path:
 
 def quarantine(incompatible: list[tuple[str, str, Path, str]], modules: Path,
                backup_root: Path) -> None:
+    check_repair_safety(incompatible, modules, backup_root)
     backup = create_backup_directory(backup_root)
+    try:
+        if backup.resolve(strict=True).is_relative_to(modules.resolve(strict=True)):
+            raise CheckError(f"backup directory {backup} resolves inside {modules}; nothing was moved")
+    except OSError as failure:
+        raise CheckError(f"cannot inspect backup directory {backup}; nothing was moved: "
+                         f"{failure}") from failure
     moves = [(directory, backup / "modules" / name / version)
-             for name, version, directory, _ in incompatible]
+             for name, version, directory, _, _ in incompatible]
     restore = backup / "RESTORE.txt"
     lines = [
         "Cwhip SDK install moved these package versions out of module discovery",
         "because their sdk-abi did not match this SDK. Contents are unchanged.",
         "",
     ]
-    for (source, destination), (_, _, _, reason) in zip(moves, incompatible):
+    for (source, destination), (_, _, _, reason, _) in zip(moves, incompatible):
         lines.append(f"{source} ({reason})")
         lines.append(f"  -> {destination}")
     lines += [
         "",
         "To restore a package after rebuilding it for the current SDK ABI, or to",
         "undo this repair, move its directory back, for example:",
-        f"  mkdir -p '{moves[0][0].parent}' && mv '{moves[0][1]}' '{moves[0][0]}'",
+        f"  mkdir -p {shlex.quote(str(moves[0][0].parent))} && "
+        f"mv {shlex.quote(str(moves[0][1]))} {shlex.quote(str(moves[0][0]))}",
         "Delete this backup only when the packages are no longer needed.",
         "",
     ]
@@ -158,12 +209,10 @@ def quarantine(incompatible: list[tuple[str, str, Path, str]], modules: Path,
 
 def check(modules: Path, owned_root: Path, backup_root: Path, sdk_abi: str) -> None:
     repair = quarantine_requested()
-    if backup_root.resolve().is_relative_to(modules.resolve()):
-        raise CheckError(f"backup directory {backup_root} must be outside {modules}")
-    owned = {(name, version) for name, version, _ in package_versions(owned_root)}
+    owned = {(name, version) for name, version, _, _ in package_versions(owned_root)}
     problems: list[str] = []
-    incompatible: list[tuple[str, str, Path, str]] = []
-    for name, version, directory in package_versions(modules):
+    incompatible: list[tuple[str, str, Path, str, bool]] = []
+    for name, version, directory, symlinked in package_versions(modules):
         abi, problem = manifest_abi(directory / MANIFEST)
         if problem is not None:
             problems.append(problem)
@@ -173,7 +222,7 @@ def check(modules: Path, owned_root: Path, backup_root: Path, sdk_abi: str) -> N
                 problems.append(f"{directory / MANIFEST}: SDK-installed package has {reason}; "
                                 f"expected {sdk_abi!r} (rebuild the SDK)")
             else:
-                incompatible.append((name, version, directory, reason))
+                incompatible.append((name, version, directory, reason, symlinked))
     if problems:
         raise CheckError(
             "cannot classify installed packages; nothing was moved. Repair or remove:\n  "
@@ -185,8 +234,9 @@ def check(modules: Path, owned_root: Path, backup_root: Path, sdk_abi: str) -> N
         return
     warn(f"{len(incompatible)} installed package version(s) in {modules} were not built for "
          f"SDK ABI {sdk_abi!r} and were left unchanged:")
-    for _, _, directory, reason in incompatible:
-        print(f"  {directory} ({reason})", file=sys.stderr)
+    for _, _, directory, reason, symlinked in incompatible:
+        note = "; symlinked, so the repair below refuses it: fix manually" if symlinked else ""
+        print(f"  {directory} ({reason}{note})", file=sys.stderr)
     print(
         "  These packages were not installed by this SDK. Commands that scan installed\n"
         "  packages, such as 'cwhip-pkg init', fail with PKG2004 until they are fixed.\n"

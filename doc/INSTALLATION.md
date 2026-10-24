@@ -280,7 +280,12 @@ stay in place. Directories are moved with a rename only, so nothing is copied
 or deleted; a failed move stops the install and reports what was already moved.
 Repeating the install has nothing left to move and creates no new backup.
 The variable accepts `1` (repair) or `0`/unset (report only); any other value
-fails the install. Unreadable or malformed manifests (invalid TOML, no
+fails the install. Before creating or moving anything, the repair refuses (and
+fails the install) when an incompatible package or version directory is a
+symlink, when the backup directory resolves inside the module directory, or
+when a package is on a different filesystem from the backup; fix those packages
+manually. Report-only mode still lists symlinked packages. Compatible symlinked
+packages are never touched. Unreadable or malformed manifests (invalid TOML, no
 `[package]` table, or a non-string `sdk-abi`) cannot be classified safely, so
 they fail the install in either mode without moving anything.
 
