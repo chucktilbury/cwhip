@@ -5,6 +5,7 @@
  */
 #include "cwhip/Parser.hpp"
 
+#include "cwhip/CallbackType.hpp"
 #include "cwhip/Diagnostic.hpp"
 
 #include <cctype>
@@ -231,23 +232,11 @@ std::string Parser::parseType(bool allowVoid) {
     if (match(TokenType::RangeType)) {
         consume(TokenType::Less, "'<' after range");
         type = "range<" + parseType() + ">";
-        consume(TokenType::Greater, "'>' after range element type");
+        consumeTypeGreater();
     }
-    else if (match(TokenType::CallbackType)) {
-        consume(TokenType::Less, "'<' after callback");
-        type = "callback<" + parseType(true);
-        consume(TokenType::LeftParen, "'(' before callback parameter types");
-        type += "(";
-        if (!check(TokenType::RightParen)) {
-            do {
-                if (type.back() != '(') type += ",";
-                type += parseType();
-            } while (match(TokenType::Comma));
-        }
-        consume(TokenType::RightParen, "')' after callback parameter types");
-        consume(TokenType::Greater, "'>' after callback signature");
-        type += ")>";
-    }
+    else if (match(TokenType::NativeInt)) type = "int32";
+    else if (match(TokenType::NativeUInt)) type = "uint32";
+    else if (match(TokenType::NativeFloat)) type = "fp32";
     else if (match(TokenType::Int8)) type = "int8";
     else if (match(TokenType::UInt8)) type = "uint8";
     else if (match(TokenType::Int16)) type = "int16";
@@ -266,7 +255,13 @@ std::string Parser::parseType(bool allowVoid) {
     else if (match(TokenType::HandleType)) type = "handle";
     else if (match(TokenType::AnyType)) type = "any";
     else if (match(TokenType::TypeType)) type = "type";
-    else if (allowVoid && match(TokenType::Void)) type = "void";
+    else if (check(TokenType::Void) &&
+             (allowVoid ||
+              (current_ + 1 < tokens_.size() &&
+               tokens_[current_ + 1].type == TokenType::Less))) {
+        ++current_;
+        type = "void";
+    }
     else if (check(TokenType::Identifier)) {
         type = tokens_[current_++].text;
         while (match(TokenType::Dot)) {
@@ -274,6 +269,17 @@ std::string Parser::parseType(bool allowVoid) {
         }
     }
     else error(current(), "expected type name");
+    while (match(TokenType::Less)) {
+        std::vector<std::string> parameters;
+        if (pendingTypeGreaters_ == 0 && !check(TokenType::Greater) &&
+            !check(TokenType::ShiftRight)) {
+            do {
+                parameters.push_back(parseType());
+            } while (match(TokenType::Comma));
+        }
+        consumeTypeGreater();
+        type = callbackType(type, parameters);
+    }
     return type;
 }
 

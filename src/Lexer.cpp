@@ -83,7 +83,8 @@ const char* tokenTypeName(TokenType type) noexcept {
     case TokenType::Float: return "float";
     case TokenType::String: return "string";
     case TokenType::Start: return "'start'";
-    case TokenType::RemovedInt: return "removed type 'int'";
+    case TokenType::NativeInt: return "'int'";
+    case TokenType::NativeUInt: return "'uint'";
     case TokenType::Int8: return "'int8'";
     case TokenType::UInt8: return "'uint8'";
     case TokenType::Int16: return "'int16'";
@@ -95,7 +96,7 @@ const char* tokenTypeName(TokenType type) noexcept {
     case TokenType::FP32: return "'fp32'";
     case TokenType::FP64: return "'fp64'";
     case TokenType::Bool: return "'bool'";
-    case TokenType::RemovedFloat: return "removed type 'float'";
+    case TokenType::NativeFloat: return "'float'";
     case TokenType::RemovedUnsigned: return "removed type 'unsigned'";
     case TokenType::StrgType: return "'strg'";
     case TokenType::ListType: return "'list'";
@@ -105,7 +106,6 @@ const char* tokenTypeName(TokenType type) noexcept {
     case TokenType::HandleType: return "'handle'";
     case TokenType::AnyType: return "'any'";
     case TokenType::TypeType: return "'type'";
-    case TokenType::CallbackType: return "'callback'";
     case TokenType::Class: return "'class'";
     case TokenType::Namespace: return "'namespace'";
     case TokenType::Include: return "'include'";
@@ -356,8 +356,9 @@ Token Lexer::scanIdentifierOrInteger() {
     }
     static const std::unordered_map<std::string, TokenType> keywords{
         {"start", TokenType::Start},
-        {"int", TokenType::RemovedInt}, {"unsigned", TokenType::RemovedUnsigned},
-        {"float", TokenType::RemovedFloat},
+        {"int", TokenType::NativeInt}, {"uint", TokenType::NativeUInt},
+        {"unsigned", TokenType::RemovedUnsigned},
+        {"float", TokenType::NativeFloat},
         {"int8", TokenType::Int8}, {"uint8", TokenType::UInt8},
         {"int16", TokenType::Int16}, {"uint16", TokenType::UInt16},
         {"int32", TokenType::Int32}, {"uint32", TokenType::UInt32},
@@ -369,7 +370,6 @@ Token Lexer::scanIdentifierOrInteger() {
         {"range", TokenType::RangeType},
         {"buffer", TokenType::BufferType}, {"handle", TokenType::HandleType},
         {"any", TokenType::AnyType}, {"type", TokenType::TypeType},
-        {"callback", TokenType::CallbackType},
         {"if", TokenType::If},
         {"else", TokenType::Else}, {"while", TokenType::While},
         {"do", TokenType::Do}, {"for", TokenType::For},

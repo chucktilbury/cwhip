@@ -133,6 +133,48 @@ const TestGroupRegistration registration{1, {
              require(output.str().find("ConstructorCall [Box]") != std::string::npos,
                      "class-name constructor call missing from AST");
          }},
+        {"callable types use nested angle syntax and retain canonical signatures", [] {
+             const auto program = parse(
+                 "namespace Model { class Item {} }\n"
+                 "class Worker {\n"
+                 " int64 echo(int32 value) { return value }\n"
+                 " range<int64> same(range<int64> value) { return value }\n"
+                 " Model.Item echoItem(Model.Item value) { return value }\n"
+                 "}\n"
+                 "class CallableFields {\n"
+                 " int64<int32,int8> multi\n"
+                 " int64<> empty\n"
+                 " int64<int64><String> nestedReturn\n"
+                 " int64<range<int64>> rangeArgument\n"
+                 " Model.Item<Model.Item> classArgument\n"
+                 " void<> noValue\n"
+                 "}\n"
+                 "start {\n"
+                 " Worker worker = Worker()\n"
+                 " int64<int32> action = worker.echo\n"
+                 " bool comparison = 1 < 2\n"
+                 " int64 shifted = 8 >> 1\n"
+                 " int casted = int(1)\n"
+                 " uint unsignedValue = uint(1u)\n"
+                 " float floating = float(1.5)\n"
+                 "}\n");
+             const auto fields = std::find_if(
+                 program.classes.begin(), program.classes.end(),
+                 [](const auto& declaration) { return declaration.name == "CallableFields"; });
+             require(fields != program.classes.end() && fields->fields.size() == 6,
+             "callable fields missing from the parsed class");
+             const std::vector<std::string> expected{
+                 "callback<int64(int32,int8)>", "callback<int64()>",
+                 "callback<callback<int64(int64)>(String)>",
+                 "callback<int64(range<int64>)>",
+                 "callback<Model.Item(Model.Item)>", "callback<void()>"};
+             for (std::size_t index = 0; index < expected.size(); ++index) {
+                 require(fields->fields[index].type == expected[index],
+                 "callable source type did not normalize to its canonical signature");
+             }
+             expectDiagnostic("class Invalid { int64<void> invalid }\nstart {}",
+                      "expected type name");
+         }},
          {"class-scoped anonymous enum members parse and resolve as signed integers", [] {
               const auto program = parse(
                   "class Values {\n"

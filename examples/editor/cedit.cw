@@ -9,7 +9,7 @@ class CommandBinding {
     String trigger
     String normalized
     bool valid
-    callback<void()> action
+    void<> action
     CommandBinding(String command, String label, String shortcut) {
         id = command
         name = label
@@ -375,13 +375,13 @@ class KeyboardPreference {
     Gtk.Button resetButton
     Gtk.Button disableButton
     Gtk.Label errorLabel
-    callback<void()> applied
-    callback<void()> prepareRecord
+    void<> applied
+    void<> prepareRecord
     int64 recording
     bool refreshing
 
-    KeyboardPreference(CeditSettings model, CommandBinding command, callback<void()> changed,
-                       callback<void()> prepare, Gtk.Grid grid, int64 index) {
+    KeyboardPreference(CeditSettings model, CommandBinding command, void<> changed,
+                       void<> prepare, Gtk.Grid grid, int64 index) {
         settings = model
         binding = command
         applied = changed
@@ -1030,7 +1030,7 @@ OverrideRow OverrideRow._self() from "cwhip_gtk_self"
 
 class EditorDocument {
     EditorDocument _self()
-    callback<void(EditorDocument)> closeAction
+    void<EditorDocument> closeAction
     GtkSource.View view
     Gtk.ScrolledWindow scroller
     String path
@@ -1163,9 +1163,9 @@ class ProjectExplorer {
     int64 generation
     String rootPath
     String icons
-    callback<void(String)> open
+    void<String> open
 
-    ProjectExplorer(callback<void(String)> openFile) {
+    ProjectExplorer(void<String> openFile) {
         open = openFile
         nodes = []
         rootPath = ""
@@ -1360,7 +1360,7 @@ class Cedit {
     String savingText
     String persistedText
     int64 preferencesItem
-    callback<void()> preferencesAction
+    void<> preferencesAction
     Gtk.Window window
     Gtk.Box layout
     Gtk.MenuBar menu
@@ -1419,35 +1419,35 @@ class Cedit {
     EditorDocument focusedDocument
     bool automaticSaving
     bool changingDocuments
-    callback<void()> changedAction
-    callback<void()> cursorAction
-    callback<void()> pageChangedAction
-    callback<void()> openAction
-    callback<void()> recentAction
-    callback<void()> saveAction
-    callback<void()> saveAsAction
-    callback<void()> newAction
-    callback<void()> closeTabAction
-    callback<void()> closeSaveAction
-    callback<void()> closeDiscardAction
-    callback<void()> closeCancelAction
-    callback<void()> findAction
-    callback<void()> replaceAction
-    callback<void()> replaceAllAction
-    callback<void()> undoAction
-    callback<void()> redoAction
-    callback<void()> quitAction
-    callback<void()> cutAction
-    callback<void()> copyAction
-    callback<void()> pasteAction
-    callback<void()> selectAllAction
-    callback<void()> showFindAction
-    callback<void()> showReplaceAction
-    callback<bool()> searchCloseAction
-    callback<void(list)> openResultAction
-    callback<void(String)> saveResultAction
-    callback<bool()> closeAction
-    callback<void()> testAction
+    void<> changedAction
+    void<> cursorAction
+    void<> pageChangedAction
+    void<> openAction
+    void<> recentAction
+    void<> saveAction
+    void<> saveAsAction
+    void<> newAction
+    void<> closeTabAction
+    void<> closeSaveAction
+    void<> closeDiscardAction
+    void<> closeCancelAction
+    void<> findAction
+    void<> replaceAction
+    void<> replaceAllAction
+    void<> undoAction
+    void<> redoAction
+    void<> quitAction
+    void<> cutAction
+    void<> copyAction
+    void<> pasteAction
+    void<> selectAllAction
+    void<> showFindAction
+    void<> showReplaceAction
+    bool<> searchCloseAction
+    void<list> openResultAction
+    void<String> saveResultAction
+    bool<> closeAction
+    void<> testAction
     CwhipProject activeProject
     CwhipProject nextProject
     CwhipProject savingProject
@@ -1665,7 +1665,7 @@ class Cedit {
         Gtk.Application().ready()
     }
 
-    callback<void()> commandAction(String command) {
+    void<> commandAction(String command) {
         if (command.equals("save")) { return saveAction }
         if (command.equals("save-as")) { return saveAsAction }
         if (command.equals("save-all")) { return _self().saveAll }

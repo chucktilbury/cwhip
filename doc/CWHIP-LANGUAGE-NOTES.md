@@ -9,8 +9,10 @@ This document records the current design direction and project requirements for 
 historical, not the current numeric contract. The fixed-width semantics in
 [LANGUAGE-REFERENCE.md](LANGUAGE-REFERENCE.md) and API/ABI replacements in
 [NUMERIC-MIGRATION.md](NUMERIC-MIGRATION.md) supersede its old type names,
-literal inference, conversion, and arithmetic rules. No old numeric aliases
-are accepted. The String parser section below describes the current methods.
+literal inference, conversion, and arithmetic rules. `unsigned` remains
+rejected; current `int`, `uint`, and `float` spellings are checked 32-bit
+aliases for `int32`, `uint32`, and `fp32`. The String parser section below
+describes the current methods.
 
 ## Vision
 
@@ -1678,7 +1680,7 @@ Remaining module priorities include:
 6. Datetime.
 
 More modules are expected. Typed bound-instance-method callbacks are implemented
-as `callback<R(P1,P2)>`, captured with `object.method` and invoked as ordinary
+as `R<P1,P2>`, captured with `object.method` and invoked as ordinary
 callable values. They retain their receiver through precise GC and preserve
 virtual dispatch. The installed native context/adapter bridge supports C APIs
 with explicit user data, with owner-thread-only invocation and fail-fast

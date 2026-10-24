@@ -35,6 +35,7 @@ private:
     const Token& previous() const;
     bool check(TokenType type) const;
     bool match(TokenType type);
+    void consumeTypeGreater();
     void skipNewlines();
     bool startsOutOfLineDefinition() const;
     void consumeStatementTerminator();
@@ -92,6 +93,7 @@ private:
 
     std::vector<Token> tokens_;
     std::size_t current_ = 0;
+    std::size_t pendingTypeGreaters_ = 0;
     std::size_t nestingDepth_ = 0;
     std::ostream* traceOutput_ = nullptr;
     std::vector<std::string> namespacePath_;

@@ -38,9 +38,10 @@ Cwhip `int64` parameters and results in these APIs are signed 64-bit values;
 the [language reference](LANGUAGE-REFERENCE.md#native-bindings-for-library-authors)
 describes their C/LLVM ABI representations.
 
-SDK 0.0.2 replaces former `int`/`unsigned`/`float` API types with
-`int64`/`uint64`/`fp64`, preserving public counts and indices. String numeric
-parsers are destination-specific; see
+SDK 0.0.2 moved public counts and indices to `int64`; that API migration does
+not make the current native `int`, `uint`, and `float` aliases 64-bit. Those
+spellings map to `int32`, `uint32`, and `fp32`. String numeric parsers are
+destination-specific; see
 [NUMERIC-MIGRATION.md](NUMERIC-MIGRATION.md) for the incompatible source,
 package, and native-artifact migration.
 
@@ -52,14 +53,14 @@ rooting, owner-thread restrictions, and the fail-fast exception boundary.
 ## Optional `gtk` interface
 
 `import gtk` is available when built with `CWHIP_GTK=ON`. Construct
-`Gtk.Application(String id)`, install `onActivate(callback<void()>)`, create
+`Gtk.Application(String id)`, install `onActivate(void<>)`, create
 widgets during activation, and call `run()`. GTK supplies desktop/single-instance
 activation; the single run ends with deterministic shutdown.
 `Widget` is the base of `Window`, `Box`, `Label`, `Button`, `Entry`, `CheckButton`,
 and `ScrolledWindow`. Typed signals return `SignalConnection` with `disconnect()`
 and `connected()`. Explicit GUI-thread `dispose()` recursively disposes attached
 children and invalidates aliases; GC never tears down GTK objects.
-Only `int64 post(callback<void()>)` is worker-callable; `bool cancel(int64)` and all
+Only `int64 post(void<>)` is worker-callable; `bool cancel(int64)` and all
 widget/connection operations require the GUI thread. See [GTK.md](GTK.md) for
 the compact API, runnable example, ownership, compatibility changes, and limits.
 

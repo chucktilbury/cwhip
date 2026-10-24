@@ -117,7 +117,7 @@ start {
     dict mapping = nested[1]
     range<int64> restored = inner[0]
     range<int64> returned = mapping["r"]
-    callback<range<int64>(range<int64>)> action = w.identity
+    range<int64><range<int64>> action = w.identity
     range<int64> viaCallback = action(restored)
     """)
     check("2 in viaCallback")

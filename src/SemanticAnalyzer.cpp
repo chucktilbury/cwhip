@@ -281,7 +281,11 @@ void SemanticAnalyzer::normalizeType(
 
 void SemanticAnalyzer::normalizeExpression(
     Expression& expression, const std::vector<std::string>& namespacePath) {
-    if (expression.kind == ExpressionKind::ObjectCast &&
+    if ((expression.kind == ExpressionKind::ObjectCast ||
+         expression.kind == ExpressionKind::TypeTest) &&
+        isCallbackType(expression.value)) {
+        normalizeType(expression.value, namespacePath, expression.typeLocation);
+    } else if (expression.kind == ExpressionKind::ObjectCast &&
         !isRangeType(expression.value) &&
         !isNumericType(expression.value) && expression.value != "bool" &&
         expression.value != "String" && expression.value != "list" &&
@@ -298,6 +302,7 @@ void SemanticAnalyzer::normalizeExpression(
                                              expression.typeLocation);
     }
     if (expression.kind == ExpressionKind::TypeTest &&
+        !isCallbackType(expression.value) &&
         !isRangeType(expression.value) &&
         !isNumericType(expression.value) && expression.value != "bool" &&
         expression.value != "list" &&

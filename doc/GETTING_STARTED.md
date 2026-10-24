@@ -360,8 +360,9 @@ start {
 Construct an object with `ClassName(...)`, not a `new` keyword. Signed integer
 types are `int8`, `int16`, `int32`, and `int64`; unsigned integer types are
 `uint8`, `uint16`, `uint32`, and `uint64`; floating types are `fp32` and
-`fp64`. Conditions require `bool`. `strg` and `String` name the managed
-string type.
+`fp64`. Native `int`, `uint`, and `float` are checked aliases for the 32-bit
+`int32`, `uint32`, and `fp32` types. Conditions require `bool`. `strg` and
+`String` name the managed string type.
 `list`, `dict`, `buffer`, and native `handle` types are also available.
 Initialize fields in a constructor; field declarations have no in-class
 initializer syntax.

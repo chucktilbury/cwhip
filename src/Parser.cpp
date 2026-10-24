@@ -48,12 +48,39 @@ bool Parser::match(TokenType type) {
     return true;
 }
 
+void Parser::consumeTypeGreater() {
+    if (pendingTypeGreaters_ != 0) {
+        --pendingTypeGreaters_;
+        return;
+    }
+    if (match(TokenType::Greater)) return;
+    if (match(TokenType::ShiftRight)) {
+        ++pendingTypeGreaters_;
+        return;
+    }
+    error(current(), std::string("expected '>' after type, found ") +
+                         tokenTypeName(current().type));
+}
+
 bool Parser::startsOutOfLineDefinition() const {
     std::size_t afterType = current_;
+    const auto skipTypeArguments = [this](std::size_t& index) {
+        while (index < tokens_.size() && tokens_[index].type == TokenType::Less) {
+            std::size_t depth = 0;
+            do {
+                if (tokens_[index].type == TokenType::Less) ++depth;
+                else if (tokens_[index].type == TokenType::Greater) --depth;
+                else if (tokens_[index].type == TokenType::ShiftRight)
+                    depth = depth > 1 ? depth - 2 : 0;
+                ++index;
+            } while (index < tokens_.size() && depth != 0);
+        }
+    };
     switch (current().type) {
-    case TokenType::RemovedInt:
     case TokenType::RemovedUnsigned:
-    case TokenType::RemovedFloat:
+    case TokenType::NativeInt:
+    case TokenType::NativeUInt:
+    case TokenType::NativeFloat:
     case TokenType::Int8:
     case TokenType::UInt8:
     case TokenType::Int16:
@@ -65,18 +92,11 @@ bool Parser::startsOutOfLineDefinition() const {
     case TokenType::FP32:
     case TokenType::FP64:
         ++afterType;
+        skipTypeArguments(afterType);
         break;
-    case TokenType::RangeType:
-    case TokenType::CallbackType: {
+    case TokenType::RangeType: {
         ++afterType;
-        std::size_t depth = 0;
-        for (; afterType < tokens_.size(); ++afterType) {
-            if (tokens_[afterType].type == TokenType::Less) ++depth;
-            if (tokens_[afterType].type == TokenType::Greater && --depth == 0) {
-                ++afterType;
-                break;
-            }
-        }
+        skipTypeArguments(afterType);
         break;
     }
     case TokenType::Identifier:
@@ -86,6 +106,7 @@ bool Parser::startsOutOfLineDefinition() const {
                tokens_[afterType + 1].type == TokenType::Identifier) {
             afterType += 2;
         }
+        skipTypeArguments(afterType);
         break;
     case TokenType::Bool:
     case TokenType::StrgType:
@@ -97,6 +118,7 @@ bool Parser::startsOutOfLineDefinition() const {
     case TokenType::TypeType:
     case TokenType::Void:
         ++afterType;
+        skipTypeArguments(afterType);
         break;
     default:
         return false;
@@ -130,13 +152,10 @@ const Token& Parser::consume(TokenType type, const char* expectation) {
 }
 
 [[noreturn]] void Parser::error(const Token& token, const std::string& message) const {
-    if (token.type == TokenType::RemovedInt || token.type == TokenType::RemovedUnsigned ||
-        token.type == TokenType::RemovedFloat) {
-        const auto replacement = token.type == TokenType::RemovedInt ? "int64" :
-                                 token.type == TokenType::RemovedUnsigned ? "uint64" : "fp64";
+    if (token.type == TokenType::RemovedUnsigned) {
         throw DiagnosticError(token.location,
                               "'" + token.text + "' is a removed numeric type name; use '" +
-                                  replacement + "' and update conversions to the fixed-width "
+                                  "uint64' and update conversions to the fixed-width "
                                   "numeric model");
     }
     throw DiagnosticError(token.location, message);
@@ -471,8 +490,9 @@ Statement Parser::parseStatement() {
     if (check(TokenType::Inline)) {
         return parseInlineC();
     }
-    if (check(TokenType::RemovedInt) || check(TokenType::RemovedFloat) ||
-        check(TokenType::RemovedUnsigned) || check(TokenType::Int8) ||
+    if (check(TokenType::RemovedUnsigned) || check(TokenType::NativeInt) ||
+        check(TokenType::NativeUInt) || check(TokenType::NativeFloat) ||
+        check(TokenType::Int8) ||
         check(TokenType::UInt8) || check(TokenType::Int16) ||
         check(TokenType::UInt16) || check(TokenType::Int32) ||
         check(TokenType::UInt32) || check(TokenType::Int64) ||
@@ -481,7 +501,7 @@ Statement Parser::parseStatement() {
         check(TokenType::StrgType) || check(TokenType::ListType) ||
         check(TokenType::DictType) || check(TokenType::BufferType) ||
         check(TokenType::HandleType) || check(TokenType::AnyType) ||
-        check(TokenType::TypeType) || check(TokenType::CallbackType) ||
+        check(TokenType::TypeType) ||
         check(TokenType::RangeType) ||
         check(TokenType::Void)) {
         return parseDeclaration();
@@ -632,6 +652,18 @@ Statement Parser::parseDeclaration() {
 
 Statement Parser::parseExpressionStatement() {
     std::size_t lookahead = current_;
+    const auto skipTypeArguments = [this](std::size_t& index) {
+        while (index < tokens_.size() && tokens_[index].type == TokenType::Less) {
+            std::size_t depth = 0;
+            do {
+                if (tokens_[index].type == TokenType::Less) ++depth;
+                else if (tokens_[index].type == TokenType::Greater) --depth;
+                else if (tokens_[index].type == TokenType::ShiftRight)
+                    depth = depth > 1 ? depth - 2 : 0;
+                ++index;
+            } while (index < tokens_.size() && depth != 0);
+        }
+    };
     if (tokens_[lookahead].type == TokenType::Identifier) {
         ++lookahead;
         while (lookahead + 1 < tokens_.size() &&
@@ -639,6 +671,7 @@ Statement Parser::parseExpressionStatement() {
                tokens_[lookahead + 1].type == TokenType::Identifier) {
             lookahead += 2;
         }
+        skipTypeArguments(lookahead);
     }
     if (lookahead < tokens_.size() &&
         tokens_[lookahead].type == TokenType::Identifier) {
@@ -1102,24 +1135,64 @@ std::unique_ptr<Expression> Parser::parseShift() {
 
 std::string Parser::parseTypeTestName(const std::string& operatorName) {
     if (check(TokenType::RangeType)) return parseType();
-    if (check(TokenType::RemovedInt) || check(TokenType::RemovedFloat) ||
-        check(TokenType::RemovedUnsigned)) {
+    if (check(TokenType::RemovedUnsigned)) {
         error(current(), "removed numeric type name");
     }
-    if (check(TokenType::CallbackType))
-        error(current(), "callback type tests and casts are not supported; use a typed declaration");
     if (check(TokenType::Identifier)) {
+        std::size_t afterName = current_ + 1;
+        while (afterName + 1 < tokens_.size() &&
+               tokens_[afterName].type == TokenType::Dot &&
+               tokens_[afterName + 1].type == TokenType::Identifier) {
+            afterName += 2;
+        }
+        if (afterName < tokens_.size() &&
+            tokens_[afterName].type == TokenType::Less) {
+            return parseType(true);
+        }
         return parseQualifiedIdentifier("type name after 'is'");
+    }
+    if (current_ + 1 < tokens_.size() &&
+        tokens_[current_ + 1].type == TokenType::Less) {
+        switch (current().type) {
+        case TokenType::NativeInt:
+        case TokenType::NativeUInt:
+        case TokenType::NativeFloat:
+        case TokenType::Int8:
+        case TokenType::UInt8:
+        case TokenType::Int16:
+        case TokenType::UInt16:
+        case TokenType::Int32:
+        case TokenType::UInt32:
+        case TokenType::Int64:
+        case TokenType::UInt64:
+        case TokenType::FP32:
+        case TokenType::FP64:
+        case TokenType::Bool:
+        case TokenType::StrgType:
+        case TokenType::ListType:
+        case TokenType::DictType:
+        case TokenType::BufferType:
+        case TokenType::HandleType:
+        case TokenType::AnyType:
+        case TokenType::TypeType:
+        case TokenType::Void:
+            return parseType(true);
+        default:
+            break;
+        }
     }
     if (match(TokenType::Int8)) return "int8";
     if (match(TokenType::UInt8)) return "uint8";
     if (match(TokenType::Int16)) return "int16";
     if (match(TokenType::UInt16)) return "uint16";
     if (match(TokenType::Int32)) return "int32";
+    if (match(TokenType::NativeInt)) return "int32";
     if (match(TokenType::UInt32)) return "uint32";
+    if (match(TokenType::NativeUInt)) return "uint32";
     if (match(TokenType::Int64)) return "int64";
     if (match(TokenType::UInt64)) return "uint64";
     if (match(TokenType::FP32)) return "fp32";
+    if (match(TokenType::NativeFloat)) return "fp32";
     if (match(TokenType::FP64)) return "fp64";
     if (match(TokenType::Bool)) return "bool";
     if (match(TokenType::StrgType)) return "String";
@@ -1204,8 +1277,7 @@ std::unique_ptr<Expression> Parser::parsePrimary() {
         consume(TokenType::RightParen, "')' after type operand");
         return expression;
     }
-    if (check(TokenType::RemovedInt) || check(TokenType::RemovedFloat) ||
-        check(TokenType::RemovedUnsigned)) error(current(), "removed numeric type name");
+    if (check(TokenType::RemovedUnsigned)) error(current(), "removed numeric type name");
     const auto numericTypeName = [&]() -> std::string {
         switch (current().type) {
         case TokenType::Int8: return "int8";
@@ -1213,10 +1285,13 @@ std::unique_ptr<Expression> Parser::parsePrimary() {
         case TokenType::Int16: return "int16";
         case TokenType::UInt16: return "uint16";
         case TokenType::Int32: return "int32";
+        case TokenType::NativeInt: return "int32";
         case TokenType::UInt32: return "uint32";
+        case TokenType::NativeUInt: return "uint32";
         case TokenType::Int64: return "int64";
         case TokenType::UInt64: return "uint64";
         case TokenType::FP32: return "fp32";
+        case TokenType::NativeFloat: return "fp32";
         case TokenType::FP64: return "fp64";
         default: return {};
         }

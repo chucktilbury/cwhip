@@ -47,6 +47,12 @@ def main():
         check(f"{signed}(-0.75)", "0")
 
     check("uint16(int8(-1))", "65535")
+    check("int(7)", "7")
+    check("uint(7u)", "7")
+    check("float(1.5)", "1.5")
+    check("type(int(7)) == int32")
+    check("type(uint(7u)) == uint32")
+    check("type(float(1.5)) == fp32")
     check("(uint8(1) | uint8(2) ^ uint8(3) & uint8(1))", "3")
     check("(uint8(1) << 2 + 1)", "8")
     check("fp64(0.1) != 0.1f64")
@@ -146,6 +152,19 @@ def main():
     native_class += "".join(
         f'{numeric} Native.echo_{numeric}({numeric} value) from "echo_{numeric}"\n'
         for numeric in types)
+    native_class += """
+class NativeAliases {
+int echoInt(int value)
+uint echoUInt(uint value)
+float echoFloat(float value)
+}
+int NativeAliases.echoInt(int value) from "echo_native_int"
+uint NativeAliases.echoUInt(uint value) from "echo_native_uint"
+float NativeAliases.echoFloat(float value) from "echo_native_float"
+class AliasWorker {
+int echo(int value) { return value + 1 }
+}
+"""
     source = "class Constants {\nenum {\n" + "".join(
         f"C{index} = {expression}\n" for index, (expression, _) in enumerate(constants))
     source += "LAST = C0 + 1\n}\n}\n" + native_class
@@ -215,8 +234,8 @@ holder.next().bits += 1u
 holder.next().bits <<= 2
 print("{}\\n", holder.calls)
 print("{}\\n", holder.target.bits)
-callback<int8(int8)> action = worker.echo
-callback<fp32(fp32)> realAction = worker.real
+int8<int8> action = worker.echo
+fp32<fp32> realAction = worker.real
 print("{}\\n", action(-7))
 print("{}\\n", realAction(1.5))
 uint8 bits = 255u
@@ -248,9 +267,9 @@ print("{}\\n", bytes[0])
         expected += value + "\n"
         ctype = "float" if numeric == "fp32" else "double" if numeric == "fp64" else numeric + "_t"
         source += f"""
-callback<{numeric}({numeric})> cb_{numeric} = callbackWorker.echo_{numeric}
+{numeric}<{numeric}> cb_{numeric} = callbackWorker.echo_{numeric}
 {numeric} result_{numeric} = 0
-inline(callback<{numeric}({numeric})> cb_{numeric}, {numeric} result_{numeric}) {{
+inline({numeric}<{numeric}> cb_{numeric}, {numeric} result_{numeric}) {{
 CwhipCallbackContext *context = cwhip_callback_acquire(*cb_{numeric}, "callback<{numeric}({numeric})>");
 *result_{numeric} = (({ctype} (*)(CwhipCallbackContext *, {ctype}))
     cwhip_callback_adapter(context))(context, ({ctype})({value}));
@@ -260,7 +279,32 @@ cwhip_callback_dispose(context);
 print("{{}}\\n", result_{numeric})
 """
         expected += value + "\n"
-    source += "}\n"
+    source += """
+NativeAliases aliases = NativeAliases()
+print("{}\\n", aliases.echoInt(int(12)))
+print("{}\\n", aliases.echoUInt(uint(17u)))
+print("{}\\n", aliases.echoFloat(float(1.25)))
+range<int> aliasRange = int(1)..int(3)
+print("{}\\n", type(aliasRange) == range<int32>)
+print("{}\\n", int(2) in aliasRange)
+AliasWorker aliasWorker = AliasWorker()
+int<int> aliasAction = aliasWorker.echo
+print("{}\\n", type(aliasAction))
+print("{}\\n", aliasAction(int(41)))
+int aliasResult = 0
+inline(int<int> aliasAction, int aliasResult) {
+CwhipCallbackContext *context =
+    cwhip_callback_acquire(*aliasAction, "callback<int32(int32)>");
+cwhip_gc_collect();
+*aliasResult = ((int (*)(CwhipCallbackContext *, int))
+    cwhip_callback_adapter(context))(context, 41);
+cwhip_callback_release(context);
+cwhip_callback_dispose(context);
+}
+print("{}\\n", aliasResult)
+}
+"""
+    expected += "13\n19\n1.75\ntrue\ntrue\ncallback<int32(int32)>\n42\n42\n"
 
     with tempfile.TemporaryDirectory(prefix="cwhip-numeric-") as directory:
         work = Path(directory)
@@ -271,7 +315,13 @@ print("{{}}\\n", result_{numeric})
             f"{'float' if numeric == 'fp32' else 'double' if numeric == 'fp64' else numeric + '_t'} "
             f"echo_{numeric}(void *receiver, "
             f"{'float' if numeric == 'fp32' else 'double' if numeric == 'fp64' else numeric + '_t'} value) "
-            "{ (void)receiver; return value; }\n" for numeric in types))
+            "{ (void)receiver; return value; }\n" for numeric in types) +
+            "int echo_native_int(void *receiver, int value) "
+            "{ (void)receiver; return value + 1; }\n"
+            "unsigned int echo_native_uint(void *receiver, unsigned int value) "
+            "{ (void)receiver; return value + 2; }\n"
+            "float echo_native_float(void *receiver, float value) "
+            "{ (void)receiver; return value + 0.5f; }\n")
         invalid_constants = [
             ("int8(127) + int8(1)", "overflow"),
             ("int8(-128) - int8(1)", "overflow"),

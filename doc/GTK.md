@@ -28,7 +28,7 @@ are not bundled. The native platform remains POSIX.
 
 Construct exactly one `Application(String id)` on the registered Cwhip thread
 that will own GTK. The ID must be a valid GApplication ID, such as
-`"org.example.Editor"`. `onActivate(callback<void()> action)` returns a connection;
+`"org.example.Editor"`. `onActivate(void<> action)` returns a connection;
 install activation handlers **before** `run()`. Create windows and widgets
 during local activation or afterward on the same GUI thread, not before `run()`.
 Each `Window` automatically associates with this `GtkApplication`.
@@ -63,7 +63,7 @@ window; use `dispose()` to tear down a window that has not been presented.
 Calling close before presentation is rejected rather than silently doing nothing.
 
 `String id()` returns a managed copy of the application ID while live.
-`int64 post(callback<void()> action)` is the only worker-callable GUI operation;
+`int64 post(void<> action)` is the only worker-callable GUI operation;
 it queues one invocation on the GUI thread and returns a positive, process-unique
 token. `bool cancel(int64 token)` is GUI-only: true means pending work was removed,
 false means it was already cancelled/running/completed or was never pending.
@@ -99,19 +99,19 @@ The first-release additions are:
 
 | Class | Constructor and operations |
 | --- | --- |
-| `Window` | `Window(String title)`, `setTitle(String)`, `String title()`, `setDefaultSize(int64 width, int64 height)`, `int64 defaultWidth()`, `int64 defaultHeight()`, `setTransientFor(Window parent)`, `setChild(Widget)`, `remove(Widget)`, `present()`, `close()`, `onCloseRequest(callback<bool()>)`, `onFocusChanged(callback<void(bool)>)`, `bindShortcut(String trigger, callback<void()>)`, `bool hasShortcut(String trigger)` |
-| `TransientWindow` | `TransientWindow(String title)`, `setTitle(String)`, `String title()`, `setDefaultSize(int64 width, int64 height)`, `int64 defaultWidth()`, `int64 defaultHeight()`, `setTransientFor(Window parent)`, `setChild(Widget)`, `remove(Widget)`, `present()`, `close()`, `onCloseRequest(callback<bool()>)` |
+| `Window` | `Window(String title)`, `setTitle(String)`, `String title()`, `setDefaultSize(int64 width, int64 height)`, `int64 defaultWidth()`, `int64 defaultHeight()`, `setTransientFor(Window parent)`, `setChild(Widget)`, `remove(Widget)`, `present()`, `close()`, `onCloseRequest(bool<>)`, `onFocusChanged(void<bool>)`, `bindShortcut(String trigger, void<>)`, `bool hasShortcut(String trigger)` |
+| `TransientWindow` | `TransientWindow(String title)`, `setTitle(String)`, `String title()`, `setDefaultSize(int64 width, int64 height)`, `int64 defaultWidth()`, `int64 defaultHeight()`, `setTransientFor(Window parent)`, `setChild(Widget)`, `remove(Widget)`, `present()`, `close()`, `onCloseRequest(bool<>)` |
 | `Box` | `Box(int64 orientation, int64 spacing)`, `setLayout(int64 orientation, int64 spacing)`, `append(Widget)`, `remove(Widget)` |
 | `Grid` | `Grid(int64 spacing)`, `attach(Widget, int64 column, int64 row, int64 width, int64 height)` |
 | `ContextMenu` | `ContextMenu(Widget owner)`, `setChild(Widget)` |
 | `Label` | `Label(String text)`, `setText(String)`, `String text()` |
-| `Button` | `Button(String label)`, `setLabel(String)`, `String label()`, `onClicked(callback<void()>)` |
-| `Entry` | `Entry(String text)`, `setText(String)`, `String text()`, `focus()`, `setEditable(bool)`, `onChanged(callback<void(String)>)` |
-| `CheckButton` | `CheckButton(String label)`, `setLabel(String)`, `String label()`, `setActive(bool)`, `bool active()`, `onToggled(callback<void(bool)>)` |
+| `Button` | `Button(String label)`, `setLabel(String)`, `String label()`, `onClicked(void<>)` |
+| `Entry` | `Entry(String text)`, `setText(String)`, `String text()`, `focus()`, `setEditable(bool)`, `onChanged(void<String>)` |
+| `CheckButton` | `CheckButton(String label)`, `setLabel(String)`, `String label()`, `setActive(bool)`, `bool active()`, `onToggled(void<bool>)` |
 | `ScrolledWindow` | `ScrolledWindow()`, `setChild(Widget)`, `remove(Widget)` |
-| `Notebook` | `Notebook()`, `appendPage(Widget, String)`, `appendClosablePage(Widget, String, callback<void()>)`, `int64 currentPage()`, `setCurrentPage(int64)`, `int64 pageCount()`, `setPageTitle(int64, String)`, `remove(Widget)`, `onPageChanged(callback<void()>)`, `setBorderedTabs()` |
+| `Notebook` | `Notebook()`, `appendPage(Widget, String)`, `appendClosablePage(Widget, String, void<>)`, `int64 currentPage()`, `setCurrentPage(int64)`, `int64 pageCount()`, `setPageTitle(int64, String)`, `remove(Widget)`, `onPageChanged(void<>)`, `setBorderedTabs()` |
 | `Paned` | `Paned()`, `append(Widget)`, `setPosition(int64)`, `int64 position()` |
-| `MenuBar` | `MenuBar()`, `int64 addMenu(String)`, `int64 addItem(int64 menu, String label, callback<void()>)`, `addSeparator(int64 menu)`, `setItemEnabled(int64 item, bool)`, `activateItem(int64 item)` |
+| `MenuBar` | `MenuBar()`, `int64 addMenu(String)`, `int64 addItem(int64 menu, String label, void<>)`, `addSeparator(int64 menu)`, `setItemEnabled(int64 item, bool)`, `activateItem(int64 item)` |
 
 Methods without a listed result return `void`, except signal registration,
 which returns `SignalConnection`. Orientation is `Gtk.Box.HORIZONTAL` (`0`) or
@@ -176,7 +176,7 @@ drawn after a separator.
 
 ```text
 Gtk.FileDialog(Window parent, bool save, String initialPath,
-               callback<void(String)> result)
+               void<String> result)
 void cancel()
 bool pending()
 ```
@@ -207,7 +207,7 @@ result handler runs, using a one-shot GUI idle dispatch; no nested main loop
 or blocking wait is used.
 
 ```text
-Gtk.FileDialog(Window parent, String initialPath, callback<void(list)> results)
+Gtk.FileDialog(Window parent, String initialPath, void<list> results)
 ```
 
 This open-only constructor enables multiple selection. Acceptance invokes
@@ -227,7 +227,7 @@ immediately and needs no callback; the binding keeps no reference to the alert.
 The folder-selection overload is:
 
 ```text
-Gtk.FileDialog(Window parent, String initialPath, callback<void(String)> folder)
+Gtk.FileDialog(Window parent, String initialPath, void<String> folder)
 ```
 
 It uses `gtk_file_dialog_select_folder`, with the same parent,
@@ -248,7 +248,7 @@ returns the current divider position. The start side
 keeps its requested width on window resize; the end side grows.
 
 ```text
-Gtk.Tree(callback<void(int64)> request, callback<void(int64)> activate)
+Gtk.Tree(void<int64> request, void<int64> activate)
 void add(int64 parent, int64 id, String label, String icon, bool expandable,
          String value, int64 data)
 void clear(int64 parent)
@@ -279,9 +279,9 @@ shutdown, including disposal from within a callback.
 
 ```text
 Gtk.DirectoryScan(Gtk.Tree owner, String path, bool hidden,
-                  callback<void(int64, String)> result)
+                  void<int64, String> result)
 Gtk.DirectoryScan(Gtk.Tree owner, String path, bool hidden, String root,
-                  String excludes, callback<void(int64, String)> result)
+                  String excludes, void<int64, String> result)
 void cancel()
 void append(Gtk.Tree owner, int64 parent, int64 firstId, int64 count, String icons)
 ```
@@ -378,7 +378,7 @@ Read-only line-oriented interactions and source marks are also supported:
 
 ```text
 void setLineSelection(bool enabled)
-int64 onLineActivated(callback<void(int64)> action)
+int64 onLineActivated(void<int64> action)
 void setMarkStyle(String category, String icon, String background)
 void addLineMark(String category, int64 line)
 void clearLineMarks(String category)
@@ -479,7 +479,7 @@ families. It does not select an application-wide font.
 `Gtk.Keyboard().normalize(String trigger)` returns GTK's canonical spelling for
 one key-value trigger, or `""` for invalid/unsupported syntax (including compound
 alternative triggers). Use this result to compare conflicts.
-`int64 record(Gtk.Entry entry, callback<void(String)> result)` captures the next
+`int64 record(Gtk.Entry entry, void<String> result)` captures the next
 non-modifier key combination at the entry; Escape delivers `""`. The result
 does not change the entry itself. `bool cancel(int64 token)` disconnects and
 removes the recorder, and is safe inside its callback. It remains registered
@@ -500,7 +500,7 @@ Cwhip-written settings model, not a settings framework:
 | `int64 arraySize(String text, String section, String key)` | Array element count, or `-1` for a missing/non-array value. |
 | `String remove(String text, String section, String key)` | Validated TOML with one key removed (empty section addresses the root); other values are kept and serialized as by `merge`. |
 | `String merge(String original, String updates)` | Both inputs must be validated TOML; recursively overlays updates and serializes, preserving unrelated values but not comments/formatting. |
-| `void save(String path, String text, String expected, callback<void(String)> result)` | Asynchronously loads the local file, checks expected previous contents, then atomically replaces using its ETag where supported. Expected `""` allows a missing first-run file. Result is `""` on success, or an explicit I/O/concurrent-edit error. The caller creates the parent directory and bounds/validates the data. |
+| `void save(String path, String text, String expected, void<String> result)` | Asynchronously loads the local file, checks expected previous contents, then atomically replaces using its ETag where supported. Expected `""` allows a missing first-run file. Result is `""` on success, or an explicit I/O/concurrent-edit error. The caller creates the parent directory and bounds/validates the data. |
 | `String saveNow(String path, String text, String expected)` | Synchronous counterpart for small bounded state snapshots that must finish before window teardown. Uses the same content/ETag guard and atomic private-file replacement. Returns `""` on success or an explicit error; callers must report it. Bounds/validation and parent-directory creation remain the caller's responsibility. |
 
 Save callback roots and copied bytes survive asynchronous I/O. Shutdown drains
@@ -560,9 +560,9 @@ callback signatures as their registration methods. They expose no native
 handle or connection-token constructor.
 
 Handlers receive Cwhip values, never raw GTK instance pointers:
-`Button` invokes `callback<void()>`; `Entry` invokes `callback<void(String)>`
+`Button` invokes `void<>`; `Entry` invokes `void<String>`
 with a copied, rooted managed string; `CheckButton` invokes
-`callback<void(bool)>` with its current active state. A
+`void<bool>` with its current active state. A
 `Window` close-request handler returns true to prevent closing and false to
 allow GTK's default close action. GTK's native signal ordering/accumulators
 still apply when multiple handlers are connected.
@@ -592,8 +592,8 @@ class Demo {
     Gtk.Window window
     Gtk.Entry entry
     Gtk.Label label
-    callback<void(String)> changedAction
-    callback<void()> finishAction
+    void<String> changedAction
+    void<> finishAction
 
     void activate() {
         window = Gtk.Window("Cwhip")

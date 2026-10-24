@@ -192,11 +192,24 @@ const TestGroupRegistration registration{9, {
                  "start {\n int64 wide = 1\n int8 narrow = int8(wide)\n}\n");
              require(explicitCast.empty(), "explicit numeric cast emitted an implicit warning");
          }},
-        {"removed numeric names remain reserved", [] {
-             for (const auto* name : {"int", "unsigned", "float", "INT", "Unsigned", "FLOAT"}) {
-                 const std::string migration =
-                     name[0] == 'i' || name[0] == 'I' ? "int64" :
-                     name[0] == 'u' || name[0] == 'U' ? "uint64" : "fp64";
+        {"native numeric aliases preserve fixed-width identities", [] {
+             expectValid("start {\n int signedValue = int(7)\n"
+                         " uint unsignedValue = uint(9u)\n"
+                         " float realValue = float(1.5)\n"
+                         " int32 fixedSigned = signedValue\n"
+                         " uint32 fixedUnsigned = unsignedValue\n"
+                         " fp32 fixedReal = realValue\n}\n");
+             const auto aliases = parse(
+                 "start {\n int signedValue = 7\n uint unsignedValue = 9u\n"
+                 " float realValue = 1.5\n}\n", "native-aliases.cw");
+             const auto aliasIr =
+                 cwhip::CodeGenerator("x86_64-unknown-linux-gnu").generate(aliases);
+             require(aliasIr.find("alloca i32") != std::string::npos &&
+                         aliasIr.find("alloca float") != std::string::npos,
+                     "native aliases did not use the existing fixed-width LLVM types");
+         }},
+        {"unsigned remains a removed reserved name", [] {
+             for (const auto* name : {"unsigned", "Unsigned"}) {
                  bool migrationFound = false;
                  try {
                      (void)parse("start {\n " + std::string(name) + " value = 1\n}\n",
@@ -204,25 +217,10 @@ const TestGroupRegistration registration{9, {
                  } catch (const cwhip::DiagnosticError& error) {
                      migrationFound = true;
                      require(std::string(error.what()).find(
-                                 "use '" + migration + "'") != std::string::npos,
+                                 "use 'uint64'") != std::string::npos,
                              "removed type diagnostic omitted its migration replacement");
                  }
                  require(migrationFound, "removed type name was accepted");
-                 expectDiagnostic("start {\n int64 " + std::string(name) + " = 1\n}\n",
-                                  "removed numeric type name");
-                 expectDiagnostic("start {\n print(" + std::string(name) + ")\n}\n",
-                                  "removed numeric type name");
-                 expectDiagnostic("class " + std::string(name) + " {}\nstart {}\n",
-                                  "removed numeric type name");
-                 expectDiagnostic("class Holder { " + std::string(name) +
-                                      " field }\nstart {}\n",
-                                  "removed numeric type name");
-                 expectDiagnostic("class Holder { void " + std::string(name) +
-                                      "() {} }\nstart {}\n",
-                                  "removed numeric type name");
-                 expectDiagnostic("class Holder { void use(" + std::string(name) +
-                                      " value) {} }\nstart {}\n",
-                                  "removed numeric type name");
              }
              expectDiagnostic("start {\n float32 value = 1.0\n}\n", "unknown type or class");
              auto narrow = parse("start {\n int8 value\n}\n", "backend-boundary.cw");

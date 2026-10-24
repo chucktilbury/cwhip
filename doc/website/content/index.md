@@ -17,7 +17,8 @@ See the [documentation](docs.html) for full installation details and the languag
 
 ## Language highlights
 
-- Signed 64-bit `int`, `unsigned`, `float`; string type is `strg`.
+- Fixed-width integer and floating types, with target-checked native `int`,
+  `uint`, and `float` aliases; string type is `strg`.
 - Classes with inheritance.
 - Managed strings and collections (`list`, `dict`).
 - Exceptions and native bindings.

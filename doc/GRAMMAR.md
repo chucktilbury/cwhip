@@ -63,9 +63,9 @@ OPERATOR        ::= "+=" | "-=" | "*=" | "/=" | "%="
                   | "=" | "==" | "!=" | "<" | "<=" | ">" | ">=" ;
 ```
 
-The reserved words include `start`, `bool`, `int8`, `uint8`, `int16`, `uint16`,
-`int32`, `uint32`, `int64`, `uint64`, `fp32`, `fp64`, `strg`, `callback`,
-`list`, `dict`, `buffer`, `handle`, `range`, `any`, `type`, `class`,
+The reserved words include `start`, `bool`, `int`, `uint`, `float`, `int8`,
+`uint8`, `int16`, `uint16`, `int32`, `uint32`, `int64`, `uint64`, `fp32`,
+`fp64`, `strg`, `list`, `dict`, `buffer`, `handle`, `range`, `any`, `type`, `class`,
 `namespace`, `include`, `inline`, `import`, `as`, `public`, `protected`,
 `private`, `virtual`, `super`, `null`, `true`, `false`, `return`, `void`,
 `if`, `else`, `while`, `do`, `for`, `in`, `is`, `break`, `continue`, `and`,
@@ -73,8 +73,9 @@ The reserved words include `start`, `bool`, `int8`, `uint8`, `int16`, `uint16`,
 `switch`, `case`, and `default`.
 `next` is a case-insensitive contextual keyword only as a standalone statement;
 it remains an identifier in declarations, expressions, and member access.
-The removed spellings `int`, `unsigned`, and `float` remain reserved and
-produce migration diagnostics recommending `int64`, `uint64`, and `fp64`.
+`int`, `uint`, and `float` are native-width aliases for `int32`, `uint32`, and
+`fp32`. `unsigned` remains reserved and produces a migration diagnostic
+recommending `uint64`. `callback` is an ordinary identifier.
 The LLVM backend lowers each numeric type at its declared width, with
 catchable checked integer arithmetic and IEEE floating execution.
 
@@ -187,16 +188,20 @@ out-of-line-definition
 return-type         ::= type | "void" ;
 parameter-list      ::= "(", [ parameter, { ",", parameter } ], ")" ;
 parameter           ::= type, IDENT ;
-type                ::= primitive-type | QUALIFIED_IDENT | callback-type | range-type ;
-range-type          ::= "range", "<", numeric-type-name, ">" ;
-callback-type       ::= "callback", "<", return-type, "(",
-                        [ type, { ",", type } ], ")", ">" ;
+type                ::= type-atom, { callable-parameters } ;
+type-atom           ::= primitive-type | QUALIFIED_IDENT | range-type | "void" ;
+range-type          ::= "range", "<", range-element-type, ">" ;
+range-element-type  ::= integer-type-name ;
+callable-parameters ::= "<", [ type, { ",", type } ], ">" ;
 primitive-type      ::= numeric-type-name | "bool" | "strg"
                       | "list" | "dict" | "buffer"
                       | "handle" | "any" | "type" ;
 numeric-type-name   ::= "int8" | "uint8" | "int16" | "uint16"
                       | "int32" | "uint32" | "int64" | "uint64"
-                      | "fp32" | "fp64" ;
+                      | "fp32" | "fp64" | "int" | "uint" | "float" ;
+integer-type-name   ::= "int8" | "uint8" | "int16" | "uint16"
+                      | "int32" | "uint32" | "int64" | "uint64"
+                      | "int" | "uint" ;
 
 include-directive   ::= "include", DOUBLE_STRING, terminator ;
 ```
@@ -204,11 +209,15 @@ include-directive   ::= "include", DOUBLE_STRING, terminator ;
 `destroy` is an in-class declaration form, not a general method signature: it
 must be followed by a block and has no return type or parameter list.
 Destructors cannot be declared without a body or defined out of line.
-Callback signatures have unnamed parameter types. A member expression without
-invocation parentheses captures an instance method when it resolves to a method
-rather than a field; the expected callback type resolves overloads. A call's
-callee may also be a typed callback value. See [CALLBACKS.md](CALLBACKS.md) for
-the semantic restrictions and native ABI.
+Callable signatures use `R<P1,P2>`; zero arguments use `R<>`. The return type
+and each parameter are recursive types, so `int64<int64><String>` returns a
+callable taking `String` whose result is `int64<int64>`. `range<T>` remains the
+special one-argument range type and can itself be a callable result or parameter.
+`void<>` is valid, but `void` is not a callable parameter. A member expression
+without invocation parentheses captures an instance method when it resolves to
+a method rather than a field; the expected callable type resolves overloads.
+A call's callee may also be a typed callable value. See
+[CALLBACKS.md](CALLBACKS.md) for semantic restrictions and the native ABI.
 `enum` is contextual to the class-member production above; it does not
 introduce a named enum type or a top-level declaration.
 
