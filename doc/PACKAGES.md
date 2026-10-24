@@ -76,7 +76,10 @@ library-paths = ["lib"]
 Missing or old identifiers are rejected before source/native linking. Rebuild
 native archives and migrate source before declaring this identifier; see
 [NUMERIC-MIGRATION.md](NUMERIC-MIGRATION.md). Existing lockfiles must be
-regenerated because package content hashes change.
+regenerated because package content hashes change. An incompatible package left
+in the SDK's own module directory by another project's earlier install also
+fails `cwhip-pkg` with `PKG2004`, even when unused; see
+[Leftover packages from other projects](INSTALLATION.md#leftover-packages-from-other-projects).
 
 The package name and export name must be non-keyword Cwhip identifiers.
 `name` and `version` must match the installed directory names; a fetched tag

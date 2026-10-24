@@ -316,6 +316,30 @@ install(FILES ${CWHIP_BUILTIN_SOURCES} DESTINATION "${CMAKE_INSTALL_DATADIR}/cwh
 install(DIRECTORY "${CWHIP_STAGE_MODULE_DIRECTORY}/"
     DESTINATION "${CMAKE_INSTALL_DATADIR}/cwhip/modules")
 
+# Packages installed into this prefix by other projects are not replaced by an
+# SDK install; report any left over for another SDK ABI (or, with
+# CWHIP_QUARANTINE_INCOMPATIBLE_PACKAGES=1 at install time, move them to a backup).
+file(STRINGS "${CWHIP_SOURCE_INCLUDE_DIRECTORY}/Stdlib.h" cwhip_sdk_abi_define
+    REGEX "^#define CWHIP_SDK_ABI \"[^\"]+\"$")
+string(REGEX REPLACE "^#define CWHIP_SDK_ABI \"([^\"]+)\"$" "\\1"
+    CWHIP_SDK_ABI "${cwhip_sdk_abi_define}")
+if(NOT CWHIP_SDK_ABI MATCHES "^[A-Za-z0-9.-]+$")
+    message(FATAL_ERROR "Cannot read CWHIP_SDK_ABI from ${CWHIP_SOURCE_INCLUDE_DIRECTORY}/Stdlib.h")
+endif()
+install(CODE "
+    set(cwhip_installed_data \"\$ENV{DESTDIR}\${CMAKE_INSTALL_PREFIX}/${CWHIP_RELATIVE_DATADIR}/cwhip\")
+    execute_process(COMMAND \"${Python3_EXECUTABLE}\"
+            \"${CMAKE_CURRENT_SOURCE_DIR}/../tools/cwhip-install-package-check.py\"
+            --modules-dir \"\${cwhip_installed_data}/modules\"
+            --owned-dir \"${CWHIP_STAGE_MODULE_DIRECTORY}\"
+            --backup-dir \"\${cwhip_installed_data}/package-backups\"
+            --sdk-abi \"${CWHIP_SDK_ABI}\"
+        RESULT_VARIABLE cwhip_package_check_result)
+    if(NOT cwhip_package_check_result EQUAL 0)
+        message(FATAL_ERROR \"Installed package check failed; see the cwhip-install error above\")
+    endif()
+")
+
 include(CMakePackageConfigHelpers)
 set(CWHIP_SDK_CMAKE_DIRECTORY "${CMAKE_INSTALL_LIBDIR}/cmake/Cwhip")
 configure_package_config_file(

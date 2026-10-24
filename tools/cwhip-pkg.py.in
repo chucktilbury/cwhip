@@ -293,7 +293,17 @@ def discover_standard_modules(root: Path) -> dict[str, list[str]]:
         for version_dir in sorted(package_dir.iterdir()):
             if not version_dir.is_dir() or not (version_dir / "cwhip-package.toml").is_file():
                 continue
-            manifest = read_manifest(version_dir)
+            try:
+                manifest = read_manifest(version_dir)
+            except CwhipkgError as error:
+                if error.code != "PKG2004":
+                    raise
+                raise CwhipkgError(
+                    f"{error}. This package is installed in the SDK package directory {root}, "
+                    "which a Cwhip SDK reinstall does not replace: reinstall the package from a "
+                    "source version built for this SDK, remove it if unused, or rerun the SDK "
+                    "install with CWHIP_QUARANTINE_INCOMPATIBLE_PACKAGES=1 to move incompatible "
+                    "packages to a backup", code="PKG2004") from error
             if manifest["name"] != package_dir.name:
                 raise CwhipkgError(
                     f"{version_dir / 'cwhip-package.toml'}: package name does not match "
@@ -1105,8 +1115,11 @@ def command_doctor() -> None:
             check("bundled standard packages", not missing, f"{modules}; missing: {', '.join(missing) or 'none'}",
                   "reinstall the SDK's standard packages")
         except (CwhipkgError, OSError) as error:
-            check("bundled standard packages", False, f"{modules}: {error}",
-                  "reinstall the SDK's standard packages")
+            remedy = "reinstall the SDK's standard packages"
+            if isinstance(error, CwhipkgError) and error.code == "PKG2004":
+                remedy = ("reinstall or remove the incompatible package, or rerun the SDK install "
+                          "with CWHIP_QUARANTINE_INCOMPATIBLE_PACKAGES=1")
+            check("bundled standard packages", False, f"{modules}: {error}", remedy)
     selected = os.environ.get("CC") or "@CWHIP_CLANG_EXECUTABLE@"
     if not os.environ.get("CC") and shutil.which(selected) is None:
         print(f"NOTE configured Clang {selected} unavailable; selecting clang via PATH")

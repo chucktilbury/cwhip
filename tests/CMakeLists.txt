@@ -479,6 +479,15 @@ if(NOT CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
                 -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/InstallLayoutTest.cmake"
         )
     endforeach()
+    add_test(NAME cwhip_install_incompatible_packages
+        COMMAND "${Python3_EXECUTABLE}"
+            "${CMAKE_CURRENT_SOURCE_DIR}/test_install_incompatible_packages.py"
+            --build-dir "${CMAKE_BINARY_DIR}" --cmake "${CMAKE_COMMAND}"
+            --datadir "${CMAKE_INSTALL_DATADIR}" --bindir "${CMAKE_INSTALL_BINDIR}")
+else()
+    add_test(NAME cwhip_install_incompatible_packages
+        COMMAND "${Python3_EXECUTABLE}"
+            "${CMAKE_CURRENT_SOURCE_DIR}/test_install_incompatible_packages.py")
 endif()
 
 set(example_directory "${CMAKE_CURRENT_SOURCE_DIR}/../examples")
