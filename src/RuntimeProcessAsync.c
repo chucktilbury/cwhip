@@ -376,7 +376,8 @@ static void flush_input_locked(CwhipAsyncProcess *process) {
         return;
     }
     if (process->input_length == 0) process->input_start = 0;
-    if (process->stdin_fd >= 0 && process->input_length == 0 && process->input_close_requested) {
+    if (process->stdin_fd >= 0 && process->input_length == 0 &&
+        (process->input_close_requested || process->input_failed)) {
         close_input_locked(process);
     }
 }
@@ -436,7 +437,7 @@ static void *pump_main(void *argument) {
             (void)pthread_mutex_lock(&process->lock);
             const short revents = stdin_index < count ? descriptors[stdin_index].revents : 0;
             if ((revents & (POLLERR | POLLHUP | POLLNVAL)) != 0 && process->input_length == 0 &&
-                !process->input_close_requested) {
+                !process->input_close_requested && !process->input_failed) {
                 process->input_failed = 1;
                 set_input_error_locked(process, "stdin closed by the child", EPIPE);
                 close_input_locked(process);
@@ -883,6 +884,8 @@ int32_t cwhip_process_async_wait(void *self, void *object, int64_t timeout) {
     return completed;
 }
 
+static void wake_pump(CwhipAsyncProcess *process);
+
 int32_t cwhip_process_async_cancel(void *self, void *object, int64_t grace) {
     (void)self;
     CwhipAsyncProcess *process = (CwhipAsyncProcess *)object;
@@ -891,12 +894,27 @@ int32_t cwhip_process_async_cancel(void *self, void *object, int64_t grace) {
         return 0;
     }
     int accepted = 0;
+    int wake = 0;
     (void)pthread_mutex_lock(&process->lock);
     if (!process->completed && !process->closing) {
         const int64_t now = monotonic_milliseconds();
         if (!process->cancel_requested) process->cancel_time = now;
         process->cancel_requested = 1;
         accepted = 1;
+        /* Cancellation owns stdin from here on: the queue is discarded and the
+         * diagnostic is sticky, so a broken pipe caused by the kill can never
+         * be reported as the child closing its stdin. */
+        if (process->interactive && !process->input_failed && !process->input_closed) {
+            process->input_failed = 1;
+            set_input_error_locked(process,
+                                   process->input_length > 0
+                                       ? "process was cancelled; queued input was discarded"
+                                       : "process was cancelled",
+                                   ECANCELED);
+            process->input_start = 0;
+            process->input_length = 0;
+            wake = 1;
+        }
         if (!process->reaped) {
             if (!process->cancel_effective) {
                 process->cancel_effective = 1;
@@ -909,6 +927,7 @@ int32_t cwhip_process_async_cancel(void *self, void *object, int64_t grace) {
         }
     }
     (void)pthread_mutex_unlock(&process->lock);
+    if (wake) wake_pump(process);
     cwhip_runtime_clear_error();
     return accepted;
 }

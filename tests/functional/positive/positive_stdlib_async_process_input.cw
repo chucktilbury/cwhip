@@ -289,6 +289,33 @@ start {
     check.that("stalled discard reported", stalled.inputError().contains("discarded"))
     stalled.close()
 
+    # Cancellation is reported even after the killed child's broken stdin pipe
+    # has been observed: waiting first lets the pump see EPIPE before write.
+    P.AsyncProcess killedFull = P.AsyncProcess("/bin/sleep", ["30"], null, true)
+    bool killedFullQueued = false
+    while (killedFull.write(block)) {
+        killedFullQueued = true
+    }
+    check.that("killed full queued", killedFullQueued && killedFull.pendingInput() > 0)
+    check.that("killed full cancel", killedFull.cancel(0))
+    check.that("killed full completes", killedFull.wait(10000))
+    check.that("killed full message", killedFull.inputError().startsWith("process was cancelled"))
+    check.that("killed full discard", killedFull.inputError().contains("discarded"))
+    check.that("killed full write", killedFull.write("x") == false)
+    check.that("killed full write message",
+        killedFull.inputError().startsWith("process was cancelled"))
+    check.that("killed full pending", killedFull.pendingInput() == 0)
+    killedFull.close()
+
+    P.AsyncProcess killedIdle = P.AsyncProcess("/bin/cat", [], null, true)
+    check.that("killed idle cancel", killedIdle.cancel(0))
+    check.that("killed idle completes", killedIdle.wait(10000))
+    check.that("killed idle cancelled", killedIdle.state() == P.AsyncProcess.CANCELLED)
+    check.that("killed idle write", killedIdle.write("x") == false)
+    check.that("killed idle message", killedIdle.inputError().startsWith("process was cancelled"))
+    check.that("killed idle closeInput", killedIdle.closeInput())
+    killedIdle.close()
+
     # A child that closes its stdin: writes fail with an explicit broken-pipe
     # error and SIGPIPE never terminates this program.
     P.AsyncProcess closer = P.AsyncProcess("/bin/sh", ["-c", "exec 0<&-; echo closed; sleep 30"], null, true)
