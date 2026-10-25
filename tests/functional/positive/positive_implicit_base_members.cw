@@ -6,15 +6,15 @@ class FirstBase {
         bar = 24
         foo = 123
     }
-    int64 method(int64 n) { return foo + n }
-    int64 method(bool n) { if (n) { return foo } else { return 0 } }
+    int64 method(int64 n) { return(foo + n)}
+    int64 method(bool n) { if (n) { return(foo)} else { return(0)} }
 }
 
 class SecondBase {
     public:
     int64 foo
     SecondBase() { foo = 42 }
-    int64 method(int64 n) { return foo + n }
+    int64 method(int64 n) { return(foo + n)}
 }
 
 class Child: public FirstBase, private SecondBase {
@@ -52,7 +52,7 @@ class Root {
         bits = 10
         fraction = 1.5
     }
-    int64 read() { return value }
+    int64 read() { return(value)}
 }
 class Left: Root { Left() { super Root() } }
 class Right: Root { Right() { super Root() } }
@@ -84,18 +84,18 @@ class Shared: VirtualLeft, VirtualRight {
 }
 
 class DispatchBase {
-    int64 read() { return 11 }
+    int64 read() { return(11)}
 }
 class Padding { int64 unused }
 class DispatchChild: Padding, DispatchBase {
-    int64 read() { return 99 }
-    int64 qualified() { return DispatchBase.read() }
+    int64 read() { return(99)}
+    int64 qualified() { return(DispatchBase.read())}
 }
 
 class Object {
     int64 foo
     Object() { foo = 88 }
-    int64 method() { return foo }
+    int64 method() { return(foo)}
 }
 class FieldCollision: FirstBase {
     Object FirstBase
@@ -120,7 +120,7 @@ namespace N {
     class Base {
         int64 value
         Base() { value = 17 }
-        int64 read() { return value }
+        int64 read() { return(value)}
     }
     class Derived: Base {
         Derived() { super Base() }

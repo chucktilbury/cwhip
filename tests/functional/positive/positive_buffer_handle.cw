@@ -12,7 +12,7 @@ class Native {
     }
 
     handle recall() {
-        return saved
+        return(saved)
     }
 
     handle create()
@@ -71,7 +71,7 @@ start {
     print(arrayBuffer[0])
     buffer extractedBuffer = buffers[0]
     print(extractedBuffer[1])
-    dict bufferMap = {"bytes": piece}
+    dict bufferMap = ["bytes": piece]
     buffer mapBuffer = bufferMap["bytes"]
     print(mapBuffer[1])
     buffer nativeBuffer = Native(91).identityBuffer(piece)
@@ -81,7 +81,7 @@ start {
     list arrayAlias = aliases
     aliases[0] = 2
     print(arrayAlias[0])
-    dict mapAliases = {"value": 3}
+    dict mapAliases = ["value": 3]
     dict mapAlias = mapAliases
     mapAliases["value"] = 4
     print(mapAlias["value"])
@@ -107,7 +107,7 @@ start {
     list handles = [nativeHandle]
     handle arrayHandle = handles[0]
     native.consume(arrayHandle)
-    dict handleMap = {"handle": inlineHandle}
+    dict handleMap = ["handle": inlineHandle]
     handle mapHandle = handleMap["handle"]
     native.consume(mapHandle)
     handle missingHandle = null

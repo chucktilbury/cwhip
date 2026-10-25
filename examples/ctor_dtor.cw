@@ -68,11 +68,11 @@ start {
     print(format("first base bar is {}", f.bar))
     f.modify()
 
-    ; correct, not private, value is chosen
+    # correct, not private, value is chosen
     print(format("first base foo is {}\n", f.foo))
 
-    ; compiler error due to second being private to child
-    ; print(format("{}", f.SecondBase.foo))
+    # compiler error due to second being private to child
+    # print(format("{}", f.SecondBase.foo))
 
     f.destroy()
 }

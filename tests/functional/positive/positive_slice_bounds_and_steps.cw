@@ -73,7 +73,7 @@ start {
         print(error.message)
     }
 
-    dict entries = {"a": 10, "b": 20, "c": 30, "d": 40}
+    dict entries = ["a": 10, "b": 20, "c": 30, "d": 40]
     dict firstEntries = entries[:2]
     dict lastEntries = entries[1:]
     dict allEntries = entries[:]

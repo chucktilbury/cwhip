@@ -148,9 +148,9 @@ class UI {
     }
     bool preventClose() { F().collect()
         print("prevent")
-        return true }
+        return(true) }
     bool allowClose() { print("allow")
-        return false }
+        return(false) }
     void activate() {
         print(F().registered())
         print(Gtk.Application().id())
@@ -337,8 +337,8 @@ class Handler {
         print(F().disconnect(changed))
     }
     bool closeYes() { F().collect()
-        return true }
-    bool closeNo() { return false }
+        return(true) }
+    bool closeNo() { return(false) }
     void trigger() {
         F().emit(button)
         F().emit(button)
@@ -383,7 +383,7 @@ class Handler {
 class Setup {
     int64 install(handle button) {
         Handler handler = Handler(button)
-        return F().clicked(button, handler.click)
+        return(F().clicked(button, handler.click))
     }
 }
 start {
@@ -410,8 +410,8 @@ class Payload {
 }
 void Payload.note() from "fixture_gtk_destroyed"
 class Setup {
-    int64 submit() { return Gtk.Application().post(Payload().work) }
-    int64 connect(handle button) { return F().clicked(button, Payload().work) }
+    int64 submit() { return(Gtk.Application().post(Payload().work)) }
+    int64 connect(handle button) { return(F().clicked(button, Payload().work)) }
 }
 start {
     Gtk.Application app = Gtk.Application()
@@ -694,7 +694,7 @@ class Handler {
     Handler(Gtk.Window source) { window = source }
     bool close() { window.dispose()
         F().collect()
-        return true }
+        return(true) }
 }
 class UI {
     void activate() {

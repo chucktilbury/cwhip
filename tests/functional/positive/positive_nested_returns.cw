@@ -11,32 +11,32 @@ class ReturnProbe {
 
     strg makeValue() {
         evaluations = evaluations + 1
-        return "survived"
+        return("survived")
     }
 
     int64 choose(bool first) {
         if (first) {
-            { return 10 }
+            { return(10)}
         } else {
-            return 20
+            return(20)
         }
     }
 
     int64 fromLoop() {
         int64 index = 0
         while (index < 3) {
-            if (index == 2) { return index }
+            if (index == 2) { return(index)}
             index = index + 1
         }
-        return -1
+        return(-1)
     }
 
     int64 fromFor() {
         for (item in [int64(1), int64(2)]) {
             int64 value = item
-            if (value == 2) { return value }
+            if (value == 2) { return(value)}
         }
-        return -1
+        return(-1)
     }
 
     int64 fromHandler() {
@@ -44,7 +44,7 @@ class ReturnProbe {
             try {
                 raise(Exception("go"))
             } except(Exception) {
-                return 7
+                return(7)
             } finally {
                 print("inner finally")
             }
@@ -55,7 +55,7 @@ class ReturnProbe {
 
     strg rootedValue(ReturnProbe self) {
         try {
-            return self.makeValue()
+            return(self.makeValue())
         } finally {
             int64 count = 0
             while (count < 180) {
@@ -68,7 +68,7 @@ class ReturnProbe {
 
     Payload rootedObject() {
         try {
-            return Payload(99)
+            return(Payload(99))
         } finally {
             int64 count = 0
             while (count < 180) {
@@ -80,7 +80,7 @@ class ReturnProbe {
 
     int64 replacedByException() {
         try {
-            return 8
+            return(8)
         } finally {
             raise(Exception("replacement"))
         }

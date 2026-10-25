@@ -44,7 +44,7 @@ class Root {
     }
 
     int64 read() {
-        return value
+        return(value)
     }
 
     destroy {
@@ -83,7 +83,7 @@ class Diamond : Left, Right {
     }
 
     int64 read() {
-        return 77
+        return(77)
     }
 
     destroy {
@@ -121,28 +121,28 @@ start {
     Diamond diamond()
     Root root = diamond
 
-    ; defined in Root
+    # defined in Root
     print(format("read() from diamond: {}", diamond.read()))
 
-    ; show that both sides of the diamond can access the value
+    # show that both sides of the diamond can access the value
     print(format("expression with left and right: {}",
             diamond.Left.Root.read() + diamond.Right.Root.read() + root.read()))
 
-    ; construct the Payload
+    # construct the Payload
     diamond.Left.Root.item = Payload(50)
 
-    ; construct a separate Payload
+    # construct a separate Payload
     Payload trigger = Payload(9)
 
-    ; access the Payload value through the Right virtual class
-    ;print(format("value in right Payload: {}", diamond.Right.Root.item.value))
+    # access the Payload value through the Right virtual class
+    #print(format("value in right Payload: {}", diamond.Right.Root.item.value))
 
-    ; access the correct read()
+    # access the correct read()
     print(format("read() from Root: {}", root.read()))
     print(format("read() from Right Payload: {}", diamond.Right.Root.item.read()))
     print(format("read() from Left Payload: {}", diamond.Left.Root.item.read()))
 
-    ; destroys diamond, left, and right, but not Payload
+    # destroys diamond, left, and right, but not Payload
     diamond.destroy()
 
     print("\nvirtual exception class:")

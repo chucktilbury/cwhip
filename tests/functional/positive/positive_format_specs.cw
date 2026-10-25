@@ -2,13 +2,13 @@ class Counter {
     int64 calls
     int64 next() {
         calls += 1
-        return calls
+        return(calls)
     }
 }
 
 class Formatter {
     strg message(int64 value) {
-        return format("[{:08X}]", value)
+        return(format("[{:08X}]", value))
     }
 }
 
@@ -38,7 +38,7 @@ start {
     print(formatter.message(255))
     list items = [format("item {}", 7)]
     print(items[0])
-    dict mapping = {format("key {}", 1): 9}
+    dict mapping = [format("key {}", 1): 9]
     print(mapping["key 1"])
     strg retained = format("{} {}", formatter.message(1), counter.next())
     int64 index = 0

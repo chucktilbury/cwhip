@@ -6,11 +6,11 @@ class IntBox {
     }
 
     int64 get() {
-        return value
+        return(value)
     }
 
     int64 echo(int64 argument) {
-        return argument
+        return(argument)
     }
 }
 
@@ -61,7 +61,7 @@ start {
         print(error.message)
     }
 
-    dict bounds = {"minimum": minimum, "maximum": maximum}
+    dict bounds = ["minimum": minimum, "maximum": maximum]
     print(bounds["minimum"])
     print(bounds["maximum"])
 

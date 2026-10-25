@@ -91,9 +91,9 @@ const TestGroupRegistration registration{9, {
                      const auto callAndReturn =
                          "class Converter {\n" + std::string(targetType) +
                          " fromSource(" + sourceType +
-                         " value) { return value }\n" + targetType +
+                         " value) { return(value) }\n" + targetType +
                          " fromArgument(" + targetType +
-                         " value) { return value }\n}\nstart {\n" +
+                         " value) { return(value) }\n}\nstart {\n" +
                          sourceType + " value = " + sourceType +
                          "(1)\nConverter converter = Converter()\n" +
                          targetType +

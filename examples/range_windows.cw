@@ -1,11 +1,11 @@
 class Window {
     range<int64> reversed(int64 first, int64 last) {
-        return last..first
+        return(last..first)
     }
     int64 total(range<int64> values) {
         int64 sum = 0
         for (value in values) { sum += value }
-        return sum
+        return(sum)
     }
 }
 start {

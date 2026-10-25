@@ -6,10 +6,10 @@ class Probe {
     }
     bool touch() {
         calls = calls + 1
-        return true
+        return(true)
     }
     int64 read() {
-        return calls
+        return(calls)
     }
 }
 
@@ -58,7 +58,7 @@ start {
     }
     print(forTotal)
 
-    dict entries = {"first": int64(1), "skip": int64(2), "stop": int64(3), "last": int64(4)}
+    dict entries = ["first": int64(1), "skip": int64(2), "stop": int64(3), "last": int64(4)]
     int64 mapTotal = 0
     for (key, item in entries) {
         int64 value = item

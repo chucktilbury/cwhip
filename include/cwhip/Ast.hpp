@@ -139,6 +139,7 @@ struct FieldDeclaration {
     std::string name;
     SourceLocation location;
     AccessLevel access = AccessLevel::Public;
+    std::unique_ptr<Expression> initializer;
 };
 
 struct EnumMemberDeclaration {

@@ -2,7 +2,7 @@
 namespace Shared {
     class First {
         int64 value() {
-            return 20
+            return(20)
         }
     }
 }
@@ -10,13 +10,13 @@ namespace Shared {
 namespace Shared {
     class Second {
         int64 value() {
-            return 22
+            return(22)
         }
     }
 
     class Factory {
         First create() {
-            return First()
+            return(First())
         }
     }
 }

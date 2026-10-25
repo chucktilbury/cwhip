@@ -39,23 +39,23 @@ namespace Process {
         }
 
         bool started() {
-            return _native != null
+            return(_native != null)
         }
 
         bool wait() {
-            return Runtime().wait(_native)
+            return(Runtime().wait(_native))
         }
 
         int64 exitCode() {
-            return Runtime().exitCode(_native)
+            return(Runtime().exitCode(_native))
         }
 
         String stdout() {
-            return Runtime().stdout(_native)
+            return(Runtime().stdout(_native))
         }
 
         String stderr() {
-            return Runtime().stderr(_native)
+            return(Runtime().stderr(_native))
         }
 
         void close() {
@@ -85,23 +85,23 @@ namespace Process {
         }
 
         int64 kind() {
-            return _kind
+            return(_kind)
         }
 
         bool isStdout() {
-            return _kind == ProcessEvent.STDOUT
+            return(_kind == ProcessEvent.STDOUT)
         }
 
         bool isStderr() {
-            return _kind == ProcessEvent.STDERR
+            return(_kind == ProcessEvent.STDERR)
         }
 
         bool isCompleted() {
-            return _kind == ProcessEvent.COMPLETED
+            return(_kind == ProcessEvent.COMPLETED)
         }
 
         buffer data() {
-            return _data
+            return(_data)
         }
     }
 
@@ -125,17 +125,17 @@ namespace Process {
             int64 complete = _pending.length - Runtime().textIncompleteTail(_pending)
             buffer ready = _pending[0:complete]
             _pending = _pending[complete:]
-            return Runtime().textDecode(ready)
+            return(Runtime().textDecode(ready))
         }
 
         String finish() {
             String rest = Runtime().textDecode(_pending)
             _pending = buffer[]
-            return rest
+            return(rest)
         }
 
         int64 pending() {
-            return _pending.length
+            return(_pending.length)
         }
     }
 
@@ -184,100 +184,100 @@ namespace Process {
         }
 
         bool started() {
-            return state() != AsyncProcess.LAUNCH_FAILED
+            return(state() != AsyncProcess.LAUNCH_FAILED)
         }
 
         ProcessEvent next(int64 timeoutMilliseconds) {
             if (_closed) {
-                return null
+                return(null)
             }
             handle raw = Runtime().asyncNext(_native, timeoutMilliseconds)
             if (raw == null) {
-                return null
+                return(null)
             }
             int64 kind = Runtime().asyncEventKind(raw)
             buffer data = Runtime().asyncEventData(raw)
             ProcessEvent event = ProcessEvent(kind, data)
             Runtime().asyncEventRelease(raw)
-            return event
+            return(event)
         }
 
         bool wait(int64 timeoutMilliseconds) {
             if (_closed) {
-                return true
+                return(true)
             }
-            return Runtime().asyncWait(_native, timeoutMilliseconds)
+            return(Runtime().asyncWait(_native, timeoutMilliseconds))
         }
 
         bool finished() {
-            return wait(0)
+            return(wait(0))
         }
 
         bool cancel(int64 graceMilliseconds) {
             if (_closed) {
-                return false
+                return(false)
             }
-            return Runtime().asyncCancel(_native, graceMilliseconds)
+            return(Runtime().asyncCancel(_native, graceMilliseconds))
         }
 
         int64 state() {
             if (_closed) {
-                return _state
+                return(_state)
             }
-            return Runtime().asyncState(_native)
+            return(Runtime().asyncState(_native))
         }
 
         int64 exitCode() {
             if (_closed) {
-                return _exitCode
+                return(_exitCode)
             }
-            return Runtime().asyncExitCode(_native)
+            return(Runtime().asyncExitCode(_native))
         }
 
         int64 signal() {
             if (_closed) {
-                return _signal
+                return(_signal)
             }
-            return Runtime().asyncSignal(_native)
+            return(Runtime().asyncSignal(_native))
         }
 
         String error() {
             if (_closed) {
-                return _error
+                return(_error)
             }
-            return Runtime().asyncError(_native)
+            return(Runtime().asyncError(_native))
         }
 
         bool interactive() {
-            return _interactive && started()
+            return(_interactive && started())
         }
 
         bool write(String text) {
             if (_closed) {
-                return false
+                return(false)
             }
-            return Runtime().asyncWrite(_native, text)
+            return(Runtime().asyncWrite(_native, text))
         }
 
         bool closeInput() {
             if (_closed) {
-                return interactive()
+                return(interactive())
             }
-            return Runtime().asyncCloseInput(_native)
+            return(Runtime().asyncCloseInput(_native))
         }
 
         int64 pendingInput() {
             if (_closed) {
-                return 0
+                return(0)
             }
-            return Runtime().asyncPendingInput(_native)
+            return(Runtime().asyncPendingInput(_native))
         }
 
         String inputError() {
             if (_closed) {
-                return _inputError
+                return(_inputError)
             }
-            return Runtime().asyncInputError(_native)
+            return(Runtime().asyncInputError(_native))
         }
 
         void close() {

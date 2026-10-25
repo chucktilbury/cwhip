@@ -6,7 +6,7 @@ class Counter {
     }
     int64 next() {
         calls += 1
-        return calls
+        return(calls)
     }
 }
 
@@ -17,7 +17,7 @@ class Mutator {
     }
     strg change() {
         text.append("!")
-        return text
+        return(text)
     }
 }
 

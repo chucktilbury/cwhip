@@ -70,10 +70,10 @@ The language is intended to have full object-oriented programming support. Broad
   `null`. Comparisons produce `bool`; numeric arithmetic produces the operand
   type. Integer division and remainder are signed for `int` and unsigned for
   `unsigned`. Remainder on `float` is not supported. Scalar compound
-  assignments `+=`, `-=`, `*=`, `/=`, and `%=` are supported for `int`,
-  `unsigned`, and `float` locals and fields; both operands must match, and
-  `%=` is limited to `int` and `unsigned`. A compound-assignment target and,
-  for fields, its receiver are evaluated once.
+  assignments support arithmetic operators, integer bitwise/shift operators,
+  and their matching compound forms on supported numeric locals and fields;
+  both operands must match. A compound-assignment target and, for fields, its
+  receiver are evaluated once.
 - The boolean type-test operator `expr is TypeName` recognizes the built-in
   types `int`, `unsigned`, `float`, `bool`, `strg`, `list`, `dict`, `buffer`,
   and `handle`, plus class names including qualified
@@ -81,7 +81,9 @@ The language is intended to have full object-oriented programming support. Broad
   `any` operand it tests the dynamic tag; a null value matches no type.
   Statically known non-class operands can be answered from their type and null
   state. `is` has relational-comparison precedence, tighter than `==`/`!=`
-  and logical operators.
+  and logical operators. Precedence from low to high is `or`, `and`, `not`/`!`,
+  equality, relational/type/membership tests, ranges, `|`, `^`, `&`, shifts,
+  arithmetic, unary operators, and postfix expressions.
 - `type(expr)` returns a value of the built-in `type` type. Its name is the
   operand's exact runtime type: for class references and class values in `any`
   this is the dynamic class (including its namespace-qualified name), while
@@ -667,11 +669,11 @@ is a syntax error. The import words `import` and `as`, collection loop words
 In the current prototype subset, simple statements are terminated by a
 newline or a closing block brace. Newlines inside parentheses and list
 brackets are treated as whitespace, allowing wrapped expressions, argument
-lists, and list literals. Adjacent simple
-statements on one line are not supported. The lexer recognizes `;`, `#`, and
-`//` as single-line comment introducers and `/* ... */` as a block comment;
-block-comment newlines continue to terminate statements. A semicolon never
-acts as a statement terminator.
+lists, and list and dict literals. Adjacent simple statements on one line are
+not supported. The lexer recognizes `#` and `//` as single-line comment
+introducers and `/* ... */` as a block comment; block-comment newlines continue
+to terminate statements. A semicolon is an unknown character, not a comment
+or statement terminator.
 
 Exception handling supports constructed exception objects and typed filters:
 
@@ -745,9 +747,8 @@ The following forms capture established examples and intended syntax. They are i
 Constructors use the class name; destructors use `destroy`. For example, a
 `Window` constructor is written `Window(...)`, and a base constructor call is
 written `super Base(args)`. Any earlier grammar production that used `create`
-as constructor syntax is superseded. The implemented subset accepts newline
-statement boundaries; semicolons begin comments rather than terminating
-statements.
+as constructor syntax is superseded. the implemented subset accepts newline statement boundaries; `#` and `//`
+begin comments, while semicolons are not valid comment or statement syntax.
 
 ### Control flow and logical operators
 
@@ -1031,7 +1032,7 @@ assignment still copies, while `String` assignment aliases its object.
 The current compiler implements the heterogeneous-bag design goal for lists,
 using the keyword `list`. A list
 literal, for example
-`[1, true, 3.14, 42u, "two", Node(3), {"name": "Ada"}, null]`, may freely mix
+`[1, true, 3.14, 42u, "two", Node(3), ["name": "Ada"], null]`, may freely mix
 scalar values, strings, class references, maps, and `null` in the same collection; empty literals `[]`
 are always allowed. Reading an element with `values[index]` yields an internal
 dynamic value rather than a statically-known concrete type; assigning
@@ -1098,7 +1099,8 @@ traces class-reference and nested collection references reached through arrays,
 maps, `any` values, and object fields.
 
 Dicts are implemented as the corresponding keyed collection using `dict`,
-brace literals such as `{"name": "Ada", "age": 37}`, and
+square-bracket literals such as `["name": "Ada", "age": 37]` (or `[:]` for
+an empty dict), and
 string-expression indexing such as `person[key]`. Keys compare by exact
 UTF-8 byte sequence; they are case-sensitive and are not Unicode-normalized.
 Insertion copies key bytes so subsequent mutation of the source `String`
@@ -1702,7 +1704,7 @@ class Foo {
 }
 
 int64 Foo.compute(int64 x) {
-    return x * 2
+    return(x * 2)
 }
 
 strg Foo.echo(strg value) from "c_foo_echo"
@@ -1893,7 +1895,10 @@ The goal is to turn the requirements into stages, not to estimate Copilot credit
 - Float literals follow `strtod()`'s decimal-constant lexical shape,
   including leading-dot (`.5`) and trailing-dot (`5.`) forms; a bare digit
   sequence with no point or exponent remains `int`.
-- Bitwise operators (`&`, `|`, `^`, `~`, `<<`, `>>`) are not supported.
+- Bitwise operators (`&`, `|`, `^`, `~`, `<<`, `>>`) and their compound
+  assignments are supported for integers. They bind more tightly than
+  comparisons, with shifts tighter than `&`, `&` tighter than `^`, and `^`
+  tighter than `|`.
 - `static` (class-level fields/methods) is not supported.
 - `interface` and `abstract` are not supported; multiple inheritance remains
   the only mechanism for shared/abstract-like contracts.

@@ -49,7 +49,7 @@ namespace Gtk {
         void initialize()
         String id()
         SignalConnection onActivate(void<> action) {
-            return SignalConnection(_self(), action)
+            return(SignalConnection(_self(), action))
         }
         void run()
         void quit()
@@ -97,8 +97,8 @@ namespace Gtk {
         SignalConnection(Window source, void<bool> action) {
             _token = _focusChanged(source, action)
         }
-        bool disconnect() { return _disconnect(_token) }
-        bool connected() { return _connected(_token) }
+        bool disconnect() { return(_disconnect(_token))}
+        bool connected() { return(_connected(_token))}
     }
 
     class Widget {
@@ -135,23 +135,23 @@ namespace Gtk {
             _id = _create(kind, text, orientation, spacing, _self()._keepAlive)
         }
         void _setText(String text) { _textSet(_id, text) }
-        String _getText() { return _textGet(_id) }
+        String _getText() { return(_textGet(_id))}
         void _attachChild(Widget child) { _attach(_id, child._id) }
         void _removeChild(Widget child) { _remove(_id, child._id) }
         void _presentWindow() { _windowAction(_id, 0) }
         void _closeWindow() { _windowAction(_id, 1) }
         void _sizeWindow(int64 width, int64 height) { _windowSize(_id, width, height) }
-        int64 _defaultWidth() { return _windowWidth(_id) }
-        int64 _defaultHeight() { return _windowHeight(_id) }
+        int64 _defaultWidth() { return(_windowWidth(_id))}
+        int64 _defaultHeight() { return(_windowHeight(_id))}
         void _setTransientFor(int64 parent) { _windowTransientFor(_id, parent) }
         void _boxLayout(int64 orientation, int64 spacing) { _layout(_id, orientation, spacing) }
         void _setActive(bool value) { _activeSet(_id, value) }
-        bool _getActive() { return _activeGet(_id) }
+        bool _getActive() { return(_activeGet(_id))}
         void _grabFocus() { _focus(_id) }
         public:
-        int64 _widgetToken() { return _id }
+        int64 _widgetToken() { return(_id)}
         void dispose() { _dispose(_id) }
-        bool disposed() { return _disposed(_id) }
+        bool disposed() { return(_disposed(_id))}
         void setVisible(bool value) { _visible(_id, value) }
         void setSensitive(bool value) { _sensitive(_id, value) }
         void setHExpand(bool value) { _expand(_id, true, value) }
@@ -168,11 +168,11 @@ namespace Gtk {
         public:
         Window(String title) { super Widget(1, title, 0, 0) }
         void setTitle(String title) { _setText(title) }
-        String title() { return _getText() }
+        String title() { return(_getText())}
         void setDefaultSize(int64 width, int64 height) { _sizeWindow(width, height) }
-        int64 defaultWidth() { return _defaultWidth() }
-        int64 defaultHeight() { return _defaultHeight() }
-        bool maximized() { return _maximized(_widgetToken()) }
+        int64 defaultWidth() { return(_defaultWidth())}
+        int64 defaultHeight() { return(_defaultHeight())}
+        bool maximized() { return(_maximized(_widgetToken()))}
         void setMaximized(bool enabled) { _maximize(_widgetToken(), enabled) }
         void setTransientFor(Window parent) {
             _setTransientFor(parent._widgetToken())
@@ -183,14 +183,14 @@ namespace Gtk {
         void close() { _closeWindow() }
         // Binds a GTK accelerator such as "<Control>q" for the whole window.
         bool bindShortcut(String trigger, void<> action) {
-            return _bindShortcut(_widgetToken(), trigger, action)
+            return(_bindShortcut(_widgetToken(), trigger, action))
         }
-        bool hasShortcut(String trigger) { return _hasShortcut(_widgetToken(), trigger) }
+        bool hasShortcut(String trigger) { return(_hasShortcut(_widgetToken(), trigger))}
         SignalConnection onCloseRequest(bool<> action) {
-            return SignalConnection(_windowSelf(), action)
+            return(SignalConnection(_windowSelf(), action))
         }
         SignalConnection onFocusChanged(void<bool> action) {
-            return SignalConnection(_windowSelf(), action)
+            return(SignalConnection(_windowSelf(), action))
         }
     }
 
@@ -200,7 +200,7 @@ namespace Gtk {
         public:
         TransientWindow(String title) { super Widget(11, title, 0, 0) }
         void setTitle(String title) { _setText(title) }
-        String title() { return _getText() }
+        String title() { return(_getText())}
         void setDefaultSize(int64 width, int64 height) { _sizeWindow(width, height) }
         void setTransientFor(Window parent) {
             _setTransientFor(parent._widgetToken())
@@ -210,7 +210,7 @@ namespace Gtk {
         void present() { _presentWindow() }
         void close() { _closeWindow() }
         SignalConnection onCloseRequest(bool<> action) {
-            return SignalConnection(_transientSelf(), action)
+            return(SignalConnection(_transientSelf(), action))
         }
     }
 
@@ -227,7 +227,7 @@ namespace Gtk {
         public:
         Label(String text) { super Widget(3, text, 0, 0) }
         void setText(String text) { _setText(text) }
-        String text() { return _getText() }
+        String text() { return(_getText())}
     }
 
     class Grid : Widget {
@@ -257,9 +257,9 @@ namespace Gtk {
         public:
         Button(String label) { super Widget(4, label, 0, 0) }
         void setLabel(String label) { _setText(label) }
-        String label() { return _getText() }
+        String label() { return(_getText())}
         SignalConnection onClicked(void<> action) {
-            return SignalConnection(_buttonSelf(), action)
+            return(SignalConnection(_buttonSelf(), action))
         }
     }
 
@@ -270,9 +270,9 @@ namespace Gtk {
         public:
         Entry(String text) { super Widget(5, text, 0, 0) }
         void setText(String text) { _setText(text) }
-        String text() { return _getText() }
+        String text() { return(_getText())}
         SignalConnection onChanged(void<String> action) {
-            return SignalConnection(_entrySelf(), action)
+            return(SignalConnection(_entrySelf(), action))
         }
         void focus() { _grabFocus() }
         void setEditable(bool editable) { _editable(_widgetToken(), editable) }
@@ -287,9 +287,9 @@ namespace Gtk {
         void _separator(int64 token, int64 menu)
         public:
         MenuBar() { super Widget(10, "", 0, 0) }
-        int64 addMenu(String label) { return _addMenu(_widgetToken(), label) }
+        int64 addMenu(String label) { return(_addMenu(_widgetToken(), label))}
         int64 addItem(int64 menu, String label, void<> action) {
-            return _addItem(_widgetToken(), menu, label, action)
+            return(_addItem(_widgetToken(), menu, label, action))
         }
         // Draws a divider before the next item added to menu.
         void addSeparator(int64 menu) { _separator(_widgetToken(), menu) }
@@ -338,7 +338,7 @@ namespace Gtk {
             _token = _createFolder(parent._widgetToken(), initialPath, folder)
         }
         void cancel() { _cancel(_token) }
-        bool pending() { return _pending(_token) }
+        bool pending() { return(_pending(_token))}
     }
 
     class AlertDialog {
@@ -357,11 +357,11 @@ namespace Gtk {
         public:
         CheckButton(String label) { super Widget(6, label, 0, 0) }
         void setLabel(String label) { _setText(label) }
-        String label() { return _getText() }
+        String label() { return(_getText())}
         void setActive(bool value) { _setActive(value) }
-        bool active() { return _getActive() }
+        bool active() { return(_getActive())}
         SignalConnection onToggled(void<bool> action) {
-            return SignalConnection(_checkSelf(), action)
+            return(SignalConnection(_checkSelf(), action))
         }
     }
 
@@ -389,15 +389,15 @@ namespace Gtk {
         // Draws a border around every tab label, as closable pages already do.
         void setBorderedTabs() { _bordered(_widgetToken()) }
         void setScrollable(bool enabled) { _scrollable(_widgetToken(), enabled) }
-        int64 currentPage() { return _notebookCurrent(_widgetToken()) }
+        int64 currentPage() { return(_notebookCurrent(_widgetToken()))}
         void setCurrentPage(int64 page) { _notebookSetCurrent(_widgetToken(), page) }
-        int64 pageCount() { return _notebookCount(_widgetToken()) }
+        int64 pageCount() { return(_notebookCount(_widgetToken()))}
         void setPageTitle(int64 page, String title) {
             _notebookTitle(_widgetToken(), page, title)
         }
         void remove(Widget child) { _removeChild(child) }
         SignalConnection onPageChanged(void<> action) {
-            return SignalConnection(_notebookSelf(), action)
+            return(SignalConnection(_notebookSelf(), action))
         }
     }
 
@@ -409,7 +409,7 @@ namespace Gtk {
         Paned() { super Widget(12, "", 0, 0) }
         void append(Widget child) { _attachChild(child) }
         void setPosition(int64 position) { _position(_widgetToken(), position) }
-        int64 position() { return _getPosition(_widgetToken()) }
+        int64 position() { return(_getPosition(_widgetToken()))}
     }
 
     class Tree : Widget {
@@ -435,11 +435,11 @@ namespace Gtk {
         }
         void clear(int64 parent) { _clear(_widgetToken(), parent) }
         void setExpanded(int64 id, bool expanded) { _expandRow(_widgetToken(), id, expanded) }
-        bool expanded(int64 id) { return _isExpanded(_widgetToken(), id) }
-        String value(int64 id) { return _value(_widgetToken(), id) }
-        int64 data(int64 id) { return _data(_widgetToken(), id) }
-        int64 findValue(String value) { return _find(_widgetToken(), value) }
-        int64 childCount(int64 parent) { return _count(_widgetToken(), parent) }
+        bool expanded(int64 id) { return(_isExpanded(_widgetToken(), id))}
+        String value(int64 id) { return(_value(_widgetToken(), id))}
+        int64 data(int64 id) { return(_data(_widgetToken(), id))}
+        int64 findValue(String value) { return(_find(_widgetToken(), value))}
+        int64 childCount(int64 parent) { return(_count(_widgetToken(), parent))}
     }
 
     class DirectoryScan {
@@ -467,7 +467,7 @@ namespace Gtk {
     class SourceViewWidget : Widget {
         public:
         SourceViewWidget() { super Widget(8, "", 0, 0) }
-        int64 nativeToken() { return _widgetToken() }
+        int64 nativeToken() { return(_widgetToken())}
     }
 
     void Application._create(String id) from "cwhip_gtk_application_create"

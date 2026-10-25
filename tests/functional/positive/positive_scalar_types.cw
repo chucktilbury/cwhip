@@ -9,13 +9,13 @@ class ScalarBox {
         count = countValue
     }
     bool isEnabled() {
-        return enabled
+        return(enabled)
     }
     fp64 getAmount() {
-        return amount
+        return(amount)
     }
     uint64 getCount() {
-        return count
+        return(count)
     }
 }
 
@@ -69,7 +69,7 @@ start {
     print(extractedFloat)
     print(extractedUnsigned)
 
-    dict entries = {"flag": no, "amount": scientific, "count": uint64(42u)}
+    dict entries = ["flag": no, "amount": scientific, "count": uint64(42u)]
     bool mapBool = entries["flag"]
     fp64 mapFloat = entries["amount"]
     uint64 mapUnsigned = entries["count"]

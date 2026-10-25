@@ -19,28 +19,28 @@ namespace SQLite {
         }
 
         bool isOpen() {
-            return _native != null
+            return(_native != null)
         }
 
         String error() {
-            return _nativeConnectionError(_native)
+            return(_nativeConnectionError(_native))
         }
 
         bool execute(String sql) {
             if (_native == null) { raise(Exception("SQLite connection is closed")) }
-            return _nativeExecute(_native, sql)
+            return(_nativeExecute(_native, sql))
         }
 
         SQL.Statement prepare(String sql) {
             if (_native == null) { raise(Exception("SQLite connection is closed")) }
             Statement result = Statement()
-            if (!_nativePrepare(_native, result, sql)) { return null }
-            return result
+            if (!_nativePrepare(_native, result, sql)) { return(null)}
+            return(result)
         }
 
         bool setBusyTimeout(int64 milliseconds) {
             if (_native == null) { raise(Exception("SQLite connection is closed")) }
-            return _nativeBusyTimeout(_native, milliseconds)
+            return(_nativeBusyTimeout(_native, milliseconds))
         }
 
         SQL.Transaction beginTransaction() {
@@ -49,14 +49,14 @@ namespace SQLite {
             if (!_nativeBeginTransaction(_native, transaction)) {
                 raise(Exception(_nativeConnectionError(_native)))
             }
-            return transaction
+            return(transaction)
         }
 
         bool close() {
-            if (_native == null) { return true }
+            if (_native == null) { return(true)}
             bool closed = _nativeClose(_native)
             if (closed) { _native = null }
-            return closed
+            return(closed)
         }
 
         destroy {
@@ -100,52 +100,52 @@ namespace SQLite {
         }
 
         String error() {
-            return _nativeStatementError()
+            return(_nativeStatementError())
         }
 
         bool bind(int64 index, SQL.Value value) {
             if (!_nativeExists()) { raise(Exception("SQLite statement is not prepared or has been finalized")) }
             if (_hasStepped) { raise(Exception("SQLite parameters must be bound before stepping")) }
-            if (value.kind() == 0) { return _nativeBindNull(index) }
-            if (value.kind() == 1) { return _nativeBindInteger(index, value.asInteger()) }
-            if (value.kind() == 2) { return _nativeBindReal(index, value.asReal()) }
-            if (value.kind() == 3) { return _nativeBindText(index, value.asText()) }
-            if (value.kind() == 4) { return _nativeBindBlob(index, value.asBlob()) }
+            if (value.kind() == 0) { return(_nativeBindNull(index))}
+            if (value.kind() == 1) { return(_nativeBindInteger(index, value.asInteger()))}
+            if (value.kind() == 2) { return(_nativeBindReal(index, value.asReal()))}
+            if (value.kind() == 3) { return(_nativeBindText(index, value.asText()))}
+            if (value.kind() == 4) { return(_nativeBindBlob(index, value.asBlob()))}
             raise(Exception("Invalid SQL value kind"))
         }
 
         bool step() {
             if (!_nativeExists()) { raise(Exception("SQLite statement is not prepared or has been finalized")) }
-            if (_done || _failed) { return false }
+            if (_done || _failed) { return(false)}
             int64 status = _nativeStep()
             _hasStepped = true
             _hasRow = status == 1
             _done = status == 0
             _failed = status < 0
-            return _hasRow
+            return(_hasRow)
         }
 
         bool hasRow() {
-            return _hasRow
+            return(_hasRow)
         }
 
         bool isDone() {
-            return _done
+            return(_done)
         }
 
         bool failed() {
-            return _failed
+            return(_failed)
         }
 
         SQL.Value value(int64 zeroBasedColumnIndex) {
             if (!_nativeExists()) { raise(Exception("SQLite statement is not prepared or has been finalized")) }
             if (!_hasRow) { raise(Exception("SQLite statement has no current row")) }
             int64 kind = _nativeColumnType(zeroBasedColumnIndex)
-            if (kind == 0) { return SQL.Value() }
-            if (kind == 1) { return SQL.Value(_nativeColumnInteger(zeroBasedColumnIndex)) }
-            if (kind == 2) { return SQL.Value(_nativeColumnReal(zeroBasedColumnIndex)) }
-            if (kind == 3) { return SQL.Value(_nativeColumnText(zeroBasedColumnIndex)) }
-            if (kind == 4) { return SQL.Value(_nativeColumnBlob(zeroBasedColumnIndex)) }
+            if (kind == 0) { return(SQL.Value())}
+            if (kind == 1) { return(SQL.Value(_nativeColumnInteger(zeroBasedColumnIndex)))}
+            if (kind == 2) { return(SQL.Value(_nativeColumnReal(zeroBasedColumnIndex)))}
+            if (kind == 3) { return(SQL.Value(_nativeColumnText(zeroBasedColumnIndex)))}
+            if (kind == 4) { return(SQL.Value(_nativeColumnBlob(zeroBasedColumnIndex)))}
             raise(Exception("SQLite returned an unsupported storage class"))
         }
 
@@ -153,7 +153,7 @@ namespace SQLite {
             bool finalized = _nativeFinalize()
             _hasRow = false
             _done = true
-            return finalized
+            return(finalized)
         }
 
         destroy {
@@ -177,38 +177,38 @@ namespace SQLite {
         }
 
         bool isActive() {
-            if (!_nativeExists()) { return false }
+            if (!_nativeExists()) { return(false)}
             _active = _nativeActive()
             if (!_active) {
                 _nativeClose()
             }
-            return _active
+            return(_active)
         }
 
         bool commit() {
-            if (!isActive()) { return false }
+            if (!isActive()) { return(false)}
             bool committed = _nativeCommit()
             if (committed) {
                 _active = false
                 _nativeClose()
             }
-            return committed
+            return(committed)
         }
 
         bool rollback() {
-            if (!isActive()) { return false }
+            if (!isActive()) { return(false)}
             bool rolledBack = _nativeRollback()
             if (rolledBack) {
                 _active = false
                 _nativeClose()
             }
-            return rolledBack
+            return(rolledBack)
         }
 
         bool close() {
             bool closed = _nativeClose()
             _active = false
-            return closed
+            return(closed)
         }
 
         destroy {

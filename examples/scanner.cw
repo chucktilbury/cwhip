@@ -89,13 +89,13 @@ namespace scanner {
             fp.consume_char()
         }
 
-        ; silently fail if stack is empty
+        # silently fail if stack is empty
         void close() {
             if(index >= 0) {
                 (stack[index] as File).close()
                 index -= 1
             }
-            ; Do nothing
+            # Do nothing
         }
 
         int64 get_line() {
@@ -175,9 +175,9 @@ start {
     do {
         fstk.print_char()
         
-        ; The next line throws a RT error because END_OF_FILE and END_OF_INPUT 
-        ; are not ASCII characters. 
-        ; print(format("{:c}", ch))
+        # The next line throws a RT error because END_OF_FILE and END_OF_INPUT
+        # are not ASCII characters.
+        # print(format("{:c}", ch))
 
         ch = fstk.consume_char()
         if(ch == scanner.File.END_OF_FILE) {

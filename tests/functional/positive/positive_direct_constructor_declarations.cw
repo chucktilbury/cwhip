@@ -14,7 +14,7 @@ class Choice {
     }
 
     int64 read() {
-        return selected
+        return(selected)
     }
 }
 
@@ -23,11 +23,11 @@ class Ticker {
 
     int64 next() {
         count += 1
-        return count
+        return(count)
     }
 
     int64 read() {
-        return count
+        return(count)
     }
 }
 
@@ -39,22 +39,22 @@ class Pair {
     }
 
     int64 read() {
-        return value
+        return(value)
     }
 }
 
 class Maker {
     Choice make() {
         Choice local(8)
-        return local
+        return(local)
     }
 
     Choice forward() {
-        return Choice(13)
+        return(Choice(13))
     }
 
     Choice pass(Choice value) {
-        return value
+        return(value)
     }
 }
 

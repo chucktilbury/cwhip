@@ -7,11 +7,11 @@ class Calc {
 }
 
 int64 Calc.scale(int64 v) {
-    return v * 2
+    return(v * 2)
 }
 
 int64 Calc.scale(int64 v, int64 by) {
-    return v * by
+    return(v * by)
 }
 
 start {

@@ -1,5 +1,5 @@
 class SearchTarget {
     int64 answer() {
-        return 7
+        return(7)
     }
 }

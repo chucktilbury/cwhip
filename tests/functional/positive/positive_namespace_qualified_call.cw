@@ -2,7 +2,7 @@
 namespace Foo {
     class Bar {
         int64 method() {
-            return 42
+            return(42)
         }
     }
 }

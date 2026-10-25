@@ -3,7 +3,7 @@
   <metadata>
     <property name="mimetypes">text/x-cwhip</property>
     <property name="globs">*.cw</property>
-    <property name="line-comment-start">//</property>
+    <property name="line-comment-start">#</property>
   </metadata>
   <styles>
     <style id="keyword" name="Keyword" map-to="def:keyword"/>
@@ -13,12 +13,15 @@
     <style id="comment" name="Comment" map-to="def:comment"/>
     <style id="operator" name="Operator" map-to="def:operator"/>
   </styles>
+  <default-regex-options case-sensitive="false"/>
   <definitions>
     <context id="cwhip" class="no-spell-check">
       <include>
         <context ref="comment"/>
+        <context ref="block-comment"/>
         <context ref="string"/>
         <context ref="number"/>
+        <context ref="string-type"/>
         <context ref="keyword"/>
         <context ref="type"/>
         <context ref="operators"/>
@@ -27,11 +30,18 @@
     <context id="comment" class="comment" style-ref="comment">
       <match>//.*|#.*</match>
     </context>
+    <context id="block-comment" class="comment" style-ref="comment">
+      <start>/\*</start>
+      <end>\*/</end>
+    </context>
     <context id="string" class="string" style-ref="string">
       <match>&quot;([^&quot;\\]|\\.)*&quot;</match>
     </context>
     <context id="number" class="number" style-ref="number">
       <match extended="true">(?&lt;!\w)(?&lt;!\w\.)(0[xX][0-9a-fA-F]+[uU]?|([0-9]+(\.(?!\.)[0-9]*)?|\.[0-9]+)([eE][+-]?[0-9]+)?(f64|[uU])?)(?!\w)</match>
+    </context>
+    <context id="string-type" style-ref="type">
+      <match case-sensitive="true">String</match>
     </context>
     <context id="keyword" class="keyword" style-ref="keyword">
       <keyword>class</keyword><keyword>namespace</keyword><keyword>import</keyword>
@@ -42,6 +52,7 @@
       <keyword>next</keyword>
       <keyword>return</keyword><keyword>try</keyword><keyword>catch</keyword>
       <keyword>finally</keyword><keyword>raise</keyword><keyword>throw</keyword>
+      <keyword>and</keyword><keyword>or</keyword><keyword>not</keyword>
       <keyword>public</keyword><keyword>private</keyword><keyword>protected</keyword>
       <keyword>virtual</keyword><keyword>override</keyword><keyword>from</keyword>
       <keyword>as</keyword><keyword>is</keyword><keyword>enum</keyword>
@@ -56,13 +67,13 @@
       <keyword>int64</keyword><keyword>uint64</keyword>
       <keyword>fp32</keyword><keyword>fp64</keyword>
       <keyword>int</keyword><keyword>uint</keyword><keyword>float</keyword>
-      <keyword>bool</keyword><keyword>String</keyword><keyword>list</keyword>
+      <keyword>bool</keyword><keyword>list</keyword>
       <keyword>dict</keyword><keyword>buffer</keyword><keyword>handle</keyword>
       <keyword>range</keyword>
       <keyword>type</keyword><keyword>void</keyword>
     </context>
     <context id="operators" style-ref="operator">
-      <match>[-+*/%=!&lt;&gt;&amp;|^~.:]</match>
+      <match>[-+*/%=!&lt;&gt;&amp;|^~.:()\[\]{},]</match>
     </context>
   </definitions>
 </language>

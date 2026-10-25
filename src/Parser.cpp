@@ -713,21 +713,18 @@ Statement Parser::parseReturn() {
     Statement statement;
     statement.kind = StatementKind::Return;
     statement.location = keyword.location;
-    // C-style optional parentheses: `return (expr)` is just a parenthesized
-    // expression (already handled by parseExpression below), but a bare
-    // `return ()` with nothing inside is the void-return form, equivalent to
-    // plain `return`. Detect that empty-parens case explicitly so it isn't
-    // parsed as "expected expression, found ')'".
-    if (check(TokenType::LeftParen) && current_ + 1 < tokens_.size() &&
-        tokens_[current_ + 1].type == TokenType::RightParen) {
-        match(TokenType::LeftParen);
-        match(TokenType::RightParen);
-        consumeStatementTerminator();
-        return statement;
-    }
-    if (!check(TokenType::Newline) && !check(TokenType::RightBrace) &&
-        !check(TokenType::End)) {
-        statement.expressions.push_back(parseExpression());
+    if (match(TokenType::LeftParen)) {
+        if (!check(TokenType::RightParen)) {
+            statement.expressions.push_back(parseExpression());
+        }
+        consume(TokenType::RightParen, "')' after return value");
+        if (!check(TokenType::Newline) && !check(TokenType::RightBrace) &&
+            !check(TokenType::End)) {
+            error(current(), "return value must be parenthesized: return(expr)");
+        }
+    } else if (!check(TokenType::Newline) && !check(TokenType::RightBrace) &&
+               !check(TokenType::End)) {
+        error(current(), "return value must be parenthesized: return(expr)");
     }
     consumeStatementTerminator();
     return statement;
@@ -936,7 +933,9 @@ Statement Parser::parseRaise() {
     Statement statement;
     statement.kind = StatementKind::Raise;
     statement.location = keyword.location;
-    consume(TokenType::LeftParen, "'(' after raise");
+    if (!match(TokenType::LeftParen)) {
+        error(current(), "raise arguments must be parenthesized: raise(expr); use raise() to rethrow");
+    }
     if (match(TokenType::RightParen)) {
         statement.rethrowsException = true;
     } else {
@@ -1035,7 +1034,7 @@ std::unique_ptr<Expression> Parser::parseNot() {
         validateExpressionDepth(*expression);
         return expression;
     }
-    return parseBitwiseOr();
+    return parseComparison();
 }
 
 std::unique_ptr<Expression> Parser::parseBitwiseOr() {
@@ -1071,7 +1070,7 @@ std::unique_ptr<Expression> Parser::parseBitwiseXor() {
 }
 
 std::unique_ptr<Expression> Parser::parseBitwiseAnd() {
-    auto expression = parseComparison();
+    auto expression = parseShift();
     while (match(TokenType::Ampersand)) {
         const auto operation = previous();
         auto combined = std::make_unique<Expression>();
@@ -1079,7 +1078,7 @@ std::unique_ptr<Expression> Parser::parseBitwiseAnd() {
         combined->location = operation.location;
         combined->value = operation.text;
         combined->left = std::move(expression);
-        combined->right = parseComparison();
+        combined->right = parseShift();
         validateExpressionDepth(*combined);
         expression = std::move(combined);
     }
@@ -1128,13 +1127,13 @@ std::unique_ptr<Expression> Parser::parseRelational() {
 }
 
 std::unique_ptr<Expression> Parser::parseRange() {
-    auto expression = parseShift();
+    auto expression = parseBitwiseOr();
     if (match(TokenType::DotDot)) {
         auto range = std::make_unique<Expression>();
         range->kind = ExpressionKind::Range;
         range->location = previous().location;
         range->left = std::move(expression);
-        range->right = parseShift();
+        range->right = parseBitwiseOr();
         validateExpressionDepth(*range);
         return range;
     }
@@ -1454,27 +1453,32 @@ std::unique_ptr<Expression> Parser::parsePrimary() {
         auto expression = std::make_unique<Expression>();
         expression->kind = ExpressionKind::ArrayLiteral;
         expression->location = token.location;
-        if (!check(TokenType::RightBracket)) {
-            do {
+        if (match(TokenType::Colon)) {
+            expression->kind = ExpressionKind::MapLiteral;
+        } else if (!check(TokenType::RightBracket)) {
+            expression->arguments.push_back(parseExpression());
+            if (match(TokenType::Colon)) {
+                expression->kind = ExpressionKind::MapLiteral;
                 expression->arguments.push_back(parseExpression());
-            } while (match(TokenType::Comma));
+            }
+            while (match(TokenType::Comma)) {
+                if (check(TokenType::RightBracket)) break;
+                expression->arguments.push_back(parseExpression());
+                if (expression->kind == ExpressionKind::MapLiteral) {
+                    if (!match(TokenType::Colon)) {
+                        error(current(), "cannot mix list elements and dict entries");
+                    }
+                    expression->arguments.push_back(parseExpression());
+                } else if (check(TokenType::Colon)) {
+                    error(current(), "cannot mix list elements and dict entries");
+                }
+            }
         }
-        consume(TokenType::RightBracket, "']' after list elements");
+        consume(TokenType::RightBracket, "']' after list elements or dict entries");
         return expression;
     }
-    if (match(TokenType::LeftBrace)) {
-        auto expression = std::make_unique<Expression>();
-        expression->kind = ExpressionKind::MapLiteral;
-        expression->location = token.location;
-        if (!check(TokenType::RightBrace)) {
-            do {
-                expression->arguments.push_back(parseExpression());
-                consume(TokenType::Colon, "':' between dict key and value");
-                expression->arguments.push_back(parseExpression());
-            } while (match(TokenType::Comma));
-        }
-        consume(TokenType::RightBrace, "'}' after dict entries");
-        return expression;
+    if (check(TokenType::LeftBrace)) {
+        error(current(), "dict literals now use [k: v]; use [:] for an empty dict");
     }
     error(current(), std::string("expected expression, found ") + tokenTypeName(current().type));
 }

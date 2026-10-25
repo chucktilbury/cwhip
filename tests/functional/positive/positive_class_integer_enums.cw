@@ -9,11 +9,11 @@ class Values {
     }
 
     int64 read() {
-        return FIRST
+        return(FIRST)
     }
 
     int64 echo(int64 value) {
-        return value
+        return(value)
     }
 }
 
@@ -30,7 +30,7 @@ class Probe {
 
     Values next() {
         calls += 1
-        return value
+        return(value)
     }
 }
 

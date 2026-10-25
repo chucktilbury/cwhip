@@ -12,7 +12,7 @@ class Root {
     int64 value
 
     int64 read() {
-        return value
+        return(value)
     }
 }
 
@@ -20,7 +20,7 @@ class Left : Root {
     int64 left
 
     int64 sum() {
-        return value + left
+        return(value + left)
     }
 }
 
@@ -28,7 +28,7 @@ class Right : Root {
     int64 right
 
     int64 sumRight() {
-        return value + right
+        return(value + right)
     }
 }
 
@@ -36,7 +36,7 @@ class Diamond : Left, Right {
     int64 extra
 
     int64 sum() {
-        return left + extra
+        return(left + extra)
     }
 }
 

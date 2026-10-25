@@ -143,7 +143,7 @@ const TestGroupRegistration registration{1, {
          }},
         {"strg is the primitive string type and string remains an identifier", [] {
              expectValid("class string { string() {} }\n"
-                         "class Text { strg echo(strg value) { return value } }\n"
+                         "class Text { strg echo(strg value) { return(value) } }\n"
                          "start {\n strg text = Text().echo(\"value\")\n"
                          " int64 string = 1\n string custom = string()\n print(string)\n}");
              expectDiagnostic("start {\n string text = \"value\"\n}",
@@ -161,13 +161,13 @@ const TestGroupRegistration registration{1, {
              const auto program = parse(
                  "namespace Model { class Item {} }\n"
                  "class Worker {\n"
-                 " int64 echo(int32 value) { return value }\n"
-                 " range<int64> same(range<int64> value) { return value }\n"
-                 " Model.Item echoItem(Model.Item value) { return value }\n"
+                 " int64 echo(int32 value) { return(value) }\n"
+                 " range<int64> same(range<int64> value) { return(value) }\n"
+                 " Model.Item echoItem(Model.Item value) { return(value) }\n"
                  " int64<int64<int64>> nested(int64<int64<int64>> value)\n"
                  "}\n"
                  "int64<int64<int64>> Worker.nested(int64<int64<int64>> value) {\n"
-                 " return value\n"
+                 " return(value)\n"
                  "}\n"
                  "class CallableFields {\n"
                  " int64<int32,int8> multi\n"
@@ -213,7 +213,7 @@ const TestGroupRegistration registration{1, {
                   "class Values {\n"
                   " enum { FIRST = 40 + 2, NEXT, TWICE = FIRST * 2, }\n"
                   " enum { ZERO, MIN = -0x8000000000000000, MAX = 0x7fffffffffffffff }\n"
-                  " int64 read() { return FIRST }\n"
+                  " int64 read() { return(FIRST) }\n"
                   "}\nstart {}");
               const auto values = std::find_if(
                   program.classes.begin(), program.classes.end(),
@@ -242,7 +242,7 @@ const TestGroupRegistration registration{1, {
          {"enum constants obey access, inheritance, and immutability rules", [] {
               expectValid(
                   "class Base { public: enum { VALUE = 7 } }\n"
-                  "class Child : Base { int64 read() { return VALUE } }\n"
+                  "class Child : Base { int64 read() { return(VALUE) } }\n"
                   "start { Child child = Child()\n print(child.VALUE)\n"
                   " print(child.Base.VALUE) }\n");
               expectDiagnostic(
@@ -289,7 +289,7 @@ const TestGroupRegistration registration{1, {
                   "collides with an inherited enum member");
               expectDiagnostic(
                   "class Base { enum { VALUE } }\n"
-                  "class Derived : Base { int64 VALUE() { return 1 } }\nstart {}",
+                  "class Derived : Base { int64 VALUE() { return(1) } }\nstart {}",
                   "collides with an inherited enum member");
               expectDiagnostic("class Box { enum { FIRST = LATER, LATER = 3 } }\nstart {}",
                                "cannot reference a later or cyclic");
@@ -453,7 +453,7 @@ const TestGroupRegistration registration{1, {
          }},
         {"dict literals are represented in the AST", [] {
              const auto program = parse(
-                 "start {\n dict values = {\"answer\": 42}\n}");
+                 "start {\n dict values = [\"answer\": 42]\n}");
              std::ostringstream output;
              cwhip::dumpAst(program, output);
              require(output.str().find("MapLiteral") != std::string::npos,
@@ -605,7 +605,7 @@ const TestGroupRegistration registration{1, {
                  "    super Base(initial)\n"
                  "  }\n"
                  "  int64 read() {\n"
-                 "    return value\n"
+                 "    return(value)\n"
                  "  }\n"
                  "}\n"
                  "start {\n"

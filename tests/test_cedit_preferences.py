@@ -67,22 +67,22 @@ class PreferencesChecks {
     bool viewsReady(int64 size, int64 tabs, bool spaces, bool numbers, bool wrap, bool highlight, String label) {
         if (PreferenceFixture().views(size, tabs, spaces, numbers, wrap, highlight, viewWaits >= 500)) {
             viewWaits = 0
-            return true
+            return(true)
         }
         require(viewWaits < 500, label)
         viewWaits = viewWaits + 1
         PreferenceFixture().tick()
         Gtk.Application().post(nextAction)
-        return false
+        return(false)
     }
     KeyboardPreference row(String command) {
         int64 i = 0
         while (i < editor.keyboardRows.length) {
             KeyboardPreference item = editor.keyboardRows[i] as KeyboardPreference
-            if (item.binding.id.equals(command)) { return item }
+            if (item.binding.id.equals(command)) { return(item) }
             i = i + 1
         }
-        return null
+        return(null)
     }
     void activate() {
         mode = System.Process().getEnv("PREFERENCE_CASE")
@@ -101,20 +101,17 @@ class PreferencesChecks {
             require(waits < 500, "save completion")
             PreferenceFixture().tick()
             Gtk.Application().post(nextAction)
-            return
-        }
+            return()}
         PreferenceFixture().collect()
         if (mode.equals("shutdown-saving")) {
             Gtk.Config().save("shutdown.toml", "version = 1\n", "", shutdownAction)
-            return
-        }
+            return()}
         if (mode.equals("teardown-pending")) {
             Gtk.Config().save("shutdown.toml", "version = 1\n", "", shutdownAction)
             Gtk.Application().shutdown()
             require(!shutdownCallbackRan && System.FileSystem().exists("shutdown.toml"), "shutdown drains write but suppresses callback")
             print(format("PASS teardown-pending {}", checks))
-            return
-        }
+            return()}
         if (mode.equals("invalid")) {
             require(!editor.settings.writable && !editor.settings.errors.equals(""), "visible load error, saving locked")
             editor.showPreferences()
@@ -123,8 +120,7 @@ class PreferencesChecks {
             require(!editor.savePending && !editor.settings.writable, "malformed file is never saved")
             editor.quitAction()
             print(format("PASS invalid {}", checks))
-            return
-        }
+            return()}
         if (mode.equals("reload")) {
             if (stage == 0) {
                 require(editor.settings.fontSize == 18 && editor.settings.tabWidth == 3 &&
@@ -137,13 +133,11 @@ class PreferencesChecks {
                 stage = 1
                 PreferenceFixture().tick()
                 Gtk.Application().post(nextAction)
-                return
-            }
+                return()}
             if (!viewsReady(18, 3, false, false, true, true, "new view reload")) { return }
             editor.quitAction()
             print(format("PASS reload {}", checks))
-            return
-        }
+            return()}
         if (mode.equals("usability")) {
             if (stage == 0) {
                 require(!editor.settings.saveOnTabLoss && !editor.settings.saveOnWindowLoss,
@@ -220,21 +214,18 @@ class PreferencesChecks {
                     editor.currentDocument().path.equals(""), "last close icon keeps fresh untitled")
                 stage = 1
                 Gtk.Application().post(nextAction)
-                return
-            }
+                return()}
             require(editor.settings.saveOnTabLoss && editor.settings.saveOnWindowLoss,
                 "focus options independent of view settings")
             editor.quitAction()
             print(format("PASS usability {}", checks))
-            return
-        }
+            return()}
         if (mode.equals("focus-reload")) {
             require(editor.settings.saveOnTabLoss && editor.settings.saveOnWindowLoss &&
                 editor.settings.reopenLast, "reload focus options and Startup preference")
             editor.quitAction()
             print(format("PASS focus-reload {}", checks))
-            return
-        }
+            return()}
         if (mode.equals("legacy")) {
             require(editor.currentDocument().view.hasShortcut("<Control><Alt>e") &&
                 !editor.currentDocument().view.hasShortcut("<Control>s") &&
@@ -244,37 +235,32 @@ class PreferencesChecks {
                 editor.sizeEntry.setText("18")
                 stage = 1
                 Gtk.Application().post(nextAction)
-                return
-            }
+                return()}
             require(editor.preferencesMessage.text().equals("Settings saved"), "legacy migration save")
             editor.quitAction()
             print(format("PASS legacy {}", checks))
-            return
-        }
+            return()}
         if (mode.equals("old-settings")) {
             require(editor.settings.fontSize == 12 &&
                 editor.settings.path.contains("cwhip/settings.toml"), "old settings path is ignored")
             require(!System.FileSystem().exists(editor.settings.path), "old settings are not copied")
             editor.quitAction()
             print(format("PASS old-settings {}", checks))
-            return
-        }
+            return()}
         if (mode.equals("old-shortcuts")) {
             require(editor.currentDocument().view.hasShortcut("<Control>s") &&
                 !editor.currentDocument().view.hasShortcut("<Control><Alt>e"),
                 "old shortcut path is ignored")
             editor.quitAction()
             print(format("PASS old-shortcuts {}", checks))
-            return
-        }
+            return()}
         if (mode.equals("precedence")) {
             require(editor.settings.writable, "authoritative TOML ignores obsolete malformed legacy")
             require(editor.currentDocument().view.hasShortcut("<Control><Alt>e") &&
                 editor.currentDocument().view.hasShortcut("<Control>w"), "TOML map overrides legacy; missing keys use defaults")
             editor.quitAction()
             print(format("PASS precedence {}", checks))
-            return
-        }
+            return()}
         if (mode.equals("quit-saving") || mode.equals("fallback")) {
             editor.showPreferences()
             require(!System.FileSystem().exists(editor.settings.path), "first run does not write until edited")
@@ -283,8 +269,7 @@ class PreferencesChecks {
             editor.quitAction()
             require(!editor.window.disposed() && editor.closeAfterSave, "close waits for latest settings")
             print(format("PASS {} {}", mode, checks))
-            return
-        }
+            return()}
         if (mode.equals("coalesced-save-failure")) {
             editor.showPreferences()
             if (stage == 0) {
@@ -295,14 +280,12 @@ class PreferencesChecks {
                 editor.quitAction()
                 stage = 1
                 Gtk.Application().post(nextAction)
-                return
-            }
+                return()}
             require(!editor.window.disposed() && !editor.closeAfterSave &&
                 editor.preferencesMessage.text().contains("save failed"), "failed latest save cancels queued close")
             editor.quitAction()
             print(format("PASS coalesced-save-failure {}", checks))
-            return
-        }
+            return()}
         if (mode.equals("external-change")) {
             editor.showPreferences()
             System.File file = System.File(editor.settings.path, "w")
@@ -313,8 +296,7 @@ class PreferencesChecks {
             require(!editor.savePending && editor.preferencesMessage.text().contains("changed on disk"), "external malformed edit preserved")
             editor.quitAction()
             print(format("PASS external-change {}", checks))
-            return
-        }
+            return()}
         if (mode.equals("save-failure") || mode.equals("async-save-failure") || mode.equals("async-save-conflict")) {
             editor.showPreferences()
             if (stage == 0) {
@@ -337,14 +319,12 @@ class PreferencesChecks {
                 }
                 stage = 1
                 Gtk.Application().post(nextAction)
-                return
-            }
+                return()}
             require(editor.preferencesMessage.text().contains("save failed"), "visible write failure")
             require(PreferenceFixture().visible(), "write failure keeps preferences available")
             editor.quitAction()
             print(format("PASS save-failure {}", checks))
-            return
-        }
+            return()}
         if (stage == 0) {
             require(PreferenceFixture().shortcut("<Control>comma"), "Preferences shortcut dispatch")
             require(PreferenceFixture().visible(), "nonmodal transient Preferences")
@@ -439,8 +419,7 @@ class PreferencesChecks {
             require(PreferenceFixture().commandClick("Save", "Record"), "active recorder during parent teardown")
             require(PreferenceFixture().shortcut("<Control>q"), "quit with preferences and search open")
             print(format("PASS ui {}", checks))
-            return
-        }
+            return()}
         stage = stage + 1
         Gtk.Application().post(nextAction)
     }

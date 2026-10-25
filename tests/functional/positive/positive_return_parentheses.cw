@@ -5,11 +5,11 @@ class Foo {
 }
 
 int64 Foo.compute(int64 x) {
-    return (x * 2)
+    return(x * 2)
 }
 
 void Foo.announce() {
-    return ()
+    return()
 }
 
 start {

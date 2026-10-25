@@ -3,7 +3,7 @@ namespace Network {
         class Client {
             Client() {}
             strg get(strg path) {
-                return path
+                return(path)
             }
         }
     }

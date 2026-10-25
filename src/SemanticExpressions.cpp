@@ -16,6 +16,8 @@
 #include <cmath>
 #include <limits>
 #include <cstring>
+#include <iomanip>
+#include <sstream>
 
 namespace cwhip {
 namespace {
@@ -590,6 +592,199 @@ void SemanticAnalyzer::resolveEnumConstants(Program& program) {
     currentClass_ = nullptr;
 }
 
+void SemanticAnalyzer::analyzeFieldInitializers(ClassDeclaration& declaration) {
+    currentClass_ = &declaration;
+    currentModule_ = declaration.moduleName;
+    currentNamespace_ = declaration.namespacePath;
+    for (auto& field : declaration.fields) {
+        if (!field.initializer) continue;
+        auto& expression = *field.initializer;
+        try {
+            const auto type = analyzeExpression(expression, field.type);
+            if (!isAssignable(field.type, type)) {
+                throw DiagnosticError(expression.location,
+                                      "cannot initialize " + field.type + " field with " + type);
+            }
+            warnNumericConversion(field.type, type, expression.location);
+            if (isNumericType(field.type) && isNumericType(type) && field.type != type) {
+                auto operand = std::make_unique<Expression>(std::move(expression));
+                expression = Expression{};
+                expression.location = operand->location;
+                expression.kind = ExpressionKind::Cast;
+                expression.value = field.type;
+                expression.arguments.push_back(std::move(operand));
+                foldFieldInitializer(expression, field.type);
+            } else {
+                foldFieldInitializer(expression, type);
+            }
+        } catch (const DiagnosticError& error) {
+            const std::string message = error.what();
+            const auto prefix = formatDiagnostic(error.location(), "");
+            throw DiagnosticError(error.location(),
+                                  "field initializer must be a compile-time constant: " +
+                                      message.substr(prefix.size()));
+        }
+    }
+    currentClass_ = nullptr;
+    currentModule_.clear();
+    currentNamespace_.clear();
+}
+
+void SemanticAnalyzer::foldFieldInitializer(Expression& expression, const std::string& type) {
+    const auto reject = [&]() {
+        throw DiagnosticError(expression.location,
+                              "instance references, calls, and runtime expressions are not allowed");
+    };
+    // Analyze first to resolve names and access; then exclude instance-qualified
+    // enum accesses, whose receivers would otherwise be evaluated at runtime.
+    const auto validate = [&](const auto& self, const Expression& value) -> void {
+        switch (value.kind) {
+        case ExpressionKind::Integer:
+        case ExpressionKind::Unsigned:
+        case ExpressionKind::Float:
+        case ExpressionKind::Boolean:
+        case ExpressionKind::String:
+        case ExpressionKind::Null:
+        case ExpressionKind::TypeName:
+            return;
+        case ExpressionKind::EnumConstant:
+            if (value.left) reject();
+            return;
+        case ExpressionKind::Unary:
+        case ExpressionKind::Binary:
+        case ExpressionKind::TypeOf:
+            if (value.left) self(self, *value.left);
+            if (value.right) self(self, *value.right);
+            return;
+        case ExpressionKind::Cast:
+        case ExpressionKind::ArrayLiteral:
+        case ExpressionKind::MapLiteral:
+        case ExpressionKind::BufferLiteral:
+            for (const auto& argument : value.arguments) self(self, *argument);
+            return;
+        default:
+            reject();
+        }
+    };
+    validate(validate, expression);
+    if (expression.kind == ExpressionKind::ArrayLiteral ||
+        expression.kind == ExpressionKind::MapLiteral ||
+        expression.kind == ExpressionKind::BufferLiteral) {
+        for (auto& argument : expression.arguments) {
+            const auto argumentType = analyzeExpression(*argument);
+            foldFieldInitializer(*argument, argumentType);
+        }
+        return;
+    }
+    if (expression.kind == ExpressionKind::TypeOf) {
+        expression.value = analyzeExpression(*expression.left);
+        expression.kind = ExpressionKind::TypeName;
+        expression.left.reset();
+        return;
+    }
+    if (expression.kind == ExpressionKind::String || expression.kind == ExpressionKind::Null ||
+        expression.kind == ExpressionKind::TypeName)
+        return;
+
+    const auto foldBooleanOperands = [&](const auto& self, Expression& value) -> void {
+        const auto child = [&](Expression& operand) {
+            if (operand.resolvedType == "bool" ||
+                (operand.kind == ExpressionKind::Cast && operand.value == "bool"))
+                foldFieldInitializer(operand, "bool");
+            else
+                self(self, operand);
+        };
+        if (value.left) child(*value.left);
+        if (value.right) child(*value.right);
+        for (auto& argument : value.arguments) child(*argument);
+    };
+    foldBooleanOperands(foldBooleanOperands, expression);
+
+    Expression folded;
+    folded.location = expression.location;
+    folded.resolvedType = type;
+    if (isFloatingType(type)) {
+        const auto value = evaluateFloatingConstant(expression, nullptr, 0);
+        std::ostringstream literal;
+        literal << std::setprecision(std::numeric_limits<double>::max_digits10) << value;
+        folded.kind = ExpressionKind::Float;
+        folded.value = literal.str();
+    } else if (isIntegerType(type)) {
+        const auto value = evaluateIntegerConstant(expression);
+        const bool isUnsigned = numericType(type)->category == NumericCategory::UnsignedInteger;
+        folded.kind = isUnsigned ? ExpressionKind::Unsigned : ExpressionKind::Integer;
+        folded.value = isUnsigned ? std::to_string(static_cast<std::uint64_t>(value)) + "u"
+                                  : std::to_string(value);
+    } else if (type == "bool") {
+        bool value = false;
+        if (expression.kind == ExpressionKind::Unary && expression.value == "!") {
+            foldFieldInitializer(*expression.left, "bool");
+            value = expression.left->value != "true";
+        } else if (expression.kind == ExpressionKind::Binary) {
+            auto& left = *expression.left;
+            auto& right = *expression.right;
+            const auto leftType = analyzeExpression(left);
+            const auto rightType = analyzeExpression(right);
+            const auto& operation = expression.value;
+            if (operation == "&&" || operation == "||") {
+                foldFieldInitializer(left, "bool");
+                foldFieldInitializer(right, "bool");
+                value = operation == "&&" ? left.value == "true" && right.value == "true"
+                                           : left.value == "true" || right.value == "true";
+            } else {
+                const auto compare = [&](auto lhs, auto rhs) {
+                    if (operation == "==") return lhs == rhs;
+                    if (operation == "!=") return lhs != rhs;
+                    if (operation == "<") return lhs < rhs;
+                    if (operation == "<=") return lhs <= rhs;
+                    if (operation == ">") return lhs > rhs;
+                    if (operation == ">=") return lhs >= rhs;
+                    reject();
+                    return false;
+                };
+                if (isFloatingType(leftType) || isFloatingType(rightType)) {
+                    const auto common = commonNumericType(leftType, rightType);
+                    if (!common) reject();
+                    const auto number = [&](Expression& operand) {
+                        Expression cast;
+                        cast.kind = ExpressionKind::Cast;
+                        cast.value = *common;
+                        cast.arguments.push_back(cloneExpression(operand));
+                        return evaluateFloatingConstant(cast, nullptr, 0);
+                    };
+                    value = compare(number(left), number(right));
+                } else if ((isIntegerType(leftType) || leftType == "bool") &&
+                           (isIntegerType(rightType) || rightType == "bool")) {
+                    const auto lhs = evaluateIntegerConstant(left);
+                    const auto rhs = evaluateIntegerConstant(right);
+                    const bool lhsUnsigned = isIntegerType(leftType) &&
+                        numericType(leftType)->category == NumericCategory::UnsignedInteger;
+                    const bool rhsUnsigned = isIntegerType(rightType) &&
+                        numericType(rightType)->category == NumericCategory::UnsignedInteger;
+                    if (lhsUnsigned == rhsUnsigned) {
+                        value = lhsUnsigned
+                            ? compare(static_cast<std::uint64_t>(lhs), static_cast<std::uint64_t>(rhs))
+                            : compare(lhs, rhs);
+                    } else if ((!lhsUnsigned && lhs < 0) || (!rhsUnsigned && rhs < 0)) {
+                        value = compare(lhsUnsigned ? 1 : -1, rhsUnsigned ? 1 : -1);
+                    } else {
+                        value = compare(static_cast<std::uint64_t>(lhs), static_cast<std::uint64_t>(rhs));
+                    }
+                } else {
+                    reject();
+                }
+            }
+        } else {
+            value = evaluateIntegerConstant(expression) != 0;
+        }
+        folded.kind = ExpressionKind::Boolean;
+        folded.value = value ? "true" : "false";
+    } else {
+        reject();
+    }
+    expression = std::move(folded);
+}
+
 void SemanticAnalyzer::addImplicitBaseReceiver(Expression& receiver) {
     if (currentClass_ == nullptr) return;
     std::vector<Expression*> prefixes;
@@ -838,7 +1033,7 @@ std::string SemanticAnalyzer::analyzeExpression(Expression& expression,
                 return "type";
             }
         }
-        addImplicitBaseReceiver(*expression.left);
+        if (currentMethod_ != nullptr) addImplicitBaseReceiver(*expression.left);
         bool classQualified = false;
         std::string className;
         std::string resolvedClassName;

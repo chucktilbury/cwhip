@@ -75,6 +75,8 @@ private:
     std::size_t countEnumMembers(const ClassDeclaration& declaration,
                                  const std::string& name) const;
     void resolveEnumConstants(Program& program);
+    void analyzeFieldInitializers(ClassDeclaration& declaration);
+    void foldFieldInitializer(Expression& expression, const std::string& type);
     std::int64_t resolveEnumValue(ClassDeclaration& declaration, std::size_t index);
     std::int64_t evaluateIntegerConstant(Expression& expression,
                                         ClassDeclaration* declaration = nullptr,

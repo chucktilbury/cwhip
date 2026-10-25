@@ -47,8 +47,7 @@ SINGLE_CHAR     ::= any valid UTF-8 character except "'", CR, or LF ;
 STRING          ::= DOUBLE_STRING | SINGLE_STRING ;
 
 COMMENT         ::= LINE_COMMENT | BLOCK_COMMENT ;
-LINE_COMMENT    ::= ";" , { any character except LF }
-                  | "#" , { any character except LF }
+LINE_COMMENT    ::= "#" , { any character except LF }
                   | "//", { any character except LF } ;
 BLOCK_COMMENT   ::= "/*", { any character or LF except the first "*/" }, "*/" ;
 HORIZONTAL_WS   ::= one or more non-LF characters for which the C++ runtime
@@ -103,9 +102,10 @@ Lexical details that affect parsing:
   line and must decode to valid
   UTF-8. Neither quote style interpolates automatically; literal templates
   are interpreted only by `format` or multi-argument `print`.
-- `;`, `#`, and `//` begin line comments; a semicolon is **not** a statement
-  separator. Block comments are non-nesting. Newline characters inside a
-  block comment still delimit statements outside parentheses and brackets.
+- `#` and `//` begin line comments. `/* ... */` comments are non-nesting.
+  Newline characters inside a block comment still delimit statements outside
+  parentheses and brackets. `;` is an unknown character, not a comment or
+  statement separator.
 - LF produces a `NEWLINE` token except while inside parentheses or square
   brackets. Newlines inside braces are not suppressed. Other whitespace is
   discarded. There is no indentation-based syntax.
@@ -287,8 +287,8 @@ do-while-statement  ::= "do", { NEWLINE }, block, { NEWLINE },
 foreach-statement   ::= "for", "(", IDENT, [ ",", IDENT ], "in",
                         expression, ")", { NEWLINE }, block ;
 loop-control        ::= ("break" | "continue"), terminator ;
-return-statement    ::= "return", [ expression | "(", ")" ], terminator ;
-raise-statement     ::= "raise", "(", [ expression ], ")", terminator ;
+return-statement    ::= "return", [ "(", [ expression ], ")" ], terminator ;
+raise-statement     ::= "raise", [ "(", [ expression ], ")" ], terminator ;
 try-statement       ::= "try", { NEWLINE }, block, { NEWLINE },
                         ( except-clause, { NEWLINE },
                           { except-clause, { NEWLINE } },
@@ -353,12 +353,12 @@ unary operators associate right-to-left.
 | 1 | `or`, `\|\|` | left |
 | 2 | `and`, `&&` | left |
 | 3 | `not`, `!` | right (prefix) |
-| 4 | `\|` | left |
-| 5 | `^` | left |
-| 6 | `&` | left |
-| 7 | `==`, `!=` | left |
-| 8 | `is`, `in`, `<`, `<=`, `>`, `>=` | left |
-| 9 | `..` | non-associative |
+| 4 | `==`, `!=` | left |
+| 5 | `is`, `in`, `<`, `<=`, `>`, `>=` | left |
+| 6 | `..` | non-associative |
+| 7 | `\|` | left |
+| 8 | `^` | left |
+| 9 | `&` | left |
 | 10 | `<<`, `>>` | left |
 | 11 | `+`, `-` | left |
 | 12 | `*`, `/`, `%` | left |
@@ -374,16 +374,16 @@ statement, not an expression.
 expression          ::= or-expression ;
 or-expression       ::= and-expression, { ("or" | "||"), and-expression } ;
 and-expression      ::= not-expression, { ("and" | "&&"), not-expression } ;
-not-expression      ::= ("not" | "!"), not-expression | bitwise-or ;
+not-expression      ::= ("not" | "!"), not-expression | comparison ;
 bitwise-or          ::= bitwise-xor, { "|", bitwise-xor } ;
 bitwise-xor         ::= bitwise-and, { "^", bitwise-and } ;
-bitwise-and         ::= comparison, { "&", comparison } ;
+bitwise-and         ::= shift, { "&", shift } ;
 comparison          ::= relational, { ("==" | "!="), relational } ;
 relational          ::= range-expression,
                         { ("is", type-test-name | "in", range-expression
                           | "<", range-expression | "<=", range-expression
                           | ">", range-expression | ">=", range-expression) } ;
-range-expression    ::= shift, [ "..", shift ] ;
+range-expression    ::= bitwise-or, [ "..", bitwise-or ] ;
 shift               ::= addition, { ("<<" | ">>"), addition } ;
 type-test-name      ::= QUALIFIED_IDENT | primitive-type | range-type | "void" ;
 addition            ::= multiplication, { ("+" | "-"), multiplication } ;
@@ -420,8 +420,9 @@ primary             ::= INTEGER | UNSIGNED_INT | FLOAT | STRING
                       | "(", expression, ")"
                       | list-literal | dict-literal | type-value ;
 buffer-literal      ::= "buffer", "[", [ argument-list ], "]" ;
-list-literal        ::= "[", [ argument-list ], "]" ;
-dict-literal        ::= "{", [ dict-entry, { ",", dict-entry } ], "}" ;
+list-literal        ::= "[", [ expression, { ",", expression }, [ "," ] ], "]" ;
+dict-literal        ::= "[", ":", "]"
+                      | "[", dict-entry, { ",", dict-entry }, [ "," ], "]" ;
 dict-entry          ::= expression, ":", expression ;
 type-value          ::= "strg" | "list" | "dict"
                       | "handle" | "any" | range-type
@@ -432,8 +433,9 @@ type-value          ::= "strg" | "list" | "dict"
 `range-type` accepts only the eight integer types semantically, not `fp32` or
 `fp64`. `first..last` forms an immutable, inclusive, directional integer value
 with snapshot endpoints. `..` binds more tightly than `in` and comparisons,
-but less tightly than shifts and arithmetic. Parenthesize bitwise endpoint
-expressions. Chained ranges (`1..2..3`) and range-valued endpoints are invalid.
+but less tightly than bitwise operators, shifts, and arithmetic. Parenthesize
+bitwise endpoint expressions. Chained ranges (`1..2..3`) and range-valued
+endpoints are invalid.
 `value in bounds` accepts an integer and a range; `for (value in bounds)`
 binds a read-only integer. `collection[bounds]` is a copy slice when the index
 expression has a range type, for lists, Strings, and buffers only; its endpoints
@@ -514,7 +516,7 @@ Each parser routine has a corresponding production or grammar note above:
 | `parseReturn`, `parseSuperConstructorCall`, `parsePrint` | `return-statement`, `super-initializer`, `print-statement` |
 | `parseIf`, `parseWhile`, `parseDoWhile`, `parseForEach`, `parseLoopControl` | matching statement productions |
 | `parseRaise`, `parseTry` | `raise-statement`, `try-statement` |
-| `parseExpression`, `parseOr`, `parseAnd`, `parseNot`, `parseComparison`, `parseRelational`, `parseAddition`, `parseMultiplication`, `parseUnary` | matching expression-precedence productions |
+| Expression-precedence routines | `expression` through `postfix`; see the precedence table and productions |
 | `parseTypeTestName`, `parsePrimary`, `parseTypeName`, `parsePostfix` | `type-test-name`, `primary`, type-value primary, and postfix productions |
 | `startsOutOfLineDefinition` | top-level lookahead for `out-of-line-definition`; not a separate syntax form |
 | `parseClass`, `parseEnumMembers`, `parseOutOfLineMethodDefinition`, `parseType`, `parseParameters`, `parseMethod` | class/member/declaration productions, including `anonymous-enum-declaration` |
@@ -549,10 +551,10 @@ and thread bindings.
   branch runs. `else if` is not supported. `do { ... } while (...)` has no
   required trailing terminator.
 - Newlines in `()` and `[]` are suppressed, but newlines inside `{}` are not.
-  In particular, braces used for dict literals do not provide multiline
-  continuation.
-- `return ()` is accepted as a void return, alongside bare `return`.
-  Parenthesized non-empty returns are ordinary expressions.
+  List and dict literals both use square brackets and can span lines.
+- Non-void returns use `return(expression)`. Bare `return` and `return()` are
+  valid void returns. A raise expression uses `raise(expression)`; bare
+  `raise` and `raise()` both rethrow the active exception.
 - `format` is recognized as an intrinsic in call position. `print` formats
   only when its literal first argument has additional arguments; otherwise
   a directly printed literal, including braces, is unchanged.

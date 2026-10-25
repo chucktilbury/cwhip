@@ -54,29 +54,29 @@ class ProjectChecks {
         }
         checks = checks + 1
     }
-    String path(String name) { return System.FileSystem().join(System.FileSystem().getCwd(), name) }
+    String path(String name) { return(System.FileSystem().join(System.FileSystem().getCwd(), name)) }
     ProjectNode find(String name) {
         String expected = path(name)
         int64 i = 0
         while (i < editor.project.nodes.length) {
             ProjectNode node = editor.project.nodes[i] as ProjectNode
-            if (node.path.equals(expected)) { return node }
+            if (node.path.equals(expected)) { return(node) }
             i = i + 1
         }
         int64 id = editor.project.tree.findValue(expected)
-        if (id == 0) { return null }
-        return ProjectNode(editor.project, id, expected, editor.project.tree.data(id))
+        if (id == 0) { return(null) }
+        return(ProjectNode(editor.project, id, expected, editor.project.tree.data(id)))
     }
     bool loaded(String name) {
         ProjectNode node = find(name)
-        return node != null && node.complete
+        return(node != null && node.complete)
     }
     bool expanded(String name) {
         ProjectNode node = find(name)
-        return node != null && editor.project.tree.expanded(node.id)
+        return(node != null && editor.project.tree.expanded(node.id))
     }
     bool busy() {
-        return editor.projectSaves > 0 || editor.fileDialog != null || editor.savePending
+        return(editor.projectSaves > 0 || editor.fileDialog != null || editor.savePending)
     }
     void again() {
         String root = ""
@@ -103,12 +103,11 @@ class ProjectChecks {
         ProjectFixture().later(nextAction)
     }
     void menu(int64 item) { editor.menu.activateItem(item) }
-    int64 item(int64 index) { return editor.projectItems[index] as int64 }
+    int64 item(int64 index) { return(editor.projectItems[index] as int64) }
     void next() {
         if (busy()) {
             again()
-            return
-        }
+            return()}
         ProjectFixture().collect()
         if (mode.equals("create")) { create() }
         if (mode.equals("restore")) { restore() }
@@ -133,20 +132,17 @@ class ProjectChecks {
             ProjectFixture().choose(path("proj"), 0, 0)
             menu(editor.projectNewItem)
             advance()
-            return
-        }
+            return()}
         if (stage == 1) {
             require(editor.activeProject == null && !System.FileSystem().exists(path("proj/.cwhip")), "cancelled New creates nothing")
             ProjectFixture().choose(path("proj"), 1, 0)
             menu(editor.projectNewItem)
             advance()
-            return
-        }
+            return()}
         if (stage == 2) {
             if (!loaded("proj")) {
                 again()
-                return
-            }
+                return()}
             require(editor.activeProject != null && editor.activeProject.root.equals(path("proj")), "New activates root")
             require(editor.activeProject.name.equals("proj"), "default project name")
             require(System.FileSystem().isFile(path("proj/.cwhip/project.toml")) &&
@@ -163,13 +159,11 @@ class ProjectChecks {
             tabs.entry.setText("3")
             require(ProjectFixture().click("Configure Project", "Apply"), "Apply button")
             advance()
-            return
-        }
+            return()}
         if (stage == 3) {
             if (!loaded("proj")) {
                 again()
-                return
-            }
+                return()}
             require(editor.activeProject.name.equals("Demo") && editor.project.title.text().equals("Demo"), "renamed project")
             require(ProjectFixture().tabWidth() == 3, "project override applied")
             require(find("proj/build") == null && find("proj/x.log") == null && find("proj/sub") != null, "exclusions applied")
@@ -180,25 +174,21 @@ class ProjectChecks {
             require(ProjectFixture().click("Configure Project", "Reset All to Inherit"), "inherit button")
             require(ProjectFixture().click("Configure Project", "Apply"), "Apply inherit")
             advance()
-            return
-        }
+            return()}
         if (stage == 4) {
             require(!editor.activeProject.hasTabs && ProjectFixture().tabWidth() == 5, "inherit follows preferences")
             editor.project.tree.setExpanded(find("proj/sub").id, true)
             editor.window.setDefaultSize(980, 720)
             editor.workspace.setPosition(300)
             advance()
-            return
-        }
+            return()}
         if (stage == 5) {
             if (!loaded("proj/sub")) {
                 again()
-                return
-            }
+                return()}
             menu(item(0))
             advance()
-            return
-        }
+            return()}
         require(editor.status.text().contains("Project saved"), "Save Project")
         finish()
     }
@@ -213,20 +203,17 @@ class ProjectChecks {
                 format("window size restored {}x{} {}", editor.window.defaultWidth(), editor.window.defaultHeight(), editor.activeProject.windowWidth))
             require(editor.workspace.position() == 300, "explorer width restored")
             advance()
-            return
-        }
+            return()}
         if (stage == 1) {
             if (!expanded("proj/sub") || !loaded("proj/sub")) {
                 again()
-                return
-            }
+                return()}
             require(find("proj/build") == null, "exclusions restored")
             editor.showPreferences()
             editor.reopenCheck.setActive(true)
             require(editor.settings.reopenLast && editor.settings.lastRoot.equals(path("proj")), "reopen remembers root")
             advance()
-            return
-        }
+            return()}
         require(editor.preferencesMessage.text().equals("Settings saved"), format("settings saved: {}", editor.preferencesMessage.text()))
         finish()
     }
@@ -238,8 +225,7 @@ class ProjectChecks {
             editor.reopenCheck.setActive(false)
             require(editor.settings.lastRoot.equals(""), "disabling forgets root")
             advance()
-            return
-        }
+            return()}
         finish()
     }
     void notReopened() {
@@ -263,8 +249,7 @@ class ProjectChecks {
             require(editor.activeProject != null && editor.currentDocument().path.equals(""), "nothing restored")
             menu(item(0))
             advance()
-            return
-        }
+            return()}
         require(ProjectFixture().alert("Project save failed|workspace.toml"), "invalid workspace not overwritten")
         finish()
     }
@@ -273,15 +258,13 @@ class ProjectChecks {
             editor.openFile(path("proj/a.cw"))
             menu(item(0))
             advance()
-            return
-        }
+            return()}
         if (stage == 1) {
             require(ProjectFixture().alert("Project save failed"), "write failure reported")
             require(!ProjectFixture().alertOpen(), "alert dismissed")
             editor.quitAction()
             advance()
-            return
-        }
+            return()}
         require(editor.confirmOp.equals("continue-quit") && !editor.window.disposed(), "quit asks after failed workspace save")
         print(format("PASS {} {}", mode, checks))
         require(ProjectFixture().click("cedit", "Quit Without Saving"), "quit without saving")
@@ -292,8 +275,7 @@ class ProjectChecks {
             ProjectFixture().choose(path("proj2"), 1, 0)
             menu(editor.projectOpenItem)
             advance()
-            return
-        }
+            return()}
         if (stage == 1) {
             require(editor.pendingCloseAll && editor.switchOp.equals("open"), "dirty prompt before switching")
             editor.cancelPendingClose()
@@ -301,14 +283,12 @@ class ProjectChecks {
             ProjectFixture().choose(path("proj2"), 1, 0)
             menu(editor.projectOpenItem)
             advance()
-            return
-        }
+            return()}
         if (stage == 2) {
             require(editor.pendingCloseAll, "dirty prompt again")
             editor.discardPendingClose()
             advance()
-            return
-        }
+            return()}
         require(editor.activeProject.root.equals(path("proj2")), "switched project")
         require(editor.documents.length == 1 && editor.currentDocument().path.equals(path("proj2/readme.txt")), "second workspace restored")
         editor.currentDocument().view.setText("dirty\n")
@@ -322,23 +302,20 @@ class ProjectChecks {
             ProjectFixture().choose(path("proj"), 1, 0)
             menu(item(1))
             advance()
-            return
-        }
+            return()}
         if (stage == 1) {
             require(ProjectFixture().alert("Choose a different folder"), "same root refused")
             ProjectFixture().choose(path("copy"), 1, 0)
             menu(item(1))
             advance()
-            return
-        }
+            return()}
         if (stage == 2) {
             require(editor.activeProject.root.equals(path("copy")) && editor.activeProject.name.equals("Demo"), "Save As activates copy")
             require(editor.currentDocument().path.equals(path("proj/a.cw")), "documents stay open")
             ProjectFixture().choose(path("taken"), 1, 0)
             menu(item(1))
             advance()
-            return
-        }
+            return()}
         if (stage == 3) {
             require(editor.confirmOp.equals("replace-save-as") && ProjectFixture().has("cedit", "already has Cwhip project metadata"), "overwrite confirmation")
             require(ProjectFixture().click("cedit", "Cancel"), "cancel overwrite")
@@ -346,13 +323,11 @@ class ProjectChecks {
             ProjectFixture().choose(path("taken"), 1, 0)
             menu(item(1))
             advance()
-            return
-        }
+            return()}
         if (stage == 4) {
             require(ProjectFixture().click("cedit", "Replace Metadata"), "accept overwrite")
             advance()
-            return
-        }
+            return()}
         require(editor.activeProject.root.equals(path("taken")), "replaced metadata activates")
         finish()
     }
@@ -368,8 +343,7 @@ class ProjectChecks {
             require(editor.activeProject == null && editor.project.rootPath.equals(path("proj")), "folder mode on same root")
             require(editor.settings.lastRoot.equals(""), "deleted project forgotten")
             advance()
-            return
-        }
+            return()}
         finish()
     }
     void about() {
@@ -387,8 +361,7 @@ class ProjectChecks {
             menu(editor.aboutItem)
             require(ProjectFixture().visible("About cedit"), "About reopens")
             advance()
-            return
-        }
+            return()}
         finish()
     }
     void switchScan() {
@@ -396,19 +369,16 @@ class ProjectChecks {
             require(editor.activeProject != null, "project opened")
             editor.openProjectAt(path("proj2"))
             advance()
-            return
-        }
+            return()}
         if (stage == 1) {
             require(editor.activeProject.root.equals(path("proj2")), "switched while scanning")
             ProjectFixture().choose(path("other"), 1, 0)
             menu(editor.openFolderItem)
             advance()
-            return
-        }
+            return()}
         if (!loaded("other")) {
             again()
-            return
-        }
+            return()}
         require(editor.activeProject == null && editor.project.title.text().equals("Project Explorer"), "folder mode")
         require(find("other/plain.txt") != null, "folder listing")
         finish()
@@ -418,8 +388,7 @@ class ProjectChecks {
             menu(editor.projectOpenItem)
             ProjectFixture().choose(path("legacy"), 1, 0)
             advance()
-            return
-        }
+            return()}
         require(ProjectFixture().alert("No Cwhip project"), "old metadata is not recognized")
         require(editor.activeProject == null, "old metadata does not open as a project")
         finish()

@@ -35,12 +35,12 @@ class Worker {
     int64 endpoint(int64 n) {
         calls += 1
         print(n)
-        return n
+        return(n)
     }
     range<int64> identity(range<int64> r) { saved = r
-        return saved }
+        return(saved) }
     range<int64> returning() {
-        try { return int64(3)..int64(1) }
+        try { return(int64(3)..int64(1)) }
         finally { churn() }
     }
     void churn() {
@@ -48,15 +48,15 @@ class Worker {
     }
     int64 early(range<int64> r) {
         for (i in r) {
-            try { return i }
+            try { return(i) }
             finally { print("return/") }
         }
-        return 0
+        return(0)
     }
-    int64 pick(range<int8> r) { return 8 }
-    int64 pick(range<int64> r) { return 64 }
-    int64 promote(range<int16> r) { return 16 }
-    int64 promote(range<int64> r) { return 64 }
+    int64 pick(range<int8> r) { return(8) }
+    int64 pick(range<int64> r) { return(64) }
+    int64 promote(range<int16> r) { return(16) }
+    int64 promote(range<int64> r) { return(64) }
 }
 start {
     Worker w = Worker()
@@ -111,7 +111,7 @@ start {
     emit(r"""
     range<int64> copied = snapshot
     snapshot = int64(40)..int64(42)
-    list nested = [[copied], {"r": w.returning()}]
+    list nested = [[copied], ["r": w.returning()]]
     w.churn()
     list inner = nested[0]
     dict mapping = nested[1]

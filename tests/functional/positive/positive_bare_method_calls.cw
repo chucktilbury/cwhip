@@ -12,9 +12,9 @@ class Counter {
 
     int64 sum(int64 n) {
         if (n == 0) {
-            return 0
+            return(0)
         }
-        return n + sum(n - 1)
+        return(n + sum(n - 1))
     }
 }
 

@@ -25,7 +25,7 @@ const TestGroupRegistration registration{2, {
     {"non-scalar operands remain invalid for every scalar cast target", [] {
          const std::string targets[] = {"bool", "int64", "uint64", "fp64"};
          const std::pair<std::string, std::string> operands[] = {
-             {"null", "null"}, {"[1]", "list"}, {"{\"key\": 2}", "dict"},
+             {"null", "null"}, {"[1]", "list"}, {"[\"key\": 2]", "dict"},
              {"buffer(1)", "buffer"}, {"int64", "type"}, {"\"1\"", "String"}
          };
          for (const auto& target : targets) {
@@ -45,8 +45,8 @@ const TestGroupRegistration registration{2, {
      }},
     {"fp64 casts branch through ordered range checks before LLVM conversion", [] {
          auto program = parse(R"(class Casts {
-             int64 signedValue(fp64 value) { return int64(value) }
-             uint64 unsignedValue(fp64 value) { return uint64(value) }
+             int64 signedValue(fp64 value) { return(int64(value)) }
+             uint64 unsignedValue(fp64 value) { return(uint64(value)) }
          }
          start {}
          )");
@@ -73,7 +73,7 @@ const TestGroupRegistration registration{2, {
      }},
     {"signed to uint64 casts retain i64 bits without a range check", [] {
          auto program = parse(R"(class Casts {
-             uint64 bits(int64 value) { return uint64(value) }
+             uint64 bits(int64 value) { return(uint64(value)) }
          }
          start {}
          )");
@@ -87,7 +87,7 @@ const TestGroupRegistration registration{2, {
      }},
     {"boolean fp64 conversion uses unordered not-equal without fast math", [] {
          auto program = parse(R"(class Casts {
-             bool truth(fp64 value) { return bool(value) }
+             bool truth(fp64 value) { return(bool(value)) }
          }
          start {}
          )");

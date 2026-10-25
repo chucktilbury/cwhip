@@ -42,11 +42,11 @@ class BaseOnly {
 
 class MethodChoice {
     int64 choose(RootTag value) {
-        return 1
+        return(1)
     }
 
     int64 choose(DerivedTag value) {
-        return 2
+        return(2)
     }
 }
 

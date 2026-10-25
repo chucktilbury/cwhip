@@ -46,9 +46,9 @@ const TestGroupRegistration registration{7, {
         const auto first = fixture.root / "cli";
         const auto second = fixture.root / "project";
         const auto selected = fixture.package(first, "sample", "1.0.0",
-                                               "namespace Export { int64 first() { return 1 } }\n");
+                                               "namespace Export { int64 first() { return(1) } }\n");
         fixture.package(second, "sample", "1.0.0",
-                        "namespace Export { int64 second() { return 2 } }\n");
+                        "namespace Export { int64 second() { return(2) } }\n");
         const auto result = cwhip::resolvePackages({"sample"}, {first, second});
         require(result.packages.at("sample").packageRoot == selected,
                 "the first matching package root must shadow lower-priority roots");
@@ -78,7 +78,7 @@ const TestGroupRegistration registration{7, {
         const auto lockedPackage = fixture.package(
             installationRoot, "sample", "1.0.0", "namespace Export {}\n");
         fixture.package(overrideRoot, "sample", "1.0.0",
-                        "namespace Export { int64 changed() { return 1 } }\n");
+                        "namespace Export { int64 changed() { return(1) } }\n");
 
         cwhip::ModuleVersionPolicy policy;
         policy.path = fixture.root / "cwhip-pkg.lock";

@@ -64,22 +64,22 @@ class ExplorerChecks {
         }
         checks = checks + 1
     }
-    String path(String name) { return System.FileSystem().join(System.FileSystem().getCwd(), name) }
+    String path(String name) { return(System.FileSystem().join(System.FileSystem().getCwd(), name)) }
     ProjectNode find(String name) {
         String expected = path(name)
         int64 i = 0
         while (i < editor.project.nodes.length) {
             ProjectNode node = editor.project.nodes[i] as ProjectNode
-            if (node.path.equals(expected)) { return node }
+            if (node.path.equals(expected)) { return(node) }
             i = i + 1
         }
         int64 id = editor.project.tree.findValue(expected)
-        if (id == 0) { return null }
-        return ProjectNode(editor.project, id, expected, editor.project.tree.data(id))
+        if (id == 0) { return(null) }
+        return(ProjectNode(editor.project, id, expected, editor.project.tree.data(id)))
     }
     bool ready(String name) {
         ProjectNode node = find(name)
-        return node != null && node.complete
+        return(node != null && node.complete)
     }
     void again() {
         require(ExplorerFixture().now() < deadline, "operation deadline")
@@ -101,21 +101,18 @@ class ExplorerChecks {
             ExplorerFixture().choose(path("project"), 0, 0)
             editor.menu.activateItem(editor.openFolderItem)
             advance()
-            return
-        }
+            return()}
         if (stage == 1) {
             if (editor.fileDialog != null) {
                 if (ExplorerFixture().chooser()) { sawChooser = true }
                 again()
-                return
-            }
+                return()}
             require(sawChooser, "parented modal folder chooser")
             require(editor.project.rootPath.equals(""), "cancel does not change root")
             ExplorerFixture().choose(path("project"), 1, 0)
             editor.menu.activateItem(editor.openFolderItem)
             advance()
-            return
-        }
+            return()}
         if (stage == 2) {
             if (editor.fileDialog != null || !ready("project")) { again()
                 return }
@@ -139,8 +136,7 @@ class ExplorerChecks {
             require(ExplorerFixture().monospace(), "editor preferences preserved")
             require(ExplorerFixture().activate(3), "GTK directory activation expands")
             advance()
-            return
-        }
+            return()}
         if (stage == 3) {
             if (!ready("project/sub")) { again()
                 return }
@@ -149,8 +145,7 @@ class ExplorerChecks {
             require(System.FileSystem().remove(path("project/gone")), "remove unopened directory")
             editor.project.tree.setExpanded(find("project/gone").id, true)
             advance()
-            return
-        }
+            return()}
         if (stage == 4) {
             if (!ready("project/gone") || !ready("project/empty")) { again()
                 return }
@@ -162,24 +157,21 @@ class ExplorerChecks {
                 require(editor.documents.length == before && editor.status.text().contains("not a text file"), "binary preserved rejection")
                 errorPhase = 1
                 again()
-                return
-            }
+                return()}
             if (errorPhase == 1) {
                 require(ExplorerFixture().alert("Could not open|binary.dat"), "binary dialog")
                 editor.project.activateFile(find("project/invalid.txt").id)
                 require(editor.documents.length == before && editor.status.text().contains("not a text file"), "UTF-8 preserved rejection")
                 errorPhase = 2
                 again()
-                return
-            }
+                return()}
             require(ExplorerFixture().alert("Could not open|invalid.txt"), "UTF-8 dialog")
             editor.project.activateFile(find("project/loop").id)
             require(editor.status.text().contains("not a regular file"), "directory symlink not followed by tree")
             require(ExplorerFixture().context(true) && editor.project.hidden.active() &&
                 editor.project.contextHidden.active(), "right-click Show Hidden shares checked state")
             advance()
-            return
-        }
+            return()}
         if (stage == 5) {
             if (!ready("project") || !ready("project/sub")) { again()
                 return }
@@ -191,8 +183,7 @@ class ExplorerChecks {
             require(System.FileSystem().remove(path("project/a.txt")), "remove file")
             require(ExplorerFixture().context(false), "right-click Refresh")
             advance()
-            return
-        }
+            return()}
         if (stage == 6) {
             if (!ready("project") || !ready("project/sub")) { again()
                 return }
@@ -203,8 +194,7 @@ class ExplorerChecks {
                     "successful save-as")
                 errorPhase = 3
                 again()
-                return
-            }
+                return()}
             require(find("project/saved.txt") != null && find("project/sub/nested.txt") != null,
                 "save-as refreshes explorer and preserves expansion")
             int64 generation = editor.project.generation
@@ -215,31 +205,27 @@ class ExplorerChecks {
                 require(editor.project.generation > generation, "successful Save refreshes explorer")
                 errorPhase = 4
                 again()
-                return
-            }
+                return()}
             require(find("project/added.txt") != null && find("project/a.txt") == null && find("project/gone") == null, "refresh additions/removals")
             require(editor.currentDocument().path.equals(path("project/saved.txt")), "save-as preserves active tab")
             editor.project.hidden.setActive(false)
             editor.project.setRoot(path("missing"))
             advance()
-            return
-        }
+            return()}
         if (stage == 7) {
             if (!ready("missing")) { again()
                 return }
             require(!find("missing").error.equals(""), "missing root is visibly failed")
             editor.project.setRoot(path("denied"))
             advance()
-            return
-        }
+            return()}
         if (stage == 8) {
             if (!ready("denied")) { again()
                 return }
             require(!find("denied").error.equals(""), "unreadable directory error")
             editor.project.setRoot(path("nonutf8"))
             advance()
-            return
-        }
+            return()}
         if (stage == 9) {
             if (!ready("nonutf8")) { again()
                 return }
@@ -251,8 +237,7 @@ class ExplorerChecks {
             ExplorerFixture().collect()
             waitUntil = ExplorerFixture().now() + 250
             advance()
-            return
-        }
+            return()}
         if (stage == 10) {
             if (!ready("project") || ExplorerFixture().now() < waitUntil) { again()
                 return }
@@ -261,8 +246,7 @@ class ExplorerChecks {
             ExplorerFixture().watch()
             startedAt = ExplorerFixture().now()
             advance()
-            return
-        }
+            return()}
         if (stage == 11) {
             require(ExplorerFixture().gap() < 300, "GUI heartbeat gap below 300ms for 20,000 entries")
             if (!ready("large")) { again()
@@ -277,16 +261,14 @@ class ExplorerChecks {
             editor.project.setRoot(path("project"))
             waitUntil = ExplorerFixture().now() + 200
             advance()
-            return
-        }
+            return()}
         if (stage == 12) {
             if (!ready("project") || ExplorerFixture().now() < waitUntil) { again()
                 return }
             require(find("large/file00000.txt") == null, "refresh/root replacement invalidates active delivery")
             editor.project.setRoot(path("large"))
             advance()
-            return
-        }
+            return()}
         if (stage == 13) {
             if (editor.project.tree.childCount(1) < 128) { again()
                 return }
@@ -311,8 +293,7 @@ class ExplorerLifetime {
     void closeFolder() {
         if (!ExplorerFixture().chooser()) {
             ExplorerFixture().later(_self().closeFolder)
-            return
-        }
+            return()}
         Gtk.FileDialog pending = editor.fileDialog
         if (mode.equals("folder-mapped-shutdown")) {
             Gtk.Application().shutdown()
@@ -357,8 +338,7 @@ class ExplorerLifetime {
         if (mode.equals("folder-mapped-close") || mode.equals("folder-mapped-shutdown")) {
             editor.chooseFolder()
             ExplorerFixture().later(_self().closeFolder)
-            return
-        }
+            return()}
         if (mode.equals("folder-close") || mode.equals("folder-cancel") ||
             mode.equals("folder-shutdown")) {
             editor.chooseFolder()
@@ -377,14 +357,12 @@ class ExplorerLifetime {
             if (!editor.window.disposed() || pending.pending()) { System.Process().exit(1) }
             ExplorerFixture().collect()
             System.StandardIO().writeLine("PASS immediate folder teardown")
-            return
-        }
+            return()}
         if (mode.equals("tree-shutdown")) {
             Gtk.Tree tree = Gtk.Tree(_self().request, _self().leaf)
             tree.add(0, 1, "root", "folder-symbolic", true, "", 1)
             tree.setExpanded(1, true)
-            return
-        }
+            return()}
         editor.project.tree.clear(0)
         scan = Gtk.DirectoryScan(editor.project.tree,
             System.FileSystem().join(System.FileSystem().getCwd(), "large"),

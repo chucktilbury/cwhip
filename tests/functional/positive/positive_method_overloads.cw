@@ -8,23 +8,23 @@ class Formatter {
     Formatter() {}
 
     int64 describe() {
-        return 1
+        return(1)
     }
 
     int64 describe(int64 value) {
-        return value + 10
+        return(value + 10)
     }
 
     int64 describe(fp64 value) {
-        return 2
+        return(2)
     }
 
     int64 describe(strg value) {
-        return 3
+        return(3)
     }
 
     int64 describe(int64 first, int64 second) {
-        return first + second
+        return(first + second)
     }
 }
 
@@ -36,12 +36,12 @@ class LoudFormatter : Formatter {
     # Overrides exactly one member of the inherited overload set; the
     # zero-argument, float, string, and two-int overloads are inherited.
     int64 describe(int64 value) {
-        return value + 100
+        return(value + 100)
     }
 
     # Adds a brand new overload that the base class does not declare.
     int64 describe(bool value) {
-        return 55
+        return(55)
     }
 }
 

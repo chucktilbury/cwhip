@@ -9,8 +9,8 @@ class Tree {
         }
     }
     int64 count() {
-        if (left == null) { return 1 }
-        return 1 + left.count() + right.count()
+        if (left == null) { return(1)}
+        return(1 + left.count() + right.count())
     }
 }
 

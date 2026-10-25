@@ -320,7 +320,8 @@ and `CWHIP_LIB_DIR`; see the generated project's `doc/BUILDING.md`.
 ## Learn the source basics
 
 Cwhip uses `.cw` files, newline-terminated statements, and brace-delimited
-blocks. A semicolon starts a **comment**, not a statement separator.
+blocks. `#` and `//` start single-line comments; `/* ... */` is a block
+comment. A semicolon is an unknown character, not a comment or separator.
 Keywords are case-insensitive; identifiers are case-sensitive. Exactly one
 `start` block is the executable entry point. Methods live in classes; there
 are no free-standing functions.
@@ -339,7 +340,7 @@ class Counter {
 
     int64 add(int64 amount) {
         value += amount
-        return value
+        return(value)
     }
 }
 

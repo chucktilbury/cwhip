@@ -3,7 +3,7 @@ namespace Shapes {
     namespace Geometry {
         class Circle {
             int64 sides() {
-                return 1
+                return(1)
             }
         }
     }
@@ -13,7 +13,7 @@ namespace Shapes {
     namespace Geometry {
         class Rectangle {
             int64 sides() {
-                return 4
+                return(4)
             }
         }
     }

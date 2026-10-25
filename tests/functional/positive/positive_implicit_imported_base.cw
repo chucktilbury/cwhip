@@ -5,7 +5,7 @@ class Derived: Parent {
         super Parent()
         print(Parent.answer())
     }
-    int64 read() { return Parent.answer() }
+    int64 read() { return(Parent.answer())}
 }
 
 start {

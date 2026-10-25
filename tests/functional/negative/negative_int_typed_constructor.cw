@@ -1,6 +1,6 @@
 class Counter {
   int Counter(int start) {
-    return start
+    return(start)
   }
 }
 start {

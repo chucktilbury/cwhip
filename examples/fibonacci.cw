@@ -6,10 +6,10 @@ namespace Math {
         # Naive recursive version (fine for small n)
         int64 compute (int64 n) {
             if (n <= 1) {
-                return (n)
+                return(n)
             }
             int64 v = compute(n - 1) + compute(n - 2)
-            ; print(format("{val}, ", val=v))
+            # print(format("{val}, ", val=v))
             return(v)
         }
     }

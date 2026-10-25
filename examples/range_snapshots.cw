@@ -3,7 +3,7 @@ class Bounds {
     int64 capture(int64 value) {
         calls += 1
         print("capture {}\n", value)
-        return value
+        return(value)
     }
 }
 start {

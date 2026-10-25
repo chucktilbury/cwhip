@@ -3,7 +3,7 @@ class Hidden {
     private:
     int64 value
     int64 read() {
-        return value
+        return(value)
     }
 }
 

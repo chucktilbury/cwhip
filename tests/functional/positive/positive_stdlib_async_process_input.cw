@@ -60,22 +60,22 @@ class Reader {
         while (!completed && !out.contains(expected)) {
             P.ProcessEvent event = child.next(10000)
             if (event == null) {
-                return false
+                return(false)
             }
             take(event)
         }
-        return out.contains(expected)
+        return(out.contains(expected))
     }
 
     bool drain(P.AsyncProcess child) {
         while (!completed) {
             P.ProcessEvent event = child.next(10000)
             if (event == null) {
-                return false
+                return(false)
             }
             take(event)
         }
-        return true
+        return(true)
     }
 
     # Polls without blocking, like a GTK idle/timeout handler would.

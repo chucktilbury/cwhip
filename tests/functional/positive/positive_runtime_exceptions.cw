@@ -4,14 +4,14 @@ class Box {
   destroy {
   }
   int64 read() {
-    return 42
+    return(42)
   }
 }
 class Worker {
   int64 fail() {
     Box local = Box()
     raise(Exception("from method"))
-    return 0
+    return(0)
   }
 }
 class ThrowingBox {
@@ -19,7 +19,7 @@ class ThrowingBox {
     raise(Exception("from destructor"))
   }
   int64 read() {
-    return 9
+    return(9)
   }
 }
 class Partial {

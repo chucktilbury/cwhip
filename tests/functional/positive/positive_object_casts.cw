@@ -1,12 +1,12 @@
 class Foo {
     int64 value
     Foo(int64 initial) { value = initial }
-    int64 read() { return value }
-    int64 with(int64 extra) { return value + extra }
+    int64 read() { return(value)}
+    int64 with(int64 extra) { return(value + extra)}
 }
 class Bar : Foo {
     Bar(int64 initial) { super Foo(initial) }
-    int64 read() { return value + 100 }
+    int64 read() { return(value + 100)}
 }
 class Other {}
 class First { int64 marker }
@@ -41,22 +41,22 @@ class Factory {
     int64 calls
     Foo make() {
         calls += 1
-        return Bar(calls)
+        return(Bar(calls))
     }
     int64 index() {
         calls += 1
-        return 0
+        return(0)
     }
     int64 collect() {
         inline { cwhip_gc_collect(); }
-        return 1
+        return(1)
     }
 }
 namespace model {
-    class Named { int64 read() { return 47 } }
+    class Named { int64 read() { return(47)} }
 }
 start {
-    list values = [Foo(7), Bar(11), null, Other(), 42, "text", [1], {"x": 1}, buffer(1)]
+    list values = [Foo(7), Bar(11), null, Other(), 42, "text", [1], ["x": 1], buffer(1)]
     print((values[0] as Foo).read())
     print((values[1] as Foo).read())
     Foo extracted = values[1]
@@ -70,7 +70,7 @@ start {
     print((base as Bar).read())
     print((base as Foo).read())
     print((Bar(17) as Foo as Bar).read())
-    dict mapping = {"foo": Bar(19), "empty": null}
+    dict mapping = ["foo": Bar(19), "empty": null]
     print((mapping["foo"] as Foo).read())
     print((mapping["empty"] as Foo) == null)
     Factory factory = Factory()

@@ -10,7 +10,7 @@ class Factory {
     Factory(Box value) { box = value }
     Box get() {
         calls += 1
-        return box
+        return(box)
     }
 }
 

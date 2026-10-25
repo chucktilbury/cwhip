@@ -1,5 +1,5 @@
 {
   "friendly_name": "functional old bare raise syntax rejected",
-  "expected_diagnostic": "'(' after raise",
+  "expected_diagnostic": "raise arguments must be parenthesized: raise(expr); use raise() to rethrow",
   "enabled": true
 }

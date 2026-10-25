@@ -1,7 +1,7 @@
 class Base {
     int64 value
     Base(int64 initial) { value = initial }
-    int64 read() { return value }
+    int64 read() { return(value)}
 }
 class Derived : Base {
     Derived(int64 initial) { super Base(initial) }
@@ -14,9 +14,9 @@ start {
         *token = (void *)(uintptr_t)0x1234;
     }
     list payloads = [int64(42), uint64(9u), true, fp64(2.5), "text",
-                     [int64(7)], {"key": int64(8)},
+                     [int64(7)], ["key": int64(8)],
                      buffer(1), token, Derived(11), int64, null]
-    dict descriptors = {"kind": int64}
+    dict descriptors = ["kind": int64]
     list descriptorList = []
     descriptorList.append(bool)
     int64 integer = payloads[0] as int64

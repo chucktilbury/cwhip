@@ -9,21 +9,21 @@ class Builder {
     int64 next(int64 value) {
         calls = calls + 1
         print(calls)
-        return value
+        return(value)
     }
 
     uint64 nextUnsigned(uint64 value) {
         calls = calls + 1
         print(calls)
-        return value
+        return(value)
     }
 
     int64 count() {
-        return calls
+        return(calls)
     }
 
     buffer identity(buffer value) {
-        return value
+        return(value)
     }
 
     int64 fail() {

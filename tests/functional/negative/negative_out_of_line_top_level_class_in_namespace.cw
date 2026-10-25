@@ -5,7 +5,7 @@ class Foo {
 
 namespace Other {
     int64 Foo.compute() {
-        return 99
+        return(99)
     }
 }
 
