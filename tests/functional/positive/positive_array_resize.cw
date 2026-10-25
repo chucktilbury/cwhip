@@ -4,14 +4,14 @@ class Node {
         value = initial
     }
     int64 read() {
-        return value
+        return(value)
     }
 }
 
 class Grower {
     int64 grow(list values) {
         values.resize(12)
-        return 7
+        return(7)
     }
 }
 

@@ -4,7 +4,7 @@ class Calculator {
         inline (int64 value) {
             *value += 2;
         }
-        return value
+        return(value)
     }
 }
 

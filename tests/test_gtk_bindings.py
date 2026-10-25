@@ -116,25 +116,21 @@ class UI {
         if (phase == 1) {
             show(false, "")
             F().respond("", false)
-            return
-        }
+            return()}
         if (phase == 2) {
             show(true, "fresh.cw")
             F().respond("fresh.cw", true)
-            return
-        }
+            return()}
         if (phase == 3) {
             show(true, "existing.cw")
             F().respond("existing.cw", true)
             F().confirm(false)
-            return
-        }
+            return()}
         if (phase == 4) {
             show(true, "existing.cw")
             F().respond("existing.cw", true)
             F().confirm(true)
-            return
-        }
+            return()}
         {
             print(F().finalizedObjects() == 5)
             print(F().finalizedConfirmations() == 2)

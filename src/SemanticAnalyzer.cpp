@@ -532,6 +532,9 @@ void SemanticAnalyzer::analyze(Program& program) {
         }
         for (auto& field : declaration.fields) {
             normalizeType(field.type, declaration.namespacePath, field.location);
+            if (field.initializer) {
+                normalizeExpression(*field.initializer, declaration.namespacePath);
+            }
         }
         for (auto& member : declaration.enumMembers) {
             if (member.initializer) {
@@ -853,6 +856,9 @@ void SemanticAnalyzer::analyze(Program& program) {
         }
     }
     resolveEnumConstants(program);
+    for (auto& declaration : program.classes) {
+        analyzeFieldInitializers(declaration);
+    }
     for (auto& declaration : program.classes) {
         currentModule_ = declaration.moduleName;
         for (auto& method : declaration.methods) {

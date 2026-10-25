@@ -1,6 +1,6 @@
 class Text {
     strg wrap(strg value) {
-        return format("[{}]", value)
+        return(format("[{}]", value))
     }
 }
 
@@ -14,7 +14,7 @@ class Order {
     int64 count
     int64 next() {
         count = count + 1
-        return count
+        return(count)
     }
 }
 
@@ -48,9 +48,9 @@ start {
     list values = [format("list {}", original)]
     strg item = values[0]
     print(item)
-    dict formattedKey = {format("key {}", 1): 7}
+    dict formattedKey = [format("key {}", 1): 7]
     print(formattedKey["key 1"])
-    dict lookup = {"key": 1}
+    dict lookup = ["key": 1]
     strg key = "key"
     lookup[key] = 5
     key.append("!")

@@ -14,14 +14,14 @@ class ExceptionBase: Exception {
 class LeftException: virtual ExceptionBase {
 
     LeftException() {
-        ;super virtual ExceptionBase(val)
+        #super virtual ExceptionBase(val)
     }
 }
 
 class RightException: virtual ExceptionBase {
 
     RightException() {
-        ; super virtual ExceptionBase(val)
+        # super virtual ExceptionBase(val)
     }
 }
 

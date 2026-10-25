@@ -63,63 +63,63 @@ namespace System {
         }
 
         String path() {
-            return _path
+            return(_path)
         }
 
         String mode() {
-            return _mode
+            return(_mode)
         }
 
         bool isOpen() {
-            return _isOpen
+            return(_isOpen)
         }
 
         bool eof() {
-            return Runtime().fileEof(_fp)
+            return(Runtime().fileEof(_fp))
         }
 
         String read(int64 size) {
-            return Runtime().fileRead(_fp, size)
+            return(Runtime().fileRead(_fp, size))
         }
 
         String readAll() {
-            return Runtime().fileReadAll(_fp)
+            return(Runtime().fileReadAll(_fp))
         }
 
         buffer readBytes(int64 size) {
-            return Runtime().fileReadBytes(_fp, size)
+            return(Runtime().fileReadBytes(_fp, size))
         }
 
         buffer readAllBytes() {
-            return Runtime().fileReadAllBytes(_fp)
+            return(Runtime().fileReadAllBytes(_fp))
         }
 
         String readLine() {
-            return Runtime().fileReadLine(_fp)
+            return(Runtime().fileReadLine(_fp))
         }
 
         list readLines() {
-            return Runtime().fileReadLines(_fp)
+            return(Runtime().fileReadLines(_fp))
         }
 
         int64 write(String data) {
-            return Runtime().fileWrite(_fp, data)
+            return(Runtime().fileWrite(_fp, data))
         }
 
         int64 writeBytes(buffer data) {
-            return Runtime().fileWriteBytes(_fp, data)
+            return(Runtime().fileWriteBytes(_fp, data))
         }
 
         int64 writeLine(String line) {
-            return Runtime().fileWriteLine(_fp, line)
+            return(Runtime().fileWriteLine(_fp, line))
         }
 
         int64 seek(int64 offset, int64 whence) {
-            return Runtime().fileSeek(_fp, offset, whence)
+            return(Runtime().fileSeek(_fp, offset, whence))
         }
 
         int64 tell() {
-            return Runtime().fileTell(_fp)
+            return(Runtime().fileTell(_fp))
         }
 
         void flush() {
@@ -164,36 +164,36 @@ namespace System {
 
     class System {
         int64 argc() {
-            return Process().argc()
+            return(Process().argc())
         }
 
         list argv() {
-            return Process().argv()
+            return(Process().argv())
         }
 
         String arg(int64 index) {
-            return Process().arg(index)
+            return(Process().arg(index))
         }
 
         void exit(int64 code)
         void abort()
 
         StandardIO io() {
-            return StandardIO()
+            return(StandardIO())
         }
 
         String lastError()
 
         File open(String path, String mode) {
-            return File(path, mode)
+            return(File(path, mode))
         }
 
         bool exists(String path) {
-            return FileSystem().exists(path)
+            return(FileSystem().exists(path))
         }
 
         String getEnv(String name) {
-            return Process().getEnv(name)
+            return(Process().getEnv(name))
         }
     }
 

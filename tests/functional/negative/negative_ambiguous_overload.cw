@@ -13,11 +13,11 @@ class Chooser {
     Chooser() {}
 
     int64 pick(Left value) {
-        return 1
+        return(1)
     }
 
     int64 pick(Right value) {
-        return 2
+        return(2)
     }
 }
 

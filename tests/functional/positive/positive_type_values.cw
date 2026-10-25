@@ -28,7 +28,7 @@ start {
     uint64 count = 5u
     strg text = "text"
     list sequence = [1]
-    dict dictionary = {"key": 1}
+    dict dictionary = ["key": 1]
     buffer bytes = buffer(1)
     Native native = Native(91)
     handle handleValue = native.create()

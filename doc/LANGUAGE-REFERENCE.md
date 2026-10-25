@@ -43,9 +43,9 @@ identifier. `list` and `dict` are the collection type keywords; `array` and
 `primitive-type`, and the lexical grammar.
 
 Statements normally end at a newline. Braces delimit blocks; indentation is
-for readability only. Newlines inside `()` and `[]` are ignored. `;`, `#`,
-and `//` start line comments; `/* ... */` comments can span lines but do not
-nestedly pair. A semicolon begins a comment rather than separating statements.
+for readability only. Newlines inside `()` and `[]` are ignored. `#` and `//`
+start line comments; `/* ... */` comments can span lines but do not nestedly
+pair. `;` is an unknown character, not a comment or statement separator.
 See `NEWLINE`, `COMMENT`, and `terminator`.
 
 Integer literals may be decimal or hexadecimal (`0x`/`0X` followed by
@@ -97,7 +97,7 @@ dynamic operations, and the installed C bridge are specified in
 ```cwhip
 // test: {"stdout": "42"}
 class Worker {
-    int64 answer(int64 value) { return value + 2 }
+    int64 answer(int64 value) { return(value + 2)}
 }
 start {
     Worker worker = Worker()
@@ -275,11 +275,12 @@ Operators from lowest to highest precedence:
 | `or`, `\|\|` | left |
 | `and`, `&&` | left |
 | `not`, `!` | right prefix |
+| `==`, `!=` | left |
+| `is`, `in`, `<`, `<=`, `>`, `>=` | left |
+| `..` | non-associative |
 | `\|` | left |
 | `^` | left |
 | `&` | left |
-| `==`, `!=` | left |
-| `is`, `<`, `<=`, `>`, `>=` | left |
 | `<<`, `>>` | left |
 | `+`, `-` | left |
 | `*`, `/`, `%` | left |
@@ -289,6 +290,8 @@ Operators from lowest to highest precedence:
 Logical operators require booleans. Arithmetic and comparison support depend
 on operand types; unsupported combinations are rejected during semantic
 analysis. Bitwise/shift operands must be integers, not bool or floating values.
+Bitwise operations bind more tightly than comparisons and range construction;
+parenthesize mixed expressions when needed to make the intended grouping clear.
 Assignment is not an expression. There are no increment or ternary operators.
 
 ### Checked extraction with `as`
@@ -496,15 +499,18 @@ entered directly, not only via `next`.
 `switch`, `case`, and `default` are case-insensitive reserved words. `next` is
 contextual only when it forms a standalone statement, preserving existing
 identifiers such as `Process.next()`, a local named `next`, or enum member `NEXT`.
-Newlines delimit simple statements; semicolons still start comments.
+Newlines delimit simple statements; `#` and `//` start comments. A semicolon
+is not a comment introducer or statement separator.
 
 ## Classes, objects, inheritance, and dispatch
 
 Classes contain fields and methods. Member access is `public` by default;
 `private:` and `protected:` switch the access level for following members;
 `public:` restores public access.
-Fields have no in-class initializer syntax. A constructor is named after its
-class, omits the return type (write `Name(...)`, not `void Name(...)`), and
+Fields may use compile-time constant initializers; see
+[Compile-time field initializers](#compile-time-field-initializers). A
+constructor is named after its class, omits the return type (write `Name(...)`,
+not `void Name(...)`), and
 can be overloaded. A class-body method named after its class with any return
 type is rejected rather than treated as an ordinary method. A destructor is written `destroy { ... }` inside
 the class; it has no return-type or parameter list. Methods can be defined in
@@ -512,6 +518,43 @@ the class body or declared there and defined out of line. See
 `class-declaration`, `class-member`, `constructor-declaration`,
 `destructor-declaration`, `method-declaration`, and
 `out-of-line-definition`.
+
+### Compile-time field initializers
+
+Fields may be initialized with a compile-time constant expression:
+
+```cwhip
+class Settings {
+    enum { BASE = 40 }
+    int64 count = BASE + 2
+    strg label = "ready"
+    dict options = ["limit": 3]
+}
+```
+
+Supported initializers include numeric, boolean, string, null, and type
+descriptor literals; accessible enum members (unqualified in the owning or an
+inherited class, or class-qualified); constant scalar casts; folded numeric
+arithmetic, bitwise and shift operations; boolean logical operations and
+numeric comparisons; and constant list, dict, and buffer literal trees. Each
+object receives fresh mutable collection and string storage. Calls,
+construction expressions, instance fields, and instance-qualified enum reads
+are rejected with `field initializer must be a compile-time constant`.
+Integer overflow, division by zero, and invalid conversions produce the
+required-constant diagnostics.
+
+Allocation still zero/null-initializes fields without explicit initializers.
+Then all declared and inherited field initializers run for the complete object
+before any constructor body, including base-constructor bodies and virtual
+dispatch from those bodies. Each nonvirtual base subobject has its own defaults;
+a shared virtual base is initialized once. Calling a base constructor does not
+reset field initializers or writes made by an earlier constructor. Constructors
+may overwrite defaults. These rules apply to classes without constructors,
+overloads and out-of-line constructors, and allocations made in expressions,
+locals, returns, arguments, loops, and automatic virtual-base construction.
+Explicit-super ordering requirements are unchanged. Scalar fields remain
+unboxed: an explicit `null` initializer stores zero or `false` for numeric and
+boolean fields, rather than making those fields nullable.
 
 An anonymous class-scoped enum block declares immutable signed 64-bit `int64`
 constants, not an enum type:
@@ -645,7 +688,7 @@ class Meter {
         value = initial
     }
     int64 read() {
-        return value
+        return(value)
     }
 }
 
@@ -654,7 +697,7 @@ class AdjustedMeter : public Meter {
         super Meter(initial)
     }
     int64 read() {
-        return value + 1
+        return(value + 1)
     }
 }
 
@@ -724,7 +767,7 @@ namespace Geometry {
             x = value
         }
         int64 coordinate() {
-            return x
+            return(x)
         }
     }
 }
@@ -795,11 +838,13 @@ start {
 ## Exceptions
 
 `Exception` is a built-in base class with a public `message` field.
-`raise(ClassName(arguments))` raises an instance of `Exception` or a subclass.
+`raise(expression)` raises an instance of `Exception` or a subclass; raise
+arguments are parenthesized. Bare `raise` and `raise()` rethrow the active
+exception.
 Handlers use `except(Type)` for a typed catch, `except() as name` for a
 catch-all whose binding is a `String` message, or `except(Type) as name` for
-an exception-object binding. A bare `raise()` rethrows the active exception
-and is valid only inside a handler. `finally` runs for normal completion and
+an exception-object binding. Both rethrow forms are valid only inside a
+handler. `finally` runs for normal completion and
 exception propagation. A `try` needs at least one `except` or a
 `finally`; a catch-all must be last. A method may return from any executable
 statement, including nested blocks, branches, loops, and exception handlers.
@@ -808,7 +853,8 @@ leaving the method. A return inside `finally` (even in a nested statement)
 is invalid. A non-void method must return a value or raise on every reachable
 path; loops alone do not guarantee this. See `try-statement` and
 `raise-statement`. Constructors and destructors remain void-only, and `start`
-still cannot return.
+still cannot return. Non-void return values use `return(expression)`; bare
+`return` and `return()` are void returns.
 
 ```cwhip
 // Complete program: raising and catching a typed exception.
@@ -851,7 +897,7 @@ existing range nor raises an error. A newly formed range sees the new values.
 // Complete program: parameters, storage, return values, snapshots, and slicing.
 // test: {"stdout": "123/100/true/false/100true/dcb"}
 class Worker {
-    range<int64> processRange(range<int64> values) { return values }
+    range<int64> processRange(range<int64> values) { return(values)}
 }
 start {
     Worker worker = Worker()
@@ -1024,7 +1070,8 @@ The runtime checks extraction.
 List slices return a copy and can include a step:
 `values[start:end:step]`. Bounds are checked by the runtime.
 
-Dict literals use `{ key: value, ... }`. Keys must be strings; values may be
+Dict literals use `[key: value, ...]`; `[:]` is an empty dict and `[]` is an
+empty list. Keys must be strings; values may be
 supported scalar/reference/collection types, including type descriptors.
 Indexed reads and foreach
 iteration produce dynamically tagged values inferred internally as `any`,

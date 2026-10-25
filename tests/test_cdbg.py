@@ -202,13 +202,13 @@ class DebugChecks {
                 stops = ui.stopCount
                 ui.execute("-exec-step-instruction", "Step Instruction")
                 stage = 60
-                return true
+                return(true)
             }
             if (stage == 7) {
                 stepped("RuntimeGc.c", System.Process().getEnv("CDBG_RUNTIME_CALL").toInt64())
                 ui.inspection.setCurrentPage(1)
                 stage = 30
-                return true
+                return(true)
             }
             if (stage == 8) {
                 stepped("RuntimeGc.c", System.Process().getEnv("CDBG_RUNTIME_CALL").toInt64() + 1)
@@ -246,7 +246,7 @@ class DebugChecks {
                 ui.breakAtStart = false
                 ui.addBreakpoint(format("{}:3", System.Process().getEnv("CDBG_TEST_SOURCE")))
                 stage = 150
-                return true
+                return(true)
             }
             if (stage == 16) {
                 stepped("stepping.cw", 3)
@@ -265,14 +265,14 @@ class DebugChecks {
                 stepped("stepping.cw", 3)
                 ui.inspection.setCurrentPage(1)
                 stage = 190
-                return true
+                return(true)
             }
             if (stage == 20) {
                 stepped("stepping.cw", 4)
                 // Browse the caller and press Step Out while that frame
                 // selection is still in flight; execution must use frame 0.
                 stage = 200
-                return true
+                return(true)
             }
             if (stage == 21) {
                 stepped("stepping.cw", 10)
@@ -282,14 +282,14 @@ class DebugChecks {
                 stepped("stepping.cw", 11)
                 singleStep("Step Over", false)
                 stage = 230
-                return true
+                return(true)
             }
             if (stage == 23) {
                 stepped("stepping.cw", 13)
                 ui.quit()
                 require(ui.closed && ui.process == null, "stepping test shutdown")
                 print("true")
-                return false
+                return(false)
             }
             stage = stage + 1
         }
@@ -344,7 +344,7 @@ class DebugChecks {
             singleStep("Step Into", true)
             stage = 20
         }
-        return true
+        return(true)
     }
     bool valuesTick() {
         if (stage == 0 && ui.loaded && idle()) {
@@ -403,9 +403,9 @@ class DebugChecks {
                 "frame selection preserves shared values")
             ui.quit()
             print("true")
-            return false
+            return(false)
         }
-        return true
+        return(true)
     }
     void require(bool condition, String label) {
         if (!condition) {
@@ -440,13 +440,13 @@ class DebugChecks {
     // Open Source Code rejection: wait for the parented dialog, then require
     // the source notebook to be visible with its tabs unchanged.
     bool rejected(String label) {
-        if (!DebugUiFixture().alert()) { return false }
+        if (!DebugUiFixture().alert()) { return(false) }
         require(!ui.failure.equals(""), label)
         require(ui.sourceTabs.pageCount() == pages && DebugUiFixture().sourceVisible() &&
             DebugUiFixture().closeButtons() == pages && ui.source.text().contains("counter"),
             format("{}: failed open leaves source tabs visible and unchanged", label))
         ui.failure = ""
-        return true
+        return(true)
     }
     void found(String button, String expected) {
         require(DebugUiFixture().findClick(button), format("Find dialog {} button", button))
@@ -550,14 +550,14 @@ class DebugChecks {
             ui.menu.activateItem(ui.quitItem)
             require(ui.closed && ui.process == null, "Quit closes the debugger and GDB")
             print("true")
-            return false
+            return(false)
         }
-        return true
+        return(true)
     }
     DebugChecks _self()
-    bool idle() { return ui.active == null && ui.requests.length == 0 }
+    bool idle() { return(ui.active == null && ui.requests.length == 0) }
     bool persistenceTick() {
-        if (!ui.loaded || !idle()) { return true }
+        if (!ui.loaded || !idle()) { return(true) }
         String path = System.Process().getEnv("CDBG_TEST_SOURCE")
         int64 line = System.Process().getEnv("CDBG_TEST_LINE").toInt64()
         if (mode.equals("state-save")) {
@@ -565,13 +565,13 @@ class DebugChecks {
                 require(ui.showSource(path, format("{}", line)), "source for saved breakpoint")
                 ui.menu.activateItem(ui.toggleBreakItem)
                 stage = 1
-                return true
+                return(true)
             }
             if (stage == 1) {
                 require(ui.breakpointLocations.length == 1, "saved breakpoint resolves")
                 ui.menu.activateItem(ui.toggleEnableItem)
                 stage = 2
-                return true
+                return(true)
             }
             require(DebugUiFixture().disabled(line), "saving disabled breakpoint")
             if (stage == 2) {
@@ -582,17 +582,17 @@ class DebugChecks {
                     ui.window.setMaximized(true)
                 }
                 stage = 3
-                return true
+                return(true)
             }
             if (System.Process().getEnv("CDBG_TEST_MAXIMIZE").equals("true") && !ui.window.maximized()) {
-                return true
+                return(true)
             }
             ui.body.setPosition(420)
         } else {
             require(ui.failure.equals(""), "restore failure does not fail session")
             if (mode.equals("state-restore")) {
                 if (System.Process().getEnv("CDBG_TEST_MAXIMIZE").equals("true") &&
-                    !ui.window.maximized()) { return true }
+                    !ui.window.maximized()) { return(true) }
                 require(ui.breakpointLocations.length == 1, "breakpoint restored after real relaunch")
                 require(ui.showSource(path, format("{}", line)) && DebugUiFixture().disabled(line),
                     "restored disabled breakpoint has gray mark")
@@ -626,7 +626,7 @@ class DebugChecks {
                         require(ui.showSource(path, format("{}", line)), "source for unwritable test")
                         ui.menu.activateItem(ui.toggleBreakItem)
                         stage = 1
-                        return true
+                        return(true)
                     }
                     if (stage == 1) {
                         require(ui.breakpointLocations.length == 1 &&
@@ -636,13 +636,13 @@ class DebugChecks {
                         stops = ui.stopCount
                         ui.resume()
                         stage = 2
-                        return true
+                        return(true)
                     }
-                    if (ui.stopCount == stops || ui.running) { return true }
+                    if (ui.stopCount == stops || ui.running) { return(true) }
                     if (ui.status.text().startsWith("Stopped at start:")) {
                         stops = ui.stopCount
                         ui.resume()
-                        return true
+                        return(true)
                     }
                     require(ui.location.contains(format(":{} (", line)) &&
                         ui.console.text().split("Settings not saved to").length == 2,
@@ -667,7 +667,7 @@ class DebugChecks {
         ui.window.close()
         require(ui.closed && ui.process == null, "persistent session quit cleans GDB")
         print("true")
-        return false
+        return(false)
     }
     bool contextTick() {
         String path = System.Process().getEnv("CDBG_TEST_SOURCE")
@@ -675,7 +675,7 @@ class DebugChecks {
         if (stage == 0 && ui.loaded && idle()) {
             require(DebugUiFixture().compact(), "main window has no breakpoint/watch/frame rows or End Session")
             ui.showSource(path, "")
-            if (!DebugUiFixture().lineClick("", 7, "")) { return true }
+            if (!DebugUiFixture().lineClick("", 7, "")) { return(true) }
             ui.menu.activateItem(ui.toggleBreakItem)
             require(ui.source.line() == 7, format("source context click positions cursor at line 7, got {}",
                 ui.source.line()))
@@ -708,7 +708,7 @@ class DebugChecks {
                 DebugUiFixture().marks("context_helper.c", 2) == 1,
                 "multiple GDB breakpoint locations marked in all source tabs")
             ui.showSource(path, "3")
-            if (!DebugUiFixture().lineClick("", 3, "")) { return true }
+            if (!DebugUiFixture().lineClick("", 3, "")) { return(true) }
             ui.menu.activateItem(ui.toggleEnableItem)
             stage = 5
         }
@@ -717,7 +717,7 @@ class DebugChecks {
                 ui.breaks.text()))
             require(ui.showSource(helper, "2") && DebugUiFixture().disabled(2),
                 "disabling parent updates every multiple location")
-            if (!DebugUiFixture().lineClick("", 2, "")) { return true }
+            if (!DebugUiFixture().lineClick("", 2, "")) { return(true) }
             require(DebugUiFixture().shortcut("<Control>F9"), "Ctrl+F9 enables multi-location breakpoint")
             stage = 50
         }
@@ -737,18 +737,18 @@ class DebugChecks {
             require(ui.showSource(path, "") && DebugUiFixture().marks("context.c", 7) == 1,
                 "reopened tab inherits breakpoint marks")
             require(DebugUiFixture().noBreakMenus(), "obsolete source and Breakpoints context menus absent")
-            if (!DebugUiFixture().lineClick("Watches (Cwhip / Native)", 1, "Add Watch...")) { return true }
+            if (!DebugUiFixture().lineClick("Watches (Cwhip / Native)", 1, "Add Watch...")) { return(true) }
             require(DebugUiFixture().watchDialog("ignored", false) && ui.expressions.length == 0,
                 "parented watch dialog Cancel adds nothing")
             stage = 6
         }
         if (stage == 6) {
-            if (!DebugUiFixture().lineClick("Watches (Cwhip / Native)", 1, "Add Watch...")) { return true }
+            if (!DebugUiFixture().lineClick("Watches (Cwhip / Native)", 1, "Add Watch...")) { return(true) }
             require(DebugUiFixture().watchDialog("counter", true), "watch dialog Add accepts expression")
             stage = 7
         }
         if (stage == 7) {
-            if (!DebugUiFixture().lineClick("Watches (Cwhip / Native)", 1, "Add Watch...")) { return true }
+            if (!DebugUiFixture().lineClick("Watches (Cwhip / Native)", 1, "Add Watch...")) { return(true) }
             require(DebugUiFixture().watchDialog("not_in_scope", true), "watch dialog accepts unknown expression")
             require(ui.expressions.length == 2, "watch expressions retained")
             ui.resume()
@@ -775,7 +775,7 @@ class DebugChecks {
             require(ui.source.text().contains("int doubled") && ui.source.line() == 5,
                 "execution stops inside helper")
             stops = ui.stopCount
-            if (!DebugUiFixture().lineClick("Stack", 2, "")) { return true }
+            if (!DebugUiFixture().lineClick("Stack", 2, "")) { return(true) }
             stage = 11
         }
         if (stage == 11 && idle()) {
@@ -802,7 +802,7 @@ class DebugChecks {
             ui.showSource(path, "5")
             ui.menu.activateItem(ui.toggleBreakItem)
             stage = 14
-            return true
+            return(true)
         }
         if (stage == 14 && idle()) {
             require(DebugUiFixture().marks("context.c", 6) == 1 && ui.source.line() == 5,
@@ -818,12 +818,12 @@ class DebugChecks {
             require(ui.closed && ui.process == null && ui.terminal == null && ui.pollToken == 0 &&
                 ui.watchWindow.disposed(), "Quit cleans GDB, output transport, watch dialog and polling")
             print("true")
-            return false
+            return(false)
         }
-        return true
+        return(true)
     }
     bool stoppedAt(String line) {
-        return ui.stopCount > stops && !ui.running && idle() && ui.location.contains(format(":{} (", line))
+        return(ui.stopCount > stops && !ui.running && idle() && ui.location.contains(format(":{} (", line)))
     }
     // Real Cwhip -g line breakpoints set via F9/menu must stop the inferior,
     // not merely paint a mark; Break at start, Setup, arguments and the
@@ -858,7 +858,7 @@ class DebugChecks {
                 ui.resume()
                 stage = 20
             }
-            return true
+            return(true)
         }
         if (stage == 100 && DebugUiFixture().lineClick("", 4, "")) {
             require(DebugUiFixture().shortcut("F9"), "F9 line 4")
@@ -912,11 +912,11 @@ class DebugChecks {
             require(ui.programOutput.findWith("arg[2]=<two words>", 0) && ui.programOutput.hasSelection(),
                 "select output text")
             stage = 70
-            return true
+            return(true)
         }
         // Let the text layout settle before clicking at a line position.
         if (stage == 70) {
-            if (!DebugUiFixture().lineClick("Program Output", 2, "Copy")) { return true }
+            if (!DebugUiFixture().lineClick("Program Output", 2, "Copy")) { return(true) }
             require(ui.programOutput.hasSelection(), "right-click inside the selection keeps it for Copy")
             require(DebugUiFixture().clipboard("arg[2]=<two words>"), "Copy copies only the selection")
             require(DebugUiFixture().lineClick("Program Output", 1, "Clear") &&
@@ -948,7 +948,7 @@ class DebugChecks {
             ui.menu.activateItem(ui.quitItem)
             require(ui.closed && ui.process == null, "Quit cleans GDB")
             print("true")
-            return false
+            return(false)
         }
         if (stage == 20 && stoppedAt("4")) {
             require(!ui.status.text().contains("start"), "Break at start disabled: first stop is line 4")
@@ -974,36 +974,30 @@ class DebugChecks {
             ui.window.close()
             require(ui.closed && ui.process == null, "close cleans GDB")
             print("true")
-            return false
+            return(false)
         }
-        return true
+        return(true)
     }
     void tick() {
         require(Time.Clock().monotonicMilliseconds() < deadline, "session deadline")
         if (mode.equals("values")) {
             if (valuesTick()) { Gtk.Application().post(_self().tick) }
-            return
-        }
+            return()}
         if (mode.equals("stepping")) {
             if (steppingTick()) { Gtk.Application().post(_self().tick) }
-            return
-        }
+            return()}
         if (mode.startsWith("breaks")) {
             if (breaksTick()) { Gtk.Application().post(_self().tick) }
-            return
-        }
+            return()}
         if (mode.startsWith("state-")) {
             if (persistenceTick()) { Gtk.Application().post(_self().tick) }
-            return
-        }
+            return()}
         if (mode.equals("ui")) {
             if (uiTick()) { Gtk.Application().post(_self().tick) }
-            return
-        }
+            return()}
         if (mode.equals("context")) {
             if (contextTick()) { Gtk.Application().post(_self().tick) }
-            return
-        }
+            return()}
         if (mode.equals("missing") || mode.equals("compile-error") || mode.equals("invalid-target") ||
             mode.equals("missing-file") || mode.equals("binary-source") || mode.equals("invalid-utf8") ||
             mode.equals("missing-source")) {
@@ -1018,8 +1012,7 @@ class DebugChecks {
                 ui.endSession()
                 ui.window.close()
                 print("true")
-                return
-            }
+                return()}
         } else {
             require(ui.failure.equals(""), ui.failure)
             require(DebugUiFixture().panes(), "all text panes read-only without Emoji hint")
@@ -1045,23 +1038,19 @@ class DebugChecks {
                     require(ui.sourceTabs.pageCount() == 1, "steps reuse existing file tab")
                     ui.window.close()
                     print("true")
-                    return
-                }
+                    return()}
                 Gtk.Application().post(_self().tick)
-                return
-            }
+                return()}
             if (mode.equals("no-source") && ui.loaded && idle()) {
                 require(ui.source.text().startsWith("Source unavailable:"),
                     "missing debug source explicitly reported")
                 require(DebugUiFixture().shortcut("<Control>q") && ui.closed && ui.process == null,
                     "Ctrl+Q quits through the window shortcut")
                 print("true")
-                return
-            }
+                return()}
             if (mode.equals("no-source")) {
                 Gtk.Application().post(_self().tick)
-                return
-            }
+                return()}
             if (mode.equals("cancel")) {
                 if (stage == 0 && ui.loaded && idle()) { ui.resume()
                     stage = 1 }
@@ -1085,11 +1074,9 @@ class DebugChecks {
                     require(ui.closed && ui.process == null && ui.pollToken == 0,
                         "close running session cleans up")
                     print(format("true:{}:{}", oldPid, pid))
-                    return
-                }
+                    return()}
                 Gtk.Application().post(_self().tick)
-                return
-            }
+                return()}
             if (stage == 0 && ui.loaded && idle()) {
                 require(ui.source.text().contains("counter"), "source visible immediately after Load")
                 require(DebugUiFixture().noEmoji(), "source context menu excludes Emoji")
@@ -1167,8 +1154,7 @@ class DebugChecks {
                 if (mode.equals("native")) {
                     if (!ui.programOutput.text().contains("stderr-only")) {
                         Gtk.Application().post(_self().tick)
-                        return
-                    }
+                        return()}
                     require(ui.programOutput.text().contains("stdout-only") &&
                         ui.programOutput.text().contains("^9999^done") &&
                         ui.programOutput.text().contains("\\0") &&
@@ -1179,8 +1165,7 @@ class DebugChecks {
                 } else {
                     if (!ui.programOutput.text().contains("cwhip-output:42")) {
                         Gtk.Application().post(_self().tick)
-                        return
-                    }
+                        return()}
                     require(!ui.console.text().contains("cwhip-output:42"),
                         "Cwhip output uses Program Output")
                 }
@@ -1200,8 +1185,7 @@ class DebugChecks {
                     ui.temporary.equals(""), "owned process and temporary cleanup")
                 ui.window.close()
                 print("true")
-                return
-            }
+                return()}
         }
         Gtk.Application().post(_self().tick)
     }
@@ -1238,10 +1222,10 @@ import system
 class Counter {
     int64 double(int64 value) {
         int64 doubled = value * 2
-        return doubled
+        return(doubled)
     }
     int64 unused(int64 value) {
-        return value + 1
+        return(value + 1)
     }
 }
 start {
@@ -1260,7 +1244,7 @@ CW_FIXTURE = """\
 class Counter {
     int64 double(int64 value) {
         int64 doubled = value * 2
-        return doubled
+        return(doubled)
     }
 }
 start {
@@ -1275,7 +1259,7 @@ STEPPING_FIXTURE = """\
 class Counter {
     int64 double(int64 value) {
         int64 doubled = value * 2
-        return doubled
+        return(doubled)
     }
 }
 start {
@@ -1300,7 +1284,7 @@ start {
     String missing = null
     Counter worker = Counter()
     list items = [21, true, "hello", [1, [2, [3]]], 4, 5, 6, 7, 8]
-    dict mapping = {"key": 42}
+    dict mapping = ["key": 42]
     buffer bytes = buffer[1, 2, 255]
     String longText = ""
     while (longText.length < 300) {

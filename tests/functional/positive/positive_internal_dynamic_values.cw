@@ -2,11 +2,11 @@
 class Holder {
     int64 value
     void set(int64 input) { value = input }
-    int64 get() { return value }
+    int64 get() { return(value)}
 }
 
 class Reader {
-    int64 read(list values) { return values[0] }
+    int64 read(list values) { return(values[0])}
 }
 
 start {
@@ -20,7 +20,7 @@ start {
     list nested = [values[0]]
     nested.append(values[0])
     nested[0] = values[0]
-    dict mapped = {"value": values[0]}
+    dict mapped = ["value": values[0]]
     mapped["value"] = values[0]
 
     print(values[0])

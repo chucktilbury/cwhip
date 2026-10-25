@@ -13,10 +13,10 @@ parameter. `any` and `type` descriptors are not supported in signatures.
 class Counter {
     int64 base
     Counter(int64 initial) { base = initial }
-    int64 add(int64 value) { return base + value }
+    int64 add(int64 value) { return(base + value)}
 }
 class Apply {
-    int64 run(int64<int64> action, int64 value) { return action(value) }
+    int64 run(int64<int64> action, int64 value) { return(action(value))}
 }
 start {
     Counter counter(40)
@@ -103,7 +103,7 @@ The same API works in a hermetic inline shim:
 ```cwhip
 // test: {"stdout": "42"}
 class Worker {
-    int64 add(int64 value) { return value + 2 }
+    int64 add(int64 value) { return(value + 2)}
 }
 start {
     Worker worker = Worker()

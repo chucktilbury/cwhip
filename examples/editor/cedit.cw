@@ -116,27 +116,27 @@ class CeditSettings {
         int64 i = 0
         while (i < commands.length) {
             CommandBinding binding = commands[i] as CommandBinding
-            if (binding.id.equals(id)) { return binding }
+            if (binding.id.equals(id)) { return(binding)}
             i = i + 1
         }
-        return null
+        return(null)
     }
 
     String bindingError(CommandBinding binding, String trigger) {
-        if (trigger.equals("")) { return "" }
+        if (trigger.equals("")) { return("")}
         String normalized = binding.normalized
         if (!trigger.equals(binding.trigger)) { normalized = Gtk.Keyboard().normalize(trigger) }
-        if (normalized.equals("")) { return format("Invalid shortcut trigger: {}", trigger) }
+        if (normalized.equals("")) { return(format("Invalid shortcut trigger: {}", trigger))}
         int64 i = 0
         while (i < commands.length) {
             CommandBinding other = commands[i] as CommandBinding
             if (other != binding && !other.trigger.equals("") &&
                 other.normalized.equals(normalized)) {
-                return format("Shortcut conflicts with {}: {}", other.name, trigger)
+                return(format("Shortcut conflicts with {}: {}", other.name, trigger))
             }
             i = i + 1
         }
-        return ""
+        return("")
     }
 
     void loadLegacy() {
@@ -202,36 +202,36 @@ class CeditSettings {
     }
 
     String value(String section, String key) {
-        return Gtk.Config().value(original, section, key)
+        return(Gtk.Config().value(original, section, key))
     }
 
     int64 integer(String key, int64 fallback, int64 minimum, int64 maximum) {
         String raw = value("editor", key)
-        if (raw.equals("")) { return fallback }
+        if (raw.equals("")) { return(fallback)}
         if (raw.startsWith("i")) {
             int64 number = raw.slice(1, raw.length).toInt64()
-            if (number >= minimum && number <= maximum) { return number }
+            if (number >= minimum && number <= maximum) { return(number)}
         }
         error(format("editor.{} must be an integer from {} to {}", key, minimum, maximum))
-        return fallback
+        return(fallback)
     }
 
     bool boolean(String key, bool fallback) {
         String raw = value("editor", key)
-        if (raw.equals("")) { return fallback }
-        if (raw.equals("btrue")) { return true }
-        if (raw.equals("bfalse")) { return false }
+        if (raw.equals("")) { return(fallback)}
+        if (raw.equals("btrue")) { return(true)}
+        if (raw.equals("bfalse")) { return(false)}
         error(format("editor.{} must be a boolean", key))
-        return fallback
+        return(fallback)
     }
 
     String fontError(String font) {
         if (font.trim().equals("") || font.length > 128 || font.contains("\n") ||
             font.contains("\r") || font.contains("\t")) {
-            return "Font family must be 1-128 characters, without control characters"
+            return("Font family must be 1-128 characters, without control characters")
         }
-        if (!Gtk.Font().isMonospace(font)) { return "Choose an installed monospace font family (or monospace)" }
-        return ""
+        if (!Gtk.Font().isMonospace(font)) { return("Choose an installed monospace font family (or monospace)")}
+        return("")
     }
 
     void load() {
@@ -361,7 +361,7 @@ class CeditSettings {
             i = i + 1
         }
         text.append(format("[project]\nreopen_last = {}\nlast_root = {}\n", reopenLast, Gtk.Config().quote(lastRoot)))
-        return Gtk.Config().merge(original, text)
+        return(Gtk.Config().merge(original, text))
     }
 }
 
@@ -578,72 +578,72 @@ class CwhipProject {
     }
 
     String prefix() {
-        if (root.endsWith("/")) { return root }
-        return format("{}/", root)
+        if (root.endsWith("/")) { return(root)}
+        return(format("{}/", root))
     }
 
     // Root-relative path, or "" when path is outside the root.
     String relative(String path) {
         String head = prefix()
-        if (!path.startsWith(head) || path.length == head.length) { return "" }
+        if (!path.startsWith(head) || path.length == head.length) { return("")}
         String rest = path.slice(head.length, path.length)
-        if (!validRelative(rest)) { return "" }
-        return rest
+        if (!validRelative(rest)) { return("")}
+        return(rest)
     }
 
     bool hasControl(String text) {
-        return text.contains("\n") || text.contains("\r") || text.contains("\t")
+        return(text.contains("\n") || text.contains("\r") || text.contains("\t"))
     }
 
     bool validRelative(String path) {
-        if (path.equals("") || path.length > 4096 || path.startsWith("/") || hasControl(path)) { return false }
+        if (path.equals("") || path.length > 4096 || path.startsWith("/") || hasControl(path)) { return(false)}
         list parts = path.split("/")
         int64 i = 0
         while (i < parts.length) {
             String part = parts[i] as String
-            if (part.equals("") || part.equals(".") || part.equals("..")) { return false }
+            if (part.equals("") || part.equals(".") || part.equals("..")) { return(false)}
             i = i + 1
         }
-        return true
+        return(true)
     }
 
     String nameError(String text) {
         if (text.trim().equals("") || text.length > 128 || hasControl(text)) {
-            return "Project name must be 1-128 characters, without control characters"
+            return("Project name must be 1-128 characters, without control characters")
         }
-        return ""
+        return("")
     }
 
     String excludeError(String pattern) {
         if (pattern.trim().equals("") || pattern.length > 256 || hasControl(pattern)) {
-            return "Exclusion patterns must be 1-256 characters, without control characters"
+            return("Exclusion patterns must be 1-256 characters, without control characters")
         }
         if (pattern.startsWith("/") || pattern.endsWith("/") || !validRelative(pattern)) {
-            return format("Invalid exclusion pattern {}: use a name or root-relative path without leading/trailing /, ., or .. segments", pattern)
+            return(format("Invalid exclusion pattern {}: use a name or root-relative path without leading/trailing /, ., or .. segments", pattern))
         }
-        return ""
+        return("")
     }
 
     // Refuses symlinked or non-regular metadata so writes and deletes stay
     // inside the project's metadata directory.
     String metadataProblem() {
-        if (!System.FileSystem().exists(directory)) { return "" }
+        if (!System.FileSystem().exists(directory)) { return("")}
         if (!System.FileSystem().isDir(directory) ||
             !System.FileSystem().absolutePath(directory).equals(directory)) {
-            return format("{} must be a real directory, not a file or symbolic link", directory)
+            return(format("{} must be a real directory, not a file or symbolic link", directory))
         }
         String problem = fileProblem(configPath)
         if (problem.equals("")) { problem = fileProblem(workspacePath) }
-        return problem
+        return(problem)
     }
 
     String fileProblem(String path) {
-        if (!System.FileSystem().exists(path)) { return "" }
+        if (!System.FileSystem().exists(path)) { return("")}
         if (!System.FileSystem().isFile(path) ||
             !System.FileSystem().absolutePath(path).equals(path)) {
-            return format("{} must be a regular file, not a symbolic link", path)
+            return(format("{} must be a regular file, not a symbolic link", path))
         }
-        return ""
+        return("")
     }
 
     // readMissing: no file; readContent: bytes were read (readError may still
@@ -655,22 +655,22 @@ class CwhipProject {
         String presence = Gtk.Config().fileStatus(path)
         if (presence.equals("missing")) {
             readMissing = true
-            return ""
+            return("")
         }
         if (presence.length > 0) {
             readError = format("Could not read {}: {}", path, presence)
-            return ""
+            return("")
         }
         if (!System.FileSystem().isFile(path) || System.FileSystem().fileSize(path) > limit) {
             readError = format("{} must be a regular file no larger than {} KiB", path, limit / 1024)
-            return ""
+            return("")
         }
         System.File file = null
         try {
             file = System.File(path, "r")
         } except(Exception) {
             readError = format("Could not read {}: {}", path, System.System().lastError())
-            return ""
+            return("")
         }
         String text = ""
         try { text = file.readAll() }
@@ -680,18 +680,18 @@ class CwhipProject {
         if (readError.equals("") && !lastError.equals("")) {
             readError = format("Could not read {}: {}", path, lastError)
         }
-        if (!readError.equals("")) { return "" }
+        if (!readError.equals("")) { return("")}
         readContent = true
         if (!GtkSource.Content().isText(text)) {
             readError = format("Malformed {}: not UTF-8 text", path)
-            return text
+            return(text)
         }
         String malformed = Gtk.Config().validate(text)
         if (!malformed.equals("")) { readError = format("Malformed TOML in {}: {}", path, malformed) }
-        return text
+        return(text)
     }
 
-    String value(String section, String key) { return Gtk.Config().value(base, section, key) }
+    String value(String section, String key) { return(Gtk.Config().value(base, section, key))}
 
     void table(String text, String key) {
         String kind = Gtk.Config().value(text, "", key)
@@ -700,36 +700,36 @@ class CwhipProject {
 
     int64 integer(String key, int64 minimum, int64 maximum) {
         String raw = value("editor", key)
-        if (raw.equals("")) { return -1 }
+        if (raw.equals("")) { return(-1)}
         if (raw.startsWith("i")) {
             int64 number = raw.slice(1, raw.length).toInt64()
-            if (number >= minimum && number <= maximum) { return number }
+            if (number >= minimum && number <= maximum) { return(number)}
         }
         error(format("editor.{} must be an integer from {} to {}", key, minimum, maximum))
-        return -1
+        return(-1)
     }
 
     // -1 inherit (absent or invalid), 0 false, 1 true.
     int64 boolean(String key) {
         String raw = value("editor", key)
-        if (raw.equals("")) { return -1 }
-        if (raw.equals("btrue")) { return 1 }
-        if (raw.equals("bfalse")) { return 0 }
+        if (raw.equals("")) { return(-1)}
+        if (raw.equals("btrue")) { return(1)}
+        if (raw.equals("bfalse")) { return(0)}
         error(format("editor.{} must be a boolean", key))
-        return -1
+        return(-1)
     }
 
     // Returns "" when the project can be opened. Invalid individual values
     // keep it open with errors shown and its configuration unwritable.
     String load(CeditSettings settings) {
         String problem = metadataProblem()
-        if (!problem.equals("")) { return problem }
+        if (!problem.equals("")) { return(problem)}
         original = readMetadata(configPath, 65536)
-        if (readMissing) { return format("No Cwhip project in {} (missing {}/project.toml); use Project > New Project... to create one", root, directory) }
-        if (!readError.equals("")) { return readError }
+        if (readMissing) { return(format("No Cwhip project in {} (missing {}/project.toml); use Project > New Project... to create one", root, directory))}
+        if (!readError.equals("")) { return(readError)}
         base = original
         if (!value("", "version").equals("i1")) {
-            return format("Unsupported project version in {}: expected version = 1", configPath)
+            return(format("Unsupported project version in {}: expected version = 1", configPath))
         }
         table(base, "project")
         table(base, "explorer")
@@ -792,7 +792,7 @@ class CwhipProject {
         hasHighlight = number >= 0
         highlightLine = number == 1
         loadWorkspace()
-        return ""
+        return("")
     }
 
     void loadWorkspace() {
@@ -811,18 +811,18 @@ class CwhipProject {
 
     String wsInteger(String text, String key, int64 minimum, int64 maximum) {
         String raw = Gtk.Config().value(text, "workspace", key)
-        if (raw.equals("")) { return "" }
+        if (raw.equals("")) { return("")}
         if (raw.startsWith("i")) {
             int64 number = raw.slice(1, raw.length).toInt64()
-            if (number >= minimum && number <= maximum) { return format("{}", number) }
+            if (number >= minimum && number <= maximum) { return(format("{}", number))}
         }
-        return format("workspace.{} must be an integer from {} to {}", key, minimum, maximum)
+        return(format("workspace.{} must be an integer from {} to {}", key, minimum, maximum))
     }
 
     int64 wsNumber(String text, String key) {
         String raw = Gtk.Config().value(text, "workspace", key)
-        if (raw.equals("")) { return -1 }
-        return raw.slice(1, raw.length).toInt64()
+        if (raw.equals("")) { return(-1)}
+        return(raw.slice(1, raw.length).toInt64())
     }
 
     // Parses workspace TOML; returns "" or the first problem. Any problem
@@ -830,43 +830,43 @@ class CwhipProject {
     String parseWorkspace(String text) {
         resetWorkspace()
         if (!Gtk.Config().value(text, "", "version").equals("i1")) {
-            return format("Unsupported workspace version in {}: expected version = 1", workspacePath)
+            return(format("Unsupported workspace version in {}: expected version = 1", workspacePath))
         }
         String kind = Gtk.Config().value(text, "", "workspace")
-        if (kind.equals("")) { return "" }
-        if (!kind.equals("t")) { return "workspace must be a table" }
+        if (kind.equals("")) { return("")}
+        if (!kind.equals("t")) { return("workspace must be a table")}
         String raw = Gtk.Config().value(text, "workspace", "active")
         if (!raw.equals("")) {
             if (!raw.startsWith("s") || !validRelative(raw.slice(1, raw.length))) {
-                return "workspace.active must be a root-relative path"
+                return("workspace.active must be a root-relative path")
             }
             active = raw.slice(1, raw.length)
         }
         // wsInteger yields digits when valid; messages always contain spaces.
         String problem = wsInteger(text, "explorer_width", 0, 5000)
-        if (problem.contains(" ")) { return problem }
+        if (problem.contains(" ")) { return(problem)}
         problem = wsInteger(text, "window_width", 200, 10000)
-        if (problem.contains(" ")) { return problem }
+        if (problem.contains(" ")) { return(problem)}
         problem = wsInteger(text, "window_height", 150, 10000)
-        if (problem.contains(" ")) { return problem }
+        if (problem.contains(" ")) { return(problem)}
         explorerWidth = wsNumber(text, "explorer_width")
         windowWidth = wsNumber(text, "window_width")
         windowHeight = wsNumber(text, "window_height")
         raw = Gtk.Config().value(text, "workspace", "expanded")
-        if (!raw.equals("") && !raw.equals("x")) { return "workspace.expanded must be an array of paths" }
+        if (!raw.equals("") && !raw.equals("x")) { return("workspace.expanded must be an array of paths")}
         int64 i = 0
         String item = Gtk.Config().item(text, "workspace", "expanded", 0, "")
         while (!item.equals("")) {
             if (!item.startsWith("s") || !validRelative(item.slice(1, item.length))) {
                 resetWorkspace()
-                return "workspace.expanded must contain root-relative paths"
+                return("workspace.expanded must contain root-relative paths")
             }
             expanded.append(item.slice(1, item.length))
             i = i + 1
             item = Gtk.Config().item(text, "workspace", "expanded", i, "")
         }
         raw = Gtk.Config().value(text, "workspace", "files")
-        if (!raw.equals("") && !raw.equals("x")) { return "workspace.files must be an array of tables" }
+        if (!raw.equals("") && !raw.equals("x")) { return("workspace.files must be an array of tables")}
         i = 0
         item = Gtk.Config().item(text, "workspace", "files", 0, "")
         while (!item.equals("")) {
@@ -876,20 +876,20 @@ class CwhipProject {
             if (!item.equals("t") || !path.startsWith("s") || !validRelative(path.slice(1, path.length)) ||
                 !validPosition(line) || !validPosition(column)) {
                 resetWorkspace()
-                return "workspace.files entries must be tables with a root-relative path and positive line/column"
+                return("workspace.files entries must be tables with a root-relative path and positive line/column")
             }
             files.append(WorkspaceFile(path.slice(1, path.length), line.slice(1, line.length).toInt64(),
                 column.slice(1, column.length).toInt64()))
             i = i + 1
             item = Gtk.Config().item(text, "workspace", "files", i, "")
         }
-        return ""
+        return("")
     }
 
     bool validPosition(String raw) {
-        if (!raw.startsWith("i")) { return false }
+        if (!raw.startsWith("i")) { return(false)}
         int64 number = raw.slice(1, raw.length).toInt64()
-        return number >= 1 && number <= 100000000
+        return(number >= 1 && number <= 100000000)
     }
 
     String quotedList(list values) {
@@ -901,7 +901,7 @@ class CwhipProject {
             i = i + 1
         }
         text.append("]")
-        return text
+        return(text)
     }
 
     String excludeLines() {
@@ -912,7 +912,7 @@ class CwhipProject {
             text.append(excludes[i] as String)
             i = i + 1
         }
-        return text
+        return(text)
     }
 
     // Keeps unknown keys from the merge base; removed overrides fall back to
@@ -941,7 +941,7 @@ class CwhipProject {
             updates.append("[editor]\n")
             updates.append(editor)
         }
-        return Gtk.Config().merge(text, updates)
+        return(Gtk.Config().merge(text, updates))
     }
 
     // Copies configuration (including unknown keys) for Save As.
@@ -986,7 +986,7 @@ class CwhipProject {
             text.append(names[i] as String)
             i = i + 1
         }
-        return text
+        return(text)
     }
 }
 
@@ -1082,9 +1082,9 @@ class EditorDocument {
         if (view.modified()) {
             title.append("*")
         }
-        return title
+        return(title)
     }
-    bool stripTrailingSpaces() { return view.stripTrailingSpaces() }
+    bool stripTrailingSpaces() { return(view.stripTrailingSpaces())}
     void close() { closeAction(_self()) }
 }
 EditorDocument EditorDocument._self() from "cwhip_gtk_self"
@@ -1256,7 +1256,7 @@ class ProjectExplorer {
     // Expanded directories (absolute), including restores still waiting for a parent scan.
     list expandedPaths() {
         list result = []
-        if (rootPath.equals("") || tree.disposed()) { return result }
+        if (rootPath.equals("") || tree.disposed()) { return(result)}
         int64 i = 0
         while (i < nodes.length) {
             ProjectNode node = nodes[i] as ProjectNode
@@ -1268,7 +1268,7 @@ class ProjectExplorer {
             result.append(pending[i] as String)
             i = i + 1
         }
-        return result
+        return(result)
     }
 
     void refresh() {
@@ -1666,31 +1666,31 @@ class Cedit {
     }
 
     void<> commandAction(String command) {
-        if (command.equals("save")) { return saveAction }
-        if (command.equals("save-as")) { return saveAsAction }
-        if (command.equals("save-all")) { return _self().saveAll }
-        if (command.equals("strip-trailing-spaces")) { return _self().stripTrailingSpacesCurrent }
-        if (command.equals("open")) { return openAction }
-        if (command.equals("new")) { return newAction }
-        if (command.equals("close")) { return closeTabAction }
-        if (command.equals("quit")) { return quitAction }
-        if (command.equals("find")) { return showFindAction }
-        if (command.equals("replace")) { return showReplaceAction }
-        if (command.equals("undo")) { return undoAction }
-        if (command.equals("redo")) { return redoAction }
-        if (command.equals("cut")) { return cutAction }
-        if (command.equals("copy")) { return copyAction }
-        if (command.equals("paste")) { return pasteAction }
-        if (command.equals("select-all")) { return selectAllAction }
-        if (command.equals("preferences")) { return preferencesAction }
-        if (command.equals("project-new")) { return _self().newProject }
-        if (command.equals("project-open")) { return _self().openProject }
-        if (command.equals("project-save")) { return _self().saveProject }
-        if (command.equals("project-save-as")) { return _self().saveProjectAs }
-        if (command.equals("project-delete")) { return _self().deleteProject }
-        if (command.equals("project-configure")) { return _self().showConfigure }
-        if (command.equals("about")) { return _self().showAbout }
-        return null
+        if (command.equals("save")) { return(saveAction)}
+        if (command.equals("save-as")) { return(saveAsAction)}
+        if (command.equals("save-all")) { return(_self().saveAll)}
+        if (command.equals("strip-trailing-spaces")) { return(_self().stripTrailingSpacesCurrent)}
+        if (command.equals("open")) { return(openAction)}
+        if (command.equals("new")) { return(newAction)}
+        if (command.equals("close")) { return(closeTabAction)}
+        if (command.equals("quit")) { return(quitAction)}
+        if (command.equals("find")) { return(showFindAction)}
+        if (command.equals("replace")) { return(showReplaceAction)}
+        if (command.equals("undo")) { return(undoAction)}
+        if (command.equals("redo")) { return(redoAction)}
+        if (command.equals("cut")) { return(cutAction)}
+        if (command.equals("copy")) { return(copyAction)}
+        if (command.equals("paste")) { return(pasteAction)}
+        if (command.equals("select-all")) { return(selectAllAction)}
+        if (command.equals("preferences")) { return(preferencesAction)}
+        if (command.equals("project-new")) { return(_self().newProject)}
+        if (command.equals("project-open")) { return(_self().openProject)}
+        if (command.equals("project-save")) { return(_self().saveProject)}
+        if (command.equals("project-save-as")) { return(_self().saveProjectAs)}
+        if (command.equals("project-delete")) { return(_self().deleteProject)}
+        if (command.equals("project-configure")) { return(_self().showConfigure)}
+        if (command.equals("about")) { return(_self().showAbout)}
+        return(null)
     }
 
     void configureShortcuts(EditorDocument document) {
@@ -1832,7 +1832,7 @@ class Cedit {
         entry.setHExpand(true)
         row.append(entry)
         page.append(row)
-        return entry
+        return(entry)
     }
 
     Gtk.CheckButton preferenceCheck(String label, bool active) {
@@ -1840,7 +1840,7 @@ class Cedit {
         check.setActive(active)
         check.onToggled(_self().editorCheckChanged)
         editorPreferences.append(check)
-        return check
+        return(check)
     }
 
     void showPreferences() {
@@ -1881,11 +1881,11 @@ class Cedit {
         }
     }
     bool hidePreferences() {
-        if (preferencesWindow == null || preferencesWindow.disposed()) { return true }
+        if (preferencesWindow == null || preferencesWindow.disposed()) { return(true)}
         stopRecording()
         cancelPreferencesReset()
         preferencesWindow.setVisible(false)
-        return true
+        return(true)
     }
     void stopRecording() {
         int64 i = 0
@@ -1934,15 +1934,15 @@ class Cedit {
         }
     }
     int64 preferenceNumber(String text, int64 minimum, int64 maximum) {
-        if (text.length == 0 || text.length > 2) { return -1 }
+        if (text.length == 0 || text.length > 2) { return(-1)}
         int64 i = 0
         while (i < text.length) {
-            if (!"0123456789".contains(text.slice(i, i + 1))) { return -1 }
+            if (!"0123456789".contains(text.slice(i, i + 1))) { return(-1)}
             i = i + 1
         }
         int64 number = text.toInt64()
-        if (number < minimum || number > maximum) { return -1 }
-        return number
+        if (number < minimum || number > maximum) { return(-1)}
+        return(number)
     }
     void editorCheckChanged(bool active) { editorSettingChanged("") }
     void editorSettingChanged(String text) {
@@ -2032,57 +2032,57 @@ class Cedit {
     }
     bool saveSettings() {
         String text = settings.serialize()
-        if (text.equals(persistedText)) { return true }
+        if (text.equals(persistedText)) { return(true)}
         String directory = System.FileSystem().dirname(settings.path)
         if (!makeSettingsDirectory(directory)) {
             preferencesMessage.setText(format("Settings save failed: {}", System.System().lastError()))
-            return false
+            return(false)
         }
         // Refuse to overwrite a file edited externally since the last load/save.
         if (System.FileSystem().exists(settings.path)) {
             if (!System.FileSystem().isFile(settings.path) ||
                 System.FileSystem().fileSize(settings.path) > 65536) {
                 preferencesMessage.setText("Settings save failed: current settings must be a regular file no larger than 64 KiB")
-                return false
+                return(false)
             }
             System.File file = null
             try {
                 file = System.File(settings.path, "r")
             } except(Exception) {
                 preferencesMessage.setText("Settings save failed: cannot read current settings")
-                return false
+                return(false)
             }
             String disk = ""
             try { disk = file.readAll() }
             except(Exception) as failure {
                 file.close()
                 preferencesMessage.setText(format("Settings save failed: {}", failure.message))
-                return false
+                return(false)
             }
             String readError = System.System().lastError()
             file.close()
             if (!readError.equals("") || !disk.equals(persistedText)) {
                 preferencesMessage.setText("Settings changed on disk; restart before saving preferences")
-                return false
+                return(false)
             }
         } else {
             if (!persistedText.equals("")) {
                 preferencesMessage.setText("Settings removed on disk; restart before saving preferences")
-                return false
+                return(false)
             }
         }
         savingText = text
         savePending = true
         preferencesMessage.setText("Saving settings...")
         Gtk.Config().save(settings.path, text, persistedText, _self().settingsSaved)
-        return true
+        return(true)
     }
     bool makeSettingsDirectory(String directory) {
-        if (System.FileSystem().isDir(directory)) { return true }
+        if (System.FileSystem().isDir(directory)) { return(true)}
         String parent = System.FileSystem().dirname(directory)
-        if (parent.equals(directory) || directory.equals("")) { return false }
-        if (!makeSettingsDirectory(parent)) { return false }
-        return System.FileSystem().mkdir(directory)
+        if (parent.equals(directory) || directory.equals("")) { return(false)}
+        if (!makeSettingsDirectory(parent)) { return(false)}
+        return(System.FileSystem().mkdir(directory))
     }
     void settingsSaved(String error) {
         savePending = false
@@ -2114,7 +2114,7 @@ class Cedit {
 
     String version() {
         // Keep in sync with project(cwhip VERSION ...) in CMakeLists.txt.
-        return "0.0.2"
+        return("0.0.2")
     }
 
     void projectFailure(String title, String detail) {
@@ -2125,7 +2125,7 @@ class Cedit {
     String canonicalFolder(String path, String title) {
         if (path.contains("://")) {
             projectFailure(title, "only local filesystem paths are supported")
-            return ""
+            return("")
         }
         String requested = path
         if (!requested.startsWith("/")) {
@@ -2134,14 +2134,14 @@ class Cedit {
         String canonical = System.FileSystem().absolutePath(requested)
         if (canonical.equals("") || !System.FileSystem().isDir(canonical)) {
             projectFailure(title, format("{} is not an accessible folder", path))
-            return ""
+            return("")
         }
-        return canonical
+        return(canonical)
     }
 
     CwhipProject loadProject(String path, String title) {
         String root = canonicalFolder(path, title)
-        if (root.equals("")) { return null }
+        if (root.equals("")) { return(null)}
         // Choosing a metadata folder itself selects its project root.
         if (System.FileSystem().basename(root).equals(".cwhip") &&
             System.FileSystem().isFile(System.FileSystem().join(root, "project.toml"))) {
@@ -2151,9 +2151,9 @@ class Cedit {
         String problem = candidate.load(settings)
         if (!problem.equals("")) {
             projectFailure(title, problem)
-            return null
+            return(null)
         }
-        return candidate
+        return(candidate)
     }
 
     void openRootArgument(String path) {
@@ -2387,9 +2387,9 @@ class Cedit {
 
     String projectSaveMessage(String path, String error) {
         if (error.contains("changed on disk")) {
-            return format("{} changed on disk since it was loaded; reopen the project before saving", path)
+            return(format("{} changed on disk since it was loaded; reopen the project before saving", path))
         }
-        return format("{}: {}", path, error)
+        return(format("{}: {}", path, error))
     }
 
     void addProjectSaveError(String message) {
@@ -2560,7 +2560,7 @@ class Cedit {
             result.append(System.FileSystem().join(target.root, paths[index] as String))
             index = index + 1
         }
-        return result
+        return(result)
     }
 
     void activateProject(CwhipProject target, bool restore) {
@@ -2668,7 +2668,7 @@ class Cedit {
         text.append("files = ")
         text.append(fileList)
         text.append("\n")
-        return text
+        return(text)
     }
 
     // ---- Configure Project ------------------------------------------------
@@ -2716,10 +2716,10 @@ class Cedit {
         int64 index = 0
         while (index < overrideRows.length) {
             OverrideRow row = overrideRows[index] as OverrideRow
-            if (row.key.equals(key)) { return row }
+            if (row.key.equals(key)) { return(row)}
             index = index + 1
         }
-        return null
+        return(null)
     }
 
     void showConfigure() {
@@ -2840,7 +2840,7 @@ class Cedit {
 
     bool hideConfigure() {
         if (configureWindow != null && !configureWindow.disposed()) { configureWindow.setVisible(false) }
-        return true
+        return(true)
     }
     void closeConfigure() { hideConfigure() }
 
@@ -2870,7 +2870,7 @@ class Cedit {
 
     bool hideAbout() {
         if (aboutWindow != null && !aboutWindow.disposed()) { aboutWindow.setVisible(false) }
-        return true
+        return(true)
     }
     void closeAbout() { hideAbout() }
 
@@ -2886,31 +2886,31 @@ class Cedit {
 
     EditorDocument openDocument(String requestedPath) {
         if (requestedPath.equals("") || requestedPath.equals("--test") || requestedPath.equals("--foreground")) {
-            return null
+            return(null)
         }
         if (requestedPath.contains("://")) {
             reportOpenFailure(format("Open failed: {}: only local filesystem paths are supported",
                                      requestedPath), false)
-            return null
+            return(null)
         }
         String absolutePath = System.FileSystem().absolutePath(requestedPath)
         if (absolutePath.equals("")) {
             showError("Open failed: ", requestedPath)
             reportOpenFailure(status.text(), false)
-            return null
+            return(null)
         }
         int64 index = 0
         while (index < documents.length) {
             EditorDocument existing = documents[index] as EditorDocument
             if (existing.path.equals(absolutePath)) {
                 rememberRecent(absolutePath)
-                return existing
+                return(existing)
             }
             index = index + 1
         }
         if (!System.FileSystem().isFile(absolutePath)) {
             reportOpenFailure(format("Open failed: {} is not a regular file", requestedPath), false)
-            return null
+            return(null)
         }
         System.File input = null
         try {
@@ -2918,7 +2918,7 @@ class Cedit {
         } except(Exception) {
             showError("Open failed: ", requestedPath)
             reportOpenFailure(status.text(), false)
-            return null
+            return(null)
         }
         String text = ""
         String readError = ""
@@ -2934,11 +2934,11 @@ class Cedit {
         if (binary || (readError.equals("") && !GtkSource.Content().isText(text))) {
             reportOpenFailure(format("Open failed: {} is not a text file (binary or not UTF-8)",
                                      absolutePath), true)
-            return null
+            return(null)
         }
         if (!readError.equals("")) {
             reportOpenFailure(format("Open failed: {}: {}", absolutePath, readError), false)
-            return null
+            return(null)
         }
         EditorDocument document = EditorDocument(absolutePath, text)
         documents.append(document)
@@ -2946,7 +2946,7 @@ class Cedit {
         notebook.appendClosablePage(document.scroller, document.tabTitle(), document.close)
         configureShortcuts(document)
         rememberRecent(absolutePath)
-        return document
+        return(document)
     }
 
     // Single opens report on the status line (and in a dialog for files that
@@ -2989,9 +2989,9 @@ class Cedit {
     EditorDocument currentDocument() {
         int64 page = notebook.currentPage()
         if (page < 0 || page >= documents.length) {
-            return null
+            return(null)
         }
-        return documents[page] as EditorDocument
+        return(documents[page] as EditorDocument)
     }
 
     void saveCurrent() {
@@ -3054,11 +3054,11 @@ class Cedit {
         if (destination.equals("")) {
             status.setText("Save failed: empty file path")
             closeSearchDialog()
-            return false
+            return(false)
         }
         if (destination.contains("://")) {
             status.setText("Save failed: only local filesystem paths are supported")
-            return false
+            return(false)
         }
         String absoluteDestination = destination
         if (!absoluteDestination.startsWith("/")) {
@@ -3069,7 +3069,7 @@ class Cedit {
         if (System.FileSystem().exists(absoluteDestination)) {
             if (!System.FileSystem().isFile(absoluteDestination)) {
                 status.setText("Save failed: destination is not a regular file")
-                return false
+                return(false)
             }
             absoluteDestination = System.FileSystem().absolutePath(absoluteDestination)
         } else {
@@ -3077,7 +3077,7 @@ class Cedit {
                 System.FileSystem().dirname(absoluteDestination))
             if (parent.equals("")) {
                 showError("Save failed: ", destination)
-                return false
+                return(false)
             }
             absoluteDestination = System.FileSystem().join(parent,
                 System.FileSystem().basename(absoluteDestination))
@@ -3087,7 +3087,7 @@ class Cedit {
             EditorDocument other = documents[index] as EditorDocument
             if (other != document && other.path.equals(absoluteDestination)) {
                 status.setText("Save failed: destination belongs to another open document")
-                return false
+                return(false)
             }
             index = index + 1
         }
@@ -3097,7 +3097,7 @@ class Cedit {
             output = System.File(absoluteDestination, "w")
         } except(Exception) {
             showError("Save failed: ", absoluteDestination)
-            return false
+            return(false)
         }
         String contents = document.view.text()
         int64 written = output.write(contents)
@@ -3105,7 +3105,7 @@ class Cedit {
         if (written != contents.length) {
             output.close()
             status.setText(format("Save failed: {}: {}", absoluteDestination, writeError))
-            return false
+            return(false)
         }
         output.flush()
         String flushError = System.System().lastError()
@@ -3114,7 +3114,7 @@ class Cedit {
         if (!flushError.equals("") || !closeError.equals("")) {
             status.setText(format("Save failed: {}: {} {}", absoluteDestination,
                                   flushError, closeError))
-            return false
+            return(false)
         }
         if (!document.path.equals(absoluteDestination)) {
             document.view.setLanguage(GtkSource.Content().languageFor(absoluteDestination))
@@ -3128,11 +3128,11 @@ class Cedit {
         status.setText(format("Saved{}", automaticSaveErrors()))
         project.fileSaved(absoluteDestination)
         updateMenu()
-        return true
+        return(true)
     }
 
     bool commandsBlocked() {
-        return (fileDialog != null || pendingCloseAll || pendingCloseDocument != null ||
+        return(fileDialog != null || pendingCloseAll || pendingCloseDocument != null ||
             projectSaves > 0 || !confirmOp.equals(""))
     }
 
@@ -3281,20 +3281,20 @@ class Cedit {
         if (selectionCheck.active()) {
             options = options + GtkSource.View.IN_SELECTION
         }
-        return options
+        return(options)
     }
 
     EditorDocument searchDocument() {
-        if (commandsBlocked()) { return null }
+        if (commandsBlocked()) { return(null)}
         EditorDocument document = currentDocument()
         if (document == null) {
-            return null
+            return(null)
         }
         if (selectionCheck.active() && !document.view.hasSearchScope()) {
             status.setText("In selection: select text, then press Find or Replace")
-            return null
+            return(null)
         }
-        return document
+        return(document)
     }
 
     void findNext() {
@@ -3407,7 +3407,7 @@ class Cedit {
     bool hideSearchDialog() {
         searchDialogOpen = false
         searchWindow.setVisible(false)
-        return true
+        return(true)
     }
 
     void closeSearchDialog() {
@@ -3461,7 +3461,7 @@ class Cedit {
     }
 
     String automaticSaveErrors() {
-        if (!hasAutomaticSaveErrors) { return "" }
+        if (!hasAutomaticSaveErrors) { return("")}
         String errors = ""
         int64 index = 0
         while (index < documents.length) {
@@ -3471,7 +3471,7 @@ class Cedit {
             }
             index = index + 1
         }
-        return errors
+        return(errors)
     }
 
     bool recomputeAutomaticSaveErrors() {
@@ -3479,11 +3479,11 @@ class Cedit {
         while (index < documents.length) {
             EditorDocument document = documents[index] as EditorDocument
             if (!document.automaticSaveError.equals("")) {
-                return true
+                return(true)
             }
             index = index + 1
         }
-        return false
+        return(false)
     }
 
     void windowFocusChanged(bool active) {
@@ -3623,7 +3623,7 @@ class Cedit {
     }
 
     bool workspaceNeedsSave() {
-        return (activeProject != null && activeProject.workspaceWritable &&
+        return(activeProject != null && activeProject.workspaceWritable &&
             !activeProject.workspaceText.equals(activeProject.workspaceOriginal))
     }
 
@@ -3631,16 +3631,16 @@ class Cedit {
         if (savePending || projectSaves > 0) {
             closeAfterSave = true
             status.setText("Waiting for settings to save")
-            return true
+            return(true)
         }
         if (allowWindowClose) {
             // Checked synchronously so window.close() is never re-entered from this handler.
             if (!quitReady && workspaceNeedsSave()) {
                 writeProject(activeProject, false, true, "quit")
-                return true
+                return(true)
             }
             closePreferencesWindows()
-            return false
+            return(false)
         }
         if (fileDialog != null) {
             fileDialog.cancel()
@@ -3668,16 +3668,16 @@ class Cedit {
                 closeChoices.setVisible(true)
                 status.setText("Unsaved changes: Save, Discard, or Cancel closing")
                 updateMenu()
-                return true
+                return(true)
             }
             index = index + 1
         }
         if (workspaceNeedsSave()) {
             allowWindowClose = true
             writeProject(activeProject, false, true, "quit")
-            return true
+            return(true)
         }
-        return false
+        return(false)
     }
 
     void closePreferencesWindows() {
@@ -3775,11 +3775,11 @@ class Cedit {
         while (index < documents.length) {
             EditorDocument document = documents[index] as EditorDocument
             if (document.view.modified()) {
-                return document
+                return(document)
             }
             index = index + 1
         }
-        return null
+        return(null)
     }
 
     void savePendingClose() {

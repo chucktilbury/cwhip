@@ -62,21 +62,21 @@ namespace GtkSource {
             _widget = Gtk.SourceViewWidget()
             _language(_widgetToken(), "")
         }
-        Gtk.SourceViewWidget widget() { return _widget }
-        int64 _widgetToken() { return _widget.nativeToken() }
+        Gtk.SourceViewWidget widget() { return(_widget)}
+        int64 _widgetToken() { return(_widget.nativeToken())}
         void setText(String text) { _setText(_widgetToken(), text) }
-        String text() { return _getText(_widgetToken()) }
-        bool modified() { return _modified(_widgetToken()) }
+        String text() { return(_getText(_widgetToken()))}
+        bool modified() { return(_modified(_widgetToken()))}
         void markSaved() { _markSaved(_widgetToken()) }
         void undo() { _undo(_widgetToken()) }
         void redo() { _redo(_widgetToken()) }
         // Removes trailing spaces and tabs as one undo step; true when text changed.
-        bool stripTrailingSpaces() { return _stripTrailingSpaces(_widgetToken()) }
+        bool stripTrailingSpaces() { return(_stripTrailingSpaces(_widgetToken()))}
         // Auto-closes ()[]{}"'' pairs, wraps selections, and steps over closers.
         void setAutoCompleteBrackets(bool enabled) { _autoPair(_widgetToken(), enabled) }
-        bool canUndo() { return _canUndo(_widgetToken()) }
-        bool canRedo() { return _canRedo(_widgetToken()) }
-        bool hasSelection() { return _hasSelection(_widgetToken()) }
+        bool canUndo() { return(_canUndo(_widgetToken()))}
+        bool canRedo() { return(_canRedo(_widgetToken()))}
+        bool hasSelection() { return(_hasSelection(_widgetToken()))}
         void cut() { _edit(_widgetToken(), 0) }
         void copy() { _edit(_widgetToken(), 1) }
         void paste() { _edit(_widgetToken(), 2) }
@@ -86,49 +86,49 @@ namespace GtkSource {
             _monospace(_widgetToken(), monospace)
         }
         void setEmojiMenu(bool enabled) { _emojiMenu(_widgetToken(), enabled) }
-        bool find(String query) { return _find(_widgetToken(), query) }
+        bool find(String query) { return(_find(_widgetToken(), query))}
         bool replaceNext(String query, String replacement) {
-            return _replaceNext(_widgetToken(), query, replacement)
+            return(_replaceNext(_widgetToken(), query, replacement))
         }
         bool findWith(String query, int64 options) {
-            return _search(_widgetToken(), query, options)
+            return(_search(_widgetToken(), query, options))
         }
         bool replaceWith(String query, String replacement, int64 options) {
-            return _replace(_widgetToken(), query, replacement, options)
+            return(_replace(_widgetToken(), query, replacement, options))
         }
         int64 replaceAll(String query, String replacement, int64 options) {
-            return _replaceAll(_widgetToken(), query, replacement, options)
+            return(_replaceAll(_widgetToken(), query, replacement, options))
         }
-        bool captureSearchScope() { return _captureScope(_widgetToken()) }
-        bool hasSearchScope() { return _hasScope(_widgetToken()) }
-        String selectedText() { return _selectedText(_widgetToken()) }
-        bool setLanguage(String language) { return _language(_widgetToken(), language) }
-        String language() { return _languageId(_widgetToken()) }
-        int64 line() { return _line(_widgetToken()) }
-        int64 column() { return _column(_widgetToken()) }
+        bool captureSearchScope() { return(_captureScope(_widgetToken()))}
+        bool hasSearchScope() { return(_hasScope(_widgetToken()))}
+        String selectedText() { return(_selectedText(_widgetToken()))}
+        bool setLanguage(String language) { return(_language(_widgetToken(), language))}
+        String language() { return(_languageId(_widgetToken()))}
+        int64 line() { return(_line(_widgetToken()))}
+        int64 column() { return(_column(_widgetToken()))}
         void setCursor(int64 line, int64 column) { _setCursor(_widgetToken(), line, column) }
         void centerCursor(int64 line, int64 column) { _centerCursor(_widgetToken(), line, column) }
         void setEditable(bool editable) { _editable(_widgetToken(), editable) }
         bool hasContextAt(String context, int64 offset) {
-            return _hasContext(_widgetToken(), context, offset)
+            return(_hasContext(_widgetToken(), context, offset))
         }
         bool bindShortcut(String trigger, void<> action) {
-            return _bindShortcut(_widgetToken(), trigger, action)
+            return(_bindShortcut(_widgetToken(), trigger, action))
         }
-        bool hasShortcut(String trigger) { return _hasShortcut(_widgetToken(), trigger) }
+        bool hasShortcut(String trigger) { return(_hasShortcut(_widgetToken(), trigger))}
         void clearShortcuts() { _clearShortcuts(_widgetToken()) }
         void configure(String font, int64 size, int64 tabs, bool spaces,
                        bool numbers, bool wrap, bool highlight) {
             _configure(_widgetToken(), font, size, tabs, spaces, numbers, wrap, highlight)
         }
         int64 onChanged(void<> action) {
-            return _changed(_widgetToken(), action)
+            return(_changed(_widgetToken(), action))
         }
         int64 onCursorMoved(void<> action) {
-            return _cursorMoved(_widgetToken(), action)
+            return(_cursorMoved(_widgetToken(), action))
         }
         void setLineSelection(bool enabled) { _lineSelection(_widgetToken(), enabled) }
-        int64 onLineActivated(void<int64> action) { return _lineActivated(_widgetToken(), action) }
+        int64 onLineActivated(void<int64> action) { return(_lineActivated(_widgetToken(), action))}
         void setMarkStyle(String category, String icon, String background) {
             _markStyle(_widgetToken(), category, icon, background)
         }

@@ -2,7 +2,7 @@
 class Hidden {
     protected:
     int64 read() {
-        return 1
+        return(1)
     }
 }
 

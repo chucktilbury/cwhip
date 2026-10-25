@@ -1269,6 +1269,27 @@ CodeGenerator::Value CodeGenerator::emitExpression(const Expression& expression,
                                  view.second->name + ", ptr " + viewAddress + ", i32 0, i32 1\n"
                                  "  store ptr " + object + ", ptr " + ownerLinkAddress + "\n";
         }
+        // Initialize the complete object once, including distinct nonvirtual
+        // subobjects and the canonical shared virtual bases, before any body runs.
+        for (const auto& view : subobjects(*owner)) {
+            std::string viewAddress;
+            for (std::size_t index = 0; index < view.second->fields.size(); ++index) {
+                const auto& field = view.second->fields[index];
+                if (!field.initializer) continue;
+                if (viewAddress.empty())
+                    viewAddress = emitSubobjectAddress(object, *owner, view.first);
+                const auto value = emitExpression(*field.initializer, field.type);
+                const auto converted = convertObjectValue(value, field.type,
+                                                          field.initializer->location);
+                const auto address = newTemporary();
+                instructions_ += "  " + address + " = getelementptr inbounds %Class." +
+                                 view.second->name + ", ptr " + viewAddress +
+                                 ", i32 0, i32 " +
+                                 std::to_string(fieldIndex(*view.second, index)) + "\n"
+                                 "  store " + llvmType(field.type) + " " +
+                                 converted.operand + ", ptr " + address + "\n";
+            }
+        }
         const auto* constructor = findConstructor(*owner, expression.resolvedSignature);
         std::vector<std::pair<const ClassDeclaration*, const MethodDeclaration*>>
             virtualConstructors;

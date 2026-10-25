@@ -17,8 +17,8 @@ const TestGroupRegistration registration{3, {
         {"implicit base qualifiers use the current instance", [] {
              expectValid(
                  "class A { int64 x\n protected:\n int64 p\n public:\n"
-                 "int64 f(int64 n) { return n } }\n"
-                 "class B { int64 x\n int64 f(int64 n) { return n + 1 } }\n"
+                 "int64 f(int64 n) { return(n) } }\n"
+                 "class B { int64 x\n int64 f(int64 n) { return(n + 1) } }\n"
                  "class C: A, private B {\n"
                  " C() { super A()\n super B()\n A.x = 1\n B.x = 2\n A.x += 3\n"
                  "print(A.x)\n print(B.f(A.p)) }\n"
@@ -95,7 +95,7 @@ const TestGroupRegistration registration{3, {
                  "class C: B { void f() { print(A.x) } }\nstart {}",
                  "undefined variable 'A'");
              expectDiagnostic(
-                 "class A { int64 f(int64 n) { return n } }\n"
+                 "class A { int64 f(int64 n) { return(n) } }\n"
                  "class C: A { void g() { A.f(\"bad\") } }\nstart {}",
                  "method argument type does not match parameter 'n'");
              expectDiagnostic(
@@ -105,13 +105,13 @@ const TestGroupRegistration registration{3, {
          }},
         {"implicit qualifiers preserve lexical class and value precedence", [] {
              expectValid(
-                 "namespace N { class A { int64 x\n int64 f() { return 1 } }\n"
+                 "namespace N { class A { int64 x\n int64 f() { return(1) } }\n"
                  "class C: A { void g() { print(A.x)\n print(N.A.x)\n"
                  "print(A.f())\n A other = N.A()\n print(other.f())\n type t = N.A }\n"
                  "} }\nstart { N.C c = N.C() }");
              expectValid(
-                 "class A { int64 x\n int64 f() { return 1 } }\n"
-                 "class Object { int64 x\n int64 f() { return 2 } }\n"
+                 "class A { int64 x\n int64 f() { return(1) } }\n"
+                 "class Object { int64 x\n int64 f() { return(2) } }\n"
                  "class C: A { Object A\n"
                  " void g(Object local) { print(A.x)\n print(A.f())\n print(local.x) }\n"
                  " void h(Object A) { print(A.x)\n print(A.f()) }\n"
@@ -123,9 +123,9 @@ const TestGroupRegistration registration{3, {
                  "class C: N.A { void f() { print(A.x) } } }\nstart {}",
                  "undefined variable 'A'");
              expectValid(
-                 "class A { int64 x\n int64 f() { return x } }\n"
+                 "class A { int64 x\n int64 f() { return(x) } }\n"
                  "class C: A { int64 g() }\n"
-                 "int64 C.g() { A.x += 1\n return A.f() }\nstart {}");
+                 "int64 C.g() { A.x += 1\n return(A.f()) }\nstart {}");
          }},
         {"bare method statement reports argument count instead of parser error", [] {
              expectDiagnostic(
@@ -179,7 +179,7 @@ const TestGroupRegistration registration{3, {
                  "class C { void caller() { missing() } }\nstart {}",
                  "class 'C' has no method 'missing'");
              expectDiagnostic(
-                 "class C { int64 caller() { return missing() } }\nstart {}",
+                 "class C { int64 caller() { return(missing()) } }\nstart {}",
                  "class 'C' has no method 'missing'");
              expectDiagnostic(
                  "start { print(Missing()) }",
@@ -191,39 +191,39 @@ const TestGroupRegistration registration{3, {
         {"out-of-line method body completes an in-class declaration", [] {
              expectValid(
                  "class Foo {\n  int64 compute(int64 x)\n}\n"
-                 "int64 Foo.compute(int64 x) {\n  return x * 2\n}\n"
+                 "int64 Foo.compute(int64 x) {\n  return(x * 2)\n}\n"
                  "start {\n  print(Foo().compute(5))\n}");
          }},
         {"nested returns and exhaustive branches satisfy non-void methods", [] {
              expectValid(
                  "class Choice {\n"
                  "  int64 select(bool left) {\n"
-                 "    { if (left) { return 1 } else { return 2 } }\n"
+                 "    { if (left) { return(1) } else { return(2) } }\n"
                  "  }\n"
                  "  int64 protectedValue() {\n"
-                 "    try { return 3 } except() { return 4 } finally { print(5) }\n"
+                 "    try { return(3) } except() { return(4) } finally { print(5) }\n"
                  "  }\n"
                  "  void early() { if (true) { return } print(6) }\n"
                  "}\nstart { print(Choice().select(true)) }");
          }},
         {"non-void methods reject reachable fallthrough", [] {
              expectDiagnostic(
-                 "class Choice { int64 select(bool left) { if (left) { return 1 } } }\n"
+                 "class Choice { int64 select(bool left) { if (left) { return(1) } } }\n"
                  "start {}",
                  "path without a return value or raise");
              expectDiagnostic(
-                 "class Choice { int64 select() { while (true) { return 1 } } }\n"
+                 "class Choice { int64 select() { while (true) { return(1) } } }\n"
                  "start {}",
                  "path without a return value or raise");
              expectDiagnostic(
-                 "class Choice { int64 select() { try { return 1 } "
+                 "class Choice { int64 select() { try { return(1) } "
                  "except() { print(0) } } }\nstart {}",
                  "path without a return value or raise");
          }},
         {"return inside finally is rejected even when nested", [] {
              expectDiagnostic(
-                 "class Choice { int64 select() { try { return 1 } finally { "
-                 "if (true) { { return 2 } } } } }\nstart {}",
+                 "class Choice { int64 select() { try { return(1) } finally { "
+                 "if (true) { { return(2) } } } } }\nstart {}",
                  "return is not allowed inside finally");
              expectDiagnostic(
                  "class Choice { void select() { try { print(1) } finally { "
@@ -232,15 +232,15 @@ const TestGroupRegistration registration{3, {
          }},
         {"return type and entry restrictions remain enforced", [] {
              expectDiagnostic("start { return }", "only valid inside a class method");
-             expectDiagnostic("class C { void f() { if (true) { return 1 } } }\nstart {}",
+             expectDiagnostic("class C { void f() { if (true) { return(1) } } }\nstart {}",
                               "void method cannot return a value");
              expectDiagnostic("class C { int64 f() { return } }\nstart {}",
                               "non-void method must return a value");
-             expectDiagnostic("class C { int64 f() { { return \"bad\" } } }\nstart {}",
+             expectDiagnostic("class C { int64 f() { { return(\"bad\") } } }\nstart {}",
                               "return type does not match method return type");
-             expectDiagnostic("class C { C() { return 1 } }\nstart {}",
+             expectDiagnostic("class C { C() { return(1) } }\nstart {}",
                               "void method cannot return a value");
-             expectDiagnostic("class C { destroy { return 1 } }\nstart {}",
+             expectDiagnostic("class C { destroy { return(1) } }\nstart {}",
                               "void method cannot return a value");
              expectValid("class C { C() { return } destroy { return } }\n"
                          "start { C value = C() }");

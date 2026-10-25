@@ -129,31 +129,31 @@ namespace SQL {
         }
 
         int64 kind() {
-            return _kind
+            return(_kind)
         }
 
         bool isNull() {
-            return _kind == 0
+            return(_kind == 0)
         }
 
         int64 asInteger() {
             if (_kind != 1) { raise(Exception("SQL value is not an integer")) }
-            return _integer
+            return(_integer)
         }
 
         fp64 asReal() {
             if (_kind != 2) { raise(Exception("SQL value is not a real")) }
-            return _real
+            return(_real)
         }
 
         String asText() {
             if (_kind != 3) { raise(Exception("SQL value is not text")) }
-            return _text
+            return(_text)
         }
 
         buffer asBlob() {
             if (_kind != 4) { raise(Exception("SQL value is not a blob")) }
-            return _blob
+            return(_blob)
         }
     }
 }

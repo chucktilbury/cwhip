@@ -11,7 +11,7 @@ const TestGroupRegistration registration{17, {
 class Worker {
     range<int64> saved
     range<int64> identity(range<int64> values) { saved = values
-        return saved }
+        return(saved) }
 }
 start {
     Worker w = Worker()
@@ -83,7 +83,7 @@ namespace N {
     class Worker {
         range<int64> identity(range<int64> values)
     }
-    range<int64> Worker.identity(range<int64> values) { return values }
+    range<int64> Worker.identity(range<int64> values) { return(values) }
 }
 start {
     N.Worker w = N.Worker()
@@ -112,7 +112,7 @@ start {
         for (const auto* target : {"items[0..1]", "items[bounds]"})
             expectDiagnostic("start { list items = [1, 2]\n range<int8> bounds = 0..1\n" +
                              std::string(target) + " = [3] }", "copies and are not assignable");
-        expectDiagnostic("start { dict d = {\"a\": 1}\n print(d[0..0]) }",
+        expectDiagnostic("start { dict d = [\"a\": 1]\n print(d[0..0]) }",
                          "range slicing requires");
         expectDiagnostic("start { print((1..2)[0..1]) }", "range slicing requires");
         expectDiagnostic("start { for (i in 1..2..3) {} }", "expected");

@@ -15,11 +15,11 @@ class Root {
     }
 
     int64 read() {
-        return value
+        return(value)
     }
 
     int64 readValue() {
-        return value
+        return(value)
     }
 
     destroy {
@@ -58,11 +58,11 @@ class Diamond : Left, Right {
     }
 
     int64 read() {
-        return 77
+        return(77)
     }
 
     int64 sum() {
-        return 77
+        return(77)
     }
 
     destroy {
@@ -72,13 +72,13 @@ class Diamond : Left, Right {
 
 class Reader {
     int64 readRoot(Root root) {
-        return root.read()
+        return(root.read())
     }
 }
 
 class Factory {
     Root fromRight(Right right) {
-        return right
+        return(right)
     }
 }
 

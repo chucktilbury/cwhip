@@ -42,27 +42,27 @@ namespace N {
     class Worker {
         int64 evaluations
         int64 selector(int64 n) { evaluations += 1
-            return n }
+            return(n) }
         int64 dispatch(int64 n) {
             switch (selector(n)) {
-                case (Labels.LOW..Labels.HIGH) { return 10 }
-                case (0, 2, 4) { return 20 }
-                case (10..20, Labels.SINGLE) { return 30 }
-                default { return 40 }
+                case (Labels.LOW..Labels.HIGH) { return(10) }
+                case (0, 2, 4) { return(20) }
+                case (10..20, Labels.SINGLE) { return(30) }
+                default { return(40) }
             }
         }
         int64 returning(int64 n) {
             try {
                 switch (n) {
                     case (0) {
-                        try { return selector(42) }
+                        try { return(selector(42)) }
                         finally { print("inner/") }
                     }
                     case (1) {
                         try { raise(Exception("raised/")) }
                         finally { print("throw/") }
                     }
-                    default { return 99 }
+                    default { return(99) }
                 }
             } finally { print("outer/") }
         }
@@ -70,7 +70,7 @@ namespace N {
             switch (n) {
                 case (0) { next }
                 default {
-                    try { return Payload(77) }
+                    try { return(Payload(77)) }
                     finally {
                         int64 i = 0
                         while (i < 200) {

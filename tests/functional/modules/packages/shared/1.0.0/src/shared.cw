@@ -1,5 +1,5 @@
 class SharedOne {
     int64 version() {
-        return 1
+        return(1)
     }
 }

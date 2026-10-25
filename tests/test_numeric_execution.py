@@ -162,18 +162,18 @@ int NativeAliases.echoInt(int value) from "echo_native_int"
 uint NativeAliases.echoUInt(uint value) from "echo_native_uint"
 float NativeAliases.echoFloat(float value) from "echo_native_float"
 class AliasWorker {
-int echo(int value) { return value + 1 }
+int echo(int value) { return(value + 1) }
 }
 """
     source = "class Constants {\nenum {\n" + "".join(
         f"C{index} = {expression}\n" for index, (expression, _) in enumerate(constants))
     source += "LAST = C0 + 1\n}\n}\n" + native_class
     source += """class Base {
-int8 echo(int8 value) { return value }
+int8 echo(int8 value) { return(value) }
 }
 class Worker: Base {
-int8 echo(int8 value) { return value }
-fp32 real(fp32 value) { return value }
+int8 echo(int8 value) { return(value) }
+fp32 real(fp32 value) { return(value) }
 uint8 bits
 }
 class Holder {
@@ -181,11 +181,11 @@ Worker target
 int64 calls
 Holder() { target = Worker() }
 Worker next() { calls += 1
-return target }
+return(target) }
 }
 """
     source += "class CallbackWorker {\n" + "".join(
-        f"{numeric} echo_{numeric}({numeric} value) {{ return value }}\n"
+        f"{numeric} echo_{numeric}({numeric} value) {{ return(value) }}\n"
         for numeric in types) + "}\nstart {\n"
     source += "".join(
         f'print("{{}}\\n", {expression})\n' for expression, _ in checks)

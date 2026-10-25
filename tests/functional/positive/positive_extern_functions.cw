@@ -38,7 +38,7 @@ Counter Native.identityCounter(Counter value) from "cwhip_method_demo_identity"
 void Native.ignore(int64 value) from "cwhip_method_demo_ignore"
 
 int64 Doubler.compute(int64 x) {
-    return x * 2
+    return(x * 2)
 }
 
 start {
@@ -54,7 +54,7 @@ start {
     list same = native.identityArray(numbers)
     print(same.length)
 
-    dict values = {"answer": 42}
+    dict values = ["answer": 42]
     dict sameMap = native.identityMap(values)
     print(sameMap.length)
 

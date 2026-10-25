@@ -1,5 +1,5 @@
 class Imported {
     int64 get() {
-        return 40
+        return(40)
     }
 }

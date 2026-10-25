@@ -73,18 +73,18 @@ class EditorChecks {
         require(file.isOpen(), "read saved file")
         String result = file.readAll()
         file.close()
-        return result
+        return(result)
     }
     EditorDocument documentAt(String name) {
         int64 index = 0
         while (index < editor.documents.length) {
             EditorDocument document = editor.documents[index] as EditorDocument
             if (document.path.equals(path(name))) {
-                return document
+                return(document)
             }
             index = index + 1
         }
-        return null
+        return(null)
     }
     void options(bool caseSensitive, bool words, bool selection) {
         editor.caseCheck.setActive(caseSensitive)
@@ -98,9 +98,9 @@ class EditorChecks {
         editor.findEntry.setText(query)
         editor.replaceEntry.setText(replacement)
         editor.replaceAllAction()
-        return format("{}|{}", editor.status.text(), search.view.text())
+        return(format("{}|{}", editor.status.text(), search.view.text()))
     }
-    String path(String name) { return System.FileSystem().join(System.FileSystem().getCwd(), name) }
+    String path(String name) { return(System.FileSystem().join(System.FileSystem().getCwd(), name)) }
     void activate() {
         editor.activate()
         Gtk.Application().post(nextAction)
@@ -255,8 +255,7 @@ class EditorChecks {
                 Fixture().tick()
                 Fixture().resize()
                 Gtk.Application().post(nextAction)
-                return
-            }
+                return()}
             require(Fixture().height() > originalHeight + 100,
                 format("viewport grows after resize ({} -> {})", originalHeight, Fixture().height()))
             require(editor.currentDocument().view.language().equals("cwhip"), "Cwhip source highlighted")

@@ -7,7 +7,7 @@ namespace A {
 
 namespace B {
     int64 A.Foo.compute() {
-        return 99
+        return(99)
     }
 }
 

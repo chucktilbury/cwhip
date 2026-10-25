@@ -5,11 +5,11 @@ class Printer {
     Printer() {}
 
     int64 show(int64 value) {
-        return value
+        return(value)
     }
 
     int64 show(fp64 value) {
-        return 2
+        return(2)
     }
 }
 

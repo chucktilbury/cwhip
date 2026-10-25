@@ -3,7 +3,7 @@ namespace Orchard {
     class Apple {
         Apple() {}
         int64 sweetness() {
-            return 42
+            return(42)
         }
     }
 }

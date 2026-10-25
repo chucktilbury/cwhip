@@ -1,7 +1,7 @@
 namespace Shared {
     class Helper {
         int64 get() {
-            return 40
+            return(40)
         }
     }
 }

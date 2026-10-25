@@ -5,7 +5,7 @@ class Node {
         value = initial
     }
     int64 read() {
-        return value
+        return(value)
     }
 }
 
@@ -15,12 +15,12 @@ class Catalog {
         content = initial
     }
     dict read() {
-        return content
+        return(content)
     }
 }
 
 start {
-    dict table = {"number": int64(7), "text": "seven", "node": Node(64), "items": [Node(77)], "child": {"value": 9, "node": Node(88)}}
+    dict table = ["number": int64(7), "text": "seven", "node": Node(64), "items": [Node(77)], "child": ["value": 9, "node": Node(88)]]
     Catalog catalog = Catalog(table)
     print(table.length)
     print(table["number"])
@@ -32,10 +32,10 @@ start {
     dict alias = table
     alias["number"] = int64(11)
     print(table["number"])
-    dict repeated = {"same": 1, "same": 2}
+    dict repeated = ["same": 1, "same": 2]
     print(repeated.length)
     print(repeated["same"])
-    dict keySemantics = {"Key": 1, "key": 2, "café": 3}
+    dict keySemantics = ["Key": 1, "key": 2, "café": 3]
     print(keySemantics.length)
     print(keySemantics["Key"])
     print(keySemantics["key"])

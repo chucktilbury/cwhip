@@ -42,23 +42,23 @@ namespace Networking {
                 _host = host
                 _port = port
             }
-            return _connected
+            return(_connected)
         }
 
         int64 send(buffer data) {
-            return Runtime().socketSend(_fd, data)
+            return(Runtime().socketSend(_fd, data))
         }
 
         int64 sendString(String data) {
-            return Runtime().socketSendString(_fd, data)
+            return(Runtime().socketSendString(_fd, data))
         }
 
         buffer recv(int64 maxBytes) {
-            return Runtime().socketRecv(_fd, maxBytes)
+            return(Runtime().socketRecv(_fd, maxBytes))
         }
 
         String recvString(int64 maxBytes) {
-            return Runtime().socketRecvString(_fd, maxBytes)
+            return(Runtime().socketRecvString(_fd, maxBytes))
         }
 
         void close() {
@@ -70,7 +70,7 @@ namespace Networking {
         }
 
         bool isConnected() {
-            return _connected
+            return(_connected)
         }
 
         void setTimeout(int64 milliseconds) {
@@ -78,11 +78,11 @@ namespace Networking {
         }
 
         int64 getPort() {
-            return _port
+            return(_port)
         }
 
         String getHost() {
-            return _host
+            return(_host)
         }
     }
 
@@ -105,7 +105,7 @@ namespace Networking {
             if (_fd >= 0) {
                 _port = Runtime().serverPort(_fd)
             }
-            return _fd >= 0
+            return(_fd >= 0)
         }
 
         bool bindAddress(String host, int64 port) {
@@ -116,15 +116,15 @@ namespace Networking {
             if (_fd >= 0) {
                 _port = Runtime().serverPort(_fd)
             }
-            return _fd >= 0
+            return(_fd >= 0)
         }
 
         bool listen(int64 backlog) {
-            return Runtime().serverListen(_fd, backlog)
+            return(Runtime().serverListen(_fd, backlog))
         }
 
         Socket accept() {
-            return Socket(Runtime().serverAccept(_fd))
+            return(Socket(Runtime().serverAccept(_fd)))
         }
 
         void close() {
@@ -136,11 +136,11 @@ namespace Networking {
         }
 
         bool isBound() {
-            return _fd >= 0
+            return(_fd >= 0)
         }
 
         int64 getPort() {
-            return _port
+            return(_port)
         }
     }
 
@@ -236,31 +236,31 @@ namespace Networking {
         }
 
         String scheme() {
-            return _scheme
+            return(_scheme)
         }
 
         String host() {
-            return _host
+            return(_host)
         }
 
         int64 port() {
-            return _port
+            return(_port)
         }
 
         String path() {
-            return _path
+            return(_path)
         }
 
         String query() {
-            return _query
+            return(_query)
         }
 
         String fragment() {
-            return _fragment
+            return(_fragment)
         }
 
         String toString() {
-            return _url
+            return(_url)
         }
     }
 

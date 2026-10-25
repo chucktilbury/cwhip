@@ -28,7 +28,7 @@ start {
     shapes.Named named = shapes.Named()
     print(named is shapes.Named)
 
-    dict values = {"integer": int64(42), "text": "hello", "real": fp64(3.5), "dictionary": {"key": 1}, "sequence": [1, 2], "object": leaf, "nothing": null, "flag": true, "count": uint64(5u)}
+    dict values = ["integer": int64(42), "text": "hello", "real": fp64(3.5), "dictionary": ["key": 1], "sequence": [1, 2], "object": leaf, "nothing": null, "flag": true, "count": uint64(5u)]
     print(values["integer"] is int64)
     print(values["integer"] is strg)
     print(values["text"] is strg)

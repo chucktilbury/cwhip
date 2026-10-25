@@ -55,12 +55,12 @@ const TestGroupRegistration registration{2, {
          })");
      }},
     {"checked object casts accept class references, null, and collection values", [] {
-         expectValid(R"(class Foo { int64 read() { return 7 } }
+         expectValid(R"(class Foo { int64 read() { return(7) } }
              class Bar : Foo {}
              class Other {}
              start {
                  list values = [Foo(), Bar(), null, 7]
-                 dict mapping = {"value": Bar()}
+                 dict mapping = ["value": Bar()]
                  Foo exact = values[0] as Foo
                  Foo base = values[1] as Foo
                  Foo empty = null as Foo
@@ -74,7 +74,7 @@ const TestGroupRegistration registration{2, {
     {"checked casts support collection payload types and aliases", [] {
          expectValid(R"(class Foo {}
              start {
-                 list values = [1, 2u, true, 3.5, "text", [4], {"x": 5},
+                 list values = [1, 2u, true, 3.5, "text", [4], ["x": 5],
                                 buffer(1), type(int64), Foo(), null]
                  int64 i = values[0] as int64
                  uint64 u = values[1] as uint64
@@ -123,15 +123,15 @@ const TestGroupRegistration registration{2, {
      }},
     {"checked object casts normalize qualified namespace targets", [] {
          expectValid(R"(namespace model {
-             class Foo { int64 read() { return 7 } }
+             class Foo { int64 read() { return(7) } }
              class Casts {
-                 Foo convert(list values) { return values[0] as Foo }
+                 Foo convert(list values) { return(values[0] as Foo) }
              }
          }
          start { print(([model.Foo()][0] as model.Foo).read()) })");
      }},
     {"checked object casts have postfix precedence and compose with calls", [] {
-         auto program = parse(R"(class Foo { int64 read() { return 7 } }
+         auto program = parse(R"(class Foo { int64 read() { return(7) } }
              start { print(([Foo()][0] as Foo).read() + 1) })");
          const auto& sum = *program.statements.front().expressions.front();
          require(sum.kind == cwhip::ExpressionKind::Binary, "addition must be outside cast");

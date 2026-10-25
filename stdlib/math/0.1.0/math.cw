@@ -1,15 +1,15 @@
 namespace Math {
     class Math {
         fp64 pi() {
-            return 3.141592653589793f64
+            return(3.141592653589793f64)
         }
 
         fp64 e() {
-            return 2.718281828459045f64
+            return(2.718281828459045f64)
         }
 
         fp64 tau() {
-            return 6.283185307179586f64
+            return(6.283185307179586f64)
         }
 
         fp64 abs(fp64 x)

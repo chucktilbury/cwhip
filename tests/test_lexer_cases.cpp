@@ -50,15 +50,9 @@ const TestGroupRegistration registration{0, {
                          tokens[8].text == "a\\e",
                      "single-quoted \\\\e did not preserve its backslash");
          }},
-        {"semicolon line comments", [] {
-             cwhip::Lexer lexer("start {\n print(1) ; comment to newline\n print(2)\n}",
-                               "semicolon-comment.cw");
-             const auto tokens = lexer.tokenize();
-             std::size_t integers = 0;
-             for (const auto& token : tokens) {
-                 if (token.type == cwhip::TokenType::Integer) ++integers;
-             }
-             require(integers == 2, "semicolon comment swallowed the following line");
+        {"semicolon is not a line comment", [] {
+             expectDiagnostic("start {\n print(1) ; not a comment\n print(2)\n}",
+                              "unknown character ';': ';' is not a comment; use '#' or '//'");
          }},
         {"hash line comments", [] {
              cwhip::Lexer lexer("start {\n # comment\n print(2)\n}", "hash-comment.cw");
@@ -102,10 +96,10 @@ const TestGroupRegistration registration{0, {
              expectValid("namespace callback {\n"
                          " class Item {\n"
                          "  int32 callback\n"
-                         "  int32 method(int32 callback) { return callback }\n"
+                         "  int32 method(int32 callback) { return(callback) }\n"
                          " }\n"
                          "}\n"
-                         "class Methods { int32 callback() { return 1 } }\n"
+                         "class Methods { int32 callback() { return(1) } }\n"
                          "start {\n"
                          " callback.Item item = callback.Item()\n"
                          " callback.Item callback = item\n"

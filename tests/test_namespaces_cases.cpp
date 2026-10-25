@@ -44,7 +44,7 @@ const TestGroupRegistration registration{5, {
               expectValid(
                   "namespace Remote {\n"
                   "  class Method { int64 value() }\n"
-                  "  int64 Method.value() { return 42 }\n"
+                  "  int64 Method.value() { return(42) }\n"
                   "}\n"
                   "start { print(Remote.Method().value()) }");
          }},
@@ -55,7 +55,7 @@ const TestGroupRegistration registration{5, {
                   "  namespace Inner {\n"
                   "    class Consumer {\n"
                   "      Common dependency\n"
-                  "      Common create() { return Common() }\n"
+                  "      Common create() { return(Common()) }\n"
                   "    }\n"
                   "  }\n"
                   "}\n"
@@ -74,7 +74,7 @@ const TestGroupRegistration registration{5, {
          }},
          {"qualified construction lowers to a constructor AST node", [] {
               const auto program = parse(
-                  "namespace Foo { class Bar { int64 method() { return 42 } } }\n"
+                  "namespace Foo { class Bar { int64 method() { return(42) } } }\n"
                   "start { print(Foo.Bar().method()) }");
               std::ostringstream output;
               cwhip::dumpAst(program, output);

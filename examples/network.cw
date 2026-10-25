@@ -57,23 +57,23 @@ class Dataset {
             }
             lineIndex = lineIndex + 1
         }
-        return accepted
+        return(accepted)
     }
 
     int64 width() {
         if (rows.length == 0) {
-            return 0
+            return(0)
         }
         list first = rows[0]
-        return first.length
+        return(first.length)
     }
 
     int64 features() {
         int64 columns = width()
         if (columns == 0) {
-            return 0
+            return(0)
         }
-        return columns - 1
+        return(columns - 1)
     }
 }
 
@@ -116,19 +116,19 @@ class Network {
     fp64 nextWeight() {
         seed = (seed * 13 + 7) % 10007
         int64 bucket = seed % 9
-        return (fp64(bucket) - 4.0) / 10.0
+        return((fp64(bucket) - 4.0) / 10.0)
     }
 
     fp64 sigmoid(fp64 z) {
         fp64 limited = math.clamp(z, -20.0, 20.0)
-        return 1.0 / (1.0 + math.exp(0.0 - limited))
+        return(1.0 / (1.0 + math.exp(0.0 - limited)))
     }
 
     fp64 crossEntropy(fp64 predicted, fp64 target) {
         fp64 clipped = math.clamp(predicted, 0.0000001, 0.9999999)
         fp64 positive = target * math.log(clipped)
         fp64 negative = (1.0 - target) * math.log(1.0 - clipped)
-        return 0.0 - (positive + negative)
+        return(0.0 - (positive + negative))
     }
 
     fp64 forward(list row) {
@@ -153,7 +153,7 @@ class Network {
             output = output + weight * activation
             unit = unit + 1
         }
-        return sigmoid(output)
+        return(sigmoid(output))
     }
 
     void learn(list row, fp64 rate) {
@@ -183,7 +183,7 @@ class Network {
 
     fp64 meanLoss(list rows) {
         if (rows.length == 0) {
-            return 0.0
+            return(0.0)
         }
         fp64 total = 0.0
         int64 index = 0
@@ -194,7 +194,7 @@ class Network {
             total = total + crossEntropy(predicted, target)
             index = index + 1
         }
-        return total / fp64(rows.length)
+        return(total / fp64(rows.length))
     }
 
     void train(list rows, int64 epochs, fp64 rate) {
@@ -254,7 +254,7 @@ class Network {
         int64 expected = hiddenWeights.length + hiddenBias.length + outputWeights.length + 1
         if (values.length != expected) {
             print(format("weight file has {} values, expected {}\n", values.length, expected))
-            return false
+            return(false)
         }
         int64 cursor = 0
         index = 0
@@ -280,7 +280,7 @@ class Network {
         }
         fp64 bias = values[cursor]
         outputBias = bias
-        return true
+        return(true)
     }
 }
 

@@ -42,7 +42,7 @@ class Fields : Primary, Secondary {
         print(Primary.primary)
         print(Secondary.secondary)
     }
-    int64 read() { return own }
+    int64 read() { return(own)}
     void shadowLocal() {
         int64 own = 200
         inline (int64 own) { *own += 2; }

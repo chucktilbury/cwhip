@@ -16,7 +16,7 @@ class A {
 class B : virtual A {
     int64 initializerArgument() {
         print("B initializer argument")
-        return 1
+        return(1)
     }
 
     B() {

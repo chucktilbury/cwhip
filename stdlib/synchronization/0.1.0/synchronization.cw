@@ -25,15 +25,15 @@ namespace Synchronization {
         }
 
         handle nativeHandle() {
-            return _native
+            return(_native)
         }
 
         bool lock() {
-            return Runtime().mutexLock(_native)
+            return(Runtime().mutexLock(_native))
         }
 
         bool unlock() {
-            return Runtime().mutexUnlock(_native)
+            return(Runtime().mutexUnlock(_native))
         }
 
         bool close() {
@@ -44,7 +44,7 @@ namespace Synchronization {
             if (released) {
                 _native = null
             }
-            return released
+            return(released)
         }
     }
 
@@ -58,15 +58,15 @@ namespace Synchronization {
         }
 
         bool wait(Mutex mutex) {
-            return Runtime().conditionWait(_native, mutex.nativeHandle())
+            return(Runtime().conditionWait(_native, mutex.nativeHandle()))
         }
 
         bool signal() {
-            return Runtime().conditionSignal(_native)
+            return(Runtime().conditionSignal(_native))
         }
 
         bool broadcast() {
-            return Runtime().conditionBroadcast(_native)
+            return(Runtime().conditionBroadcast(_native))
         }
 
         bool close() {
@@ -77,7 +77,7 @@ namespace Synchronization {
             if (released) {
                 _native = null
             }
-            return released
+            return(released)
         }
     }
 

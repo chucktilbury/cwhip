@@ -8,7 +8,7 @@ class PrivateChild : private Base {
 
 class Grandchild : public PrivateChild {
     int64 readValue() {
-        return value
+        return(value)
     }
 }
 

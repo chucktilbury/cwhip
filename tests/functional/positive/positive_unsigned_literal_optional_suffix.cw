@@ -8,7 +8,7 @@ class Counter {
     }
 
     uint64 get() {
-        return 7
+        return(7)
     }
 }
 

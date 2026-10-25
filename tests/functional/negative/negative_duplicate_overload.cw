@@ -5,11 +5,11 @@ class Shape {
     Shape() {}
 
     int64 area(int64 side) {
-        return side
+        return(side)
     }
 
     fp64 area(int64 other) {
-        return 1.0
+        return(1.0)
     }
 }
 

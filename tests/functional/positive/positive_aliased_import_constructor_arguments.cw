@@ -7,11 +7,11 @@ class Box {
     Box(int64 number) { value = "int" }
     Box(bool flag) { value = "bool" }
 
-    String label() { return value }
+    String label() { return(value)}
     void set(String text) { value = text }
     void set(int64 number) { value = "int" }
 
-    Box rebuild() { return Box(sys.FileSystem().basename("/m/method.txt")) }
+    Box rebuild() { return(Box(sys.FileSystem().basename("/m/method.txt")))}
 }
 
 class Pair {

@@ -1,7 +1,7 @@
 # Rejects method lookup when virtual and non-virtual ancestor subobjects are ambiguous.
 class Ancestor {
     int64 read() {
-        return 1
+        return(1)
     }
 }
 

@@ -15,7 +15,7 @@ class Base {
     }
 
     int64 read() {
-        return item.value
+        return(item.value)
     }
 }
 
@@ -28,11 +28,11 @@ class Child : Base {
     }
 
     int64 combined() {
-        return item.value + extra
+        return(item.value + extra)
     }
 
     int64 read() {
-        return item.value + extra
+        return(item.value + extra)
     }
 }
 
@@ -45,11 +45,11 @@ class Grandchild : Child {
     }
 
     int64 total() {
-        return item.value + extra + last
+        return(item.value + extra + last)
     }
 
     int64 read() {
-        return item.value + extra + last
+        return(item.value + extra + last)
     }
 }
 

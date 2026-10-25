@@ -3,7 +3,7 @@ class Base {
     Base() {}
 
     int64 value(int64 input) {
-        return input
+        return(input)
     }
 }
 
@@ -13,7 +13,7 @@ class Child : Base {
     }
 
     strg value(int64 input) {
-        return "wrong"
+        return("wrong")
     }
 }
 

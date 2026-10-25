@@ -4,7 +4,7 @@ namespace main {
 
         int64 main() {
             print("hello from main\n")
-            return 0
+            return(0)
         }
     }
 }

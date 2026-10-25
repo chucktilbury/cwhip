@@ -1,10 +1,10 @@
 # All sixteen ordered scalar pairs, including identities.
 class Scalars {
-    bool flag() { return true }
-    int64 signedValue() { return -7 }
-    uint64 unsignedValue() { return 12u }
-    fp64 fraction() { return 3.75 }
-    int64 fromBool(bool value) { return int64(value) }
+    bool flag() { return(true)}
+    int64 signedValue() { return(-7)}
+    uint64 unsignedValue() { return(12u)}
+    fp64 fraction() { return(3.75)}
+    int64 fromBool(bool value) { return(int64(value))}
 }
 
 start {

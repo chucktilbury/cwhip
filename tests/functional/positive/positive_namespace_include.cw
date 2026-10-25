@@ -4,7 +4,7 @@ include "../includes/namespace_fragment.cw"
 namespace Included {
     class Local {
         int64 value() {
-            return 2
+            return(2)
         }
     }
 }

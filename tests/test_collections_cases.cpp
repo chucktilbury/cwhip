@@ -32,7 +32,7 @@ const TestGroupRegistration registration{4, {
         {"removed collection type spellings are not accepted", [] {
              expectDiagnostic("start {\n  array values = []\n}",
                               "unknown type or class 'array'");
-             expectDiagnostic("start {\n  map values = {}\n}",
+             expectDiagnostic("start {\n  map values = [:]\n}",
                               "unknown type or class 'map'");
          }},
         {"removed collection type spellings are ordinary identifiers", [] {
@@ -83,7 +83,7 @@ const TestGroupRegistration registration{4, {
                               "'any' values cannot be used for member access");
          }},
         {"internal dynamic values cannot receive method calls", [] {
-              expectDiagnostic("class Widget {\n  int64 value\n  int64 get() { return value }\n}\n"
+              expectDiagnostic("class Widget {\n  int64 value\n  int64 get() { return(value) }\n}\n"
                                "start {\n  list bag = [Widget()]\n"
                                "  int64 value = bag[0].get()\n}",
                                "'any' values cannot be used for method calls");
@@ -95,7 +95,7 @@ const TestGroupRegistration registration{4, {
          }},
         {"dict type and literal keys are accepted", [] {
              expectValid("start {\n"
-                         "  dict values = {\"answer\": 42, 'label': \"ok\"}\n"
+                         "  dict values = [\"answer\": 42, 'label': \"ok\"]\n"
                          "  dict alias = values\n"
                          "  int64 result = alias[\"answer\"]\n"
                          "  alias[\"answer\"] = \"changed\"\n"
@@ -103,19 +103,19 @@ const TestGroupRegistration registration{4, {
                          "}");
          }},
         {"dict indexing accepts string expressions", [] {
-             expectValid("start {\n dict values = {}\n strg key = \"x\"\n"
+             expectValid("start {\n dict values = [:]\n strg key = \"x\"\n"
                          " strg value = values[key]\n}");
          }},
         {"dict literal keys must be string literals", [] {
-             expectDiagnostic("start { dict values = {1: \"value\"} }",
+             expectDiagnostic("start { dict values = [1: \"value\"] }",
                               "dict keys must have type strg");
          }},
         {"dict length is read-only", [] {
-             expectDiagnostic("start {\n dict values = {}\n values.length = 1\n}",
+             expectDiagnostic("start {\n dict values = [:]\n values.length = 1\n}",
                               "dict length is read-only");
          }},
         {"dict equality is rejected", [] {
-             expectDiagnostic("start {\n dict values = {}\n dict other = {}\n"
+             expectDiagnostic("start {\n dict values = [:]\n dict other = [:]\n"
                               " int64 same = values == other\n}",
                               "equality requires numeric operands of any supported width");
          }},
@@ -132,8 +132,8 @@ const TestGroupRegistration registration{4, {
              expectValid("class Reader {\n"
                          "  int64 value\n"
                          "  void set(int64 input) { value = input }\n"
-                         "  int64 get() { return value }\n"
-                         "  int64 read(list values) { return values[0] }\n"
+                         "  int64 get() { return(value) }\n"
+                         "  int64 read(list values) { return(values[0]) }\n"
                          "}\n"
                          "start {\n"
                          "  list values = [42]\n"
@@ -145,7 +145,7 @@ const TestGroupRegistration registration{4, {
                          "  list nested = [values[0]]\n"
                          "  nested.append(values[0])\n"
                          "  nested[0] = values[0]\n"
-                         "  dict mapped = {\"value\": values[0]}\n"
+                         "  dict mapped = [\"value\": values[0]]\n"
                          "  mapped[\"value\"] = values[0]\n"
                          "  print(values[0])\n"
                          "  print(format(\"value {}\", values[0]))\n"
@@ -155,33 +155,33 @@ const TestGroupRegistration registration{4, {
                          "}");
          }},
         {"dict slicing accepts integer insertion-order bounds", [] {
-             expectValid("start {\n dict values = {\"a\": 1, \"b\": 2}\n"
+             expectValid("start {\n dict values = [\"a\": 1, \"b\": 2]\n"
                          " dict copy = values[0:1]\n"
                          " print(copy.length)\n}");
          }},
         {"dict removal accepts one string key", [] {
-             expectValid("start {\n dict values = {\"a\": 1}\n"
+             expectValid("start {\n dict values = [\"a\": 1]\n"
                          " int64 removed = values.remove(\"a\")\n"
                          " print(removed)\n}");
          }},
         {"dict removal rejects a non-string key", [] {
-             expectDiagnostic("start {\n dict values = {}\n"
+             expectDiagnostic("start {\n dict values = [:]\n"
                               " int64 removed = values.remove(1)\n}",
                               "dict key must have type strg");
          }},
         {"dict removal rejects incorrect arity", [] {
-             expectDiagnostic("start {\n dict values = {}\n"
+             expectDiagnostic("start {\n dict values = [:]\n"
                               " int64 removed = values.remove()\n}",
                               "dict 'remove' expects one strg key");
          }},
         {"dict slice bounds require integers", [] {
-             expectDiagnostic("start {\n dict values = {}\n"
+             expectDiagnostic("start {\n dict values = [:]\n"
                               " dict copy = values[\"a\":\"z\"]\n}",
                               "dict index and slice bounds must be integers");
          }},
          {"dict contains and collection iteration are accepted", [] {
               expectValid("start {\n"
-                          "  dict values = {\"one\": 1}\n"
+                          "  dict values = [\"one\": 1]\n"
                           "  strg key = \"one\"\n"
                           "  int64 present = values.contains(key)\n"
                           "  for (name, value in values) { print(name) }\n"
@@ -191,7 +191,7 @@ const TestGroupRegistration registration{4, {
          }},
          {"dict iteration supports value-only and key/value bindings", [] {
               expectValid("start {\n"
-                          "  dict values = {\"one\": 1}\n"
+                          "  dict values = [\"one\": 1]\n"
                           "  for (value in values) { print(value) }\n"
                           "  for (key, value in values) { print(key) }\n"
                           "}");
@@ -202,7 +202,7 @@ const TestGroupRegistration registration{4, {
                                "list iteration accepts one value variable");
          }},
          {"dict keys must be statically typed strings", [] {
-               expectDiagnostic("start {\n dict values = {}\n list keys = [\"x\"]\n"
+               expectDiagnostic("start {\n dict values = [:]\n list keys = [\"x\"]\n"
                                 " dict value = values[keys[0]]\n}",
                                "dict keys must have type strg");
          }}

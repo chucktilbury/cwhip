@@ -227,7 +227,7 @@ void Lexer::skipTrivia(std::vector<Token>& tokens, std::size_t parenthesisDepth)
                std::isspace(static_cast<unsigned char>(peek())) != 0) {
             advance();
         }
-        if (peek() == ';' || peek() == '#') {
+        if (peek() == '#') {
             while (!atEnd() && peek() != '\n') {
                 advance();
             }
@@ -540,6 +540,9 @@ std::vector<Token> Lexer::tokenize() {
         advance();
         TokenType type;
         switch (value) {
+        case ';':
+            throw DiagnosticError(location,
+                                  "unknown character ';': ';' is not a comment; use '#' or '//'");
         case '{': type = TokenType::LeftBrace; break;
         case '}': type = TokenType::RightBrace; break;
         case '(': type = TokenType::LeftParen; break;

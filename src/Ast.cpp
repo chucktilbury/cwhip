@@ -39,9 +39,9 @@ ClassDeclaration makeBuiltinExceptionClass() {
     declaration.builtin = true;
     declaration.location = {"<builtin>", 1, 1};
     declaration.fields.push_back(
-        {"String", "message", declaration.location, AccessLevel::Public});
+        {"String", "message", declaration.location, AccessLevel::Public, nullptr});
     declaration.fields.push_back(
-        {"bool", "runtime_owns_message", declaration.location, AccessLevel::Private});
+        {"bool", "runtime_owns_message", declaration.location, AccessLevel::Private, nullptr});
 
     MethodDeclaration constructor;
     constructor.name = "Exception";
@@ -274,6 +274,7 @@ void dumpAst(const Program& program, std::ostream& output) {
         for (const auto& field : declaration.fields) {
             indent(output, 2);
             output << "Field [" << field.type << " " << field.name << "]\n";
+            if (field.initializer) dumpExpression(*field.initializer, output, 3);
         }
         for (const auto& member : declaration.enumMembers) {
             indent(output, 2);

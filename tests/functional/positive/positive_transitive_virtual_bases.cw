@@ -31,11 +31,11 @@ class Ancestor : Common {
     }
 
     int64 read() {
-        return value
+        return(value)
     }
 
     int64 baseRead() {
-        return value
+        return(value)
     }
 
     destroy {
@@ -86,7 +86,7 @@ class Diamond : Left, Right {
     }
 
     int64 read() {
-        return 77
+        return(77)
     }
 
     destroy {

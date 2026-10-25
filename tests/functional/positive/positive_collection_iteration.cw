@@ -5,13 +5,13 @@ class Node {
         value = initial
     }
     int64 read() {
-        return value
+        return(value)
     }
 }
 
 start {
     strg selected = "dynamic"
-    dict table = {"first": Node(10), selected: Node(20), "third": Node(30)}
+    dict table = ["first": Node(10), selected: Node(20), "third": Node(30)]
     print(table.length)
     print(table.contains(selected))
     print(table.contains("absent"))

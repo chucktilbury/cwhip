@@ -8,19 +8,19 @@ class PublicChild : public Base {
 
 class ProtectedChild : protected Base {
     int64 readValue() {
-        return value
+        return(value)
     }
 }
 
 class PrivateChild : private Base {
     int64 readValue() {
-        return value
+        return(value)
     }
 }
 
 class ProtectedGrandchild : public ProtectedChild {
     int64 readAgain() {
-        return value
+        return(value)
     }
 }
 

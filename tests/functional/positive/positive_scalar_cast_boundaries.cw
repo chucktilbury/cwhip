@@ -1,8 +1,8 @@
 class Conversions {
-    uint64 toUnsigned(int64 value) { return uint64(value) }
-    int64 toInt(uint64 value) { return int64(value) }
-    int64 floatToInt(fp64 value) { return int64(value) }
-    uint64 floatToUnsigned(fp64 value) { return uint64(value) }
+    uint64 toUnsigned(int64 value) { return(uint64(value))}
+    int64 toInt(uint64 value) { return(int64(value))}
+    int64 floatToInt(fp64 value) { return(int64(value))}
+    uint64 floatToUnsigned(fp64 value) { return(uint64(value))}
 }
 
 start {

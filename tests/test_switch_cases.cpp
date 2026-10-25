@@ -28,7 +28,7 @@ const TestGroupRegistration registration{16, {
         require(keywords[0].type == T::Switch && keywords[1].type == T::Case &&
                     keywords[2].type == T::Default && keywords[3].type == T::Identifier,
                 "switch keywords should be case insensitive");
-        expectValid("class C { enum { NEXT = 1 }\n int64 next() { return NEXT } }\n"
+        expectValid("class C { enum { NEXT = 1 }\n int64 next() { return(NEXT) } }\n"
                     "start { C c = C()\n int64 next = c.next()\n next += 1\n"
                     "switch (next) { case (2) { NeXt } default {} } }");
     }},
@@ -67,10 +67,10 @@ start {
         }
         expectDiagnostic("start { int64 value = 1\n"
                          "switch (value) { case (value) {} } }", "compile-time");
-        expectDiagnostic("class C { int64 get() { return 1 } }\n"
+        expectDiagnostic("class C { int64 get() { return(1) } }\n"
                          "start { C c = C()\n switch (1) { case (c.get()) {} } }",
                          "compile-time");
-        expectDiagnostic("class C { enum { VALUE = 1 }\n C get() { return C() } }\n"
+        expectDiagnostic("class C { enum { VALUE = 1 }\n C get() { return(C()) } }\n"
                          "start { C c = C()\n switch (1) { case (c.get().VALUE) {} } }",
                          "not an instance expression");
     }},
@@ -199,8 +199,8 @@ start {
     }},
     {"switch constant expressions preserve numeric semantics", [] {
         expectValid("class C { enum { ONE = 1, THREE = ONE + 2 }\n"
-                    "int64 f(int64 x) { switch (x) { case (ONE + 1) { return 2 }"
-                    " case (C.THREE) { next } default { return 3 } } } }\n"
+                    "int64 f(int64 x) { switch (x) { case (ONE + 1) { return(2) }"
+                    " case (C.THREE) { next } default { return(3) } } } }\n"
                     "start { switch (uint8(0)) {"
                     " case (uint8(255) + uint8(1)) {}"
                     " case (int16(1) << 2, ~uint8(0), int64(3.0)) {} } }");
@@ -214,8 +214,8 @@ start {
         expectValid("namespace N { class C {} class D {"
                     "int64 run(int64 x) { switch (x) {"
                     " case (1) { C local = C()\n next }"
-                    " case (2) { C local = C()\n return 2 }"
-                    " default { return 3 } } } } }\nstart {}");
+                    " case (2) { C local = C()\n return(2) }"
+                    " default { return(3) } } } } }\nstart {}");
         expectValid("start { int64 x\n switch (1) {"
                     " case (1) { x = 1 } default { x = 2 } } print(x) }");
         expectDiagnostic("start { int64 x\n switch (1) {"
@@ -224,7 +224,7 @@ start {
                          " case (1) { int64 x = 1\n next } default { print(x) } } }",
                          "undefined variable");
         expectDiagnostic("class C { int64 f(int64 x) { switch (x) {"
-                         " case (1) { return 1 } } } }\nstart {}", "return");
+                         " case (1) { return(1) } } } }\nstart {}", "return");
         expectDiagnostic("class C { int64 f(int64 x) { switch (x) {"
                          " case (1) { next } default {} } } }\nstart {}", "return");
         expectValid("class C { C() { switch (1) { default { return } } } }\nstart {}");
@@ -236,7 +236,7 @@ start {
                          " super B()\n switch (1) { default { super B() } } } }\nstart {}",
                          "direct leading constructor");
         expectDiagnostic("class C { int64 f() { try {} finally {"
-                         " switch (1) { default { return 1 } } } return 2 } }\nstart {}",
+                         " switch (1) { default { return(1) } } } return(2) } }\nstart {}",
                          "return is not allowed inside finally");
     }},
 }};

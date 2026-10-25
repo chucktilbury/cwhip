@@ -5,12 +5,12 @@ class Node {
         value = initial
     }
     int64 read() {
-        return value
+        return(value)
     }
 }
 
 start {
-    dict table = {"first": 1, "second": 2, "third": 3, "fourth": 4, "fifth": 5}
+    dict table = ["first": 1, "second": 2, "third": 3, "fourth": 4, "fifth": 5]
     dict middle = table[1:4]
     print(middle.length)
     middle["second"] = 20
@@ -49,7 +49,7 @@ start {
 
     list inner = [Node(77)]
     list nested = [inner, [1, 2]]
-    dict graph = {"nested": nested}
+    dict graph = ["nested": nested]
     list recovered = graph["nested"]
     list recoveredInner = recovered[0]
     Node retained = recoveredInner[0]

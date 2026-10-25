@@ -138,8 +138,12 @@ ClassDeclaration Parser::parseClass() {
             declaration.methods.push_back(std::move(method));
         } else {
             if (typeName == "void") error(type, "fields cannot have type void");
+            FieldDeclaration field{typeName, member.text, type.location, memberAccess, nullptr};
+            if (match(TokenType::Equal)) {
+                field.initializer = parseExpression();
+            }
             consumeStatementTerminator();
-            declaration.fields.push_back({typeName, member.text, type.location, memberAccess});
+            declaration.fields.push_back(std::move(field));
         }
     }
     consume(TokenType::RightBrace, "'}' after class body");

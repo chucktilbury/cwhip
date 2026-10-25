@@ -3,28 +3,28 @@ class AccessBase {
     public:
     int64 publicValue
     int64 publicMethod() {
-        return publicValue
+        return(publicValue)
     }
 
     protected:
     int64 protectedValue
     int64 protectedMethod() {
-        return protectedValue
+        return(protectedValue)
     }
 
     private:
     int64 privateValue
     int64 privateMethod() {
-        return privateValue
+        return(privateValue)
     }
 
     public:
     int64 readPrivate() {
-        return privateValue
+        return(privateValue)
     }
 
     int64 readPrivateMethod(AccessBase self) {
-        return self.privateMethod()
+        return(self.privateMethod())
     }
 }
 
@@ -32,7 +32,7 @@ class AccessChild : public AccessBase {
     public:
     int64 readProtected(AccessChild self) {
         self.protectedValue = 7
-        return self.protectedMethod()
+        return(self.protectedMethod())
     }
 }
 

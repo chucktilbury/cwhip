@@ -74,6 +74,14 @@ add_test(NAME cwhip_switch_execution
 add_test(NAME cwhip_range_execution
     COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/test_range_execution.py"
         --compiler "$<TARGET_FILE:cwhip>" --clang "${CWHIP_CLANG_EXECUTABLE}")
+add_test(NAME cwhip_syntax_execution
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/test_syntax_execution.py"
+        --compiler "$<TARGET_FILE:cwhip>")
+add_test(NAME cwhip_field_initializer_execution
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/test_field_initializer_execution.py"
+        --compiler "$<TARGET_FILE:cwhip>" --clang "${CWHIP_CLANG_EXECUTABLE}"
+        --work-dir "${CMAKE_CURRENT_BINARY_DIR}/field-initializer-execution"
+        "--sanitize=${CWHIP_SANITIZER_LIST}")
 add_test(NAME cwhip_numeric_sdk
     COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/test_numeric_sdk.py"
         --sdk "${CWHIP_STAGE_PREFIX}" --clang "${CWHIP_CLANG_EXECUTABLE}")

@@ -8,11 +8,11 @@ class Counter {
 
     int64 add(int64 amount) {
         value = value + amount
-        return value
+        return(value)
     }
 
     int64 get() {
-        return value
+        return(value)
     }
 }
 

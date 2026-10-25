@@ -5,7 +5,7 @@ namespace Remote {
     }
 
     int64 Method.value() {
-        return 42
+        return(42)
     }
 }
 

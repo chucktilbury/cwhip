@@ -12,12 +12,12 @@ class Child : Base {
     }
 
     int64 read() {
-        return value
+        return(value)
     }
 }
 
 start {
-    ; Cwhip-style line comment
+    # Cwhip-style line comment
     Child child = Child(40)
     child.value = child.read() + 2
     # Hash line comment

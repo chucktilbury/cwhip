@@ -12,7 +12,7 @@ class Holder {
         nodes = initial
     }
     list copyNodes(list source) {
-        return source[0:2]
+        return(source[0:2])
     }
 }
 
