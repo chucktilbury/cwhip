@@ -1,5 +1,6 @@
 # Documentation
 
+- [Your first program: install the SDK, build standalone cedit, and run hello world](FIRST-PROGRAM.md)
 - [Getting started: install, create a project, edit, build, and debug](GETTING_STARTED.md)
 - [Historical Cwhip language notes](CWHIP-LANGUAGE-NOTES.md)
 - [Cwhip grammar reference](GRAMMAR.md)

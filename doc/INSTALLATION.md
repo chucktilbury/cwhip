@@ -6,6 +6,10 @@ The [cedit editor](https://github.com/chucktilbury/cedit) and
 [cdbg debugger](https://github.com/chucktilbury/cdbg) are standalone SDK consumers;
 this repository does not build or install either application.
 
+For that SDK-first, standalone-editor workflow from an empty source directory,
+see [Your first program](FIRST-PROGRAM.md). It uses a dedicated user-local
+prefix and explicit SDK selection without registering user SDK settings.
+
 The compiler uses CMake and requires Clang on `PATH` to compile and link its
 generated LLVM IR. The project uses C11 and C++17. Building and running
 `cwhip-pkg` also requires Python 3.11 or newer; installing packages requires

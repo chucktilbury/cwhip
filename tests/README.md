@@ -139,7 +139,7 @@ HOME diagnostics. The install-layout test verifies that a real install using
 `cwhip_install_path_boundaries` checks canonical source/build containment before
 temporary directories are created, including symlinks and normalized paths.
 Install tests require `TMPDIR` (or `/tmp`) outside both trees; similarly prefixed
-sibling directories such as `cwhip` and `cwhip-workspace` are allowed. Their
+sibling directories such as `cwhip` and `cwhip-consumer` are allowed. Their
 output checks still reject references to the source/build roots or their files.
 
 `cwhip_install_incompatible_packages` checks the install-time handling of
