@@ -16,12 +16,10 @@ def main() -> None:
     parser.add_argument("--manifest", type=Path, required=True)
     parser.add_argument("--list", action="store_true")
     parser.add_argument("--compiler", type=Path)
-    parser.add_argument("--executable", type=Path)
     parser.add_argument("--work", type=Path)
     parser.add_argument("--case")
     parser.add_argument("--gtk", action="store_true")
     parser.add_argument("--sourceview", action="store_true")
-    parser.add_argument("--default-shortcuts", action="store_true")
     parser.add_argument("--xvfb")
     args = parser.parse_args()
     cases = json.loads(args.manifest.read_text())
@@ -47,12 +45,6 @@ def main() -> None:
         env = environment(work)
         case = dict(cases[args.case])
         source = project / args.case
-        if case.get("requires") == "sourceview":
-            (project / "editor-a.cw").write_text("start { print(\"a\") }\n")
-            (project / "editor-b.cw").write_text("start { print(\"b\") }\n")
-            if not args.default_shortcuts:
-                (project / "cwhip-shortcuts.conf").write_text(
-                    "<Control><Alt>s=save\n<Control><Alt>s=open\n")
         if "driver" in case:
             source = project / "driver.cw"
             source.write_text(case["driver"])
@@ -63,8 +55,7 @@ def main() -> None:
             if case.get("requires") == "sourceview":
                 assert args.sourceview, "GtkSourceView example requires CWHIP_GTK_SOURCEVIEW"
             with headless(args.xvfb, work, env) as gtk_env:
-                check_program(args.compiler.resolve(), source, project, case, gtk_env,
-                              args.executable.resolve() if args.executable else None)
+                check_program(args.compiler.resolve(), source, project, case, gtk_env)
         else:
             check_program(args.compiler.resolve(), source, project, case, env)
 

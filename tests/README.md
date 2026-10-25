@@ -1,9 +1,5 @@
 # Tests
 
-The separate `cdbg_*` cases cover the local GDB-backed GTK debugger prototype,
-its structured MI parser, source compilation, controls/inspection, failure
-paths and child-process cleanup. See [debugger checks](../doc/CDBG.md#checks).
-
 This directory contains C++ unit/structural tests, CTest case definitions, and
 functional Cwhip programs. Build the repository with CMake, then run the full
 suite from the repository root:
@@ -104,21 +100,18 @@ exits at EOF. It also configures the real source tree once into a temporary
 compiler-only build directory. Run it directly with
 `python3 tests/test_setup.py [--cmake "$(command -v cmake)"]`.
 
-With GTK tests enabled, `cedit_project_explorer` drives the actual cedit model,
-native parented folder chooser and GTK tree activation under private Xvfb/dbus
-and isolated HOME/XDG directories. It covers lazy expansion, duplicate focus,
-hidden entries, refresh, read errors, non-UTF-8 filenames, symlink loops, stale
-results and teardown during enumeration. Its 20,000-file case requires every
-entry to arrive, fewer than 1,000 live row widgets and a GUI heartbeat gap below
-300ms; it prints measured latency rather than just asserting small-tree output.
-The same fixture is used by sanitizer configurations. The permission-denied
-case expects an ordinary unprivileged test user.
-Folder chooser regressions include acceptance/cancellation, immediate repeated
-cancellation, and parent close/shutdown both before and after mapping.
-`cwhip_gtk_bindings` separately checks all four `GtkFileDialog` operations,
+With GTK tests enabled, `cwhip_gtk` checks widgets (including tree models),
+callbacks, single-instance forwarding and SDK consumers under private Xvfb/dbus
+and isolated HOME/XDG directories.
+`cwhip_gtk_bindings` checks all four `GtkFileDialog` operations,
 callback-root release under GC and native finalization after late cancellation
-completions; `cedit_dialogs` preserves Open multi-select and Save/Save As
-overwrite/cancel coverage.
+completions, chooser accept/cancel/overwrite, SourceView language highlighting,
+editing/search/undo/redo, file round trips, notebook buffers, allocations and
+shortcut disposal. Application-level tests live in the standalone
+[cedit](https://github.com/chucktilbury/cedit) and
+[cdbg](https://github.com/chucktilbury/cdbg) repositories.
+Direct binding fixtures also check native view settings and TOML parsing/merging,
+atomic saves, concurrent-edit rejection and pending-save shutdown behavior.
 
 Parser and semantic fixtures consumed by `cwhip_tests` use a
 `<fixture>.cw.json` file beside the `.cw` file with `friendly_name`,

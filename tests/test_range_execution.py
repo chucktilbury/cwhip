@@ -318,22 +318,30 @@ start {
             debugger_script = work / "check-ranges.gdb"
             debugger_script.write_text(
                 f"break {debug_source}:5\nrun\npython\n"
-                "scope = {}\n"
-                f"exec(open({str(root / 'tools/cdbg/values.py')!r}).read().split("
-                "'class Inspector', 1)[0], scope)\n"
                 "import gdb\n"
-                "assert scope['friendly'](gdb.parse_and_eval('descending'), True) "
-                "== 'range<int64> -2..-4'\n"
-                "assert scope['friendly'](gdb.parse_and_eval('high'), True) "
-                "== 'range<uint64> 18446744073709551615..0'\n"
-                "assert 'range<uint64> 18446744073709551615..0' in "
-                "scope['friendly'](gdb.parse_and_eval('stored'), True)\n"
+                "assert gdb.parse_and_eval('descending').type.target().tag == 'range<int64>'\n"
+                "assert gdb.parse_and_eval('high').type.target().tag == 'range<uint64>'\n"
+                "native = gdb.lookup_type('CwhipRange').pointer()\n"
+                "signed = gdb.lookup_type('int64_t')\n"
+                "descending = gdb.parse_and_eval('descending').cast(native).dereference()\n"
+                "assert int(descending['element_tag']) == 1\n"
+                "assert int(descending['first'].cast(signed)) == -2\n"
+                "assert int(descending['last'].cast(signed)) == -4\n"
+                "high = gdb.parse_and_eval('high').cast(native).dereference()\n"
+                "assert int(high['element_tag']) == 8\n"
+                "assert int(high['first']) == 18446744073709551615\n"
+                "assert int(high['last']) == 0\n"
+                "stored = gdb.parse_and_eval('stored').cast("
+                "gdb.lookup_type('CwhipArray').pointer()).dereference()\n"
+                "assert int(stored['length']) == 1\n"
+                "assert stored['values'][0]['tag'] == 19\n"
+                "assert stored['values'][0]['pointer'] == high.address\n"
                 "print('RANGE_DEBUG_PASS')\nend\n")
             result = run([gdb, "--batch", "-x", str(debugger_script), str(debug_executable)])
             assert "RANGE_DEBUG_PASS" in result.stdout, result.stdout + result.stderr
-            print("PASS range debugger decoding with real GDB values")
+            print("PASS range DWARF types and runtime layout with real GDB values")
         else:
-            print("NOT CONFIGURED range debugger decoding (gdb unavailable)")
+            print("NOT CONFIGURED range DWARF checks (gdb unavailable)")
         print(f"PASS {checks} range checks plus snapshots, GC round trips, cleanup and slices "
               "at O0/O2, normal/GC stress")
 

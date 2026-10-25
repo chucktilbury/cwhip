@@ -174,9 +174,10 @@ relative to the running executable, never through a compiler checkout or
 configured absolute SDK prefix. Flat test programs can instead carry the same
 `share` tree alongside the executable.
 
-Compiler-integrated editor/debugger targets remain legacy development
-examples, not the external application interface. Standalone cedit and cdbg
-consume only this installed contract and own their tests/install rules.
+The standalone [cedit](https://github.com/chucktilbury/cedit) and
+[cdbg](https://github.com/chucktilbury/cdbg) applications consume only this
+installed contract and own their sources, build targets, tests and install rules.
+No copies or application targets remain in the compiler repository.
 They remain proof-of-concept applications. GNU/Clang builds retain runtime
 type debug metadata even with Release optimization so the debugger can inspect
 runtime-private layouts without source files. Do not strip that metadata from

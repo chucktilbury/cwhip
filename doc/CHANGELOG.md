@@ -25,6 +25,15 @@ proof of concept and compiler-testing tool, not a production IDE/debugger.
 
 ## Implemented milestones
 
+### Unreleased: Standalone GUI applications
+
+The bundled editor/debugger sources, build targets and application-specific
+tests have been removed. [cedit](https://github.com/chucktilbury/cedit) and
+[cdbg](https://github.com/chucktilbury/cdbg) now build in their own repositories
+against the installed SDK. The GTK/SourceView packages, language definition
+and compiler-owned headless binding coverage remain here. GUI descriptions
+below are historical, not instructions for building the current checkout.
+
 ### Unreleased: Fixed-width numeric SDK (0.0.2)
 
 The `numeric-v2` SDK migrates bundled source APIs to exact numeric types while

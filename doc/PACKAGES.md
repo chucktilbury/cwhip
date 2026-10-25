@@ -183,7 +183,9 @@ or package instead of accepting the changed bytes.
 
 If the SDK update was intentional and its contents have been verified:
 
-- For `cwhip_add_program` consumers such as standalone cedit/cdbg, configure and
+- For `cwhip_add_program` consumers such as standalone
+  [cedit](https://github.com/chucktilbury/cedit) and
+  [cdbg](https://github.com/chucktilbury/cdbg), configure and
   build in a fresh binary directory. The helper creates a new private project
   and locks the selected SDK there without modifying the old build's lock.
   See [CMake SDK recovery](CMAKE-SDK.md#refreshing-generated-application-locks).
