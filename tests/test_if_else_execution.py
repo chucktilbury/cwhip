@@ -24,7 +24,7 @@ class Checks {
     int64 evaluations
     bool condition(bool result) {
         evaluations += 1
-        return result
+        return(result)
     }
 }
 start {

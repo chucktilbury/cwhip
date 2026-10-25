@@ -229,9 +229,10 @@ declaration shadows an outer binding; assignments to the inner variable do not
 change the outer one, and shadowing currently emits no warning. Redeclaring a
 name in the same scope is an error. The compiler diagnoses a read that may
 occur before initialization. Parameters and fields are introduced by their
-declarations; fields have no initializer syntax, and `for` loop variables
-exist only in the loop body. Assignment operators are statements, not
-expressions. `=` assigns normally; arithmetic, bitwise, and shift compound
+declarations; fields may use
+[compile-time constant initializers](#compile-time-field-initializers), and `for`
+loop variables exist only in the loop body. Assignment operators are statements,
+not expressions. `=` assigns normally; arithmetic, bitwise, and shift compound
 assignments update numeric variables or object fields using the corresponding
 operation and conversion back to the target type.
 Operands follow the normal common-type rules; `%=` and bitwise/shift forms
@@ -404,8 +405,33 @@ See `statement` and its named productions.
 Conditions are parenthesized and must be `bool`. An `else (condition)` clause
 continues an `if` chain: conditions are evaluated lazily in source order, and
 only the first true branch executes. Any number of conditional `else` clauses
-may precede one optional, final bare `else`. `else if` is not supported. The
-`do` body executes at least once.
+may precede one optional, final bare `else`. Each clause requires a block;
+`else if` and `else ()` are not supported. Newlines may separate `}` from `else`
+or a condition from its block, but not `else` from its opening `(`.
+
+```cwhip
+# Complete program: conditional alternatives and parenthesized return values.
+// test: {"stdout": "less\n"}
+class Comparison {
+    strg describe(int left, int right) {
+        if (left == right) {
+            return("equal")
+        }
+        else (left > right) {
+            return("greater")
+        }
+        else {
+            return("less")
+        }
+    }
+}
+start {
+    Comparison comparison()
+    print("{}\n", comparison.describe(1, 2))
+}
+```
+
+The `do` body executes at least once.
 `for (value in collection)` iterates list values; `for (key, value in dict)`
 iterates dict keys and values. The value variable has type `any`; the key
 variable has type `String`. `break` and `continue` are valid only in loops.
