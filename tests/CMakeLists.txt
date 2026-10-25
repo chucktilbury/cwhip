@@ -71,6 +71,9 @@ add_test(NAME cwhip_numeric_execution
 add_test(NAME cwhip_switch_execution
     COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/test_switch_execution.py"
         --compiler "$<TARGET_FILE:cwhip>" --clang "${CWHIP_CLANG_EXECUTABLE}")
+add_test(NAME cwhip_if_else_execution
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/test_if_else_execution.py"
+        --compiler "$<TARGET_FILE:cwhip>" --clang "${CWHIP_CLANG_EXECUTABLE}")
 add_test(NAME cwhip_range_execution
     COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/test_range_execution.py"
         --compiler "$<TARGET_FILE:cwhip>" --clang "${CWHIP_CLANG_EXECUTABLE}")
@@ -279,10 +282,10 @@ add_test(NAME cwhip_cli_rejects_multiple_inputs
         "${CMAKE_CURRENT_SOURCE_DIR}/functional/cli/multi/second-start.cw"
 )
 set_tests_properties(cwhip_cli_rejects_multiple_inputs PROPERTIES WILL_FAIL TRUE)
-add_test(NAME cwhip_cli_rejects_conditional_else
-    COMMAND $<TARGET_FILE:cwhip> "${CMAKE_CURRENT_SOURCE_DIR}/functional/negative/negative_conditional_else.cw"
+add_test(NAME cwhip_cli_rejects_else_if
+    COMMAND $<TARGET_FILE:cwhip> "${CMAKE_CURRENT_SOURCE_DIR}/functional/negative/negative_else_if.cw"
 )
-set_tests_properties(cwhip_cli_rejects_conditional_else PROPERTIES WILL_FAIL TRUE)
+set_tests_properties(cwhip_cli_rejects_else_if PROPERTIES WILL_FAIL TRUE)
 
 
 
