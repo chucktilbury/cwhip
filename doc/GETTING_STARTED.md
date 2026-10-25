@@ -6,6 +6,10 @@ route; add the optional GTK SDK and standalone applications when you need them.
 Cwhip and its applications are active prototypes, not a production toolchain
 with a stable cross-version ABI.
 
+For a shorter editor-led walkthrough without a project generator or package
+downloads, follow [Your first program](FIRST-PROGRAM.md): install the SDK,
+build standalone cedit with its own `scripts/setup`, and write/run hello world.
+
 ## Contents
 
 - [What you will install](#what-you-will-install)

@@ -158,6 +158,11 @@ package edits still fail the content check.
 
 ## GUI application resources
 
+For a complete SDK-first installation followed by each standalone app's own
+`scripts/setup` and build/install commands, see
+[Your first program](FIRST-PROGRAM.md). No multi-repository orchestration is
+needed; compiler and app tests are owned and run by their respective projects.
+
 Call `cwhip_require_sourceview([RESOURCE_DIRECTORY dir])` before
 `cwhip_add_program` to require GUI bindings and host development libraries.
 It creates the `cwhip_language_resources` build target and installs the SDK's

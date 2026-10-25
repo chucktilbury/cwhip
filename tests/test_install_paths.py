@@ -56,10 +56,10 @@ class InstallPathTests(unittest.TestCase):
                     self.check_directory(str(root) + suffix, rejected=rejected)
         self.check_directory(self.root, rejected=False)
         self.check_directory(self.root / "outside/../cwhip/tmp", rejected=True)
-        self.check_directory(self.source / "../cwhip-workspace/tmp", rejected=False)
+        self.check_directory(self.source / "../cwhip-consumer/tmp", rejected=False)
 
     def test_symlink_boundaries(self):
-        sibling = self.root / "cwhip-workspace"
+        sibling = self.root / "cwhip-consumer"
         sibling.mkdir()
         for root in (self.source, self.build):
             alias = self.root / "alias"

@@ -1,5 +1,8 @@
 # Cwhip compiler
 
+For an editor-led hello world, follow [Your first program](doc/FIRST-PROGRAM.md):
+install the SDK, build standalone cedit, and compile/run your own source file.
+
 New to Cwhip? Start with the [getting started guide](doc/GETTING_STARTED.md)
 for a source-first SDK install, a working project, language basics, packages,
 and the optional standalone editor/debugger.
