@@ -631,8 +631,10 @@ start {
 All creation, properties, parenting, signals, queries and disposal require the
 designated registered GUI thread and its managed lock. Worker threads cannot
 call widget methods, disconnect signals or query GUI state directly; use `post`.
-Callbacks use the existing `callback<R(P...)>` bridge and exact context-first
-adapters. Package-native forwarding, callback transfers, and thread/lock checks
+Callable source types use `R<P...>`, such as `void<>` and `void<String>`.
+The native callback bridge retains the canonical ABI signature string
+`callback<R(P...)>` and exact context-first adapters.
+Package-native forwarding, callback transfers, and thread/lock checks
 are private implementation machinery, not public raw-pointer APIs.
 
 `run()` releases the managed lock across `g_application_run()` so workers progress

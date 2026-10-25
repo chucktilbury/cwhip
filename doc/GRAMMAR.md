@@ -166,7 +166,7 @@ class-member        ::= access-section
                       | destructor-declaration
                       | method-declaration ;
 access-section      ::= ("public" | "protected" | "private"), ":", { NEWLINE } ;
-field-declaration   ::= type, IDENT, terminator ;
+field-declaration   ::= type, IDENT, [ "=", expression ], terminator ;
 anonymous-enum-declaration
                     ::= "enum", "{", { NEWLINE },
                         [ enum-member,
@@ -271,7 +271,7 @@ if-statement        ::= "if", "(", expression, ")", { NEWLINE }, block,
                         { { NEWLINE }, conditional-else-clause },
                         [ { NEWLINE }, "else", { NEWLINE }, block ] ;
 conditional-else-clause
-                    ::= "else", { NEWLINE }, "(", expression, ")",
+                    ::= "else", "(", expression, ")",
                         { NEWLINE }, block ;
 switch-statement    ::= "switch", "(", expression, ")", { NEWLINE }, "{",
                         { NEWLINE }, { case-branch, { NEWLINE } },
@@ -319,7 +319,15 @@ require an instance context.
 `direct-constructor-arguments` is accepted only when `type` is a class name
 (a `QUALIFIED_IDENT`), not a built-in type such as `int8`, `strg`, or `buffer`.
 It constructs the declared class directly; it does not declare a function.
-Class fields still have no initializer syntax.
+Class fields accept `= expression` only for compile-time constant initializers;
+runtime expressions and direct-constructor arguments are not accepted there.
+See [compile-time field initializers](LANGUAGE-REFERENCE.md#compile-time-field-initializers).
+
+Conditional `else (expression)` clauses lower to nested `if` statements in the
+preceding branch's alternate block, so conditions are evaluated lazily in order
+and at most one body executes. A bare `else` must be last. Every clause requires
+a block; `else if` and `else ()` are not accepted. Newlines may separate `}` from
+`else` or a condition from its block, but not `else` from its opening `(`.
 
 A switch selector must be integral (`int8` through `uint64`, including class
 enum constants, which have type `int64`). Labels and inclusive range endpoints
