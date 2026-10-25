@@ -48,6 +48,30 @@ const TestGroupRegistration registration{1, {
                                std::string(100, ')') + ") }", "nesting.cw");
              (void)cwhip::Parser(lexer.tokenize()).parseProgram();
          }},
+        {"conditional else clauses form nested if branches", [] {
+             const auto program = parse(
+                 "start {\n"
+                 " if (false) {}\n"
+                 " else (true) {}\n"
+                 " else {}\n"
+                 "}\n");
+             const auto& first = program.statements.front();
+             require(first.kind == cwhip::StatementKind::If &&
+                         first.hasAlternate && first.alternate.size() == 1,
+                     "first conditional branch is missing its alternate");
+             const auto& second = first.alternate.front();
+             require(second.kind == cwhip::StatementKind::If &&
+                         second.hasAlternate && second.alternate.empty() &&
+                         second.expressions.front()->location.line == 3 &&
+                         second.location.line == 3,
+                     "conditional else branch or its source location is incorrect");
+             expectDiagnostic("start {\n if (false) {}\n else {}\n else (true) {}\n}",
+                              "unconditional 'else' must be the final clause");
+             expectDiagnostic("start { if (false) {} else if (true) {} }",
+                              "expected '{'");
+             expectDiagnostic("start { if (false) {} else () {} }",
+                              "expected expression");
+         }},
         {"flat expression and inline capture chains have bounded AST depth", [] {
              std::string addition = "1";
              std::string members = "value";

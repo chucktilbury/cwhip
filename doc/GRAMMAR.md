@@ -268,7 +268,11 @@ method-call-statement
 print-statement     ::= "print", "(", [ expression
                          | STRING, ",", format-argument-list ], ")", terminator ;
 if-statement        ::= "if", "(", expression, ")", { NEWLINE }, block,
+                        { { NEWLINE }, conditional-else-clause },
                         [ { NEWLINE }, "else", { NEWLINE }, block ] ;
+conditional-else-clause
+                    ::= "else", { NEWLINE }, "(", expression, ")",
+                        { NEWLINE }, block ;
 switch-statement    ::= "switch", "(", expression, ")", { NEWLINE }, "{",
                         { NEWLINE }, { case-branch, { NEWLINE } },
                         [ default-branch, { NEWLINE } ], "}" ;
@@ -540,8 +544,10 @@ and thread bindings.
 - Base modifiers may appear in any order and repeated access modifiers use
   the last one; repeating `virtual` is a parse error. Class member access
   begins as public and changes only at an access section.
-- `else if` has no dedicated form; `else` must be followed by a block.
-  `do { ... } while (...)` has no required trailing terminator.
+- Conditional `else (expression)` clauses may be chained before one optional
+  final bare `else`; conditions are tested in order and only the first matching
+  branch runs. `else if` is not supported. `do { ... } while (...)` has no
+  required trailing terminator.
 - Newlines in `()` and `[]` are suppressed, but newlines inside `{}` are not.
   In particular, braces used for dict literals do not provide multiline
   continuation.

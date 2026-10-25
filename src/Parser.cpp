@@ -790,13 +790,37 @@ Statement Parser::parseIf() {
     consume(TokenType::RightParen, "')' after if condition");
     skipNewlines();
     statement.body = parseBlock();
-    skipNewlines();
-    if (match(TokenType::Else)) {
-        statement.hasAlternate = true;
+
+    Statement* currentStatement = &statement;
+    std::size_t conditionalClauseCount = 1;
+    while (true) {
+        skipNewlines();
+        if (!match(TokenType::Else)) break;
+        const auto elseKeyword = previous();
+        currentStatement->hasAlternate = true;
         if (check(TokenType::LeftParen)) {
-            error(current(), "unconditional 'else' cannot have a condition");
+            if (++conditionalClauseCount > maximumNesting) {
+                error(elseKeyword, "parser nesting exceeds 128");
+            }
+            Statement alternate;
+            alternate.kind = StatementKind::If;
+            alternate.location = elseKeyword.location;
+            consume(TokenType::LeftParen, "'(' after else");
+            alternate.expressions.push_back(parseExpression());
+            consume(TokenType::RightParen, "')' after else condition");
+            skipNewlines();
+            alternate.body = parseBlock();
+            currentStatement->alternate.push_back(std::move(alternate));
+            currentStatement = &currentStatement->alternate.back();
+            continue;
         }
-        statement.alternate = parseBlock();
+
+        currentStatement->alternate = parseBlock();
+        skipNewlines();
+        if (check(TokenType::Else)) {
+            error(current(), "unconditional 'else' must be the final clause");
+        }
+        break;
     }
     return statement;
 }

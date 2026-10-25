@@ -398,8 +398,11 @@ expression statements, `print`, nested blocks, `if`/`else`, `while`,
 `try`/`except`/`finally`, `raise`, base-constructor initializers, and inline C.
 See `statement` and its named productions.
 
-Conditions are parenthesized and must be `bool`. `else` always introduces a
-block; there is no `else if` production. The `do` body executes at least once.
+Conditions are parenthesized and must be `bool`. An `else (condition)` clause
+continues an `if` chain: conditions are evaluated lazily in source order, and
+only the first true branch executes. Any number of conditional `else` clauses
+may precede one optional, final bare `else`. `else if` is not supported. The
+`do` body executes at least once.
 `for (value in collection)` iterates list values; `for (key, value in dict)`
 iterates dict keys and values. The value variable has type `any`; the key
 variable has type `String`. `break` and `continue` are valid only in loops.
