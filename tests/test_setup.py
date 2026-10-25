@@ -1,11 +1,5 @@
 #!/usr/bin/env python3
-"""Regression tests for the scripts/setup developer shell and its helpers.
-
-Each case copies the setup files into a private checkout whose path contains
-spaces, uses an isolated HOME (the developer's rc file is never read), and
-replaces cmake/git/debuggers with logging stubs. The project shell is a real
-interactive bash fed commands on stdin, so it always terminates at EOF.
-"""
+"""Exercise setup and project-shell functions in a private checkout and HOME."""
 
 from __future__ import annotations
 
@@ -21,27 +15,28 @@ import unittest
 
 SOURCE_ROOT = Path(__file__).resolve().parent.parent
 REAL_CMAKE: str | None = None
-SETUP_FILES = [".project_env", "scripts/setup", "scripts/build", "scripts/rebuild", "scripts/clean"]
+SETUP_FILES = [".project_env", "scripts/setup", "scripts/clean"]
 
 STUB = """#!{python}
 import json, os, sys
+from pathlib import Path
 args = sys.argv[1:]
 with open(os.environ["SETUP_TEST_LOG"], "a") as log:
     log.write(json.dumps({{"tool": {name!r}, "cwd": os.getcwd(), "args": args}}) + "\\n")
-if {name!r} == "cmake" and "-S" in args:
-    build = args[args.index("-B") + 1]
-    os.makedirs(build, exist_ok=True)
-    status = int(os.environ.get("SETUP_TEST_CMAKE_EXIT", "0"))
-    if status:
-        print("CMake Error: stub configure failure", file=sys.stderr)
-        sys.exit(status)
-    lines = ["CMAKE_BUILD_TYPE:STRING=" + next((a.split("=", 1)[1] for a in args
-             if a.startswith("-DCMAKE_BUILD_TYPE=")), "")]
-    for a in args:
-        if a.startswith("-DCWHIP_STAGE_PREFIX="):
-            lines.append("CWHIP_STAGE_PREFIX:PATH=" + a.split("=", 1)[1])
-    with open(os.path.join(build, "CMakeCache.txt"), "w") as cache:
-        cache.write("\\n".join(lines) + "\\n")
+if {name!r} == "cmake":
+    if "-S" in args:
+        status = int(os.environ.get("SETUP_TEST_CONFIGURE_EXIT", "0"))
+        if status:
+            sys.exit(status)
+        build = Path(args[args.index("-B") + 1])
+        build.mkdir(parents=True, exist_ok=True)
+        cache = build / "CMakeCache.txt"
+        mode = next((a.split("=", 1)[1] for a in args
+                     if a.startswith("-DCMAKE_BUILD_TYPE=")), None)
+        if mode is not None or not cache.exists():
+            cache.write_text("CMAKE_BUILD_TYPE:STRING=" + (mode or "") + "\\n")
+    else:
+        sys.exit(int(os.environ.get("SETUP_TEST_BUILD_EXIT", "0")))
 """
 
 
@@ -49,7 +44,7 @@ class SetupTest(unittest.TestCase):
     def setUp(self) -> None:
         self.temporary = tempfile.TemporaryDirectory(prefix="cwhip setup test ")
         self.base = Path(self.temporary.name)
-        self.root = self.base / "my checkout" / "cwhip"
+        self.root = self.base / "my checkout"
         for relative in SETUP_FILES:
             target = self.root / relative
             target.parent.mkdir(parents=True, exist_ok=True)
@@ -62,10 +57,8 @@ class SetupTest(unittest.TestCase):
         self.log = self.base / "tools.log"
         self.report = self.base / "report.txt"
         self.stubs = self.base / "stub bin"
-        self.decoy = self.base / "installed bin"
-        for name in ("cmake", "git"):
+        for name in ("cmake", "git", "cdbg"):
             self.write_tool(self.stubs / name, STUB.format(python=sys.executable, name=name))
-        self.write_tool(self.decoy / "cwhip", "#!/bin/sh\necho installed\n")
 
     def tearDown(self) -> None:
         self.temporary.cleanup()
@@ -78,7 +71,9 @@ class SetupTest(unittest.TestCase):
     def environment(self, **extra: str) -> dict[str, str]:
         env = {
             "HOME": str(self.home),
-            "PATH": os.pathsep.join([str(self.stubs), str(self.decoy), "/usr/bin", "/bin"]),
+            "XDG_CONFIG_HOME": str(self.base / "config"),
+            "TMPDIR": str(self.base),
+            "PATH": os.pathsep.join([str(self.stubs), "/usr/bin", "/bin"]),
             "TERM": "dumb",
             "LANG": "C",
             "SETUP_TEST_LOG": str(self.log),
@@ -89,288 +84,175 @@ class SetupTest(unittest.TestCase):
         env.update(extra)
         return env
 
-    def minimal_path(self) -> str:
-        """A PATH with the basic utilities setup needs, but no cmake or debuggers."""
-        tools = self.base / "minimal bin"
-        tools.mkdir(exist_ok=True)
-        for name in ("bash", "env", "sed", "head", "dirname", "readlink", "mkdir", "touch", "cat"):
-            found = shutil.which(name, path="/usr/bin:/bin")
-            if found and not (tools / name).exists():
-                (tools / name).symlink_to(found)
-        return str(tools)
-
-    def run_setup(self, *args: str, commands: str = "", cwd: Path | None = None,
-                  env: dict[str, str] | None = None, setup: Path | None = None
+    def run_setup(self, *args: str, commands: str = "", env: dict[str, str] | None = None
                   ) -> subprocess.CompletedProcess:
         return subprocess.run(
-            [str(setup or self.root / "scripts" / "setup"), *args],
-            cwd=cwd or self.outside, env=env or self.environment(), input=commands,
-            text=True, capture_output=True, timeout=60, check=False)
+            [str(self.root / "scripts/setup"), *args], cwd=self.outside,
+            env=env or self.environment(), input=commands, text=True,
+            capture_output=True, timeout=60, check=False)
 
-    def tool_calls(self, tool: str) -> list[dict]:
+    def calls(self, tool: str = "cmake") -> list[list[str]]:
         if not self.log.exists():
             return []
-        calls = [json.loads(line) for line in self.log.read_text().splitlines()]
-        return [call for call in calls if call["tool"] == tool]
+        return [call["args"] for line in self.log.read_text().splitlines()
+                if (call := json.loads(line))["tool"] == tool]
 
-    def configure_args(self) -> list[str]:
-        calls = [call for call in self.tool_calls("cmake") if "-S" in call["args"]]
-        self.assertEqual(len(calls), 1, calls)
-        return calls[0]["args"]
-
-    def report_lines(self) -> list[str]:
-        return self.report.read_text().splitlines()
-
-    def test_build_type_modes(self) -> None:
-        for mode, build_type in ((None, "Debug"), ("debug", "Debug"), ("release", "Release"),
+    def test_modes_and_cached_default(self) -> None:
+        for mode, cmake_mode in (("debug", "Debug"), ("release", "Release"),
                                  ("profile", "RelWithDebInfo")):
             with self.subTest(mode=mode):
-                self.log.unlink(missing_ok=True)
-                args = [mode] if mode else []
-                result = self.run_setup(*args, commands='echo "$_BUILD_TYPE" > "$REPORT"\nexit 3\n')
+                result = self.run_setup(mode, commands=(
+                    'printf "%s\\n" "$_BUILD_TYPE" "$CWHIP_BUILD_TYPE" > "$REPORT"\nexit 3\n'))
                 self.assertEqual(result.returncode, 3, result.stderr)
-                self.assertIn(f"-DCMAKE_BUILD_TYPE={build_type}", self.configure_args())
-                self.assertEqual(self.report_lines(), [build_type])
+                self.assertEqual(self.report.read_text().splitlines(), [mode, cmake_mode])
+                self.assertIn("-DCMAKE_BUILD_TYPE=" + cmake_mode, self.calls()[-1])
+        result = self.run_setup(commands='echo "$_BUILD_TYPE" > "$REPORT"\n')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.report.read_text().strip(), "profile")
+        self.assertEqual(self.calls()[-1], ["-S", str(self.root), "-B", str(self.root / "build")])
+        shutil.rmtree(self.root / "build")
+        result = self.run_setup(commands='echo "$_BUILD_TYPE" > "$REPORT"\n')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.report.read_text().strip(), "default")
 
-    def test_invalid_mode_and_arguments(self) -> None:
-        for args in (["fast"], ["debug", "release"], ["--build-dir"], ["--bogus"]):
+    def test_invalid_arguments_do_not_clean_or_configure(self) -> None:
+        marker = self.root / "bin/keep"
+        self.write_tool(marker, "keep")
+        for args in (["fast"], ["debug", "release"], ["--clean", "--clean"],
+                     ["--clean", "--bogus"], ["--build-dir", "other"],
+                     ["--submodules"], ["-DBUILD_TESTING=OFF"], ["--help"]):
             with self.subTest(args=args):
-                result = self.run_setup(*args, commands="touch \"$REPORT\"\n")
-                self.assertEqual(result.returncode, 2)
-                self.assertTrue(result.stderr.strip())
-        self.assertIn("debug, release, or profile", self.run_setup("fast").stderr)
-        self.assertEqual(self.tool_calls("cmake"), [])
+                result = self.run_setup(*args)
+                self.assertEqual(result.returncode, 2, result.stderr)
+                self.assertIn("Usage:", result.stderr)
+                self.assertTrue(marker.exists())
+        self.assertEqual(self.calls(), [])
+
+    def test_active_shell_guard_precedes_arguments_and_clean(self) -> None:
+        self.write_tool(self.root / "bin/keep", "keep")
+        result = self.run_setup("--clean", "bogus", env=self.environment(_PROJECT_NAME="other"))
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("already active", result.stderr)
+        self.assertTrue((self.root / "bin/keep").exists())
+        self.assertEqual(self.calls(), [])
+        result = self.run_setup(commands=(
+            '"$_PROJECT_LOC/scripts/setup" --clean </dev/null; echo "$?" > "$REPORT"\n'))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.report.read_text().strip(), "1")
+
+    def test_clean_before_configure_in_either_order(self) -> None:
+        for args in (("--clean", "debug"), ("release", "--clean"), ("--clean",)):
+            for name in ("bin", "build", "lib", "share", "doc/out"):
+                self.write_tool(self.root / name / "stale", "stale")
+                self.write_tool(self.outside / name / "keep", "keep")
+            result = self.run_setup(*args, commands='echo "$PWD" > "$REPORT"\n')
+            self.assertEqual(result.returncode, 0, result.stderr)
+            for name in ("bin", "build", "lib", "share", "doc/out"):
+                self.assertFalse((self.root / name / "stale").exists(), name)
+                self.assertTrue((self.outside / name / "keep").exists(), name)
+            self.assertTrue((self.root / "build/CMakeCache.txt").exists())
+            self.assertEqual(self.report.read_text().strip(), str(self.root / "build"))
+            self.assertTrue((self.root / "scripts/setup").exists())
+
+    def test_clean_failure_starts_no_configure_or_shell(self) -> None:
+        self.write_tool(self.root / "scripts/clean", "#!/bin/sh\nexit 7\n")
+        result = self.run_setup("--clean", commands='touch "$REPORT"\n')
+        self.assertEqual(result.returncode, 7)
+        self.assertEqual(self.calls(), [])
         self.assertFalse(self.report.exists())
 
-    def test_root_discovery_outside_checkout_with_spaces(self) -> None:
-        link = self.base / "linked setup"
-        link.symlink_to(self.root / "scripts" / "setup")
-        for setup in (self.root / "scripts" / "setup", link):
-            with self.subTest(setup=setup):
-                self.log.unlink(missing_ok=True)
-                result = self.run_setup(
-                    setup=setup,
-                    commands='printf "%s\\n" "$PWD" "$_PROJECT_LOC" "$_PROJECT_BUILD_DIR" "$_PROJECT_NAME" > "$REPORT"\n')
-                self.assertEqual(result.returncode, 0, result.stderr)
-                args = self.configure_args()
-                self.assertEqual(args[args.index("-S") + 1], str(self.root))
-                self.assertEqual(args[args.index("-B") + 1], str(self.root / "build"))
-                build = str(self.root / "build")
-                self.assertEqual(self.report_lines(), [build, str(self.root), build, "cwhip"])
-        relative = self.run_setup("--build-dir", "custom build", commands='echo "$PWD" > "$REPORT"\n')
-        self.assertEqual(relative.returncode, 0, relative.stderr)
-        self.assertEqual(self.report_lines(), [str(self.outside / "custom build")])
+    def test_configure_failure_starts_no_shell(self) -> None:
+        result = self.run_setup(env=self.environment(SETUP_TEST_CONFIGURE_EXIT="5"),
+                                commands='touch "$REPORT"\n')
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("CMake configuration failed; project shell was not started", result.stderr)
+        self.assertFalse(self.report.exists())
 
-    def test_caller_shell_is_untouched(self) -> None:
+    def test_sdk_consumer_settings_are_not_used(self) -> None:
+        settings = self.base / "config/cwhip/sdk.toml"
+        settings.parent.mkdir(parents=True)
+        settings.write_text("not valid TOML\n")
+        result = self.run_setup(env=self.environment(CWHIP_SDK="/nonexistent/sdk"))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        result = self.run_setup()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertNotIn("/nonexistent/sdk", self.calls()[-1])
+
+    def test_shell_environment_and_caller(self) -> None:
+        (self.home / ".bashrc").write_text('RC_LOADED=yes\nPS1="rc> "\n')
+        result = self.run_setup("debug", commands=(
+            '{ echo "$RC_LOADED $_PROJECT_NAME $_BUILD_TYPE"; echo "$PATH";'
+            ' echo "${CWHIP_HOME-unset} ${CWHIP_BUILTIN_DIR-unset}"; echo "$PS1"; } > "$REPORT"\n'))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        lines = self.report.read_text().splitlines()
+        self.assertEqual(lines[0], "yes my checkout debug")
+        self.assertEqual(lines[1].split(os.pathsep)[:2],
+                         [str(self.root / "bin"), str(self.root / "scripts")])
+        self.assertEqual(lines[2], "unset unset")
+        self.assertTrue(lines[3].endswith("rc> "))
         script = (
             'before_path=$PATH; before_pwd=$PWD\n'
             '"$SETUP" release </dev/null >/dev/null 2>&1\n'
-            'printf "%s\\n" "$?" "$([ "$PATH" = "$before_path" ] && echo same-path)" '
-            '"$([ "$PWD" = "$before_pwd" ] && echo same-pwd)" "${_PROJECT_LOC-unset}" '
-            '"${_BUILD_TYPE-unset}" "$CWHIP_HOME"\n'
-            'source "$SETUP"; echo "source=$?"\n')
-        env = self.environment(SETUP=str(self.root / "scripts" / "setup"))
-        result = subprocess.run(["bash", "-c", script], cwd=self.outside, env=env, text=True,
-                                capture_output=True, timeout=60, check=False)
-        self.assertEqual(result.stdout.splitlines(),
-                         ["0", "same-path", "same-pwd", "unset", "unset", "/stale/prefix", "source=2"],
-                         result.stderr)
-        self.assertIn("do not source", result.stderr)
-        self.assertFalse((self.home / ".bashrc").exists())
-
-    def test_path_and_local_resources(self) -> None:
-        self.write_tool(self.root / "bin" / "cwhip", "#!/bin/sh\necho local\n")
-        scripts = str(self.root / "scripts")
-        stage_bin = str(self.root / "bin")
-        env = self.environment()
-        env["PATH"] = os.pathsep.join([scripts, env["PATH"], stage_bin, scripts])
-        result = self.run_setup(env=env, commands=(
-            '{ type -P cwhip; cwhip; type -P setup; echo "$PATH";'
-            ' echo "${CWHIP_HOME-unset} ${CWHIP_BUILTIN_DIR-unset}"; } > "$REPORT"\n'))
+            '[[ "$PATH" = "$before_path" && "$PWD" = "$before_pwd" && '
+            '-z "${_PROJECT_NAME:-}" && "$CWHIP_HOME" = /stale/prefix ]]\n')
+        result = subprocess.run(
+            ["bash", "-c", script], cwd=self.outside,
+            env=self.environment(SETUP=str(self.root / "scripts/setup")),
+            capture_output=True, text=True, timeout=60, check=False)
         self.assertEqual(result.returncode, 0, result.stderr)
-        lines = self.report_lines()
-        self.assertEqual(lines[:3], [stage_bin + "/cwhip", "local", scripts + "/setup"])
-        entries = lines[3].split(os.pathsep)
-        self.assertEqual(entries[:2], [stage_bin, scripts])
-        self.assertEqual(entries.count(scripts), 1)
-        self.assertEqual(entries.count(stage_bin), 1)
-        self.assertIn(str(self.decoy), entries)
-        self.assertEqual(lines[4], "unset unset")
-        self.assertNotIn("not built yet", result.stdout)
 
-    def test_custom_stage_prefix_from_cache(self) -> None:
-        stage = self.base / "stage dir"
-        self.write_tool(stage / "bin" / "cwhip", "#!/bin/sh\necho staged\n")
-        result = self.run_setup("-DCWHIP_STAGE_PREFIX=" + str(stage),
-                                commands='{ cwhip; echo "$_PROJECT_STAGE_PREFIX"; } > "$REPORT"\n')
+    def test_build_functions_targets_status_and_shell_survival(self) -> None:
+        result = self.run_setup(commands=(
+            'declare -F build rebuild > "$REPORT"\n'
+            'build cwhip "target with spaces"; rebuild; cd /; build; rebuild cwhip\n'
+            'echo survived >> "$REPORT"\n'))
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(self.report_lines(), ["staged", str(stage)])
-
-    def test_unbuilt_compiler_is_reported(self) -> None:
-        result = self.run_setup(commands='type -P cwhip > "$REPORT"\n')
-        self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertIn("not built yet", result.stdout)
-        self.assertEqual(self.report_lines(), [str(self.decoy / "cwhip")])
-
-    def test_rc_file_cannot_override_project_environment(self) -> None:
-        (self.home / ".bashrc").write_text(
-            'export PATH=/usr/bin:/bin\nexport _BUILD_TYPE=Bogus _PROJECT_LOC=/nowhere\n'
-            'export CWHIP_HOME=/rc/prefix\nPS1="rc> "\nRC_LOADED=yes\ncd /\n')
-        result = self.run_setup("profile", commands=(
-            '{ echo "$RC_LOADED $_BUILD_TYPE $_PROJECT_LOC ${CWHIP_HOME-unset} $PWD";'
-            ' echo "${PATH%%:*}"; echo "$PS1"; } > "$REPORT"\n'))
-        self.assertEqual(result.returncode, 0, result.stderr)
-        lines = self.report_lines()
-        self.assertEqual(lines[0], f"yes RelWithDebInfo {self.root} unset {self.root / 'build'}")
-        self.assertEqual(lines[1], str(self.root / "bin"))
-        self.assertTrue(lines[2].endswith("rc> "), lines[2])
-        self.assertIn("$_PROJECT_NAME($_BUILD_TYPE)", lines[2])
-
-    def test_configure_failure_starts_no_shell(self) -> None:
-        result = self.run_setup(env=self.environment(SETUP_TEST_CMAKE_EXIT="5"),
-                                commands='touch "$REPORT"\n')
-        self.assertEqual(result.returncode, 5)
-        self.assertIn("CMake configuration failed", result.stderr)
-        self.assertIn("no project shell was started", result.stderr)
-        self.assertFalse(self.report.exists())
-
-    def test_missing_cmake_is_explicit(self) -> None:
-        (self.stubs / "cmake").unlink()
-        env = self.environment()
-        env["PATH"] = os.pathsep.join([str(self.stubs), self.minimal_path()])
-        result = self.run_setup(env=env, commands='touch "$REPORT"\n')
-        self.assertEqual(result.returncode, 1)
-        self.assertIn("cmake was not found", result.stderr)
-        self.assertFalse(self.report.exists())
-
-    def test_cmake_options_and_compiler_defaults(self) -> None:
-        result = self.run_setup("release", "-DCWHIP_GTK=OFF", "-DCWHIP_GTK_SOURCEVIEW=OFF",
-                                "--", "-DBUILD_TESTING=OFF")
-        self.assertEqual(result.returncode, 0, result.stderr)
-        args = self.configure_args()
-        for expected in ("-DCWHIP_GTK=OFF", "-DCWHIP_GTK_SOURCEVIEW=OFF", "-DBUILD_TESTING=OFF",
-                         "-DCMAKE_C_COMPILER=clang", "-DCMAKE_CXX_COMPILER=clang++",
-                         "-DCMAKE_EXPORT_COMPILE_COMMANDS=ON"):
-            self.assertIn(expected, args)
-        self.assertNotIn("-DCWHIP_GTK=ON", args)
-        self.assertNotIn("-DCWHIP_GTK_SOURCEVIEW=ON", args)
-
-        # An existing cache keeps its compilers.
-        self.log.unlink()
-        self.assertEqual(self.run_setup().returncode, 0)
-        args = self.configure_args()
-        self.assertFalse(any(a.startswith(("-DCMAKE_C_COMPILER", "-DCMAKE_CXX_COMPILER")) for a in args))
-
-        self.log.unlink()
-        result = self.run_setup("--build-dir", str(self.base / "gcc"), "-DCMAKE_C_COMPILER=gcc",
-                                "-DCMAKE_CXX_COMPILER:FILEPATH=g++")
-        self.assertEqual(result.returncode, 0, result.stderr)
-        args = self.configure_args()
-        self.assertIn("-DCMAKE_C_COMPILER=gcc", args)
-        self.assertNotIn("-DCMAKE_C_COMPILER=clang", args)
-        self.assertNotIn("-DCMAKE_CXX_COMPILER=clang++", args)
-
-    def test_submodules_are_opt_in(self) -> None:
-        self.assertEqual(self.run_setup().returncode, 0)
-        self.assertEqual(self.tool_calls("git"), [])
-        self.assertEqual(self.run_setup("--submodules").returncode, 0)
-        calls = self.tool_calls("git")
-        self.assertEqual(calls[0]["args"], ["-C", str(self.root), "submodule", "update", "--init", "--recursive"])
-
-    def test_nested_setup_is_refused(self) -> None:
-        result = self.run_setup(commands='"$_PROJECT_LOC/scripts/setup" release </dev/null; echo "$?" > "$REPORT"\n')
-        self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(self.report_lines(), ["1"])
-        self.assertIn("already initialized", result.stderr)
-        self.assertEqual(len([c for c in self.tool_calls("cmake") if "-S" in c["args"]]), 1)
-
-    def test_build_helpers(self) -> None:
-        result = self.run_setup(commands='build cwhip cwhip_tests; rebuild; cd /; build\n')
-        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.report.read_text().splitlines(), ["build", "rebuild", "survived"])
         build = str(self.root / "build")
-        calls = [c["args"] for c in self.tool_calls("cmake") if "--build" in c["args"]]
-        self.assertEqual(calls, [
-            ["--build", build, "--parallel", "12", "--target", "cwhip", "cwhip_tests"],
+        self.assertEqual(self.calls()[1:], [
+            ["--build", build, "--parallel", "12", "--target", "cwhip", "target with spaces"],
             ["--build", build, "--parallel", "12", "--clean-first"],
             ["--build", build, "--parallel", "12"],
+            ["--build", build, "--parallel", "12", "--clean-first", "--target", "cwhip"],
         ])
-        # Outside a project shell the helpers keep building the current directory.
-        self.log.unlink()
-        subprocess.run([str(self.root / "scripts" / "build")], cwd=self.outside, env=self.environment(),
-                       check=True, timeout=30)
-        self.assertEqual(self.tool_calls("cmake")[0]["args"], ["--build", ".", "--parallel", "12"])
-        self.assertEqual(self.tool_calls("cmake")[0]["cwd"], str(self.outside))
+        result = self.run_setup(env=self.environment(SETUP_TEST_BUILD_EXIT="9"), commands=(
+            'build; echo "$?" > "$REPORT"; rebuild cwhip; echo "$?" >> "$REPORT"\n'))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.report.read_text().splitlines(), ["9", "9"])
+        self.assertFalse((self.root / "scripts/build").exists())
+        self.assertFalse((self.root / "scripts/rebuild").exists())
 
-    def test_clean_uses_checkout_root(self) -> None:
-        for name in ("bin", "build", "lib", "share", "doc/out"):
-            (self.root / name).mkdir(parents=True)
-            (self.outside / name).mkdir(parents=True)
-        subprocess.run([str(self.root / "scripts" / "clean")], cwd=self.outside, check=True, timeout=30)
-        for name in ("bin", "build", "lib", "share", "doc/out"):
-            self.assertFalse((self.root / name).exists(), name)
-            self.assertTrue((self.outside / name).exists(), name)
-        self.assertTrue((self.root / "scripts" / "setup").exists())
-
-    def test_git_helpers_preserve_working_directory(self) -> None:
+    def test_git_and_debugger_helpers(self) -> None:
         result = self.run_setup(commands=(
-            'mkdir -p "$HOME/sub dir"; cd "$HOME/sub dir"; add; all; status -s; '
-            'echo "$PWD" > "$REPORT"\n'))
+            'cd /; status -s; add; add "a b"; commit -m message; push; all -m message;'
+            ' dbg; echo "$?" > "$REPORT"; dbg "../a b.cw" -- "x y"\n'))
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(self.report_lines(), [str(self.home / "sub dir")])
-        calls = self.tool_calls("git")
-        self.assertEqual([c["args"] for c in calls],
-                         [["add", "."], ["add", "."], ["commit"], ["push"], ["status", "-s"]])
-        self.assertEqual([c["cwd"] for c in calls[:4]], [str(self.root)] * 4)
+        prefix = ["-C", str(self.root)]
+        self.assertEqual(self.calls("git"), [
+            prefix + ["status", "-s"], prefix + ["add", "."], prefix + ["add", "a b"],
+            prefix + ["commit", "-m", "message"], prefix + ["push"],
+            prefix + ["add", "-A"], prefix + ["commit", "-m", "message"], prefix + ["push"],
+        ])
+        self.assertEqual(self.report.read_text().strip(), "2")
+        self.assertEqual(self.calls("cdbg"), [["../a b.cw", "--", "x y"]])
 
-    def test_dbg_prefers_cdbg_and_falls_back(self) -> None:
-        stub = STUB.format(python=sys.executable, name="dbg")
-        self.write_tool(self.root / "bin" / "prog", "#!/bin/sh\n")
-        self.write_tool(self.stubs / "kdbg", stub)
-        result = self.run_setup(commands='dbg prog "a b" c; dbg; echo "$?" > "$REPORT"\n')
-        self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(self.tool_calls("dbg")[0]["args"], [str(self.root / "bin" / "prog"), "-a", "a b c"])
-        self.assertEqual(self.report_lines(), ["2"])
-
-        self.log.unlink()
-        self.write_tool(self.stubs / "cdbg", stub)
-        result = self.run_setup(commands='dbg prog "a b" c; dbg ../x.cw\n')
-        self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual([c["args"] for c in self.tool_calls("dbg")],
-                         [[str(self.root / "bin" / "prog"), "--", "a b", "c"], ["../x.cw"]])
-
-        (self.stubs / "cdbg").unlink()
-        (self.stubs / "kdbg").unlink()
-        env = self.environment()
-        env["PATH"] = os.pathsep.join([str(self.stubs), self.minimal_path()])
-        result = self.run_setup(env=env, commands='dbg prog; echo "$?" > "$REPORT"\n')
-        self.assertEqual(self.report_lines(), ["127"])
-        self.assertIn("no debugger found", result.stderr)
-        self.assertIn("install standalone cdbg", result.stderr)
-        self.assertNotIn("build cdbg", result.stderr)
-
-    def test_real_cmake_configure_smoke(self) -> None:
+    def test_real_cmake_build_and_rebuild(self) -> None:
         if REAL_CMAKE is None:
-            self.skipTest("pass --cmake to run the real configure smoke")
+            self.skipTest("pass --cmake for a real CMake build")
+        (self.root / "CMakeLists.txt").write_text(
+            "cmake_minimum_required(VERSION 3.16)\nproject(setup_test NONE)\n"
+            "add_custom_target(marker ALL COMMAND ${CMAKE_COMMAND} -E touch "
+            "${CMAKE_BINARY_DIR}/built)\n")
         env = self.environment()
         env["PATH"] = os.pathsep.join([str(Path(REAL_CMAKE).parent), "/usr/bin", "/bin"])
-        build = self.base / "real build"
-        stage = self.base / "real stage"
-        result = self.run_setup(
-            "release", "--build-dir", str(build), "-DCWHIP_STAGE_PREFIX=" + str(stage),
-            "-DCWHIP_GTK=OFF", "-DCWHIP_GTK_SOURCEVIEW=OFF", "-DBUILD_TESTING=OFF",
-            setup=SOURCE_ROOT / "scripts" / "setup", env=env,
-            commands='printf "%s\\n" "$_BUILD_TYPE" "${PATH%%:*}" "$PWD" > "$REPORT"\n')
+        result = self.run_setup("--clean", "debug", env=env, commands=(
+            'build marker && test -f built && rm built && rebuild && test -f built\nexit $?\n'))
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        self.assertEqual(self.report_lines(), ["Release", str(stage / "bin"), str(build)])
-        cache = (build / "CMakeCache.txt").read_text()
-        self.assertIn("CMAKE_BUILD_TYPE:STRING=Release", cache)
-        self.assertIn("CWHIP_GTK:BOOL=OFF", cache)
-        self.assertFalse((SOURCE_ROOT / "build" / "real build").exists())
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--cmake", help="real CMake executable for the configure smoke")
+    parser.add_argument("--cmake", help="real CMake executable for the build exercise")
     options, remaining = parser.parse_known_args()
     REAL_CMAKE = options.cmake
     unittest.main(argv=[sys.argv[0], *remaining])

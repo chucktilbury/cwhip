@@ -51,6 +51,12 @@ your existing text editor instead.
 
 Choose an unused installation prefix; do not mix files from different SDKs:
 
+This SDK installation deliberately uses direct CMake: it needs separate
+build/staging/install directories, explicit GUI options and registration
+opt-out without a project shell. For ordinary compiler development, prefer
+`scripts/setup [--clean] [debug|release|profile]` then `build` or `rebuild`;
+see [the developer shell](INSTALLATION.md#developer-shell).
+
 ```sh
 mkdir -p "$HOME/Src"
 git clone https://github.com/chucktilbury/cwhip.git "$HOME/Src/cwhip"
@@ -103,7 +109,7 @@ Setup configures the app using `CWHIP_SDK`, then opens a child Bash shell
 initially in `cedit/build/`. In that child shell, run:
 
 ```sh
-cmake --build . --target cedit --parallel 4
+build cedit
 cmake --install . --prefix "$HOME/.local/opt/cedit-first"
 exit
 ```
@@ -117,6 +123,10 @@ command -v cedit
 
 Setup is a project-shell convenience, not a compiler/dependency installer.
 It reads your existing Bash startup file but does not rewrite it.
+Use `rebuild [TARGET...]` inside the shell to clean and build again, or exit
+and run `./scripts/setup --clean debug` to remove all default generated output
+before reconfiguring. `clean` remains available as a script; after using it,
+exit and rerun setup.
 If you prefer not to open a project shell, use the app's
 [direct CMake instructions](https://github.com/chucktilbury/cedit/blob/main/doc/BUILD.md).
 Keep the launcher, `cedit.bin`, and installed `share/` resources together.
@@ -209,7 +219,7 @@ cd "$HOME/Src/cdbg"
 In the child shell, initially in `cdbg/build/`:
 
 ```sh
-cmake --build . --target cdbg --parallel 4
+build cdbg
 cmake --install . --prefix "$HOME/.local/opt/cdbg-first"
 exit
 ```

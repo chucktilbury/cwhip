@@ -98,6 +98,14 @@ explicit install prefix uses `$HOME/opt/cwhip`, separate from system software
 and requiring no `sudo` for build/install. If it already contains another SDK,
 choose a new prefix instead of mixing installations.
 
+For compiler development, prefer `scripts/setup [--clean] [debug|release|profile]`,
+then `build`/`rebuild [TARGET...]` in the child Bash shell (initially in `build/`).
+`clean` removes generated build/staging directories; exit and rerun setup
+afterwards. With no type, setup preserves the cached type or CMake's default.
+The SDK installation below deliberately uses direct CMake for compiler-only
+flags, private staging and a non-interactive installation; setup does not accept
+`-D` arguments or custom build directories.
+
 ```sh
 mkdir -p "$HOME/Src"
 cd "$HOME/Src"
@@ -248,9 +256,10 @@ From a directory in which you want a new project:
 ```sh
 cd "$HOME/Src"
 cwhip-pkg new Hello
-cmake -S Hello -B Hello/build -DCMAKE_BUILD_TYPE=Debug
-cmake --build Hello/build --target Hello --parallel 4
-./Hello/bin/Hello
+Hello/scripts/setup debug
+build Hello
+../bin/Hello
+exit
 ```
 
 Expected output:
@@ -262,7 +271,7 @@ Hello, world!
 `new NAME [DIRECTORY]` downloads the public template as an archive, without Git
 history. It renames the CMake project and executable target to NAME. Thus this
 project's target/output is **`Hello`**, not the raw template's `hello`.
-`cmake --build Hello/build` also builds it as a default target. Project
+`build` without a target also builds it as a default target. Project
 creation does not install/build the compiler or initialize a Git repository.
 
 The important files/directories are:
@@ -312,9 +321,11 @@ Unlike dependency installation, `new` needs no `--yes`: asking for `new`
 explicitly requests the template download. It is not a sandbox for untrusted
 template build code. See [project creation details](INSTALLATION.md#create-a-project).
 
-For the optional interactive shell, run `./scripts/setup` from inside Hello.
-It configures then starts Bash in `Hello/build`; run `cmake --build .` and
-`../bin/Hello`, then `exit` to leave. `release` selects Release and `profile`
+Setup configures then starts Bash in `Hello/build`; run `build` or
+`rebuild [TARGET...]` and `../bin/Hello`, then `exit` to leave.
+Use `Hello/scripts/setup --clean debug` for a fresh build, or `clean` in the
+project shell to remove generated output (exit and rerun setup afterwards).
+`release` selects Release and `profile`
 selects RelWithDebInfo. With no argument, the generated helper inherits the
 selected SDK's registered build type when available; existing CMake cache
 choices, explicit options, and environment overrides take precedence. If no
@@ -402,13 +413,15 @@ cover modules and external C interfaces without duplicating the manual here.
 ## Edit, compile, and debug
 
 Use any text editor, or install cedit using the later section. From Hello's
-root after saving `src/main.cw`:
+root after saving `src/main.cw` (start setup outside any active project shell):
 
 ```sh
 cd "$HOME/Src/Hello"
-cwhip --check-only src/main.cw
-cmake --build build --target Hello --parallel 4
-./bin/Hello
+scripts/setup debug
+cwhip --check-only ../src/main.cw
+build Hello
+../bin/Hello
+exit
 ```
 
 `--check-only` parses and checks without code generation. CMake tracks source
@@ -533,6 +546,9 @@ your system GTK in place.
 From your compiler source checkout, use a **separate** build, stage, and install
 prefix so a compiler-only cache or stale installed files cannot mask the choice:
 
+Direct CMake is used here because these build/staging/install directories and
+required GUI options are intentionally separate from the default developer shell.
+
 ```sh
 cd "$HOME/Src/cwhip"
 cmake -S . -B build-gui -DCMAKE_BUILD_TYPE=Debug \
@@ -567,9 +583,10 @@ With the GUI SDK selected as above:
 ```sh
 cd "$HOME/Src"
 git clone https://github.com/chucktilbury/cedit.git
-cmake -S cedit -B cedit/build -DCMAKE_BUILD_TYPE=Debug
-cmake --build cedit/build --parallel 4
-cmake --install cedit/build --prefix "$HOME/.local/cedit"
+cedit/scripts/setup debug
+build
+cmake --install . --prefix "$HOME/.local/cedit"
+exit
 "$HOME/.local/cedit/bin/cedit" "$HOME/Src/Hello/src/main.cw"
 ```
 
@@ -587,9 +604,10 @@ Build the debugger independently:
 ```sh
 cd "$HOME/Src"
 git clone https://github.com/chucktilbury/cdbg.git
-cmake -S cdbg -B cdbg/build -DCMAKE_BUILD_TYPE=Debug
-cmake --build cdbg/build --target cdbg --parallel 4
-cmake --install cdbg/build --prefix "$HOME/.local/cdbg"
+cdbg/scripts/setup debug
+build cdbg
+cmake --install . --prefix "$HOME/.local/cdbg"
+exit
 export PATH="$HOME/.local/cedit/bin:$HOME/.local/cdbg/bin:$PATH"
 cd "$HOME/Src/Hello"
 cdbg src/main.cw
@@ -632,8 +650,9 @@ waiting for input cannot receive it through cdbg's output-only PTY. See the
 and [build/test guidance](https://github.com/chucktilbury/cdbg/blob/main/doc/BUILD.md)
 for further limits.
 
-Both apps also offer their own `./scripts/setup [debug|release|profile]`
+Both apps use their own `./scripts/setup [--clean] [debug|release|profile]`
 project shells, starting in `build/` and putting their root `bin/` on PATH.
+Inside, `build`/`rebuild [TARGET...]` are Bash functions; `clean` remains a script.
 Their normal build outputs are root `bin/` and sibling `share/`, with native
 libraries conventionally in `lib/`; installation places app resources under
 the requested prefix. Keep resources with the application.

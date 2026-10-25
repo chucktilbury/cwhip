@@ -20,6 +20,13 @@ packages need pkg-config, GTK 4 >= 4.10 and GtkSourceView 5 development
 libraries. Git is required for explicit package installation, not local SDK
 builds. Nothing here automatically downloads or installs system dependencies.
 
+For compiler development use `scripts/setup [--clean] [debug|release|profile]`
+then `build`/`rebuild` in its child shell; see
+[the developer shell](INSTALLATION.md#developer-shell).
+The direct CMake commands here intentionally support SDK producers/packagers
+without a project shell, separate staging/install prefixes, and external SDK
+consumers (which do not need this checkout's setup script).
+
 ```sh
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug \
   -DCWHIP_STAGE_PREFIX="$PWD/build/stage" \

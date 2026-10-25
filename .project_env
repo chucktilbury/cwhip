@@ -1,106 +1,67 @@
-#!/usr/bin/env bash
-# Init file for the project shell started by scripts/setup; do not run it
-# directly. scripts/setup has already configured the build and exported
-# _PROJECT_NAME, _PROJECT_LOC, _BUILD_TYPE, _PROJECT_BUILD_DIR and
-# _PROJECT_STAGE_PREFIX.
-
-if [[ -z "${_PROJECT_LOC:-}" || -z "${_PROJECT_BUILD_DIR:-}" ]]; then
-    echo "error: .project_env is started by scripts/setup; run that instead." >&2
-    return 1
-fi
-
-# Keep the setup values so the user's rc file cannot replace them.
-__cwhip_saved=("$_PROJECT_NAME" "$_PROJECT_LOC" "$_BUILD_TYPE" "$_PROJECT_BUILD_DIR"
-    "${_PROJECT_STAGE_PREFIX:-$_PROJECT_LOC}")
-
-# Source the basic configuration for this shell
-if [[ -f "$HOME/.bashrc" ]]; then
-    # shellcheck source=/dev/null
+if [[ -r "$HOME/.bashrc" ]]; then
     source "$HOME/.bashrc"
 fi
 
-export _PROJECT_NAME=${__cwhip_saved[0]}
-export _PROJECT_LOC=${__cwhip_saved[1]}
-export _BUILD_TYPE=${__cwhip_saved[2]}
-export _PROJECT_BUILD_DIR=${__cwhip_saved[3]}
-export _PROJECT_STAGE_PREFIX=${__cwhip_saved[4]}
-unset __cwhip_saved
 export HISTCONTROL=ignoreboth:erasedups
 
-# The staged cwhip finds its resources relative to itself; clear overrides that
-# would redirect it to an installed or stale tree.
+# The staged compiler must use its own resources, not an installed SDK's.
 unset CWHIP_HOME CWHIP_RUNTIME_DIR CWHIP_INCLUDE_DIR CWHIP_BUILTIN_DIR CWHIP_STDLIB_MODULE_DIR
 
-# make some GIT shortcuts; nothing is added, committed or pushed implicitly.
-function status {
-    git status "$@"
+project_path="$_PROJECT_LOC/bin:$_PROJECT_LOC/scripts"
+export PATH="$project_path:$PATH"
+
+build() {
+    local dir="${_PROJECT_BUILD_DIR:-$_PROJECT_LOC/build}"
+    if (( $# )); then
+        cmake --build "$dir" --parallel 12 --target "$@"
+    else
+        cmake --build "$dir" --parallel 12
+    fi
 }
 
-function add {
-    (cd -- "$_PROJECT_LOC" && git add .)
+rebuild() {
+    local dir="${_PROJECT_BUILD_DIR:-$_PROJECT_LOC/build}"
+    if (( $# )); then
+        cmake --build "$dir" --parallel 12 --clean-first --target "$@"
+    else
+        cmake --build "$dir" --parallel 12 --clean-first
+    fi
 }
 
-function commit {
-    git commit "$@"
+status() {
+    git -C "$_PROJECT_LOC" status "$@"
 }
 
-function push {
-    git push "$@"
+add() {
+    if (( $# )); then
+        git -C "$_PROJECT_LOC" add "$@"
+    else
+        git -C "$_PROJECT_LOC" add .
+    fi
 }
 
-function all {
-    (cd -- "$_PROJECT_LOC" && git add . && git commit && git push)
+commit() {
+    git -C "$_PROJECT_LOC" commit "$@"
 }
 
-# dbg EXECUTABLE|SOURCE.cw [ARGS...]: open the standalone cdbg debugger on PATH,
-# falling back to KDbg. Bare names resolve to staged binaries.
-function dbg {
-    if [[ $# -eq 0 ]]; then
-        echo "error: executable name is required" >&2
+push() {
+    git -C "$_PROJECT_LOC" push "$@"
+}
+
+all() {
+    git -C "$_PROJECT_LOC" add -A &&
+        git -C "$_PROJECT_LOC" commit "$@" &&
+        git -C "$_PROJECT_LOC" push
+}
+
+dbg() {
+    if (( $# == 0 )); then
+        printf 'Usage: dbg [SOURCE.cw|EXECUTABLE [-- ARGS...]]\n' >&2
         return 2
     fi
-    local target=$1
-    shift
-    if [[ "$target" != */* && ! -e "$target" && -x "$_PROJECT_STAGE_PREFIX/bin/$target" ]]; then
-        target=$_PROJECT_STAGE_PREFIX/bin/$target
-    fi
-    if command -v cdbg >/dev/null 2>&1; then
-        if [[ $# -gt 0 ]]; then
-            cdbg "$target" -- "$@"
-        else
-            cdbg "$target"
-        fi
-    elif command -v kdbg >/dev/null 2>&1; then
-        if [[ $# -gt 0 ]]; then
-            kdbg "$target" -a "$*"
-        else
-            kdbg "$target"
-        fi
-    else
-        echo "error: no debugger found; install standalone cdbg (https://github.com/chucktilbury/cdbg) on PATH or install kdbg" >&2
-        return 127
-    fi
+    cdbg "$@"
 }
 
-__cwhip_path_prepend() {
-    local entry=$1 rest=":$PATH:"
-    while [[ "$rest" == *":$entry:"* ]]; do
-        rest=${rest//":$entry:"/:}
-    done
-    rest=${rest#:}
-    rest=${rest%:}
-    PATH=$entry${rest:+:$rest}
-}
-__cwhip_path_prepend "$_PROJECT_LOC/scripts"
-__cwhip_path_prepend "$_PROJECT_STAGE_PREFIX/bin"
-unset -f __cwhip_path_prepend
-export PATH
-hash -r
-
-PS1='\[\e[0;31;1m\]$_PROJECT_NAME($_BUILD_TYPE):\[\e[0m\]'${PS1-}
-
-cd -- "$_PROJECT_BUILD_DIR" || cd -- "$_PROJECT_LOC" || true
-
-if [[ ! -x "$_PROJECT_STAGE_PREFIX/bin/cwhip" ]]; then
-    echo "note: $_PROJECT_STAGE_PREFIX/bin/cwhip is not built yet; run 'build' to build it."
-fi
+PS1="\[\e[0;31;1m\]${_PROJECT_NAME}(${_BUILD_TYPE}):\[\e[0m\]${PS1:-\\u@\\h:\\w\\$ }"
+cd -- "$_PROJECT_LOC/build"
+unset project_path

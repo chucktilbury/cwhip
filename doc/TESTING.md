@@ -4,10 +4,18 @@ The root CMake build registers all tests with CTest. Python 3.11+, Clang,
 a C11/C++17 compiler, CMake 3.16+, and POSIX threads are required.
 
 ```sh
-cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
-cmake --build build -j4
-ctest --test-dir build --output-on-failure -j4
+scripts/setup debug
+build
+ctest --output-on-failure -j4
+exit
 ```
+
+Use `scripts/setup --clean debug` for a fresh default build, or `rebuild`
+inside the project shell to clean and rebuild. `clean` removes the generated
+directories entirely; exit and rerun setup afterwards. The specialized
+sanitizer, GUI-test, coverage and fuzz configurations below deliberately use
+direct CMake commands for their flags and separate build/staging directories;
+setup does not accept CMake arguments.
 
 ## Sanitizers
 

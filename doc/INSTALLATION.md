@@ -18,9 +18,10 @@ the compiler resources beside `bin/cwhip`, so the executable can run directly
 from the source tree:
 
 ```sh
-cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
-cmake --build build -j4
-ctest --test-dir build --output-on-failure
+scripts/setup debug
+build
+ctest --output-on-failure
+exit
 ```
 
 The current native compiler/runtime target is POSIX (including `unistd.h`
@@ -62,56 +63,62 @@ convenience for bash; it installs no packages, never builds, commits or pushes
 by itself, and leaves the shell you started it from unchanged.
 
 ```sh
-~/Src/cwhip/scripts/setup             # debug (the default)
-~/Src/cwhip/scripts/setup release -DCWHIP_GTK=OFF -DCWHIP_GTK_SOURCEVIEW=OFF
+~/Src/cwhip/scripts/setup debug
+build
+rebuild cwhip
+exit
+~/Src/cwhip/scripts/setup --clean release
 ```
 
-`scripts/setup [debug|release|profile] [--build-dir DIR] [--submodules]
-[-DNAME=VALUE...] [-- CMAKE_ARGS...]` works from any directory; it finds the
-checkout from its own location (symlinks and paths with spaces are fine).
+`scripts/setup [--clean] [debug|release|profile]` works from any directory;
+invoke the actual checkout script, not a symlink outside its `scripts/` directory.
+Paths with spaces are supported.
 `debug`, `release`, and `profile` select `CMAKE_BUILD_TYPE` `Debug`, `Release`,
-and `RelWithDebInfo`. It runs
-`cmake -S <checkout> -B <checkout>/build -DCMAKE_BUILD_TYPE=...
--DCMAKE_EXPORT_COMPILE_COMMANDS=ON` with the given `-D` options and any
-arguments after `--` (for example `-- -G Ninja`). A new build directory
-defaults to `clang`/`clang++`; an existing cache keeps its compilers, and
-explicit `-DCMAKE_C_COMPILER`/`-DCMAKE_CXX_COMPILER` options always win. GUI
-support uses the normal [GTK auto-detection](#optional-gtk-packages)
-rather than being forced on; pass `-DCWHIP_GTK=OFF -DCWHIP_GTK_SOURCEVIEW=OFF`
-for a compiler-only configuration. `--build-dir` (relative to the current
-directory) and `-DCWHIP_STAGE_PREFIX=DIR` select separate configurations.
-Git submodules are only updated with `--submodules`.
+and `RelWithDebInfo`. With no type, the existing cache is preserved; a fresh
+build uses CMake's default (no forced Debug or Clang native compiler).
+`--clean` can precede or follow the type and invokes `scripts/clean` before
+configuration: it deletes `bin/`, `build/`, `lib/`, `share/`, and `doc/out/`,
+not source or user settings. Duplicate/unknown arguments print usage and exit 2;
+an active project shell is refused before parsing or cleaning.
+
+Setup follows the template's interface. It does not discover an installed SDK
+because this repository builds the SDK. The former `--build-dir`, `--submodules`,
+`-D...`, and `-- CMAKE_ARGS...` options are no longer accepted. Update submodules
+explicitly with Git if needed. For specialized configurations, use CMake directly
+(as in the compiler-only, sanitizer and packaging examples below). To change a
+cache option inside the shell, use `cmake -S "$_PROJECT_LOC" -B . -DNAME=VALUE`,
+then `build`. Keep setup's default staging layout; custom build/staging prefixes
+are direct-CMake workflows. GUI support uses normal
+[GTK auto-detection](#optional-gtk-packages).
 
 If CMake (or a required tool such as Clang) is missing or configuration fails,
 setup prints the error and exits nonzero without starting a shell. Otherwise
 it starts `bash -i` with `.project_env`, which:
 
-- sources `~/.bashrc` when it exists, then restores the project settings;
-- exports `_PROJECT_NAME` (`cwhip`, or `$_PROJECT_` if set), `_PROJECT_LOC`
-  (checkout), `_BUILD_TYPE`, `_PROJECT_BUILD_DIR`, and `_PROJECT_STAGE_PREFIX`
-  (the configured `CWHIP_STAGE_PREFIX`, by default the checkout);
-- puts `<stage-prefix>/bin` (`cwhip` and `cwhip-pkg`)
-  and the checkout's `scripts/` first on `PATH` without duplicate entries;
+- sources `~/.bashrc` when readable (it must not overwrite project variables);
+- exports `_PROJECT_NAME` (checkout basename), `_PROJECT_LOC` (checkout),
+  `_BUILD_TYPE` (lowercase mode), and `CWHIP_BUILD_TYPE` (CMake's cached type);
+- puts the checkout's `bin/` (`cwhip` and `cwhip-pkg`)
+  and `scripts/` first on `PATH`;
 - unsets `CWHIP_HOME`, `CWHIP_RUNTIME_DIR`, `CWHIP_INCLUDE_DIR`,
   `CWHIP_BUILTIN_DIR`, and `CWHIP_STDLIB_MODULE_DIR`, so the staged compiler
   finds its own staged resources instead of an installed or stale tree
   (`CWHIP_MODULE_DIR` and `CC` are left alone; check with `cwhip --print-paths`);
-- prefixes the prompt with `cwhip(Debug):`, and changes to the build directory.
+- prefixes the prompt with `<checkout>(debug):`, and changes to `build/`.
 
-Inside the shell, `build [TARGET...]` and `rebuild [TARGET...]` run
-`cmake --build "$_PROJECT_BUILD_DIR" --parallel 12` (with `--clean-first` for
-`rebuild`); for example `build` or `build cwhip`. Outside a
-project shell they build the current directory. `clean` removes the
-checkout's default `bin/`, `build/`, `lib/`, `share/`, and `doc/out/`. Until
-the first `build`, `cwhip` on `PATH` is whatever else is installed; setup
-prints a note in that case. The shell defines Git shortcuts `status`, `add`
-(`git add .` at the checkout root), `commit`, `push`, and `all` (add, commit,
-and push); these run only when typed and leave the current directory unchanged.
-`dbg TARGET [ARGS...]` opens standalone [cdbg](https://github.com/chucktilbury/cdbg)
-(`cdbg TARGET -- ARGS...`) when it is installed on `PATH`,
-otherwise falls back to `kdbg` (arguments joined into one `-a`
-string); a bare name is looked up in the staged `bin/`. Neither debugger is
-needed to run setup.
+Inside the shell, `build [TARGET...]` and `rebuild [TARGET...]` are Bash functions,
+not scripts. They run `cmake --build "$_PROJECT_LOC/build" --parallel 12`
+(with `--clean-first` for `rebuild`), preserve CMake's exit status, and keep
+the shell alive; for example `build` or `build cwhip`. They work even after
+changing directory. They are not available outside the project shell.
+`clean` remains a script and removes the checkout's default generated
+directories; exit the shell and run setup again afterwards.
+Until the first `build`, `cwhip` on `PATH` may be an installed compiler, so build
+before using it. The Git shortcuts `status`, `add [PATH...]`, `commit`, `push`,
+and `all` (add all, commit, push) run at the checkout root only when typed.
+`dbg SOURCE.cw|EXECUTABLE [-- ARGS...]` passes arguments directly to standalone
+[cdbg](https://github.com/chucktilbury/cdbg) on `PATH`; it has no KDbg fallback.
+Neither debugger is needed to run setup.
 
 To use the checkout's tools on a separate project, start the shell and change
 directory there; the staged tools stay first on `PATH`:
@@ -144,10 +151,11 @@ never into `cwhip` or non-GUI programs.
 With those development dependencies installed, build a GUI-capable SDK:
 
 ```sh
-cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug \
-  -DCWHIP_GTK=ON -DCWHIP_GTK_SOURCEVIEW=ON
-cmake --build build -j4
-cmake --install build
+scripts/setup debug
+cmake -S "$_PROJECT_LOC" -B . -DCWHIP_GTK=ON -DCWHIP_GTK_SOURCEVIEW=ON
+build
+cmake --install .
+exit
 ```
 
 For a deliberate compiler-only configuration, including on machines without
@@ -183,6 +191,10 @@ appropriate. See [GTK.md](GTK.md) for linkage, activation and ownership.
 
 Without an install-prefix override, a fresh compiler/SDK configuration uses
 `$HOME/opt/cwhip`. Configure, build, and install:
+
+The following direct CMake commands support SDK users/packagers without a
+project shell. Developers can instead use `scripts/setup`, `build`, and
+`cmake --install .` from the child shell.
 
 ```sh
 cmake -S . -B build
@@ -421,9 +433,10 @@ replacement for a complete SDK.
 
 ```sh
 cwhip-pkg new MyApp
-cmake -S MyApp -B MyApp/build
-cmake --build MyApp/build
-./MyApp/bin/MyApp
+MyApp/scripts/setup debug
+build
+../bin/MyApp
+exit
 ```
 
 `new NAME [DIRECTORY]` downloads a tar archive of
