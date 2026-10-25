@@ -43,9 +43,79 @@ SHORTCUT_NATIVE = """
 import sourceview
 class Keys {
     bool press(int64 token, String trigger)
+    void viewProperties(int64 token, int64 tabs, bool enabled)
 }
 bool Keys.press(int64 token, String trigger) from "binding_shortcut"
+void Keys.viewProperties(int64 token, int64 tabs, bool enabled) from "binding_view_properties"
 """
+
+CONFIG = r'''
+import system
+class UI {
+    String original
+    String updated
+    void<String> savedAction
+    void<String> unexpectedAction
+    void require(bool condition, String label) {
+        if (!condition) {
+            System.StandardIO().writeErrorLine(label)
+            System.Process().exit(1)
+        }
+    }
+    void activate() {
+        Gtk.Window window = Gtk.Window("Config bindings")
+        window.present()
+        Gtk.Config config = Gtk.Config()
+        original = "title = \"kept\"\n[view]\nsize = 12\nwrap = false\nitems = [\"a\", \"b\"]\n"
+        require(config.validate(original).equals(""), "valid TOML")
+        require(!config.validate("size = [").equals(""), "invalid TOML")
+        require(config.value(original, "view", "size").equals("i12"), "integer value")
+        require(config.value(original, "view", "wrap").equals("bfalse"), "boolean value")
+        require(!config.key(original, "view", 0).equals(""), "key enumeration")
+        require(config.arraySize(original, "view", "items") == 2, "array size")
+        require(config.item(original, "view", "items", 1, "").equals("sb"), "array item")
+        String quoted = format("text = {}\n", config.quote("quote \" slash \\"))
+        require(config.validate(quoted).equals("") &&
+                config.value(quoted, "", "text").equals("squote \" slash \\"), "quoted value")
+        updated = config.merge(original, "[view]\nsize = 18\n")
+        require(config.value(updated, "view", "size").equals("i18") &&
+                config.value(updated, "", "title").equals("skept"), "merge preserves unrelated keys")
+        String removed = config.remove(updated, "view", "items")
+        require(config.arraySize(removed, "view", "items") == -1 &&
+                config.value(removed, "view", "size").equals("i18"), "remove preserves unrelated keys")
+        require(config.fileStatus("config-roundtrip.toml").equals("missing"), "missing file")
+        require(config.saveNow("config-roundtrip.toml", original, "").equals(""), "atomic first save")
+        require(config.fileStatus("config-roundtrip.toml").equals(""), "existing file")
+        require(!config.saveNow("config-roundtrip.toml", updated, "stale").equals(""), "concurrent edit rejected")
+        System.File file = System.File("config-roundtrip.toml", "r")
+        require(file.readAll().equals(original), "rejected save preserves contents")
+        file.close()
+        config.save("config-roundtrip.toml", updated, original, savedAction)
+        F().collect()
+    }
+    void saved(String error) {
+        require(error.equals(""), "async save callback")
+        System.File file = System.File("config-roundtrip.toml", "r")
+        require(file.readAll().equals(updated), "async save contents")
+        file.close()
+        Gtk.Config().save("config-drain.toml", updated, "", unexpectedAction)
+        Gtk.Application().shutdown()
+        require(System.FileSystem().exists("config-drain.toml"), "shutdown drains pending save")
+        print("PASS config")
+    }
+    void unexpected(String error) {
+        require(false, "callback after shutdown")
+    }
+}
+start {
+    Gtk.Application app = Gtk.Application("org.cwhip.BindingConfig")
+    UI ui = UI()
+    ui.savedAction = ui.saved
+    ui.unexpectedAction = ui.unexpected
+    app.onActivate(ui.activate)
+    app.run()
+}
+'''
 
 MENU = """
 class Handler {
@@ -315,6 +385,73 @@ start {
 }
 """
 
+SOURCEVIEW_EDITING = r'''
+import system
+class UI {
+    void require(bool condition, String label) {
+        if (!condition) {
+            System.StandardIO().writeErrorLine(label)
+            System.Process().exit(1)
+        }
+    }
+    void activate() {
+        Gtk.Window window = Gtk.Window("SourceView SDK")
+        Gtk.Notebook tabs = Gtk.Notebook()
+        window.setChild(tabs)
+        GtkSource.View view = GtkSource.View()
+        GtkSource.View other = GtkSource.View()
+        tabs.appendPage(view.widget(), "source")
+        tabs.appendPage(other.widget(), "plain")
+        require(tabs.pageCount() == 2, "notebook pages")
+        require(GtkSource.Content().languageFor("fixture.cw").equals("cwhip"), "file language")
+        require(view.setLanguage("cwhip") && view.language().equals("cwhip"), "Cwhip language")
+        view.configure("Monospace", 14, 3, true, true, true, true)
+        Keys().viewProperties(view._widgetToken(), 3, true)
+        view.configure("Monospace", 12, 8, false, false, false, false)
+        Keys().viewProperties(view._widgetToken(), 8, false)
+        view.setText("start {\n// comment\nstrg name = \"Cwhip\"\nint64 count = 42\n}\n")
+        require(view.hasContextAt("keyword", 0), "keyword highlighting")
+        require(view.hasContextAt("comment", 12), "comment highlighting")
+        require(view.hasContextAt("string", 32), "string highlighting")
+        require(view.hasContextAt("number", 53), "number highlighting")
+        other.setText("plain")
+        require(other.language().equals("") && !other.hasContextAt("keyword", 0), "plain text")
+        require(!view.setLanguage("not-a-language") && view.language().equals("cwhip"), "invalid language")
+        view.markSaved()
+        require(!view.modified(), "saved buffer")
+        view.setCursor(1, 1)
+        require(view.find("Cwhip") && view.selectedText().equals("Cwhip"), "find")
+        require(view.replaceNext("Cwhip", "SDK"), "replace")
+        require(view.modified() && view.text().contains("\"SDK\""), "modified buffer")
+        require(view.canUndo(), "can undo")
+        view.undo()
+        require(view.text().contains("\"Cwhip\""), "undo")
+        require(view.canRedo(), "can redo")
+        view.redo()
+        require(view.text().contains("\"SDK\""), "redo")
+        System.File file = System.File("sourceview.cw", "w")
+        file.write(view.text())
+        file.close()
+        file = System.File("sourceview.cw", "r")
+        require(file.readAll().equals(view.text()), "file round trip")
+        file.close()
+        view.markSaved()
+        require(!view.modified() && other.text().equals("plain"), "independent buffers")
+        tabs.remove(other.widget())
+        other.widget().dispose()
+        require(tabs.pageCount() == 1, "remove page")
+        window.dispose()
+        Gtk.Application().shutdown()
+        print("PASS sourceview editing")
+    }
+}
+start {
+    Gtk.Application app = Gtk.Application("org.cwhip.SourceViewEditing")
+    app.onActivate(UI().activate)
+    app.run()
+}
+'''
+
 # Shortcut callbacks that dispose their own view (closing a tab) or the whole
 # window (quitting) must not release their in-flight callback registration.
 SHORTCUTS = """
@@ -413,15 +550,20 @@ def main():
     existing.write_text("unchanged")
     fresh = work / "fresh.cw"
     fresh.unlink(missing_ok=True)
+    for name in ("config-roundtrip.toml", "config-drain.toml"):
+        (work / name).unlink(missing_ok=True)
     dialog = DIALOG.replace('"existing.cw"', f'"{existing}"').replace(
         '"fresh.cw"', f'"{fresh}"')
     expected_dialog = (f"true{existing};false0true;false0true{fresh};false0"
                        f"true;false0true{existing};false0truetrue"
                        "truefalse0truetruefalse0truetruefalse0true88")
-    cases = [("menus", MENU, "action;action;stopped;true"),
+    cases = [("config", CONFIG, "PASS config"),
+             ("menus", MENU, "action;action;stopped;true"),
              ("dialogs", dialog, expected_dialog),
              ("lifetime", LIFETIME, "PASS lifetime")]
     if args.sourceview:
+        cases.append(("sourceview-editing", SHORTCUT_NATIVE + SOURCEVIEW_EDITING,
+                      "PASS sourceview editing"))
         cases.append(("allocation", SOURCEVIEW, "falsetruetruetruetruetruetruetruemultiline;grew;"))
         cases.append(("shortcuts", SHORTCUT_NATIVE + SHORTCUTS,
                       "truetrueclosed;truequit;true2"))

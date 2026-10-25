@@ -1,9 +1,10 @@
 # Build and installation
 
 For source-independent external CMake projects and whole-prefix relocation,
-see [the installed SDK contract](CMAKE-SDK.md). The compiler's integrated
-application targets below are legacy development examples, not the
-standalone cedit/cdbg projects.
+see [the installed SDK contract](CMAKE-SDK.md).
+The [cedit editor](https://github.com/chucktilbury/cedit) and
+[cdbg debugger](https://github.com/chucktilbury/cdbg) are standalone SDK consumers;
+this repository does not build or install either application.
 
 The compiler uses CMake and requires Clang on `PATH` to compile and link its
 generated LLVM IR. The project uses C11 and C++17. Building and running
@@ -71,7 +72,7 @@ and `RelWithDebInfo`. It runs
 arguments after `--` (for example `-- -G Ninja`). A new build directory
 defaults to `clang`/`clang++`; an existing cache keeps its compilers, and
 explicit `-DCMAKE_C_COMPILER`/`-DCMAKE_CXX_COMPILER` options always win. GUI
-support uses the normal [GTK auto-detection](#cedit-and-optional-gtk-packages)
+support uses the normal [GTK auto-detection](#optional-gtk-packages)
 rather than being forced on; pass `-DCWHIP_GTK=OFF -DCWHIP_GTK_SOURCEVIEW=OFF`
 for a compiler-only configuration. `--build-dir` (relative to the current
 directory) and `-DCWHIP_STAGE_PREFIX=DIR` select separate configurations.
@@ -85,7 +86,7 @@ it starts `bash -i` with `.project_env`, which:
 - exports `_PROJECT_NAME` (`cwhip`, or `$_PROJECT_` if set), `_PROJECT_LOC`
   (checkout), `_BUILD_TYPE`, `_PROJECT_BUILD_DIR`, and `_PROJECT_STAGE_PREFIX`
   (the configured `CWHIP_STAGE_PREFIX`, by default the checkout);
-- puts `<stage-prefix>/bin` (`cwhip`, `cwhip-pkg`, and built `cedit`/`cdbg`)
+- puts `<stage-prefix>/bin` (`cwhip` and `cwhip-pkg`)
   and the checkout's `scripts/` first on `PATH` without duplicate entries;
 - unsets `CWHIP_HOME`, `CWHIP_RUNTIME_DIR`, `CWHIP_INCLUDE_DIR`,
   `CWHIP_BUILTIN_DIR`, and `CWHIP_STDLIB_MODULE_DIR`, so the staged compiler
@@ -95,15 +96,16 @@ it starts `bash -i` with `.project_env`, which:
 
 Inside the shell, `build [TARGET...]` and `rebuild [TARGET...]` run
 `cmake --build "$_PROJECT_BUILD_DIR" --parallel 12` (with `--clean-first` for
-`rebuild`); for example `build`, then optionally `build cedit cdbg`. Outside a
+`rebuild`); for example `build` or `build cwhip`. Outside a
 project shell they build the current directory. `clean` removes the
 checkout's default `bin/`, `build/`, `lib/`, `share/`, and `doc/out/`. Until
 the first `build`, `cwhip` on `PATH` is whatever else is installed; setup
 prints a note in that case. The shell defines Git shortcuts `status`, `add`
 (`git add .` at the checkout root), `commit`, `push`, and `all` (add, commit,
 and push); these run only when typed and leave the current directory unchanged.
-`dbg TARGET [ARGS...]` opens [cdbg](CDBG.md) (`cdbg TARGET -- ARGS...`) when it
-is built, otherwise falls back to `kdbg` (arguments joined into one `-a`
+`dbg TARGET [ARGS...]` opens standalone [cdbg](https://github.com/chucktilbury/cdbg)
+(`cdbg TARGET -- ARGS...`) when it is installed on `PATH`,
+otherwise falls back to `kdbg` (arguments joined into one `-a`
 string); a bare name is looked up in the staged `bin/`. Neither debugger is
 needed to run setup.
 
@@ -120,12 +122,11 @@ cwhip hello.cw
 Type `exit` to return to the original shell. Starting setup again inside a
 project shell is refused; exit first, then run it with another mode.
 
-## cedit and optional GTK packages
+## Optional GTK packages
 
-The separate [cdbg local debugger prototype](CDBG.md) uses the same GUI
-dependencies and adds a runtime dependency on GDB. Build it with
-`cmake --build build --target cdbg -j4`; neither GUI application renames the
-`cwhip` compiler.
+The SDK retains the GTK and SourceView packages used by external GUI applications.
+For building and installing the standalone editor and debugger, see
+[the application walkthrough](GETTING_STARTED.md#build-and-start-cedit-and-cdbg).
 
 On a fresh configuration, CMake detects `pkg-config`, GTK 4.10+ and GtkSourceView 5
 development files and defaults `CWHIP_GTK` and `CWHIP_GTK_SOURCEVIEW` to the
@@ -136,26 +137,14 @@ the enabled native package archives and stages their sources, manifests and
 language resources. GTK and GtkSourceView link only into importing applications,
 never into `cwhip` or non-GUI programs.
 
-With those development dependencies installed, configure once and build cedit:
+With those development dependencies installed, build a GUI-capable SDK:
 
 ```sh
-cmake -S . -B build -G "Unix Makefiles" -DCMAKE_BUILD_TYPE=Debug
-make -C build -j4 cedit
-./bin/cedit file1.cw file2.cw
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug \
+  -DCWHIP_GTK=ON -DCWHIP_GTK_SOURCEVIEW=ON
+cmake --build build -j4
+cmake --install build
 ```
-
-From inside `build/`, use `make cedit`. The generator-independent equivalent is
-`cmake --build build --target cedit -j4`. This works on a fresh
-build without first building the compiler. The output is
-`<source>/bin/cedit` by default, or
-`<CWHIP_STAGE_PREFIX>/bin/cedit` with a custom staging prefix;
-standalone `src/` builds use their build directory as the prefix. The target
-generates a private source project and package lock under the build directory,
-using only this build's staged packages, not user HOME packages or environment
-resource overrides. Source/include, native archive, manifest, builtin and
-language-resource changes rebuild it; unchanged builds do not recompile it.
-The editor is built on demand, not by the default `all` target, and is not
-installed by `cmake --install`. See [cedit](CEDIT.md).
 
 For a deliberate compiler-only configuration, including on machines without
 GUI development files:
@@ -165,8 +154,7 @@ cmake -S . -B build-compiler -DCWHIP_GTK=OFF -DCWHIP_GTK_SOURCEVIEW=OFF
 cmake --build build-compiler --target cwhip -j4
 ```
 
-`cedit` then fails with an explicit dependency/configuration diagnostic rather
-than claiming a successful editor build. Explicit `ON` options require their
+Explicit `ON` options require their
 development dependencies and fail configuration if missing;
 `CWHIP_GTK_SOURCEVIEW=ON` requires `CWHIP_GTK=ON`. Defaults are cached: after
 installing GUI dependencies into an existing compiler-only configuration,
@@ -175,7 +163,7 @@ reconfigure with both options `ON`.
 With GTK enabled and `BUILD_TESTING=ON` (the root-build default), headless GUI
 tests default to enabled when Xvfb and `dbus-daemon` are found
 (`xvfb dbus-daemon` on Debian/Ubuntu). Otherwise configuration explicitly
-reports that GUI tests are disabled; this does not block building cedit.
+reports that GUI tests are disabled; this does not block building the SDK.
 Set `-DCWHIP_GTK_TESTS=ON` to require these tools and fail if missing, or use
 `-DBUILD_TESTING=OFF` to omit all tests. Enabled tests never silently skip
 missing fixtures. Xvfb can be selected with

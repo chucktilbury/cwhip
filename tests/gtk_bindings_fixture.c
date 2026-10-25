@@ -224,6 +224,18 @@ void binding_resize(void *self, int64_t token, int64_t width, int64_t height) {
 }
 
 #ifdef CWHIP_GTK_SOURCEVIEW
+void binding_view_properties(void *self, int64_t token, int64_t tabs, bool enabled) {
+    (void)self;
+    GtkSourceView *view = GTK_SOURCE_VIEW(widget_live(token));
+    assert(gtk_source_view_get_tab_width(view) == (guint)tabs);
+    assert(gtk_source_view_get_insert_spaces_instead_of_tabs(view) == enabled);
+    assert(gtk_source_view_get_show_line_numbers(view) == enabled);
+    assert(gtk_source_view_get_highlight_current_line(view) == enabled);
+    assert(gtk_text_view_get_wrap_mode(GTK_TEXT_VIEW(view)) ==
+           (enabled ? GTK_WRAP_WORD_CHAR : GTK_WRAP_NONE));
+    assert(gtk_text_view_get_monospace(GTK_TEXT_VIEW(view)));
+}
+
 /* Activates a bound shortcut through its real GtkShortcutController action,
  * holding references the way GTK's key dispatch does. */
 bool binding_shortcut(void *self, int64_t token, void *trigger_text) {

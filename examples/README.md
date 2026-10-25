@@ -2,6 +2,10 @@
 
 These are stand-alone programs that demonstrate practical aspects of the **Cwhip** language.
 
+The [cedit editor](https://github.com/chucktilbury/cedit) and
+[cdbg debugger](https://github.com/chucktilbury/cdbg) live in their own repositories
+and build against the installed Cwhip SDK; they are not examples in this tree.
+
 ## Switches and integer ranges
 
 Start with these four small programs, in order:

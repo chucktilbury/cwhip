@@ -285,12 +285,12 @@ class SetupTest(unittest.TestCase):
         self.assertEqual(len([c for c in self.tool_calls("cmake") if "-S" in c["args"]]), 1)
 
     def test_build_helpers(self) -> None:
-        result = self.run_setup(commands='build cedit cdbg; rebuild; cd /; build\n')
+        result = self.run_setup(commands='build cwhip cwhip_tests; rebuild; cd /; build\n')
         self.assertEqual(result.returncode, 0, result.stderr)
         build = str(self.root / "build")
         calls = [c["args"] for c in self.tool_calls("cmake") if "--build" in c["args"]]
         self.assertEqual(calls, [
-            ["--build", build, "--parallel", "12", "--target", "cedit", "cdbg"],
+            ["--build", build, "--parallel", "12", "--target", "cwhip", "cwhip_tests"],
             ["--build", build, "--parallel", "12", "--clean-first"],
             ["--build", build, "--parallel", "12"],
         ])
@@ -332,19 +332,21 @@ class SetupTest(unittest.TestCase):
         self.assertEqual(self.report_lines(), ["2"])
 
         self.log.unlink()
-        self.write_tool(self.root / "bin" / "cdbg", stub)
+        self.write_tool(self.stubs / "cdbg", stub)
         result = self.run_setup(commands='dbg prog "a b" c; dbg ../x.cw\n')
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual([c["args"] for c in self.tool_calls("dbg")],
                          [[str(self.root / "bin" / "prog"), "--", "a b", "c"], ["../x.cw"]])
 
-        (self.root / "bin" / "cdbg").unlink()
+        (self.stubs / "cdbg").unlink()
         (self.stubs / "kdbg").unlink()
         env = self.environment()
         env["PATH"] = os.pathsep.join([str(self.stubs), self.minimal_path()])
         result = self.run_setup(env=env, commands='dbg prog; echo "$?" > "$REPORT"\n')
         self.assertEqual(self.report_lines(), ["127"])
         self.assertIn("no debugger found", result.stderr)
+        self.assertIn("install standalone cdbg", result.stderr)
+        self.assertNotIn("build cdbg", result.stderr)
 
     def test_real_cmake_configure_smoke(self) -> None:
         if REAL_CMAKE is None:

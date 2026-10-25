@@ -41,6 +41,11 @@ function(run_checked description)
 endfunction()
 
 function(require_installed_layout prefix)
+    foreach(application IN ITEMS cedit cedit.bin cdbg)
+        if(EXISTS "${prefix}/${BINDIR}/${application}")
+            message(FATAL_ERROR "SDK must not install standalone application: ${application}")
+        endif()
+    endforeach()
     foreach(installed_file IN ITEMS
             "${BINDIR}/cwhip"
             "${BINDIR}/cwhip-pkg"

@@ -52,10 +52,11 @@ and now guards the zero-length `memchr` call on their null backing storage.
 On a fresh configuration, GTK packages default on when their development
 dependencies are installed; headless GUI tests also default on when Xvfb and
 `dbus-daemon` are found. Thus `make test` in a configured Makefile build directory
-(or `ctest --test-dir build`) includes the legacy `cedit_*` integration tests on
-such hosts. The SDK/application split retained these in-tree examples as
-compiler, runtime and GTK binding coverage; standalone editor tests are owned by
-the editor repository. Labels such as `examples` and `gtk` categorize tests, not
+(or `ctest --test-dir build`) includes compiler-owned GTK/SourceView binding
+fixtures and `examples/gtk.cw` on such hosts. Application-specific tests belong
+to the standalone [cedit](https://github.com/chucktilbury/cedit) and
+[cdbg](https://github.com/chucktilbury/cdbg) repositories.
+Labels such as `examples` and `gtk` categorize tests, not
 exclude them from the default suite.
 
 For a compiler-only build, configure with `-DCWHIP_GTK=OFF
@@ -68,8 +69,6 @@ cmake -S . -B build-gtk -DCWHIP_GTK=ON -DCWHIP_GTK_SOURCEVIEW=ON -DCWHIP_GTK_TES
   -DCMAKE_C_FLAGS=-Werror=deprecated-declarations \
   -DCWHIP_STAGE_PREFIX="$PWD/build-gtk/stage"
 cmake --build build-gtk -j4
-cmake --build build-gtk --target cedit -j4
-cmake --build build-gtk --target cdbg -j4
 ctest --test-dir build-gtk -L gtk --output-on-failure
 ```
 
@@ -100,40 +99,29 @@ GTK linkage in non-import programs and the compiler. Fixtures live in
 registered thread, cancellation, lock reentry and unregistered-thread rejection,
 as well as the pre-existing strict foreign-owner invocation failures.
 
-The editor example test exercises the Cwhip language definition, text-buffer
-editing/search, undo/redo, document/tab behavior and file operations. The
-shortcut test covers defaults, user mappings and conflicts. Run the complete
-configured suite with `ctest --test-dir build-gtk --output-on-failure`.
-`cedit_preferences_ui` checks actual view properties after editing, creating
-views, reloading and resetting preferences. GTK resolves CSS fonts on a later
-frame, so the fixture yields to the main loop and polls those exact properties
-with a bounded retry count; a persistent mismatch still fails with actual and
-expected font sizes. Sleeping inside one callback does not process a frame.
 `cwhip_gtk_bindings` checks actual chooser accept/cancel and overwrite responses,
 immediate cancellation/parent disposal/shutdown for all four dialog operations,
 prompt GC release of callback receivers, and native weak-ref finalization after
 late cancelled completions (including after application shutdown).
-`cedit_dialogs` checks multi-select acceptance/cancellation and Save/Save As
-overwrite decisions without losing tabs or changing files on cancellation.
-`cedit_project_explorer` checks folder acceptance/cancellation and both immediate
-and mapped parent/shutdown teardown, alongside the existing tree regressions.
+It also checks TOML validation/conversion/merge/removal and synchronous/asynchronous
+atomic saves, concurrent-edit rejection, rooted save callbacks and shutdown draining.
 Only test fixtures use deprecated chooser APIs to drive GTK's real fallback UI;
 the package build remains checked with deprecated declarations as errors.
-`cedit_binary` runs the actual `cedit` target output with the same
-bounded editor fixture, private Xvfb and session bus; its `cedit_build` CTest
-fixture builds the target first. GUI options default to installed development
-dependencies on fresh configurations; the explicit options above ensure this
-test configuration fails rather than becoming compiler-only.
-The build fixture also checks nanosecond output timestamps on a second
-invocation so an unchanged target cannot silently recompile or relink.
+With SourceView enabled, the same binding test checks installed/staged language
+resource discovery, Cwhip keyword/comment/string/number highlighting, plain text
+and rejected language IDs, search/replace, undo/redo, modified/saved state, file
+round trips, independent notebook buffers, native allocations after resize,
+and shortcut callbacks that dispose their view/window during dispatch.
+Native assertions verify configured tabs, spaces, line numbers, wrap,
+current-line highlighting and monospace properties without an application model.
+These small SDK consumers do not require an editor or debugger checkout.
+The numeric SDK test also exercises SourceView in an external CMake application
+and checks language-resource staging. Run the complete configured suite with
+`ctest --test-dir build-gtk --output-on-failure`.
 
-With GDB installed, `cdbg_session` exercises the Cwhip GTK debugger against
-real native and Cwhip `-g` targets: breakpoint insertion/deletion, source stops,
-locals/watches, stack selection, step/next/finish, pause, inferior exit and
-running-session teardown. It also covers missing GDB, failed compilation,
-invalid executables and the actual built GUI's startup/close.
-`cdbg_mi_parser` checks nested MI records/escaping and rejection of malformed
-input; `cdbg_build` checks the separate target and no-op rebuild.
+With GDB installed, `cwhip_range_execution` checks compiler-generated range DWARF
+types, signed/unsigned runtime endpoints and collection payloads directly through
+GDB's Python API, without importing an application's pretty-printer.
 
 For sanitizer coverage, add `-DCWHIP_GTK=ON` and `CWHIP_XVFB_EXECUTABLE` if needed
 to the sanitizer build above, then run the same selector with `-j1` to avoid

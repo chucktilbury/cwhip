@@ -114,8 +114,8 @@ development/testing, enable testing, build the default targets, and follow
 [Testing infrastructure](TESTING.md). The explicit stage prefix keeps generated
 compiler resources inside `build/stage`, separate from both source files and
 the installed prefix. Building target `cwhip` also builds/stages its required
-runtime and enabled package archives. The optional editor/debugger targets are
-not needed and are not installed by this compiler install.
+runtime and enabled package archives. The editor and debugger are standalone
+projects; this compiler install does not build or install them.
 
 Put the installed tools first on `PATH` for this shell:
 
@@ -144,7 +144,8 @@ fails rather than constructing an invalid default path.
 `PASS`; missing optional GTK checks can say `WARN` without failing a
 compiler-only installation. Optional GUI checks describe the **host development
 libraries**, not proof that this SDK was built with GTK. An SDK built with both
-GTK options off still needs the GUI rebuild below before it can build cedit/cdbg.
+GTK options off still needs the GUI rebuild below before it can be used to build
+the standalone cedit/cdbg projects.
 
 ### Install side effects, staging, and relocation
 
@@ -682,5 +683,5 @@ and native application integration.
 This guide's canonical source is
 [`cwhip/doc/GETTING_STARTED.md`](https://github.com/chucktilbury/cwhip/blob/master/doc/GETTING_STARTED.md);
 the project website is [cwhip.org](https://cwhip.org). Standalone application
-behavior is owned by the linked app repositories, not the compiler's legacy
-in-tree editor/debugger examples.
+behavior and tests are owned by the linked app repositories, not this compiler
+repository.

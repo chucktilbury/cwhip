@@ -108,11 +108,15 @@ No environment activation is needed. The manifest schema is in
 | `include/` | Runtime C headers and compiler headers |
 | `builtin/` | Built-in `String` class source |
 | `stdlib/` | Versioned standard-library packages |
-| `examples/` | Runnable `.cw` examples, including the [cedit and its build targets](doc/CEDIT.md) |
-| `tools/cdbg/` | [Local GDB-backed cdbg prototype](doc/CDBG.md), written in Cwhip with GTK |
-| `tests/` | Compiler and editor tests |
+| `examples/` | Runnable `.cw` examples |
+| `tests/` | Compiler, runtime, SDK and GTK binding tests |
 | `doc/` | User documentation |
 | `build/`, `bin/`, `lib/`, `share/` | Local CMake build outputs |
+
+The [cedit editor](https://github.com/chucktilbury/cedit) and
+[cdbg debugger](https://github.com/chucktilbury/cdbg) are standalone applications
+built against the installed Cwhip SDK, not bundled examples or compiler targets.
+See [getting started](doc/GETTING_STARTED.md#build-and-start-cedit-and-cdbg).
 
 The standard library's package layout and contribution process are described
 in [`stdlib/README.md`](stdlib/README.md); its public APIs are in
