@@ -28,14 +28,21 @@ describe the implemented language.
 
 ## Build and test
 
-Configure and build the compiler and runtime with CMake, then run the test
-suite with CTest:
+Start the Bash project shell, build the compiler and runtime, then run CTest:
 
 ```sh
-cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
-cmake --build build -j4
-ctest --test-dir build --output-on-failure
+scripts/setup debug
+build
+ctest --output-on-failure
+exit
 ```
+
+Setup configures `build/` and opens a child shell there. Use
+`scripts/setup --clean debug` to delete generated build/staging output before
+configuring. In the shell, `rebuild [TARGET...]` cleans and builds; `clean`
+removes the default build/staging directories (exit and rerun setup afterwards).
+With no build type, setup preserves the cached type or uses CMake's default.
+See [the developer shell](doc/INSTALLATION.md#developer-shell) for details.
 
 The build places the compiler at `bin/cwhip`. It stages the runtime, String
 builtin, and standard modules beside it in the repository's `lib/`, `include/`,
@@ -64,6 +71,10 @@ programs, CI, coverage, and fuzzing.
 
 ## Install
 
+For developers, after `scripts/setup`, run `build` and `cmake --install .`
+inside the project shell, then `exit`. The direct CMake equivalent below is
+for SDK users and packagers who do not want an interactive project shell:
+
 ```sh
 cmake -S . -B build
 cmake --build build
@@ -83,7 +94,7 @@ documentation relative to its installation prefix. CMake install rules honor
 `DESTDIR` for staged installations. See
 [`doc/INSTALLATION.md`](doc/INSTALLATION.md) for the complete installed layout,
 resource overrides, package search order, and
-[project version policies](doc/INSTALLATION.md#project-module-version-selection).
+[project version policies](doc/INSTALLATION.md#locked-project-dependencies).
 The `cwhip-pkg` package manager provides direct dependencies, a reproducible
 lockfile, and complete dependency installation with explicit network consent:
 

@@ -1,13 +1,14 @@
 # Tests
 
 This directory contains C++ unit/structural tests, CTest case definitions, and
-functional Cwhip programs. Build the repository with CMake, then run the full
-suite from the repository root:
+functional Cwhip programs. From the repository root, start the project shell,
+then build and run the full suite in its `build/` working directory:
 
 ```sh
-cmake -S . -B build
-cmake --build build
-ctest --test-dir build --output-on-failure
+scripts/setup debug
+build
+ctest --output-on-failure
+exit
 ```
 
 `cwhip_gc_runtime_lifecycle` covers precise roots, interior pointers, adaptive
@@ -93,11 +94,14 @@ detail and package rollback checks. Run the targeted checks with
 `ctest --test-dir build --output-on-failure -R 'cwhip_cli_diagnostics|cwhip-pkg_cli'`.
 
 `cwhip_developer_setup` runs `test_setup.py` for `scripts/setup`,
-`.project_env`, and the `build`/`rebuild`/`clean` helpers. It copies them to a
-temporary checkout path with spaces, uses an isolated `HOME`, stubs CMake, Git
-and debuggers, and drives the interactive project shell through stdin so it
-exits at EOF. It also configures the real source tree once into a temporary
-compiler-only build directory. Run it directly with
+`.project_env`, the `build`/`rebuild` Bash functions, and the retained `clean`
+script. It copies the shell files to a temporary checkout path with spaces,
+uses private HOME/XDG/TMPDIR without inheriting caller project variables, stubs
+CMake/Git/cdbg, and drives a real interactive shell through stdin.
+It checks clean ordering/failure, argument rejection, cached/default build
+types, function targets/exit status and shell survival. With `--cmake`, it
+also configures/builds/rebuilds a tiny real CMake fixture in that private copy.
+Run it directly with
 `python3 tests/test_setup.py [--cmake "$(command -v cmake)"]`.
 
 With GTK tests enabled, `cwhip_gtk` checks widgets (including tree models),
