@@ -448,17 +448,23 @@ bool GtkSource.Content().isText(String data)
 
 The language protocol uses standard GtkSourceView 5 `.lang` files:
 
-1. A language is registered by installing `<id>.lang` in the sourceview
-   package's `language-specs` directory (staged or installed). The file name
-   must equal the `id` attribute of its `<language>` element. Only ids found
-   in those directories are accepted; `setLanguage` returns false for others
-   and leaves the view unchanged.
+1. A language is registered from every directory on the language-manager
+   search path. That path starts with GtkSourceView's default directories.
+   When those directories contain no `.lang` files, the newest installed
+   spec directory on the system data path is added (`gtksourceview-5`,
+   `libgedit-gtksourceview-300`, `gtksourceview-4`, then
+   `gtksourceview-3.0`). The sourceview package's `language-specs` directory
+   is searched first, so the bundled definition wins for `*.cw`. The file
+   name must equal the `id` attribute of its `<language>` element.
+   `setLanguage` returns false for an id that is not registered and leaves
+   the view unchanged.
 2. File association comes from the definition's `globs` and `mimetypes`
    metadata, through GtkSourceView's language manager. `languageFor(path)`
    matches the file name only (no content sniffing) and returns `""` for
    untitled paths, unknown extensions, or unregistered languages.
-3. `cwhip.lang` is the only shipped definition (`*.cw;*.cw;*.cw`). Supporting
-   another language means adding its `.lang` file; no code changes are needed.
+3. `cwhip.lang` is the bundled definition (`*.cw`). Other languages come from
+   the GtkSourceView specs installed on the host, such as C and Python.
+   An application selects one with `languageFor` or `setLanguage`.
 
 `isText` returns false for data containing NUL bytes. Cwhip strings are always
 valid UTF-8, so `File.readAll` raises on undecodable input; applications should
