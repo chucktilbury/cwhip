@@ -440,6 +440,7 @@ void cwhip_trace_push(void *frame, const char *name, uint64_t name_length,
                      const char *file, uint64_t file_length,
                      uint64_t line, uint64_t column);
 void cwhip_trace_pop(void *frame);
+/* Valid until this frame is cleared or another exception overwrites it. */
 const char *cwhip_exception_copy_message(void *frame);
 uint64_t cwhip_exception_message_length(void *frame);
 void *cwhip_exception_frame_object(void *frame);
