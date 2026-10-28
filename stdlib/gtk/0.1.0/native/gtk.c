@@ -387,6 +387,41 @@ static void register_languages(const char *directory) {
     }
     g_dir_close(dir);
 }
+
+static bool directory_has_languages(const char *directory) {
+    GDir *dir = g_dir_open(directory, 0, NULL);
+    if (!dir) return false;
+    bool found = false;
+    for (const char *name; (name = g_dir_read_name(dir));) {
+        if (g_str_has_suffix(name, ".lang")) {
+            found = true;
+            break;
+        }
+    }
+    g_dir_close(dir);
+    return found;
+}
+
+/* Debian's GtkSourceView 5 package ships the schema without definitions.
+ * Use the newest installed spec directory when the linked defaults have none. */
+static gchar *host_language_directory(void) {
+    static const char *const relatives[] = {
+        "gtksourceview-5/language-specs",
+        "libgedit-gtksourceview-300/language-specs",
+        "gtksourceview-4/language-specs",
+        "gtksourceview-3.0/language-specs",
+        NULL
+    };
+    const char *const *data_dirs = g_get_system_data_dirs();
+    for (size_t relative = 0; relatives[relative]; ++relative) {
+        for (size_t dir = 0; data_dirs && data_dirs[dir]; ++dir) {
+            gchar *path = g_build_filename(data_dirs[dir], relatives[relative], NULL);
+            if (directory_has_languages(path)) return path;
+            g_free(path);
+        }
+    }
+    return NULL;
+}
 #endif
 
 static void application_initialize(const char *id, bool scheduler) {
@@ -400,6 +435,12 @@ static void application_initialize(const char *id, bool scheduler) {
     GPtrArray *paths = g_ptr_array_new();
     for (size_t i = 0; existing_paths && existing_paths[i]; ++i)
         g_ptr_array_add(paths, (gpointer)existing_paths[i]);
+    bool defaults_have_languages = false;
+    for (guint i = 0; i < paths->len; ++i) {
+        if (directory_has_languages(paths->pdata[i])) defaults_have_languages = true;
+    }
+    gchar *host_languages = defaults_have_languages ? NULL : host_language_directory();
+    if (host_languages) g_ptr_array_add(paths, host_languages);
     gchar *executable = g_file_read_link("/proc/self/exe", NULL);
     gchar *bin = executable ? g_path_get_dirname(executable) : NULL;
     gchar *languages = bin ? g_build_filename(bin, "..", "share", "cwhip",
@@ -410,14 +451,16 @@ static void application_initialize(const char *id, bool scheduler) {
             "sourceview", "0.1.0", "language-specs", NULL);
     }
     if (languages && g_file_test(languages, G_FILE_TEST_IS_DIR))
-        g_ptr_array_add(paths, languages);
-    g_ptr_array_add(paths, NULL);
+        g_ptr_array_insert(paths, 0, languages);
     registered_languages = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, NULL);
-    if (languages) register_languages(languages);
+    for (guint i = 0; i < paths->len; ++i)
+        register_languages(paths->pdata[i]);
+    g_ptr_array_add(paths, NULL);
     source_language_manager = gtk_source_language_manager_new();
     gtk_source_language_manager_set_search_path(source_language_manager,
                                                  (const char **)paths->pdata);
     g_ptr_array_unref(paths);
+    g_free(host_languages);
     g_free(languages);
     g_free(bin);
     g_free(executable);

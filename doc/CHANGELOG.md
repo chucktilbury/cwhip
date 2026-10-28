@@ -33,6 +33,8 @@ tests have been removed. [cedit](https://github.com/chucktilbury/cedit) and
 against the installed SDK. The GTK/SourceView packages, language definition
 and compiler-owned headless binding coverage remain here. GUI descriptions
 below are historical, not instructions for building the current checkout.
+Source views accept every GtkSourceView language spec on the host search path.
+The bundled `cwhip` definition is searched first.
 
 ### Unreleased: Fixed-width numeric SDK (0.0.2)
 
