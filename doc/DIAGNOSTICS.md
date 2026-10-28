@@ -109,12 +109,11 @@ guides for adoption coverage and exit behavior.
 | Code | Owner-provided boundary |
 |---|---|
 | CEDIT0001 | Setup usage/executable-path startup |
-| CEDIT0002 | Background startup readiness |
 | CEDIT1001 | Document open |
 | CEDIT1002 | Document save |
 | CEDIT2001 | SDK/settings configuration |
 | CEDIT2002 | Project metadata/folder operations |
-| CEDIT3001 | Launcher/process and setup/CMake subprocess failures |
+| CEDIT3001 | Setup and CMake subprocess failures |
 | CDBG0001 | CLI usage |
 | CDBG1000 | Rejected operation |
 | CDBG1001 | Source/target load |

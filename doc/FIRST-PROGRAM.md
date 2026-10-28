@@ -129,7 +129,7 @@ before reconfiguring. `clean` remains available as a script; after using it,
 exit and rerun setup.
 If you prefer not to open a project shell, use the app's
 [direct CMake instructions](https://github.com/chucktilbury/cedit/blob/main/doc/BUILD.md).
-Keep the launcher, `cedit.bin`, and installed `share/` resources together.
+Keep the installed `cedit` executable and its `share/` resources together.
 The installed editor does not need either source checkout to open files.
 
 ## 4. Write and save hello world
