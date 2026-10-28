@@ -492,8 +492,6 @@ void cwhip_gtk_run(void *self) {
     int status = g_application_run(G_APPLICATION(run_application), 0, NULL);
     cwhip_runtime_gil_acquire();
     --running;
-    if (status == 0 && !activated && !stopped)
-        cwhip_gtk_ready(self);
     g_object_unref(run_application);
     if (status != 0) fatal("GtkApplication run failed");
     cwhip_gtk_shutdown(self);
@@ -1619,22 +1617,6 @@ void cwhip_gtk_context_menu_bind(void *self, int64_t token, int64_t owner_token)
     gtk_gesture_single_set_button(GTK_GESTURE_SINGLE(gesture), GDK_BUTTON_SECONDARY);
     g_signal_connect_object(gesture, "pressed", G_CALLBACK(context_pressed), menu, 0);
     gtk_widget_add_controller(owner_widget, GTK_EVENT_CONTROLLER(gesture));
-}
-
-void cwhip_gtk_ready(void *self) {
-    (void)self;
-    require_live();
-    const char *raw = g_getenv("CWHIP_EDITOR_READY_FD");
-    if (!raw) return;
-    char *end;
-    long fd = strtol(raw, &end, 10);
-    if (!*raw || *end || fd < 3 || fd > G_MAXINT) fatal("invalid startup readiness fd");
-    char ready = 'R';
-    ssize_t result;
-    do { result = write((int)fd, &ready, 1); } while (result < 0 && errno == EINTR);
-    close((int)fd);
-    g_unsetenv("CWHIP_EDITOR_READY_FD");
-    if (result != 1) fatal("could not report startup readiness");
 }
 
 static void shortcut_free(ShortcutBinding *binding) {

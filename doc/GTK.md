@@ -41,12 +41,6 @@ than once in the primary process, so handlers should present existing windows
 when appropriate. No command-line/open-file API is provided yet; the GTK run
 call does not consume Cwhip's program arguments.
 
-`Application.ready()` reports successful startup to an application's launcher,
-after the application has initialized and presented its window. It is a no-op without
-the launcher's `CWHIP_EDITOR_READY_FD` handshake. Successful forwarded desktop
-activation also completes the handshake without running a local activation
-handler.
-
 Closing the last application window normally ends the run. `quit()` requests
 exit and requires an active run; it does not pretend that closing was approved.
 `run()` is single-use and **terminal**: on return it performs `shutdown()`.

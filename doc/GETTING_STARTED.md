@@ -592,9 +592,9 @@ exit
 
 cedit opens/edit/saves source, provides syntax highlighting, tabs, search,
 and project navigation. Keep terminal build commands separate. It has no
-compiler action/parser or debug workflow. Its native launcher and `cedit.bin`
-belong together; move the whole installed application prefix, including
-`share/` language resources. Use it in a graphical session; an SSH/headless shell
+compiler action/parser or debug workflow. Move the whole installed application
+prefix, including `share/` language resources. The `cedit` executable stays
+attached to the terminal that started it. Use it in a graphical session; an SSH/headless shell
 alone is not a desktop. See the standalone
 [cedit build guide](https://github.com/chucktilbury/cedit/blob/main/doc/BUILD.md)
 and [editor guide](https://github.com/chucktilbury/cedit/blob/main/CEDIT.md).

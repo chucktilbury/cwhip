@@ -54,7 +54,6 @@ namespace Gtk {
         void run()
         void quit()
         void shutdown()
-        void ready()
         int64 post(void<> action)
         bool cancel(int64 token)
     }
@@ -484,7 +483,6 @@ namespace Gtk {
     void Application.run() from "cwhip_gtk_run"
     void Application.quit() from "cwhip_gtk_quit"
     void Application.shutdown() from "cwhip_gtk_shutdown"
-    void Application.ready() from "cwhip_gtk_ready"
     int64 Application.post(void<> action) from "cwhip_gtk_post"
     bool Application.cancel(int64 token) from "cwhip_gtk_cancel"
     int64 SignalConnection._activate(Application source, void<> action)
