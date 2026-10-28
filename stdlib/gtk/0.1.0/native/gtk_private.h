@@ -17,7 +17,6 @@ void cwhip_gtk_initialize(void *self);
 void cwhip_gtk_run(void *self);
 void cwhip_gtk_quit(void *self);
 void cwhip_gtk_shutdown(void *self);
-void cwhip_gtk_ready(void *self);
 int64_t cwhip_gtk_post(void *self, void *callback);
 bool cwhip_gtk_cancel(void *self, int64_t token);
 

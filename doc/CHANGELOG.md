@@ -33,6 +33,7 @@ tests have been removed. [cedit](https://github.com/chucktilbury/cedit) and
 against the installed SDK. The GTK/SourceView packages, language definition
 and compiler-owned headless binding coverage remain here. GUI descriptions
 below are historical, not instructions for building the current checkout.
+`Application.ready()` and its launcher readiness pipe have been removed.
 
 ### Unreleased: Fixed-width numeric SDK (0.0.2)
 
