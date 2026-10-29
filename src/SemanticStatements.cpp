@@ -324,10 +324,12 @@ void SemanticAnalyzer::analyzeStatement(Statement& statement) {
             warnNumericConversion(targetType, *operationType,
                                   statement.assignmentOperatorLocation);
         }
-        if (targetType == "buffer-byte") {
+        if (targetType == "buffer-byte" || targetType == "string-byte") {
             if (!isIntegerType(valueType)) {
                 throw DiagnosticError(statement.expressions.front()->location,
-                                      "buffer element assignment requires an integer");
+                                      targetType == "buffer-byte"
+                                          ? "buffer element assignment requires an integer"
+                                          : "String byte assignment requires an integer");
             }
             warnNumericConversion("uint8", valueType,
                                   statement.expressions.front()->location);

@@ -447,8 +447,10 @@ endpoints are invalid.
 `value in bounds` accepts an integer and a range; `for (value in bounds)`
 binds a read-only integer. `collection[bounds]` is a copy slice when the index
 expression has a range type, for lists, Strings, and buffers only; its endpoints
-are strict inclusive indices. Existing colon slices remain half-open and
-clamped. Switch case-label expressions are restricted to compile-time integer
+are strict inclusive indices. `text[index]` reads one String byte as `uint8`,
+and assigning that index replaces one ASCII byte. Colon slices on lists,
+buffers, and dicts remain half-open and clamped. String has no colon slice.
+Switch case-label expressions are restricted to compile-time integer
 values or a top-level range of compile-time integer endpoints; stored ranges
 and runtime endpoints remain forbidden there.
 Endpoint expressions run exactly once, left to right. Every formed interval

@@ -2,10 +2,10 @@
 # trimming, ASCII case conversion, UTF-8 boundary checks, and embedded NULs.
 start {
     strg text = "a,b,,c,"
-    print(text.byteAt(0))
-    print(text.byteAt(-1))
-    print(text.slice(2, 5))
-    print(text.slice(-4, -1))
+    print(text[0])
+    print(text[-1])
+    print(text[2..4])
+    print(text[-4..-2])
     print(text.find("b"))
     print(text.find(""))
     print(text.find("missing"))
@@ -54,15 +54,15 @@ start {
 
     strg unicode = "Aé中Z"
     print(unicode.length)
-    print(unicode.byteAt(-1))
-    print(unicode.byteAt(2))
+    print(unicode[-1])
+    print(unicode[2])
     print(unicode.find("中"))
-    print(unicode.slice(1, 3))
-    print(unicode.slice(-4, -1))
-    print(unicode.slice(-100, 100))
-    print(unicode.slice(3, 3).length)
+    print(unicode[1..2])
+    print(unicode[-4..-2])
+    print(unicode[0..6])
+    print("".length)
     print(unicode.toUpper())
-    strg equalCopy = unicode.slice(0, unicode.length)
+    strg equalCopy = unicode[0..unicode.length - 1]
     print(equalCopy == unicode)
     print(equalCopy.equals(unicode))
 
@@ -72,14 +72,14 @@ start {
     print(alias)
     mutable.insert(0, mutable)
     print(mutable)
-    mutable.removeRange(0, 4)
+    mutable.remove(0..3)
     print(alias)
     mutable.clear()
     print(mutable.length)
     strg selfInsert = "xy"
     selfInsert.insert(1, selfInsert)
     print(selfInsert)
-    strg clamped = "abc".slice(-100, 100)
+    strg clamped = "abc"[0..2]
     print(clamped)
 
     strg nul = "a"
@@ -88,8 +88,8 @@ start {
         cwhip_string_append_bytes(*nul, bytes, 2);
     }
     print(nul.length)
-    print(nul.byteAt(1))
-    print(nul.byteAt(2))
+    print(nul[1])
+    print(nul[2])
     strg nulNeedle = ""
     inline (strg nulNeedle) {
         const char byte[] = { 0 };
@@ -99,16 +99,16 @@ start {
     print(nul.contains(nulNeedle))
     strg nulReplacement = nul.replace(nulNeedle, "X")
     print(nulReplacement.length)
-    print(nulReplacement.byteAt(1))
-    print(nulReplacement.byteAt(2))
+    print(nulReplacement[1])
+    print(nulReplacement[2])
 
     try {
-        unicode.byteAt(20)
+        uint8 ignored = unicode[20]
     } except() {
         print("byte bounds")
     }
     try {
-        unicode.slice(2, 4)
+        strg broken = unicode[2..3]
     } except() {
         print("slice boundary")
     }
@@ -118,7 +118,7 @@ start {
         print("insert boundary")
     }
     try {
-        unicode.removeRange(2, 4)
+        unicode.remove(2..3)
     } except() {
         print("remove boundary")
     }

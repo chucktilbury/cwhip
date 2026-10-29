@@ -25,6 +25,14 @@ proof of concept and compiler-testing tool, not a production IDE/debugger.
 
 ## Implemented milestones
 
+### Unreleased: Regular sequence operations
+
+Lists, buffers, and strings share indexing, inclusive range copies, `insert`,
+and inclusive `remove`. Lists and dicts also have `clear()`. A string index
+reads a `uint8` and may replace one ASCII byte. `byteAt`, half-open `slice`,
+and `removeRange` are removed. A nonempty `slice(first, last)` is
+`text[first..last - 1]`. List `append` and `insert` accept buffers and handles.
+
 ### Unreleased: String storage
 
 A `String` keeps its bytes in one array freed with the string, instead of a

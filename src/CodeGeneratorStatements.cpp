@@ -241,9 +241,12 @@ void CodeGenerator::emitStatement(const Statement& statement) {
         bool arrayElementTarget = false;
         bool mapElementTarget = false;
         bool bufferElementTarget = false;
+        bool stringElementTarget = false;
         std::string mapPointer;
         std::string bufferPointer;
+        std::string stringPointer;
         Value bufferIndex;
+        Value stringIndex;
         std::string arrayPointer;
         std::string arrayIndex;
         Value mapKey;
@@ -274,6 +277,11 @@ void CodeGenerator::emitStatement(const Statement& statement) {
                 bufferIndex = emitIntegerExpression(*statement.target->arguments.front());
                 binding.type = "buffer-byte";
                 bufferElementTarget = true;
+            } else if (isStringType(collection.type)) {
+                stringPointer = collection.operand;
+                stringIndex = emitIntegerExpression(*statement.target->arguments.front());
+                binding.type = "string-byte";
+                stringElementTarget = true;
             } else {
                 mapPointer = collection.operand;
                 mapKey = emitExpression(*statement.target->arguments.front());
@@ -321,6 +329,18 @@ void CodeGenerator::emitStatement(const Statement& statement) {
             const auto file = internString(statement.target->location.file);
             instructions_ += "  call void @cwhip_buffer_set(ptr " + bufferPointer + ", i64 " +
                              bufferIndex.operand + ", i64 " + value64 + ", ptr " + file +
+                             ", i64 " +
+                             std::to_string(statement.target->location.file.size()) + ", i64 " +
+                             std::to_string(statement.target->location.line) + ", i64 " +
+                             std::to_string(statement.target->location.column) + ")\n";
+            return;
+        }
+        if (stringElementTarget) {
+            const auto value64 = convertNumericValue(
+                value, "uint64", statement.expressions.front()->location).operand;
+            const auto file = internString(statement.target->location.file);
+            instructions_ += "  call void @cwhip_string_set(ptr " + stringPointer + ", i64 " +
+                             stringIndex.operand + ", i64 " + value64 + ", ptr " + file +
                              ", i64 " +
                              std::to_string(statement.target->location.file.size()) + ", i64 " +
                              std::to_string(statement.target->location.line) + ", i64 " +

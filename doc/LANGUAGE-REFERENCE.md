@@ -1012,18 +1012,27 @@ catchable exception. For example, `"aéz"[1..2]` selects the two-byte `é`,
 whereas `[1..1]` splits it, and reversing its bytes is invalid. Reverse ASCII
 slices work normally; this feature does not add Unicode-aware reversal.
 
-Existing `list[start:end:step]`, `buffer[start:end]`, and String `.slice`
-methods keep their half-open/clamped semantics. Dicts retain colon
-insertion-order slices, not range-index slices. Switch case labels retain
+`list[start:end:step]`, `buffer[start:end]`, and dict insertion-order slices
+stay half-open and clamped. String has no colon slice. A nonempty half-open
+`slice(first, last)` is the inclusive range `first..last - 1`. An empty
+half-open slice has no range spelling, because every formed range is
+nonempty. Dicts have no range-index slices. Switch case labels retain
 their separate compile-time integer restrictions, grouping, and
 direction-independent interval matching; a stored range cannot be a label.
 
 ## Strings and their methods
 
 String literals construct managed `String` values. Strings expose a
-read-only `length` member (the UTF-8 byte length) and methods for appending,
-equality, numeric conversion, byte access, slicing, insertion/removal, search,
-splitting, replacement, trimming, and case conversion. `toUpper()` and
+read-only `length` member (the UTF-8 byte length). `text[index]` reads one
+byte as `uint8`. A negative index counts back from the length, and an index
+outside the string raises. `text[index] = value` replaces that one byte when
+the existing byte and the new integer are both in `0..127` and both edges of
+the byte are UTF-8 boundaries. Any other write raises, so assignment cannot
+split a character. `insert(index, text)`, `remove(first..last)`, and
+`clear()` mutate the same storage, including through aliases. `remove`
+deletes the inclusive interval; reversing the range does not change which
+bytes are removed, and the cut must stay valid UTF-8. Search, split,
+replacement, trimming, and case conversion remain methods. `toUpper()` and
 `toLower()` perform ASCII case conversion; `trim()`/`strip()` trim ASCII
 whitespace. See the `String` section of
 [STDLIB.md](STDLIB.md) for the exact standard API. String operations use
@@ -1050,9 +1059,12 @@ start {
 is evaluated once from left to right, and contributes its low 8
 bits, matching indexed writes and `append`. Bare `[ ... ]` remains a
 heterogeneous list literal. A buffer has a read-only `length`, supports
-integer indexing and slicing, and provides `resize`, `clear`, and
-`append(integer)` methods. Indexed values are `uint8`; indexed
-assignment accepts every integer type. Source lengths/indices are int64.
+integer indexing and slicing, and provides `resize`, `clear`,
+`append(integer)`, `insert(index, integer)`, and `remove(first..last)`.
+`insert` accepts an index from `-length` through `length`. `remove` deletes
+the inclusive interval and ignores range direction. Indexed values are
+`uint8`; indexed assignment accepts every integer type. Source
+lengths/indices are int64.
 Bounds and allocation failures are
 checked by the runtime.
 
@@ -1085,11 +1097,13 @@ type descriptors, integer ranges, class references, lists, dicts, buffers, handl
 `null`. Values are
 stored with dynamic tags, but `any` is not a type that can be declared for an
 element, variable, field, parameter, or return.
-`list.length` is read-only and int64; `append(value)` and `resize(int64)` mutate it.
-Type descriptors are also accepted by `append`. Although literals accept
-buffers and handles, the current `append` semantic check does not accept those
-two element types directly. There is no list
-element deletion operation; dicts separately provide `remove(string)`.
+`list.length` is read-only and int64. `append(value)`, `insert(index, value)`,
+`remove(first..last)`, `resize(int64)`, and `clear()` mutate the list.
+`append` and `insert` accept the same values a list literal accepts, including
+buffers, handles, and type descriptors. `insert` accepts an index from
+`-length` through `length`. `remove` deletes the inclusive interval; reversing
+the range selects the same elements. Dicts provide `contains(string)`,
+`remove(string)`, and `clear()`.
 Indexing and foreach iteration produce values inferred as `any` internally,
 not declared `any` variables. A dynamic value can be type-tested, passed,
 printed, or compared with `null`; extract it into a concrete local before
@@ -1105,7 +1119,7 @@ supported scalar/reference/collection types, including type descriptors.
 Indexed reads and foreach
 iteration produce dynamically tagged values inferred internally as `any`,
 not legal `any` declarations. Dicts
-support `length`, `contains(string)`, `remove(string)`, string-key indexing,
+support `length`, `contains(string)`, `remove(string)`, `clear()`, string-key indexing,
 and slicing. Dict slice bounds are integer positions in iteration order;
 stepped dict slices are not supported.
 
@@ -1189,8 +1203,7 @@ instructions do not execute in parallel. Exceptions use the host C ABI's
 `setjmp`/`longjmp` mechanism rather than LLVM landing pads.
 
 Known language/backend boundaries include no free-standing functions, no
-automatic user-object `toString()` dispatch, no scalar String index syntax
-(range-index copy slices are supported), no Unicode code-point operations, and no native-ABI lowering for
+automatic user-object `toString()` dispatch, no Unicode code-point operations, and no native-ABI lowering for
 `any`. There is no general reflection API beyond `type(value)`. String
 methods, Cwhip class methods, and C-bound methods described elsewhere remain
 available; these limitations should not be confused with the obsolete claim

@@ -1160,6 +1160,16 @@ CodeGenerator::Value CodeGenerator::emitExpression(const Expression& expression,
                              std::to_string(expression.location.line) + ", i64 " +
                              std::to_string(expression.location.column) + ")\n";
             return convertNumericValue({"uint64", result}, "uint8", expression.location);
+        } else if (isStringType(collection.type)) {
+            const auto index = emitIntegerExpression(*expression.arguments.front());
+            const auto result = newTemporary();
+            instructions_ += "  " + result + " = call i64 @cwhip_string_get(ptr " +
+                             collection.operand + ", i64 " + index.operand + ", ptr " + file +
+                             ", i64 " +
+                             std::to_string(expression.location.file.size()) + ", i64 " +
+                             std::to_string(expression.location.line) + ", i64 " +
+                             std::to_string(expression.location.column) + ")\n";
+            return convertNumericValue({"uint64", result}, "uint8", expression.location);
         } else {
             const auto key = emitExpression(*expression.arguments.front());
             std::string keyData;
@@ -1343,17 +1353,36 @@ CodeGenerator::Value CodeGenerator::emitExpression(const Expression& expression,
         const bool qualified = resolveBaseQualifier(*target.left, root, owner, basePath);
         auto receiver = emitExpression(qualified ? *root : *target.left);
         if (isArrayType(receiver.type)) {
-            const auto argument = emitExpression(*expression.arguments.front());
             const auto file = internString(target.location.file);
             const auto position = ", ptr " + file + ", i64 " +
                                   std::to_string(target.location.file.size()) + ", i64 " +
                                   std::to_string(target.location.line) + ", i64 " +
                                   std::to_string(target.location.column) + ")\n";
             if (target.value == "resize") {
+                const auto argument = emitExpression(*expression.arguments.front());
                 const auto length = convertNumericValue(argument, "int64", target.location);
                 instructions_ += "  call void @cwhip_array_resize(ptr " + receiver.operand +
                                  ", i64 " + length.operand + position;
+            } else if (target.value == "clear") {
+                instructions_ += "  call void @cwhip_array_clear(ptr " + receiver.operand +
+                                 position;
+            } else if (target.value == "remove") {
+                const auto bounds = emitExpression(*expression.arguments.front());
+                instructions_ += "  call void @cwhip_array_remove(ptr " + receiver.operand +
+                                 ", ptr " + bounds.operand + position;
+            } else if (target.value == "insert") {
+                const auto index = emitIntegerExpression(*expression.arguments.front());
+                const auto element = emitExpression(*expression.arguments[1]);
+                const auto dynamic =
+                    buildDynamicValue(element, expression.arguments[1]->location);
+                const auto slot = newTemporary();
+                entryAllocas_ += "  " + slot + " = alloca %CwhipArrayValue\n";
+                instructions_ += "  store %CwhipArrayValue " + dynamic.operand + ", ptr " +
+                                 slot + "\n"
+                                 "  call void @cwhip_array_insert(ptr " + receiver.operand +
+                                 ", i64 " + index.operand + ", ptr " + slot + position;
             } else {
+                const auto argument = emitExpression(*expression.arguments.front());
                 const auto dynamic =
                     buildDynamicValue(argument, expression.arguments.front()->location);
                 const auto slot = newTemporary();
@@ -1366,6 +1395,15 @@ CodeGenerator::Value CodeGenerator::emitExpression(const Expression& expression,
             return {"void", ""};
         }
         if (isMapType(receiver.type)) {
+            if (target.value == "clear") {
+                const auto file = internString(target.location.file);
+                instructions_ += "  call void @cwhip_map_clear(ptr " + receiver.operand +
+                                 ", ptr " + file + ", i64 " +
+                                 std::to_string(target.location.file.size()) + ", i64 " +
+                                 std::to_string(target.location.line) + ", i64 " +
+                                 std::to_string(target.location.column) + ")\n";
+                return {"void", ""};
+            }
             if ((target.value != "contains" && target.value != "remove") ||
                 expression.arguments.size() != 1) {
                 throw DiagnosticError(target.location,
@@ -1408,6 +1446,16 @@ CodeGenerator::Value CodeGenerator::emitExpression(const Expression& expression,
                     emitExpression(*expression.arguments.front()), "uint64", target.location);
                 instructions_ += "  call void @cwhip_buffer_append(ptr " + receiver.operand +
                                  ", i64 " + value.operand + common;
+            } else if (target.value == "insert") {
+                const auto index = emitIntegerExpression(*expression.arguments.front());
+                const auto value = convertNumericValue(
+                    emitExpression(*expression.arguments[1]), "uint64", target.location);
+                instructions_ += "  call void @cwhip_buffer_insert(ptr " + receiver.operand +
+                                 ", i64 " + index.operand + ", i64 " + value.operand + common;
+            } else if (target.value == "remove") {
+                const auto bounds = emitExpression(*expression.arguments.front());
+                instructions_ += "  call void @cwhip_buffer_remove(ptr " + receiver.operand +
+                                 ", ptr " + bounds.operand + common;
             } else {
                 throw DiagnosticError(target.location, "unknown buffer operation");
             }

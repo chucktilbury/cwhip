@@ -211,7 +211,7 @@ start {
     print(binaryOutput.out[2] == 128u)
     print(binaryOutput.out[3] == 65u)
     print(binaryOutput.outText.length == 9)
-    print(binaryOutput.outText.byteAt(0) == 0u)
+    print(binaryOutput.outText[0] == 0u)
     print(binaryOutput.outText.endsWith("��A\n"))
     binary.close()
 

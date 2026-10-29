@@ -27,10 +27,8 @@ class String {
     fp32 toFp32()
     fp64 toFp64()
 
-    uint64 byteAt(int64 index)
-    String slice(int64 first, int64 last)
     void insert(int64 index, String other)
-    void removeRange(int64 first, int64 last)
+    void remove(range<int64> bounds)
     void clear()
     int64 find(String needle)
     bool contains(String needle)
@@ -56,10 +54,8 @@ int64 String.toInt64() from "cwhip_string_method_to_int64"
 uint64 String.toUint64() from "cwhip_string_method_to_uint64"
 fp32 String.toFp32() from "cwhip_string_method_to_fp32"
 fp64 String.toFp64() from "cwhip_string_method_to_fp64"
-uint64 String.byteAt(int64 index) from "cwhip_string_method_byte_at"
-String String.slice(int64 first, int64 last) from "cwhip_string_method_slice"
 void String.insert(int64 index, String other) from "cwhip_string_method_insert"
-void String.removeRange(int64 first, int64 last) from "cwhip_string_method_remove_range"
+void String.remove(range<int64> bounds) from "cwhip_string_method_remove"
 void String.clear() from "cwhip_string_method_clear"
 int64 String.find(String needle) from "cwhip_string_method_find"
 bool String.contains(String needle) from "cwhip_string_method_contains"

@@ -224,7 +224,7 @@ start {
     # pipe writes are resumed, and nothing deadlocks or is lost.
     String block = "0123456789abcdef"
     while (block.length < 65536) {
-        String copy = block.slice(0, block.length)
+        String copy = block[0..block.length - 1]
         block.append(copy)
     }
     P.AsyncProcess pipe = P.AsyncProcess("/bin/cat", [], null, true)
@@ -270,10 +270,10 @@ start {
     check.that("pending positive", pending > 0)
     check.that("pending within limit", pending <= 1048576)
     check.that("small write still fits", pending + 1 > 1048576 || stalled.write("z"))
-    String oversized = block.slice(0, block.length)
+    String oversized = block[0..block.length - 1]
     int64 grow = 0
     while (grow < 5) {
-        String piece = oversized.slice(0, oversized.length)
+        String piece = oversized[0..oversized.length - 1]
         oversized.append(piece)
         grow = grow + 1
     }

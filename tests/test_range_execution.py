@@ -271,9 +271,9 @@ start {
         emit(f'try {{ strg invalid = "é"[{bounds}]\n print("BAD") }}\n'
              'except(Exception) { print("utf8\\n") }' if bounds != "0..1" else
              'print("{}\\n", "é"[0..1])', "utf8\n" if bounds != "0..1" else "é\n")
-    # Existing half-open/clamped colon slices and constant switch ranges stay separate.
+    # Colon slices and constant switch ranges stay separate from inclusive ranges.
     emit(r"""
-    print("{}\n", "abcd".slice(1, 3))
+    print("{}\n", "abcd"[1..2])
     list colon = [1, 2, 3][0:2]
     print("{}\n", colon.length)
     switch (2) {

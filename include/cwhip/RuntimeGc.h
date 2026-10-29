@@ -174,10 +174,12 @@ CWHIP_DECLARE_NUMERIC_PARSER(uint64, uint64_t)
 CWHIP_DECLARE_NUMERIC_PARSER(fp32, float)
 CWHIP_DECLARE_NUMERIC_PARSER(fp64, double)
 #undef CWHIP_DECLARE_NUMERIC_PARSER
-uint64_t cwhip_string_method_byte_at(void *receiver, int64_t index);
-void *cwhip_string_method_slice(void *receiver, int64_t first, int64_t last);
+uint64_t cwhip_string_get(void *receiver, int64_t index, const char *file,
+                        uint64_t file_length, uint64_t line, uint64_t column);
+void cwhip_string_set(void *receiver, int64_t index, uint64_t value, const char *file,
+                     uint64_t file_length, uint64_t line, uint64_t column);
 void cwhip_string_method_insert(void *receiver, int64_t index, void *other);
-void cwhip_string_method_remove_range(void *receiver, int64_t first, int64_t last);
+void cwhip_string_method_remove(void *receiver, void *bounds);
 void cwhip_string_method_clear(void *receiver);
 int64_t cwhip_string_method_find(void *receiver, void *needle);
 int32_t cwhip_string_method_contains(void *receiver, void *needle);
@@ -354,6 +356,13 @@ void cwhip_array_resize(void *array, int64_t length, const char *file,
                        uint64_t file_length, uint64_t line, uint64_t column);
 void cwhip_array_append(void *array, const CwhipArrayValue *value, const char *file,
                        uint64_t file_length, uint64_t line, uint64_t column);
+void cwhip_array_insert(void *array, int64_t index, const CwhipArrayValue *value,
+                       const char *file, uint64_t file_length, uint64_t line,
+                       uint64_t column);
+void cwhip_array_remove(void *array, void *bounds, const char *file,
+                       uint64_t file_length, uint64_t line, uint64_t column);
+void cwhip_array_clear(void *array, const char *file, uint64_t file_length,
+                      uint64_t line, uint64_t column);
 void *cwhip_array_index(void *array, int64_t index, const char *file,
                        uint64_t file_length, uint64_t line, uint64_t column);
 void *cwhip_array_slice(void *array, int64_t start, int64_t end, const char *file,
@@ -377,6 +386,10 @@ void cwhip_buffer_clear(void *buffer, const char *file, uint64_t file_length,
                        uint64_t line, uint64_t column);
 void cwhip_buffer_append(void *buffer, uint64_t value, const char *file,
                         uint64_t file_length, uint64_t line, uint64_t column);
+void cwhip_buffer_insert(void *buffer, int64_t index, uint64_t value, const char *file,
+                        uint64_t file_length, uint64_t line, uint64_t column);
+void cwhip_buffer_remove(void *buffer, void *bounds, const char *file,
+                        uint64_t file_length, uint64_t line, uint64_t column);
 uint64_t cwhip_buffer_get(void *buffer, int64_t index, const char *file,
                          uint64_t file_length, uint64_t line, uint64_t column);
 void cwhip_buffer_set(void *buffer, int64_t index, uint64_t value, const char *file,
@@ -388,6 +401,8 @@ int64_t cwhip_map_contains(void *map, const char *key, uint64_t key_length,
                           uint64_t column);
 void *cwhip_map_entry_at(void *map, uint64_t index, const char *file,
                         uint64_t file_length, uint64_t line, uint64_t column);
+void cwhip_map_clear(void *map, const char *file, uint64_t file_length,
+                    uint64_t line, uint64_t column);
 int64_t cwhip_map_remove(void *map, const char *key, uint64_t key_length,
                         const char *file, uint64_t file_length, uint64_t line,
                         uint64_t column);
