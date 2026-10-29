@@ -25,6 +25,12 @@ proof of concept and compiler-testing tool, not a production IDE/debugger.
 
 ## Implemented milestones
 
+### Unreleased: Editor UI GTK helpers
+
+`MenuBar.addSubmenu` / `clearMenu` rebuild nested menus. `Button.setIconName`,
+`Widget.addCssClass`, and `setTooltip` match flat tab-close styling.
+`setShowWhitespace` draws spaces/tabs/NBSPs; `setShowLineEnds` draws newlines.
+
 ### Unreleased: Paned sidebar sizing
 
 `Paned` no longer lets the start child shrink past its minimum, and the end

@@ -89,6 +89,9 @@ void setSensitive(bool value)
 void setHExpand(bool value)
 void setVExpand(bool value)
 void setWidthRequest(int64 width)
+void addCssClass(String name)
+void removeCssClass(String name)
+void setTooltip(String text)
 ```
 
 The first-release additions are:
@@ -101,13 +104,13 @@ The first-release additions are:
 | `Grid` | `Grid(int64 spacing)`, `attach(Widget, int64 column, int64 row, int64 width, int64 height)` |
 | `ContextMenu` | `ContextMenu(Widget owner)`, `addItem`, `addCheckItem`, `setChild(Widget)` |
 | `Label` | `Label(String text)`, `setText(String)`, `String text()` |
-| `Button` | `Button(String label)`, `setLabel(String)`, `String label()`, `onClicked(void<>)` |
+| `Button` | `Button(String label)`, `setLabel(String)`, `String label()`, `setIconName(String)`, `onClicked(void<>)` |
 | `Entry` | `Entry(String text)`, `setText(String)`, `String text()`, `focus()`, `setEditable(bool)`, `onChanged(void<String>)` |
 | `CheckButton` | `CheckButton(String label)`, `setLabel(String)`, `String label()`, `setActive(bool)`, `bool active()`, `onToggled(void<bool>)` |
 | `ScrolledWindow` | `ScrolledWindow()`, `setChild(Widget)`, `remove(Widget)` |
 | `Notebook` | `Notebook()`, `appendPage(Widget, String)`, `appendClosablePage(Widget, String, void<>)`, `int64 currentPage()`, `setCurrentPage(int64)`, `int64 pageCount()`, `setPageTitle(int64, String)`, `remove(Widget)`, `onPageChanged(void<>)`, `setBorderedTabs()` |
 | `Paned` | `Paned()`, `append(Widget)`, `setPosition(int64)`, `int64 position()` |
-| `MenuBar` | `MenuBar()`, `int64 addMenu(String)`, `int64 addItem(int64 menu, String label, void<>)`, `int64 addCheckItem(int64 menu, String label, bool initial, void<bool>)`, `addSeparator(int64 menu)`, `setItemEnabled(int64 item, bool)`, `activateItem(int64 item)`, `setItemChecked(int64 item, bool)`, `bool itemChecked(int64 item)` |
+| `MenuBar` | `MenuBar()`, `int64 addMenu(String)`, `int64 addItem(int64 menu, String label, void<>)`, `int64 addCheckItem(int64 menu, String label, bool initial, void<bool>)`, `int64 addSubmenu(int64 menu, String label)`, `clearMenu(int64 menu)`, `addSeparator(int64 menu)`, `setItemEnabled(int64 item, bool)`, `activateItem(int64 item)`, `setItemChecked(int64 item, bool)`, `bool itemChecked(int64 item)` |
 
 Methods without a listed result return `void`, except signal registration,
 which returns `SignalConnection`. Orientation is `Gtk.Box.HORIZONTAL` (`0`) or
@@ -417,10 +420,10 @@ bool highlight)` applies a per-view font family/point size, tab width,
 space insertion, line numbers, word/character wrapping, and current-line
 highlighting without replacing the buffer or language. It keeps monospace mode
 enabled. Size must be 6-72 and tabs 1-16; validate user input before calling it.
-`setShowWhitespace(true)` enables the space drawer and draws spaces, tabs,
-newlines, and non-breaking spaces anywhere in the buffer; `false` disables the
-drawer. `setShowIndentMarkers(true)` draws a vertical guide at each tab-width
-indent level in the leading whitespace.
+`setShowWhitespace(true)` enables the space drawer for spaces, tabs, and
+non-breaking spaces; `setShowLineEnds(true)` draws newline marks. Either flag
+enables the drawer; both false disables it. `setShowIndentMarkers(true)` draws
+a vertical guide at each tab-width indent level in the leading whitespace.
 Neither call changes the font, tab width, or line numbers.
 `clearShortcuts()` removes all shortcuts installed through `bindShortcut`,
 including their callback roots, without changing GTK's native editing bindings.

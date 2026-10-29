@@ -49,6 +49,7 @@ namespace GtkSource {
         void _configure(int64 token, String font, int64 size, int64 tabs, bool spaces,
                         bool numbers, bool wrap, bool highlight)
         void _whitespace(int64 token, bool show)
+        void _lineEnds(int64 token, bool show)
         void _indent(int64 token, bool show)
         int64 _changed(int64 token, void<> action)
         int64 _cursorMoved(int64 token, void<> action)
@@ -126,6 +127,7 @@ namespace GtkSource {
             _configure(_widgetToken(), font, size, tabs, spaces, numbers, wrap, highlight)
         }
         void setShowWhitespace(bool show) { _whitespace(_widgetToken(), show) }
+        void setShowLineEnds(bool show) { _lineEnds(_widgetToken(), show) }
         void setShowIndentMarkers(bool show) { _indent(_widgetToken(), show) }
         int64 onChanged(void<> action) {
             return(_changed(_widgetToken(), action))
@@ -196,6 +198,7 @@ namespace GtkSource {
                          bool numbers, bool wrap, bool highlight)
         from "cwhip_gtk_source_view_configure"
     void View._whitespace(int64 token, bool show) from "cwhip_gtk_source_view_show_whitespace"
+    void View._lineEnds(int64 token, bool show) from "cwhip_gtk_source_view_show_line_ends"
     void View._indent(int64 token, bool show) from "cwhip_gtk_source_view_show_indent"
     int64 View._changed(int64 token, void<> action)
         from "cwhip_gtk_source_view_changed"

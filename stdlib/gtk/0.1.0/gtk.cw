@@ -114,6 +114,8 @@ namespace Gtk {
         void _sensitive(int64 token, bool value)
         void _expand(int64 token, bool horizontal, bool value)
         void _widthRequest(int64 token, int64 width)
+        void _cssClass(int64 token, String name, bool add)
+        void _tooltip(int64 token, String text)
         void _focus(int64 token)
         void _textSet(int64 token, String text)
         String _textGet(int64 token)
@@ -160,6 +162,9 @@ namespace Gtk {
         void setHExpand(bool value) { _expand(_id, true, value) }
         void setVExpand(bool value) { _expand(_id, false, value) }
         void setWidthRequest(int64 width) { _widthRequest(_id, width) }
+        void addCssClass(String name) { _cssClass(_id, name, true) }
+        void removeCssClass(String name) { _cssClass(_id, name, false) }
+        void setTooltip(String text) { _tooltip(_id, text) }
     }
 
     class Window : Widget {
@@ -274,10 +279,12 @@ namespace Gtk {
     class Button : Widget {
         private:
         Button _buttonSelf()
+        void _icon(int64 token, String name)
         public:
         Button(String label) { super Widget(4, label, 0, 0) }
         void setLabel(String label) { _setText(label) }
         String label() { return(_getText())}
+        void setIconName(String name) { _icon(_widgetToken(), name) }
         SignalConnection onClicked(void<> action) {
             return(SignalConnection(_buttonSelf(), action))
         }
@@ -306,6 +313,8 @@ namespace Gtk {
         void _activate(int64 token, int64 item)
         void _separator(int64 token, int64 menu)
         int64 _addCheck(int64 token, int64 menu, String label, bool initial, void<bool> action)
+        int64 _addSubmenu(int64 token, int64 menu, String label)
+        void _clearMenu(int64 token, int64 menu)
         void _checked(int64 token, int64 item, bool value)
         bool _isChecked(int64 token, int64 item)
         public:
@@ -319,6 +328,10 @@ namespace Gtk {
         int64 addCheckItem(int64 menu, String label, bool initial, void<bool> action) {
             return(_addCheck(_widgetToken(), menu, label, initial, action))
         }
+        int64 addSubmenu(int64 menu, String label) {
+            return(_addSubmenu(_widgetToken(), menu, label))
+        }
+        void clearMenu(int64 menu) { _clearMenu(_widgetToken(), menu) }
         void setItemEnabled(int64 item, bool enabled) { _enabled(_widgetToken(), item, enabled) }
         void activateItem(int64 item) { _activate(_widgetToken(), item) }
         void setItemChecked(int64 item, bool checked) { _checked(_widgetToken(), item, checked) }
@@ -558,7 +571,10 @@ namespace Gtk {
     void Widget._sensitive(int64 token, bool value) from "cwhip_gtk_widget_sensitive"
     void Widget._expand(int64 token, bool horizontal, bool value) from "cwhip_gtk_widget_expand"
     void Widget._widthRequest(int64 token, int64 width) from "cwhip_gtk_widget_width_request"
+    void Widget._cssClass(int64 token, String name, bool add) from "cwhip_gtk_widget_css_class"
+    void Widget._tooltip(int64 token, String text) from "cwhip_gtk_widget_tooltip"
     void Widget._focus(int64 token) from "cwhip_gtk_widget_focus"
+    void Button._icon(int64 token, String name) from "cwhip_gtk_button_icon"
     int64 MenuBar._addMenu(int64 token, String label) from "cwhip_gtk_menu_add"
     int64 MenuBar._addItem(int64 token, int64 menu, String label, void<> action)
         from "cwhip_gtk_menu_item_add"
@@ -569,6 +585,8 @@ namespace Gtk {
         from "cwhip_gtk_menu_check_add"
     void MenuBar._checked(int64 token, int64 item, bool value) from "cwhip_gtk_menu_item_set_checked"
     bool MenuBar._isChecked(int64 token, int64 item) from "cwhip_gtk_menu_item_checked"
+    int64 MenuBar._addSubmenu(int64 token, int64 menu, String label) from "cwhip_gtk_menu_submenu_add"
+    void MenuBar._clearMenu(int64 token, int64 menu) from "cwhip_gtk_menu_clear"
     int64 FileDialog._create(int64 parent, bool save, String initialPath, void<String> result)
         from "cwhip_gtk_file_dialog_create"
     int64 FileDialog._createMultiple(int64 parent, String initialPath, void<String> path)

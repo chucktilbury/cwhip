@@ -242,7 +242,10 @@ void binding_view_display(void *self, int64_t token, bool whitespace, bool inden
     GtkSourceSpaceDrawer *drawer = gtk_source_view_get_space_drawer(view);
     GtkSourceSpaceTypeFlags types =
         gtk_source_space_drawer_get_types_for_locations(drawer, GTK_SOURCE_SPACE_LOCATION_ALL);
-    assert(types == (whitespace ? GTK_SOURCE_SPACE_TYPE_ALL : GTK_SOURCE_SPACE_TYPE_NONE));
+    GtkSourceSpaceTypeFlags expected = whitespace
+        ? (GTK_SOURCE_SPACE_TYPE_SPACE | GTK_SOURCE_SPACE_TYPE_TAB | GTK_SOURCE_SPACE_TYPE_NBSP)
+        : GTK_SOURCE_SPACE_TYPE_NONE;
+    assert(types == expected);
     assert(gtk_source_space_drawer_get_enable_matrix(drawer) == whitespace);
     assert(cwhip_gtk_source_view_indent_visible(NULL, token) == indent);
 }
