@@ -1,0 +1,5 @@
+{
+  "friendly_name": "functional declaration after start",
+  "expected_diagnostic": "declarations must appear before the top-level 'start' block",
+  "enabled": true
+}

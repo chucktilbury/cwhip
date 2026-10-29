@@ -335,7 +335,7 @@ const TestGroupRegistration registration{3, {
              expectDiagnostic(
                  "extern int64 c_abs(int64 value) from \"abs\"\n"
                  "start {\n  print(1)\n}",
-                 "program must contain exactly one top-level 'start' block");
+                 "unexpected token before top-level 'start' block");
          }}
 }};
 
