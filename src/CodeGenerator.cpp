@@ -369,9 +369,8 @@ CodeGenerator::Value CodeGenerator::emitFormatString(const Expression& expressio
 
 void CodeGenerator::emitStringBytesAccess(const Value& value, const SourceLocation& location,
                                           std::string& data, std::string& length) {
-    // cwhip_string_bytes borrows the String's managed buffer; the borrowed
-    // pointer stays valid only until the next allocation, so callers must
-    // consume it immediately.
+    // cwhip_string_bytes borrows the String's storage. A resize invalidates
+    // the pointer, so callers must consume it immediately.
     const auto dataSlot = "%string.data." + std::to_string(nextVariable_++);
     const auto lengthSlot = "%string.length." + std::to_string(nextVariable_++);
     entryAllocas_ += "  " + dataSlot + " = alloca ptr\n"

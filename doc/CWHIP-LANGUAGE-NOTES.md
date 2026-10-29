@@ -807,8 +807,10 @@ begin comments, while semicolons are not valid comment or statement syntax.
   (`builtin/String.cw`). Literals and formatted expressions create
   fresh objects; assignments and arguments share object identity.
   `==`/`!=` compare identity, while `.equals(other)` compares exact bytes.
-- A private `buffer _bytes` owns UTF-8 bytes; `length` reads its byte count.
-  `.append(other)` changes that buffer in place, including for aliases.
+- A `String` owns its UTF-8 bytes directly. `length` reads that byte count.
+  `.append(other)` resizes the same storage in place, including for aliases.
+  The bytes are not a second collected object; the collector frees them when
+  it reclaims the string. The private `_bytes` field is not accessible.
   `.toInt64()`, `.toUint64()`, and `.toFp64()` are checked conversions.
 - The class declares `byteAt`, `slice`, `insert`, `removeRange`, `clear`,
   `find`, `contains`, `startsWith`, `endsWith`, `split`, `replace`, `trim`,
@@ -1426,10 +1428,10 @@ exception is propagated only after the chain completes. It cannot be finalized
 a second time. Generated object-value uses validate liveness. Finalizer
 callbacks cannot allocate: allocation during collection aborts to prevent
 reentrant collection from invalidating the sweep. They may still reallocate a
-live string's byte buffer. `cwhip_string_new` copies its source bytes before
-allocating, and `split` snapshots both strings before it allocates the result,
-so `slice`, `trim`, and `split` keep the bytes observed at the start of the
-call. If a finalizer attaches its
+live string's byte storage. `cwhip_string_new` copies its source bytes into
+the new string's own storage before it allocates that object, and `split`
+snapshots both strings before it allocates the result, so `slice`, `trim`,
+and `split` keep the bytes observed at the start of the call. If a finalizer attaches its
 own object to a live object's reference field, the second trace retains the
 object, but it remains destroyed and unusable; its finalizer will not run a
 second time.

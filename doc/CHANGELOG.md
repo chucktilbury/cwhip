@@ -25,6 +25,15 @@ proof of concept and compiler-testing tool, not a production IDE/debugger.
 
 ## Implemented milestones
 
+### Unreleased: String storage
+
+A `String` keeps its bytes in one array freed with the string, instead of a
+second collected `buffer`. `cwhip_string_new` copies the source into that
+array before allocating the object. `replace`, case conversion, and a string
+range slice hand that array over without copying it again. `buffer(n)` is
+unchanged and still zero-fills. Existing programs need to be recompiled so
+the string object matches this layout.
+
 ### Unreleased: String bytes across collection
 
 `cwhip_string_new` copies its source bytes before allocating, so a collection

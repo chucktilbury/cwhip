@@ -1,11 +1,16 @@
 # Built-in String class. Literal creation is compiler-owned; no public constructor.
+# `_bytes` is private storage owned by this object, not a collected buffer.
+# The runtime allocates that array with malloc and frees it when the string
+# is swept. `_length` and `_capacity` are the runtime's byte count and
+# allocation size; `.length` reads `_length`.
 class String {
     private:
     buffer _bytes
+    uint64 _length
+    uint64 _capacity
 
     protected:
     String() {
-        _bytes = buffer(0)
     }
 
     public:

@@ -138,10 +138,12 @@ typedef struct CwhipRootFrame {
 /* Cwhip string/String native-bound arguments and results are managed object
  * pointers, not byte/length aggregates. Call cwhip_string_bytes to borrow the
  * current bytes; they are not NUL-terminated, and a resize invalidates them.
- * cwhip_string_new copies those bytes before it allocates, so the source
- * pointer may address a live string buffer. Inline captures pass a pointer
- * to the String variable's object-pointer slot. The C-string helper returns
- * a temporary copy valid until the inline shim returns; never retain it. */
+ * cwhip_string_new copies those bytes into storage owned by the new string
+ * before it allocates the object, so the source pointer may address a live
+ * string. That storage is not a second collected object. Inline captures
+ * pass a pointer to the String variable's object-pointer slot. The C-string
+ * helper returns a temporary copy valid until the inline shim returns;
+ * never retain it. */
 const char *cwhip_string_cstr(void *const *text);
 void cwhip_string_bytes(void *object, const char **data, uint64_t *length);
 void *cwhip_string_new(const CwhipClassMeta *metadata, const char *bytes, uint64_t length);
