@@ -6,6 +6,7 @@
 #pragma once
 
 #include "cwhip/Ast.hpp"
+#include "cwhip/Diagnostic.hpp"
 #include "cwhip/Token.hpp"
 
 #include <cstddef>
@@ -17,6 +18,7 @@ namespace cwhip {
 class Parser {
 public:
     explicit Parser(std::vector<Token> tokens, std::ostream* traceOutput = nullptr);
+    void setDiagnostics(DiagnosticList* diagnostics) noexcept;
     Program parseProgram(bool requireStart = true);
     Program parseModule();
 
@@ -41,6 +43,9 @@ private:
     void consumeStatementTerminator();
     const Token& consume(TokenType type, const char* expectation);
     [[noreturn]] void error(const Token& token, const std::string& message) const;
+    void synchronizeStatement();
+    void synchronizeDeclaration();
+    bool recover(const DiagnosticError& diagnostic);
     void validateFormatString(Expression& format) const;
     void validateExpressionDepth(const Expression& expression, std::size_t depth = 1) const;
     void parseFormatArguments(Expression& format);
@@ -96,6 +101,7 @@ private:
     std::size_t pendingTypeGreaters_ = 0;
     std::size_t nestingDepth_ = 0;
     std::ostream* traceOutput_ = nullptr;
+    DiagnosticList* diagnostics_ = nullptr;
     std::vector<std::string> namespacePath_;
     std::vector<Statement> pendingStatements_;
 };

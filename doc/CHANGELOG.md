@@ -25,6 +25,16 @@ proof of concept and compiler-testing tool, not a production IDE/debugger.
 
 ## Implemented milestones
 
+### Unreleased: Error recovery and the language server
+
+A source error no longer ends the check. The parser resumes at the next
+statement or declaration, and semantic analysis continues with the next
+statement, method, and class. `cwhip` prints every recovered error under one
+`CWHIP1001` header, up to 100, and still skips code generation when any error
+was reported. `cwhip-lsp` is a separate executable that links that frontend
+and speaks a small Language Server Protocol session on stdin: initialize,
+full-document open/change/save/close, and `textDocument/publishDiagnostics`.
+
 ### Unreleased: Source view markers and check menus
 
 `GtkSource.View.setShowWhitespace` draws every space, tab, newline, and

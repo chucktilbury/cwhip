@@ -59,7 +59,8 @@ Calling close before presentation is rejected rather than silently doing nothing
 `String id()` returns a managed copy of the application ID while live.
 `int64 post(void<> action)` is the only worker-callable GUI operation;
 it queues one invocation on the GUI thread and returns a positive, process-unique
-token. `bool cancel(int64 token)` is GUI-only: true means pending work was removed,
+token. `int64 schedule(int64 milliseconds, void<> action)` queues the same kind
+of one-shot callback after a delay. The returned token can be passed to `cancel`. `bool cancel(int64 token)` is GUI-only: true means pending work was removed,
 false means it was already cancelled/running/completed or was never pending.
 Tokens are never reused. Posts before initialization or after shutdown abort
 with an explicit diagnostic. Coordinate worker completion before requesting

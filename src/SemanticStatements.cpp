@@ -17,7 +17,11 @@ namespace cwhip {
 
 void SemanticAnalyzer::analyzeStatements(std::vector<Statement>& statements) {
     for (auto& statement : statements) {
-        analyzeStatement(statement);
+        try {
+            analyzeStatement(statement);
+        } catch (const DiagnosticError& error) {
+            if (!note(error)) throw;
+        }
     }
 }
 

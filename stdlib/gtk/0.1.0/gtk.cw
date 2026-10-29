@@ -55,6 +55,7 @@ namespace Gtk {
         void quit()
         void shutdown()
         int64 post(void<> action)
+        int64 schedule(int64 milliseconds, void<> action)
         bool cancel(int64 token)
     }
 
@@ -494,6 +495,7 @@ namespace Gtk {
     void Application.quit() from "cwhip_gtk_quit"
     void Application.shutdown() from "cwhip_gtk_shutdown"
     int64 Application.post(void<> action) from "cwhip_gtk_post"
+    int64 Application.schedule(int64 milliseconds, void<> action) from "cwhip_gtk_schedule"
     bool Application.cancel(int64 token) from "cwhip_gtk_cancel"
     int64 SignalConnection._activate(Application source, void<> action)
         from "cwhip_gtk_activation_signal"
