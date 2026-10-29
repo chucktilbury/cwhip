@@ -154,6 +154,9 @@ static int expect_invalid_reference(void *pointer) {
         failed = fail("invalid reference was accepted");
     } else {
         const char *message = cwhip_exception_copy_message(frame);
+        const char *again = cwhip_exception_copy_message(frame);
+        if (message != again)
+            failed = fail("exception message was copied out of its frame");
         if (cwhip_exception_message_length(frame) != 24 ||
             memcmp(message, "invalid object reference", 24) != 0)
             failed = fail("invalid reference diagnostic changed");
