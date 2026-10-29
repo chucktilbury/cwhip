@@ -705,6 +705,8 @@ std::string CodeGenerator::generate(const Program& program,
     debugNodes_.clear();
     debugFiles_.clear();
     debugTypes_.clear();
+    debugClassStructs_.clear();
+    debugClassSizesBits_.clear();
     debugScopes_.clear();
     debugLocations_.clear();
     nextDebugNode_ = 0;

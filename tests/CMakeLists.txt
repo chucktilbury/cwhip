@@ -68,6 +68,10 @@ add_test(NAME cwhip_numeric_semantic COMMAND cwhip_numeric_semantic_tests)
 add_test(NAME cwhip_numeric_execution
     COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/test_numeric_execution.py"
         --compiler "$<TARGET_FILE:cwhip>" --clang "${CWHIP_CLANG_EXECUTABLE}")
+add_test(NAME cwhip_class_debug_info
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/test_class_debug_info.py"
+        --compiler "$<TARGET_FILE:cwhip>"
+        --fixture "${CMAKE_CURRENT_SOURCE_DIR}/functional/positive/positive_debug_class_members.cw")
 add_test(NAME cwhip_switch_execution
     COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/test_switch_execution.py"
         --compiler "$<TARGET_FILE:cwhip>" --clang "${CWHIP_CLANG_EXECUTABLE}")

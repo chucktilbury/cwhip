@@ -1,6 +1,7 @@
 #include "cwhip/CodeGenerator.hpp"
 #include "cwhip/NumericType.hpp"
 
+#include <algorithm>
 #include <filesystem>
 #include <sstream>
 
@@ -21,9 +22,26 @@ std::string CodeGenerator::debugQuote(const std::string& value) {
     return result + "\"";
 }
 
-std::string CodeGenerator::debugNode(const std::string& contents) {
-    const auto id = "!" + std::to_string(nextDebugNode_++);
+bool CodeGenerator::isOpaqueDebugClass(const std::string& name) {
+    // Runtime-backed types keep dedicated pretty-printers in cdbg; emit forward
+    // decls so those paths are unchanged.
+    if (name == "String" || name == "list" || name == "dict" || name == "buffer") {
+        return true;
+    }
+    return name.rfind("range<", 0) == 0;
+}
+
+std::string CodeGenerator::reserveDebugNode() {
+    return "!" + std::to_string(nextDebugNode_++);
+}
+
+void CodeGenerator::defineDebugNode(const std::string& id, const std::string& contents) {
     debugNodes_ += id + " = " + contents + "\n";
+}
+
+std::string CodeGenerator::debugNode(const std::string& contents) {
+    const auto id = reserveDebugNode();
+    defineDebugNode(id, contents);
     return id;
 }
 
@@ -41,6 +59,176 @@ std::string CodeGenerator::debugFile(const std::string& path) {
     return id;
 }
 
+uint64_t CodeGenerator::debugAbiAlignBits(const std::string& llvmOrClassType,
+                                          bool embeddedClass) const {
+    if (embeddedClass) {
+        const auto found = debugClassSizesBits_.find(llvmOrClassType);
+        if (found != debugClassSizesBits_.end()) {
+            // Align to the largest member alignment; for our layouts that is 64 bits.
+            return 64;
+        }
+        return 64;
+    }
+    if (llvmOrClassType == "ptr" || llvmOrClassType == "i64" || llvmOrClassType == "double" ||
+        llvmOrClassType == "%CwhipArrayValue" || llvmOrClassType == "%CwhipString" ||
+        llvmOrClassType == "%CwhipRange") {
+        return 64;
+    }
+    if (llvmOrClassType == "i32" || llvmOrClassType == "float") return 32;
+    if (llvmOrClassType == "i16") return 16;
+    if (llvmOrClassType == "i8" || llvmOrClassType == "i1") return 8;
+    return 64;
+}
+
+uint64_t CodeGenerator::debugAbiSizeBits(const std::string& llvmOrClassType,
+                                         bool embeddedClass) const {
+    if (embeddedClass) {
+        const auto found = debugClassSizesBits_.find(llvmOrClassType);
+        if (found != debugClassSizesBits_.end()) return found->second;
+        return 64;
+    }
+    if (llvmOrClassType == "ptr") return 64;
+    if (llvmOrClassType == "i64" || llvmOrClassType == "double") return 64;
+    if (llvmOrClassType == "i32" || llvmOrClassType == "float") return 32;
+    if (llvmOrClassType == "i16") return 16;
+    if (llvmOrClassType == "i8" || llvmOrClassType == "i1") return 8;
+    if (llvmOrClassType == "%CwhipArrayValue") return 256; // {i64,i64,ptr,i64}
+    if (llvmOrClassType == "%CwhipString") return 128;     // {ptr,i64}
+    if (llvmOrClassType == "%CwhipRange") return 256;      // {ptr,i64,i64,i64}
+    return 64;
+}
+
+std::string CodeGenerator::debugEmbeddedClassType(const std::string& className) {
+    return debugClassStructure(className);
+}
+
+std::string CodeGenerator::debugClassStructure(const std::string& className) {
+    const auto existing = debugClassStructs_.find(className);
+    if (existing != debugClassStructs_.end()) return existing->second;
+
+    const auto classFound = classes_.find(className);
+    if (classFound == classes_.end() || isOpaqueDebugClass(className)) {
+        const auto structure = debugNode("!DICompositeType(tag: DW_TAG_structure_type, name: " +
+                                         debugQuote(className) + ", flags: DIFlagFwdDecl)");
+        debugClassStructs_.emplace(className, structure);
+        return structure;
+    }
+
+    const ClassDeclaration& owner = *classFound->second;
+    // Reserve both ids up front so recursive class pointers can forward-reference
+    // the structure, and define the complete composite before its pointer type so
+    // LLVM/GDB do not keep a permanent forward declaration.
+    const auto structureId = reserveDebugNode();
+    const auto pointerId = reserveDebugNode();
+    debugClassStructs_.emplace(className, structureId);
+    debugTypes_[className] = pointerId;
+
+    struct Member {
+        std::string name;
+        std::string baseTypeId;
+        uint64_t sizeBits = 0;
+        uint64_t alignBits = 0;
+        uint64_t offsetBits = 0;
+    };
+    std::vector<Member> members;
+    uint64_t offset = 0;
+    uint64_t maxAlign = 8;
+
+    const auto appendMember = [&](const std::string& name, const std::string& baseTypeId,
+                                  uint64_t sizeBits, uint64_t alignBits) {
+        if (alignBits == 0) alignBits = 8;
+        offset = (offset + alignBits - 1) / alignBits * alignBits;
+        members.push_back({name, baseTypeId, sizeBits, alignBits, offset});
+        offset += sizeBits;
+        maxAlign = std::max(maxAlign, alignBits);
+    };
+
+    const auto voidPtrType =
+        debugNode("!DIDerivedType(tag: DW_TAG_pointer_type, baseType: null, size: 64)");
+    appendMember("__metadata", voidPtrType, 64, 64);
+    appendMember("__owner", voidPtrType, 64, 64);
+
+    for (const auto& baseName : owner.baseClassNames) {
+        const auto baseStruct = debugClassStructure(baseName);
+        const auto sizeBits = debugAbiSizeBits(baseName, true);
+        const auto alignBits = debugAbiAlignBits(baseName, true);
+        appendMember(baseName, baseStruct, sizeBits, alignBits);
+    }
+
+    const auto virtualBases = virtualBaseNames(owner);
+    for (const auto& baseName : virtualBases) {
+        appendMember("__vbase_ptr_" + baseName, voidPtrType, 64, 64);
+    }
+
+    for (const auto& field : owner.fields) {
+        const auto* numeric = numericType(field.type);
+        std::string baseTypeId;
+        uint64_t sizeBits = 0;
+        uint64_t alignBits = 0;
+        if (numeric || field.type == "bool" || field.type == "c_int") {
+            baseTypeId = debugType(field.type);
+            sizeBits = numeric ? numeric->width : field.type == "bool" ? 8U : 32U;
+            alignBits = sizeBits < 8 ? 8 : sizeBits;
+            if (field.type == "bool") {
+                sizeBits = 8;
+                alignBits = 8;
+            }
+        } else if (field.type == "any") {
+            baseTypeId = debugType(field.type);
+            sizeBits = debugAbiSizeBits("%CwhipArrayValue", false);
+            alignBits = debugAbiAlignBits("%CwhipArrayValue", false);
+        } else if (field.type == "type") {
+            baseTypeId = debugType(field.type);
+            sizeBits = debugAbiSizeBits("%CwhipString", false);
+            alignBits = debugAbiAlignBits("%CwhipString", false);
+        } else {
+            // Class / String / list / etc. references are pointers.
+            baseTypeId = debugType(field.type);
+            sizeBits = 64;
+            alignBits = 64;
+        }
+        appendMember(field.name, baseTypeId, sizeBits, alignBits);
+    }
+
+    for (const auto& baseName : virtualBases) {
+        const auto baseStruct = debugClassStructure(baseName);
+        const auto sizeBits = debugAbiSizeBits(baseName, true);
+        const auto alignBits = debugAbiAlignBits(baseName, true);
+        appendMember("__vbase_" + baseName, baseStruct, sizeBits, alignBits);
+    }
+
+    if (maxAlign > 0) {
+        offset = (offset + maxAlign - 1) / maxAlign * maxAlign;
+    }
+    debugClassSizesBits_[className] = offset;
+
+    std::string elementList;
+    const auto file = debugFile(owner.location.file);
+    for (std::size_t index = 0; index < members.size(); ++index) {
+        const auto& member = members[index];
+        const auto memberId = debugNode(
+            "!DIDerivedType(tag: DW_TAG_member, name: " + debugQuote(member.name) +
+            ", scope: " + structureId + ", file: " + file +
+            ", line: " + std::to_string(owner.location.line) +
+            ", baseType: " + member.baseTypeId +
+            ", size: " + std::to_string(member.sizeBits) +
+            ", offset: " + std::to_string(member.offsetBits) + ")");
+        if (index != 0) elementList += ", ";
+        elementList += memberId;
+    }
+    const auto elementsId = debugNode("!{" + elementList + "}");
+    defineDebugNode(structureId,
+                    "!DICompositeType(tag: DW_TAG_structure_type, name: " +
+                        debugQuote(className) + ", file: " + file +
+                        ", line: " + std::to_string(owner.location.line) +
+                        ", size: " + std::to_string(offset) +
+                        ", elements: " + elementsId + ")");
+    defineDebugNode(pointerId,
+                    "!DIDerivedType(tag: DW_TAG_pointer_type, baseType: " + structureId +
+                        ", size: 64)");
+    return structureId;
+}
+
 std::string CodeGenerator::debugType(const std::string& type) {
     if (type == "void") return "null";
     const auto found = debugTypes_.find(type);
@@ -55,18 +243,21 @@ std::string CodeGenerator::debugType(const std::string& type) {
                                   ? "DW_ATE_unsigned" : "DW_ATE_signed";
         id = debugNode("!DIBasicType(name: " + debugQuote(type) + ", size: " +
                        std::to_string(size) + ", encoding: " + encoding + ")");
+        debugTypes_.emplace(type, id);
     } else if (type == "any" || type == "type") {
         id = debugNode("!DICompositeType(tag: DW_TAG_structure_type, name: " +
                        debugQuote(type) + ", size: " +
                        (type == "any" ? "256" : "128") + ")");
+        debugTypes_.emplace(type, id);
+    } else if (classes_.find(type) != classes_.end() && !isOpaqueDebugClass(type)) {
+        debugClassStructure(type);
+        id = debugTypes_.at(type);
     } else {
-        const auto& name = type;
-        const auto structure = debugNode("!DICompositeType(tag: DW_TAG_structure_type, name: " +
-                                          debugQuote(name) + ", flags: DIFlagFwdDecl)");
+        const auto structure = debugClassStructure(type);
         id = debugNode("!DIDerivedType(tag: DW_TAG_pointer_type, baseType: " + structure +
                        ", size: 64)");
+        debugTypes_.emplace(type, id);
     }
-    debugTypes_.emplace(type, id);
     return id;
 }
 
