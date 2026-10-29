@@ -1859,11 +1859,107 @@ bool cwhip_gtk_window_maximized(void *self, int64_t token) {
     return gtk_window_is_maximized(GTK_WINDOW(widget));
 }
 
+/* GtkNotebook scroll arrows change the current page via a capture-phase click
+ * gesture that claims the press and tracks pressed_button privately. If the
+ * release is lost (common when switch-page moves focus into a SourceView),
+ * later arrow clicks hit the arrow, claim the sequence, and no-op until some
+ * other click clears the stuck press. Resetting click gestures after a page
+ * change restores left/right arrow use. Hold-to-repeat on the arrows may stop
+ * after the first step; single clicks remain reliable. */
+static void notebook_schedule_wire_scroll_arrows(GtkNotebook *notebook);
+
+static void notebook_reset_click_gestures(GtkWidget *widget) {
+    GListModel *controllers = gtk_widget_observe_controllers(widget);
+    guint n = g_list_model_get_n_items(controllers);
+    for (guint i = 0; i < n; i++) {
+        GtkEventController *controller = g_list_model_get_item(controllers, i);
+        if (GTK_IS_GESTURE_CLICK(controller))
+            gtk_event_controller_reset(controller);
+        g_object_unref(controller);
+    }
+    g_object_unref(controllers);
+}
+
+static gboolean notebook_scroll_unstick(gpointer data) {
+    GtkWidget *notebook = data;
+    g_object_set_data(G_OBJECT(notebook), "cwhip-scroll-unstick", NULL);
+    notebook_reset_click_gestures(notebook);
+    return G_SOURCE_REMOVE;
+}
+
+static void notebook_schedule_scroll_unstick(GtkNotebook *notebook) {
+    GtkWidget *widget = GTK_WIDGET(notebook);
+    if (g_object_get_data(G_OBJECT(widget), "cwhip-scroll-unstick")) return;
+    g_object_set_data(G_OBJECT(widget), "cwhip-scroll-unstick", GINT_TO_POINTER(1));
+    g_idle_add_full(G_PRIORITY_DEFAULT_IDLE, notebook_scroll_unstick,
+                    g_object_ref(widget), g_object_unref);
+}
+
+static void notebook_page_notify_scroll(GObject *object, GParamSpec *pspec,
+                                       gpointer data) {
+    (void)pspec;
+    (void)data;
+    notebook_schedule_scroll_unstick(GTK_NOTEBOOK(object));
+    notebook_schedule_wire_scroll_arrows(GTK_NOTEBOOK(object));
+}
+
+static void notebook_arrow_clicked(GtkButton *button, gpointer data) {
+    GtkNotebook *notebook = data;
+    if (GPOINTER_TO_INT(g_object_get_data(G_OBJECT(button), "cwhip-notebook-prev")))
+        gtk_notebook_prev_page(notebook);
+    else
+        gtk_notebook_next_page(notebook);
+}
+
+static void notebook_wire_scroll_arrow(GtkNotebook *notebook, GtkWidget *arrow,
+                                      bool previous) {
+    if (g_object_get_data(G_OBJECT(arrow), "cwhip-arrow-wired")) return;
+    g_object_set_data(G_OBJECT(arrow), "cwhip-arrow-wired", GINT_TO_POINTER(1));
+    g_object_set_data(G_OBJECT(arrow), "cwhip-notebook-prev",
+                      GINT_TO_POINTER(previous ? 1 : 0));
+    gtk_widget_set_focus_on_click(arrow, FALSE);
+    g_signal_connect_object(arrow, "clicked", G_CALLBACK(notebook_arrow_clicked),
+                            notebook, 0);
+}
+
+static void notebook_wire_scroll_arrows_walk(GtkNotebook *notebook, GtkWidget *widget) {
+    if (GTK_IS_BUTTON(widget) &&
+        g_strcmp0(gtk_widget_get_css_name(widget), "arrow") == 0) {
+        bool previous = gtk_widget_has_css_class(widget, "down");
+        notebook_wire_scroll_arrow(notebook, widget, previous);
+    }
+    for (GtkWidget *child = gtk_widget_get_first_child(widget); child;
+         child = gtk_widget_get_next_sibling(child))
+        notebook_wire_scroll_arrows_walk(notebook, child);
+}
+
+static gboolean notebook_wire_scroll_arrows_idle(gpointer data) {
+    GtkNotebook *notebook = data;
+    g_object_set_data(G_OBJECT(notebook), "cwhip-scroll-wire", NULL);
+    notebook_wire_scroll_arrows_walk(notebook, GTK_WIDGET(notebook));
+    return G_SOURCE_REMOVE;
+}
+
+static void notebook_schedule_wire_scroll_arrows(GtkNotebook *notebook) {
+    GtkWidget *widget = GTK_WIDGET(notebook);
+    if (g_object_get_data(G_OBJECT(widget), "cwhip-scroll-wire")) return;
+    g_object_set_data(G_OBJECT(widget), "cwhip-scroll-wire", GINT_TO_POINTER(1));
+    g_idle_add_full(G_PRIORITY_DEFAULT_IDLE, notebook_wire_scroll_arrows_idle,
+                    g_object_ref(widget), g_object_unref);
+}
+
 void cwhip_gtk_notebook_scrollable(void *self, int64_t token, bool enabled) {
     (void)self;
     GtkWidget *widget = widget_live(token);
     if (!GTK_IS_NOTEBOOK(widget)) fatal("operation requires Notebook");
     gtk_notebook_set_scrollable(GTK_NOTEBOOK(widget), enabled);
+    if (!enabled) return;
+    if (!g_object_get_data(G_OBJECT(widget), "cwhip-scroll-page-hook")) {
+        g_signal_connect(widget, "notify::page", G_CALLBACK(notebook_page_notify_scroll),
+                         NULL);
+        g_object_set_data(G_OBJECT(widget), "cwhip-scroll-page-hook", GINT_TO_POINTER(1));
+    }
+    notebook_schedule_wire_scroll_arrows(GTK_NOTEBOOK(widget));
 }
 
 void cwhip_gtk_window_maximize(void *self, int64_t token, bool enabled) {
