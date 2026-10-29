@@ -25,6 +25,12 @@ proof of concept and compiler-testing tool, not a production IDE/debugger.
 
 ## Implemented milestones
 
+### Unreleased: Paned sidebar sizing
+
+`Paned` no longer lets the start child shrink past its minimum, and the end
+child may shrink so the start side can grow. `Widget.setWidthRequest` sets a
+nonnegative width floor for that minimum.
+
 ### Unreleased: Context menus that keep the native popup
 
 `GtkSource.View.addContextAction` appends a row to the built-in text-view

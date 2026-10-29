@@ -113,6 +113,7 @@ namespace Gtk {
         bool _isVisible(int64 token)
         void _sensitive(int64 token, bool value)
         void _expand(int64 token, bool horizontal, bool value)
+        void _widthRequest(int64 token, int64 width)
         void _focus(int64 token)
         void _textSet(int64 token, String text)
         String _textGet(int64 token)
@@ -158,6 +159,7 @@ namespace Gtk {
         void setSensitive(bool value) { _sensitive(_id, value) }
         void setHExpand(bool value) { _expand(_id, true, value) }
         void setVExpand(bool value) { _expand(_id, false, value) }
+        void setWidthRequest(int64 width) { _widthRequest(_id, width) }
     }
 
     class Window : Widget {
@@ -555,6 +557,7 @@ namespace Gtk {
     bool Widget._isVisible(int64 token) from "cwhip_gtk_widget_is_visible"
     void Widget._sensitive(int64 token, bool value) from "cwhip_gtk_widget_sensitive"
     void Widget._expand(int64 token, bool horizontal, bool value) from "cwhip_gtk_widget_expand"
+    void Widget._widthRequest(int64 token, int64 width) from "cwhip_gtk_widget_width_request"
     void Widget._focus(int64 token) from "cwhip_gtk_widget_focus"
     int64 MenuBar._addMenu(int64 token, String label) from "cwhip_gtk_menu_add"
     int64 MenuBar._addItem(int64 token, int64 menu, String label, void<> action)

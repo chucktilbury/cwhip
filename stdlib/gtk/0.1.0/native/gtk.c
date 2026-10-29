@@ -922,9 +922,11 @@ int64_t cwhip_gtk_widget_create(void *self, int64_t kind, void *text,
     case 6: widget = gtk_check_button_new_with_label(label); break;
     case 7: widget = gtk_scrolled_window_new(); break;
     case 12: widget = gtk_paned_new(GTK_ORIENTATION_HORIZONTAL);
+        /* Start (sidebar) keeps its width on window resize and cannot collapse
+         * past its minimum. End (editor) may shrink so the start can grow. */
         gtk_paned_set_resize_start_child(GTK_PANED(widget), FALSE);
-        gtk_paned_set_shrink_start_child(GTK_PANED(widget), TRUE);
-        gtk_paned_set_shrink_end_child(GTK_PANED(widget), FALSE);
+        gtk_paned_set_shrink_start_child(GTK_PANED(widget), FALSE);
+        gtk_paned_set_shrink_end_child(GTK_PANED(widget), TRUE);
         break;
     case 13: widget = gtk_list_view_new(NULL, NULL);
         gtk_list_view_set_single_click_activate(GTK_LIST_VIEW(widget), FALSE);
@@ -1019,6 +1021,15 @@ void cwhip_gtk_widget_expand(void *self, int64_t token, bool horizontal, bool va
     GtkWidget *widget = widget_live(token);
     if (horizontal) gtk_widget_set_hexpand(widget, value);
     else gtk_widget_set_vexpand(widget, value);
+}
+
+void cwhip_gtk_widget_width_request(void *self, int64_t token, int64_t width) {
+    (void)self;
+    if (width < 0 || width > G_MAXINT) fatal("width request must be a nonnegative GTK integer");
+    GtkWidget *widget = widget_live(token);
+    int current_height = -1;
+    gtk_widget_get_size_request(widget, NULL, &current_height);
+    gtk_widget_set_size_request(widget, (int)width, current_height);
 }
 
 void cwhip_gtk_widget_focus(void *self, int64_t token) {

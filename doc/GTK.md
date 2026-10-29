@@ -88,6 +88,7 @@ void setVisible(bool value)
 void setSensitive(bool value)
 void setHExpand(bool value)
 void setVExpand(bool value)
+void setWidthRequest(int64 width)
 ```
 
 The first-release additions are:
@@ -245,8 +246,11 @@ code. Folder selection is not treated as an open-file request.
 `Paned` is a horizontal, draggable two-child splitter. `append` attaches the
 start child first, then the end child. A third child is an error.
 `setPosition` accepts a nonnegative GTK integer pixel position, and `position()`
-returns the current divider position. The start side
-keeps its requested width on window resize; the end side grows.
+returns the current divider position. The start side keeps its requested width
+on window resize and cannot shrink past its minimum (so a sidebar cannot be
+dragged to zero). The end side grows with the window and may shrink so the
+start side can widen. Use `Widget.setWidthRequest` on the start child when a
+larger floor than the child's natural minimum is needed.
 
 ```text
 Gtk.Tree(void<int64> request, void<int64> activate)
