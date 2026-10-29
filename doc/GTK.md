@@ -105,7 +105,7 @@ The first-release additions are:
 | `ScrolledWindow` | `ScrolledWindow()`, `setChild(Widget)`, `remove(Widget)` |
 | `Notebook` | `Notebook()`, `appendPage(Widget, String)`, `appendClosablePage(Widget, String, void<>)`, `int64 currentPage()`, `setCurrentPage(int64)`, `int64 pageCount()`, `setPageTitle(int64, String)`, `remove(Widget)`, `onPageChanged(void<>)`, `setBorderedTabs()` |
 | `Paned` | `Paned()`, `append(Widget)`, `setPosition(int64)`, `int64 position()` |
-| `MenuBar` | `MenuBar()`, `int64 addMenu(String)`, `int64 addItem(int64 menu, String label, void<>)`, `addSeparator(int64 menu)`, `setItemEnabled(int64 item, bool)`, `activateItem(int64 item)` |
+| `MenuBar` | `MenuBar()`, `int64 addMenu(String)`, `int64 addItem(int64 menu, String label, void<>)`, `int64 addCheckItem(int64 menu, String label, bool initial, void<bool>)`, `addSeparator(int64 menu)`, `setItemEnabled(int64 item, bool)`, `activateItem(int64 item)`, `setItemChecked(int64 item, bool)`, `bool itemChecked(int64 item)` |
 
 Methods without a listed result return `void`, except signal registration,
 which returns `SignalConnection`. Orientation is `Gtk.Box.HORIZONTAL` (`0`) or
@@ -166,7 +166,10 @@ their typed callback receivers until menu disposal or application shutdown.
 that same action, including GTK's disabled-action check; disabled items do not
 invoke callbacks. An action may dispose its own menu/window or shut down.
 `addSeparator(menu)` starts a new menu section, so later items in that menu are
-drawn after a separator.
+drawn after a separator. `addCheckItem` adds a boolean action drawn as a check
+item. Its callback receives the new state. `setItemChecked` updates that state
+without invoking the callback. `activateItem` toggles a check item and does
+invoke the callback; a disabled item does neither.
 
 ```text
 Gtk.FileDialog(Window parent, bool save, String initialPath,
@@ -399,6 +402,10 @@ bool highlight)` applies a per-view font family/point size, tab width,
 space insertion, line numbers, word/character wrapping, and current-line
 highlighting without replacing the buffer or language. It keeps monospace mode
 enabled. Size must be 6-72 and tabs 1-16; validate user input before calling it.
+`setShowWhitespace(true)` draws spaces, tabs, newlines, and non-breaking spaces
+anywhere in the buffer; `false` draws none. `setShowIndentMarkers(true)` draws
+a vertical guide at each tab-width indent level in the leading whitespace.
+Neither call changes the font, tab width, or line numbers.
 `clearShortcuts()` removes all shortcuts installed through `bindShortcut`,
 including their callback roots, without changing GTK's native editing bindings.
 Removal/disposal during an active shortcut callback defers releasing that

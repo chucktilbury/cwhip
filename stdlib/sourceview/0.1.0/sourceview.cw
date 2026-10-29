@@ -48,6 +48,8 @@ namespace GtkSource {
         void _clearShortcuts(int64 token)
         void _configure(int64 token, String font, int64 size, int64 tabs, bool spaces,
                         bool numbers, bool wrap, bool highlight)
+        void _whitespace(int64 token, bool show)
+        void _indent(int64 token, bool show)
         int64 _changed(int64 token, void<> action)
         int64 _cursorMoved(int64 token, void<> action)
         void _lineSelection(int64 token, bool enabled)
@@ -121,6 +123,8 @@ namespace GtkSource {
                        bool numbers, bool wrap, bool highlight) {
             _configure(_widgetToken(), font, size, tabs, spaces, numbers, wrap, highlight)
         }
+        void setShowWhitespace(bool show) { _whitespace(_widgetToken(), show) }
+        void setShowIndentMarkers(bool show) { _indent(_widgetToken(), show) }
         int64 onChanged(void<> action) {
             return(_changed(_widgetToken(), action))
         }
@@ -182,6 +186,8 @@ namespace GtkSource {
     void View._configure(int64 token, String font, int64 size, int64 tabs, bool spaces,
                          bool numbers, bool wrap, bool highlight)
         from "cwhip_gtk_source_view_configure"
+    void View._whitespace(int64 token, bool show) from "cwhip_gtk_source_view_show_whitespace"
+    void View._indent(int64 token, bool show) from "cwhip_gtk_source_view_show_indent"
     int64 View._changed(int64 token, void<> action)
         from "cwhip_gtk_source_view_changed"
     int64 View._cursorMoved(int64 token, void<> action)
