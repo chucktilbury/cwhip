@@ -1205,10 +1205,11 @@ definition is used as a finalizer when the collector reclaims an instance;
 collection timing is not deterministic, so finalizers should not be used as a
 substitute for explicit resource management. Finalizers must not let
 exceptions escape.
-Creating a `String` copies the source bytes before the new object is
-allocated. `slice`, `trim`, and `split` therefore keep the bytes they
-observed at the start of the call when a finalizer rewrites a live string
-during that allocation. A catch-all `except() as name` copies the message
+Creating a `String` copies the source bytes into storage owned by that
+string before the object is allocated. That storage is freed with the string.
+`slice`, `trim`, and `split` therefore keep the bytes they observed at the
+start of the call when a finalizer rewrites a live string during that
+allocation. A catch-all `except() as name` copies the message
 into a `String`. The exception frame keeps its own message bytes until that
 frame is cleared.
 The current runtime collects according to an adaptive allocation budget.

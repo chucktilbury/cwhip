@@ -1551,6 +1551,43 @@ static void trace_graph(HeapNode **worklist, size_t *work_count) {
     }
 }
 
+typedef struct CwhipStringObject {
+    const CwhipClassMeta *metadata;
+    void *owner;
+    uint8_t *data;
+    uint64_t length;
+    uint64_t capacity;
+} CwhipStringObject;
+
+static int metadata_is_string(const CwhipClassMeta *metadata) {
+    return metadata != NULL && metadata->name_length == 6 &&
+           memcmp(metadata->name, "String", 6) == 0;
+}
+
+static void release_string_bytes(void *string_object) {
+    CwhipStringObject *string = (CwhipStringObject *)string_object;
+    free(string->data);
+    string->data = NULL;
+    string->length = 0;
+    string->capacity = 0;
+}
+
+/* String storage is a raw byte array, including when String is a base. */
+static void release_string_storage(void *object) {
+    const CwhipClassMeta *metadata = NULL;
+    memcpy(&metadata, object, sizeof(metadata));
+    if (metadata == NULL) return;
+    if (metadata_is_string(metadata)) {
+        release_string_bytes(object);
+        return;
+    }
+    for (uint64_t index = 0; index < metadata->base_class_count; ++index) {
+        const CwhipClassName *base = &metadata->base_classes[index];
+        if (base->name_length != 6 || memcmp(base->name, "String", 6) != 0) continue;
+        release_string_bytes((unsigned char *)object + base->offset);
+    }
+}
+
 void cwhip_gc_collect(void) {
     if (collecting || running_destructor) abort();
     collecting = 1;
@@ -1605,6 +1642,7 @@ void cwhip_gc_collect(void) {
                 free(map->buckets);
             }
             if (node->is_buffer) free(((CwhipBuffer *)node->object)->data);
+            else if (!node->is_array && !node->is_map) release_string_storage(node->object);
             free(node);
             --object_count;
         } else {
@@ -1872,16 +1910,10 @@ static CwhipBuffer *checked_buffer(void *object, const char *file, uint64_t file
     return (CwhipBuffer *)object;
 }
 
-typedef struct CwhipStringObject {
-    const CwhipClassMeta *metadata;
-    void *owner;
-    CwhipBuffer *bytes;
-} CwhipStringObject;
-
-static void buffer_reserve(CwhipBuffer *buffer, uint64_t capacity);
+static void string_reserve(CwhipStringObject *string, uint64_t capacity);
 static const char native_file[] = "<native String>";
 
-static CwhipBuffer *string_buffer(void *object) {
+static CwhipStringObject *string_object(void *object) {
     if (object == NULL) {
         static const char message[] = "null String reference";
         cwhip_exception_raise(message, sizeof(message) - 1, native_file,
@@ -1906,8 +1938,7 @@ static CwhipBuffer *string_buffer(void *object) {
         cwhip_exception_raise(message, sizeof(message) - 1, native_file,
                              sizeof(native_file) - 1, 0, 0);
     }
-    return checked_buffer(((CwhipStringObject *)object)->bytes,
-                          native_file, sizeof(native_file) - 1, 0, 0);
+    return (CwhipStringObject *)object;
 }
 
 static int valid_utf8(const char *bytes, uint64_t length) {
@@ -1970,19 +2001,31 @@ static uint64_t find_bytes(const char *data, uint64_t data_length,
 
 void cwhip_string_bytes(void *object, const char **data, uint64_t *length) {
     if (data == NULL || length == NULL) abort();
-    CwhipBuffer *buffer = string_buffer(object);
-    *data = (const char *)buffer->data;
-    *length = buffer->length;
+    CwhipStringObject *string = string_object(object);
+    *data = (const char *)string->data;
+    *length = string->length;
 }
 
-/* Caller bytes can point into a managed buffer. Collection does not move
- * objects, but a finalizer can reallocate that buffer, so copy first. */
+/* Split scans one source across several allocations. A finalizer can
+ * reallocate that source, so those bytes are copied before the first one. */
 static char *snapshot_bytes(const char *bytes, uint64_t length) {
     if (length == 0) return NULL;
     char *copy = (char *)malloc((size_t)length);
     if (copy == NULL) abort();
     memcpy(copy, bytes, (size_t)length);
     return copy;
+}
+
+/* `data` is a malloc block this call takes ownership of. The caller filled it
+ * before any collection that could move a source string. */
+static void *string_attach(const CwhipClassMeta *metadata, uint8_t *data,
+                           uint64_t length, uint64_t capacity) {
+    CwhipStringObject *object = (CwhipStringObject *)cwhip_gc_alloc(metadata);
+    object->owner = object;
+    object->data = data;
+    object->length = length;
+    object->capacity = capacity;
+    return object;
 }
 
 void *cwhip_string_new(const CwhipClassMeta *metadata, const char *bytes, uint64_t length) {
@@ -1997,19 +2040,13 @@ void *cwhip_string_new(const CwhipClassMeta *metadata, const char *bytes, uint64
         cwhip_exception_raise(message, sizeof(message) - 1, native_file,
                              sizeof(native_file) - 1, 0, 0);
     }
-    char *snapshot = snapshot_bytes(bytes, length);
-    CwhipStringObject *object = (CwhipStringObject *)cwhip_gc_alloc(metadata);
-    void *root = object;
-    CwhipRootFrame frame;
-    void *slots[] = { &root };
-    cwhip_gc_push_or_abort(&frame, slots, 1);
-    object->owner = object;
-    object->bytes = (CwhipBuffer *)cwhip_buffer_new((int64_t)length, native_file,
-                                                   sizeof(native_file) - 1, 0, 0);
-    if (length != 0) memcpy(object->bytes->data, snapshot, (size_t)length);
-    free(snapshot);
-    cwhip_gc_pop_or_abort(&frame);
-    return object;
+    uint8_t *data = NULL;
+    if (length != 0) {
+        data = (uint8_t *)malloc((size_t)length);
+        if (data == NULL) abort();
+        memcpy(data, bytes, (size_t)length);
+    }
+    return string_attach(metadata, data, length, length);
 }
 
 void *cwhip_string_format_new(const CwhipClassMeta *metadata, const char *bytes, uint64_t length) {
@@ -2017,7 +2054,7 @@ void *cwhip_string_format_new(const CwhipClassMeta *metadata, const char *bytes,
 }
 
 void cwhip_string_append_bytes(void *object, const char *bytes, uint64_t length) {
-    CwhipBuffer *buffer = string_buffer(object);
+    CwhipStringObject *buffer = string_object(object);
     if ((bytes == NULL && length != 0) ||
         buffer->length > (uint64_t)INT64_MAX ||
         length > (uint64_t)INT64_MAX - buffer->length ||
@@ -2031,10 +2068,11 @@ void cwhip_string_append_bytes(void *object, const char *bytes, uint64_t length)
     const uint8_t *source = (const uint8_t *)bytes;
     const uintptr_t address = (uintptr_t)source;
     const uintptr_t start = (uintptr_t)buffer->data;
-    const int self = address >= start && address - start < buffer->length;
+    const int self = buffer->data != NULL && address >= start &&
+                     address - start < buffer->length;
     const size_t offset = self ? (size_t)(source - buffer->data) : 0;
     const uint64_t old_length = buffer->length;
-    buffer_reserve(buffer, old_length + length);
+    string_reserve(buffer, old_length + length);
     if (self) source = buffer->data + offset;
     memmove(buffer->data + old_length, source, (size_t)length);
     buffer->length = old_length + length;
@@ -2077,7 +2115,7 @@ DEFINE_STRING_NUMERIC_METHOD(fp64, double)
 #undef DEFINE_STRING_NUMERIC_METHOD
 
 uint64_t cwhip_string_method_byte_at(void *receiver, int64_t index) {
-    CwhipBuffer *buffer = string_buffer(receiver);
+    CwhipStringObject *buffer = string_object(receiver);
     const int64_t normalized = normalize_string_index(index, buffer->length);
     if (normalized < 0 || (uint64_t)normalized >= buffer->length) {
         raise_string_error("String byte index out of bounds");
@@ -2086,7 +2124,7 @@ uint64_t cwhip_string_method_byte_at(void *receiver, int64_t index) {
 }
 
 void *cwhip_string_method_slice(void *receiver, int64_t first, int64_t last) {
-    CwhipBuffer *buffer = string_buffer(receiver);
+    CwhipStringObject *buffer = string_object(receiver);
     const uint64_t start = (uint64_t)normalize_string_bound(first, buffer->length);
     const uint64_t end = (uint64_t)normalize_string_bound(last, buffer->length);
     if (!utf8_boundary(buffer->data, buffer->length, start) ||
@@ -2100,7 +2138,7 @@ void *cwhip_string_method_slice(void *receiver, int64_t first, int64_t last) {
 }
 
 void cwhip_string_method_insert(void *receiver, int64_t index, void *other) {
-    CwhipBuffer *buffer = string_buffer(receiver);
+    CwhipStringObject *buffer = string_object(receiver);
     const int64_t normalized = normalize_string_index(index, buffer->length);
     if (normalized < 0 || (uint64_t)normalized > buffer->length) {
         raise_string_error("String insertion index out of bounds");
@@ -2122,7 +2160,7 @@ void cwhip_string_method_insert(void *receiver, int64_t index, void *other) {
     memcpy(copy, source, (size_t)length);
     const uint64_t offset = (uint64_t)normalized;
     const uint64_t old_length = buffer->length;
-    buffer_reserve(buffer, old_length + length);
+    string_reserve(buffer, old_length + length);
     memmove(buffer->data + offset + length, buffer->data + offset,
             (size_t)(old_length - offset));
     memcpy(buffer->data + offset, copy, (size_t)length);
@@ -2131,7 +2169,7 @@ void cwhip_string_method_insert(void *receiver, int64_t index, void *other) {
 }
 
 void cwhip_string_method_remove_range(void *receiver, int64_t first, int64_t last) {
-    CwhipBuffer *buffer = string_buffer(receiver);
+    CwhipStringObject *buffer = string_object(receiver);
     const uint64_t start = (uint64_t)normalize_string_bound(first, buffer->length);
     const uint64_t end = (uint64_t)normalize_string_bound(last, buffer->length);
     if (!utf8_boundary(buffer->data, buffer->length, start) ||
@@ -2145,11 +2183,11 @@ void cwhip_string_method_remove_range(void *receiver, int64_t first, int64_t las
 }
 
 void cwhip_string_method_clear(void *receiver) {
-    string_buffer(receiver)->length = 0;
+    string_object(receiver)->length = 0;
 }
 
 int64_t cwhip_string_method_find(void *receiver, void *needle) {
-    CwhipBuffer *buffer = string_buffer(receiver);
+    CwhipStringObject *buffer = string_object(receiver);
     const char *needle_data;
     uint64_t needle_length;
     cwhip_string_bytes(needle, &needle_data, &needle_length);
@@ -2163,7 +2201,7 @@ int32_t cwhip_string_method_contains(void *receiver, void *needle) {
 }
 
 int32_t cwhip_string_method_starts_with(void *receiver, void *prefix) {
-    CwhipBuffer *buffer = string_buffer(receiver);
+    CwhipStringObject *buffer = string_object(receiver);
     const char *prefix_data;
     uint64_t prefix_length;
     cwhip_string_bytes(prefix, &prefix_data, &prefix_length);
@@ -2173,7 +2211,7 @@ int32_t cwhip_string_method_starts_with(void *receiver, void *prefix) {
 }
 
 int32_t cwhip_string_method_ends_with(void *receiver, void *suffix) {
-    CwhipBuffer *buffer = string_buffer(receiver);
+    CwhipStringObject *buffer = string_object(receiver);
     const char *suffix_data;
     uint64_t suffix_length;
     cwhip_string_bytes(suffix, &suffix_data, &suffix_length);
@@ -2184,7 +2222,7 @@ int32_t cwhip_string_method_ends_with(void *receiver, void *suffix) {
 }
 
 void *cwhip_string_method_split(void *receiver, void *separator) {
-    CwhipBuffer *buffer = string_buffer(receiver);
+    CwhipStringObject *buffer = string_object(receiver);
     const char *separator_data;
     uint64_t separator_length;
     cwhip_string_bytes(separator, &separator_data, &separator_length);
@@ -2239,7 +2277,7 @@ void *cwhip_string_method_split(void *receiver, void *separator) {
 }
 
 void *cwhip_string_method_replace(void *receiver, void *target, void *replacement) {
-    CwhipBuffer *buffer = string_buffer(receiver);
+    CwhipStringObject *buffer = string_object(receiver);
     const char *target_data, *replacement_data;
     uint64_t target_length, replacement_length;
     cwhip_string_bytes(target, &target_data, &target_length);
@@ -2290,9 +2328,12 @@ void *cwhip_string_method_replace(void *receiver, void *target, void *replacemen
         memcpy(output + output_position, buffer->data + source_position, (size_t)tail_length);
         output_position += tail_length;
     }
-    void *result = cwhip_string_new(&cwhip_string_class_meta, output, output_position);
-    free(output);
-    return result;
+    if (output_position != 0 && !valid_utf8(output, output_position)) {
+        free(output);
+        raise_string_error("String bytes are not valid UTF-8");
+    }
+    return string_attach(&cwhip_string_class_meta, (uint8_t *)output,
+                         output_position, output_position);
 }
 
 static int ascii_whitespace(uint8_t byte) {
@@ -2300,7 +2341,7 @@ static int ascii_whitespace(uint8_t byte) {
 }
 
 void *cwhip_string_method_trim(void *receiver) {
-    CwhipBuffer *buffer = string_buffer(receiver);
+    CwhipStringObject *buffer = string_object(receiver);
     uint64_t first = 0, last = buffer->length;
     while (first < last && ascii_whitespace(buffer->data[first])) ++first;
     while (last > first && ascii_whitespace(buffer->data[last - 1])) --last;
@@ -2311,7 +2352,7 @@ void *cwhip_string_method_trim(void *receiver) {
 }
 
 static void *string_convert_ascii_case(void *receiver, int uppercase) {
-    CwhipBuffer *buffer = string_buffer(receiver);
+    CwhipStringObject *buffer = string_object(receiver);
     char *copy = buffer->length == 0 ? NULL : (char *)malloc((size_t)buffer->length);
     if (buffer->length != 0 && copy == NULL) abort();
     for (uint64_t index = 0; index < buffer->length; ++index) {
@@ -2320,9 +2361,8 @@ static void *string_convert_ascii_case(void *receiver, int uppercase) {
         if (!uppercase && byte >= 'A' && byte <= 'Z') byte += 'a' - 'A';
         copy[index] = (char)byte;
     }
-    void *result = cwhip_string_new(&cwhip_string_class_meta, copy, buffer->length);
-    free(copy);
-    return result;
+    return string_attach(&cwhip_string_class_meta, (uint8_t *)copy,
+                         buffer->length, buffer->length);
 }
 
 void *cwhip_string_method_to_upper(void *receiver) {
@@ -2516,6 +2556,24 @@ static void buffer_reserve(CwhipBuffer *buffer, uint64_t capacity) {
     if (data == NULL) abort();
     buffer->data = data;
     buffer->capacity = grown;
+}
+
+static void string_reserve(CwhipStringObject *string, uint64_t capacity) {
+    if (capacity > (uint64_t)SIZE_MAX) abort();
+    if (capacity <= string->capacity) return;
+    uint64_t grown = string->capacity == 0 ? 8 : string->capacity;
+    while (grown < capacity) {
+        if (grown > (uint64_t)INT64_MAX / 2 ||
+            grown > (uint64_t)SIZE_MAX / 2) {
+            grown = capacity;
+            break;
+        }
+        grown *= 2;
+    }
+    uint8_t *data = (uint8_t *)realloc(string->data, (size_t)grown);
+    if (data == NULL) abort();
+    string->data = data;
+    string->capacity = grown;
 }
 
 void *cwhip_buffer_new(int64_t length, const char *file, uint64_t file_length,
@@ -2961,12 +3019,14 @@ void *cwhip_range_slice(void *object, void *bounds, uint64_t kind,
     }
     const CwhipRange *range = (const CwhipRange *)bounds;
     CwhipArray *array = NULL;
+    CwhipStringObject *text = NULL;
     CwhipBuffer *buffer = NULL;
     if (kind == 0) array = checked_array(object, file, file_length, line, column);
-    else if (kind == 1) buffer = string_buffer(object);
+    else if (kind == 1) text = string_object(object);
     else if (kind == 2) buffer = checked_buffer(object, file, file_length, line, column);
     else abort();
-    const uint64_t source_length = array ? array->length : buffer->length;
+    const uint64_t source_length = array != NULL ? array->length :
+                                   text != NULL ? text->length : buffer->length;
     const uint64_t first = range_slice_index(range->first, range->element_tag, source_length,
                                               file, file_length, line, column);
     const uint64_t last = range_slice_index(range->last, range->element_tag, source_length,
@@ -2989,15 +3049,13 @@ void *cwhip_range_slice(void *object, void *bounds, uint64_t kind,
     char *bytes = (char *)malloc((size_t)length);
     if (bytes == NULL) abort();
     for (uint64_t i = 0; i < length; ++i)
-        bytes[i] = (char)buffer->data[ascending ? first + i : first - i];
+        bytes[i] = (char)text->data[ascending ? first + i : first - i];
     if (!valid_utf8(bytes, length)) {
         free(bytes);
         static const char message[] = "String range slice produces invalid UTF-8";
         cwhip_exception_raise(message, sizeof(message) - 1, file, file_length, line, column);
     }
-    void *copy = cwhip_string_new(&cwhip_string_class_meta, bytes, length);
-    free(bytes);
-    return copy;
+    return string_attach(&cwhip_string_class_meta, (uint8_t *)bytes, length, length);
 }
 
 size_t cwhip_gc_heap_count(void) {

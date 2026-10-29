@@ -99,6 +99,9 @@ void CodeGenerator::emitClassTypesAndMetadata(const Program& program) {
                 const auto& field = subobject.second->fields[localFieldIndex];
                 const bool dynamic = isDynamicValueType(field.type);
                 if (!isManagedReferenceType(field.type) && !dynamic) continue;
+                // String bytes are a raw allocation owned by the string object.
+                // Tracing the slot would treat that malloc pointer as a managed object.
+                if (subobject.second->name == "String" && field.name == "_bytes") continue;
                 const auto offset = "i64 " + subobjectFieldOffset(
                     owner, subobject.first,
                     fieldIndex(*subobject.second, localFieldIndex), dynamic);
