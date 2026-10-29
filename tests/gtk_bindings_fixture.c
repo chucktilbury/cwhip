@@ -239,9 +239,11 @@ void binding_view_properties(void *self, int64_t token, int64_t tabs, bool enabl
 void binding_view_display(void *self, int64_t token, bool whitespace, bool indent) {
     (void)self;
     GtkSourceView *view = GTK_SOURCE_VIEW(widget_live(token));
-    GtkSourceSpaceTypeFlags types = gtk_source_space_drawer_get_types_for_locations(
-        gtk_source_view_get_space_drawer(view), GTK_SOURCE_SPACE_LOCATION_ALL);
+    GtkSourceSpaceDrawer *drawer = gtk_source_view_get_space_drawer(view);
+    GtkSourceSpaceTypeFlags types =
+        gtk_source_space_drawer_get_types_for_locations(drawer, GTK_SOURCE_SPACE_LOCATION_ALL);
     assert(types == (whitespace ? GTK_SOURCE_SPACE_TYPE_ALL : GTK_SOURCE_SPACE_TYPE_NONE));
+    assert(gtk_source_space_drawer_get_enable_matrix(drawer) == whitespace);
     assert(cwhip_gtk_source_view_indent_visible(NULL, token) == indent);
 }
 

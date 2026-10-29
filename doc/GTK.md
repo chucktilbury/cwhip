@@ -379,6 +379,7 @@ void setLineSelection(bool enabled)
 int64 onLineActivated(void<int64> action)
 void setMarkStyle(String category, String icon, String background)
 void addLineMark(String category, int64 line)
+void addLineMarkTooltip(String category, int64 line, String tooltip)
 void clearLineMarks(String category)
 ```
 
@@ -392,10 +393,12 @@ controller callbacks and releases their receivers, including during invocation.
 These APIs do not turn arbitrary text views into list models.
 
 Source marks use GtkSourceView categories, with a GTK icon name and CSS-parsable
-background color configured by `setMarkStyle`. Marks display in the gutter and
-color the marked line without modifying its text or cursor. `addLineMark` uses
-one-based lines, deduplicates marks in that category at a line, and ignores lines
-beyond the buffer's end. `clearLineMarks` removes only that category. Empty
+background color configured by `setMarkStyle`. Marks display in the gutter,
+underline the marked line, and tint its background without changing the cursor.
+`addLineMark` uses one-based lines, deduplicates marks in that category at a
+line, and ignores lines beyond the buffer's end. `addLineMarkTooltip` does the
+same and stores hover text shown for the gutter mark and for the line itself.
+`clearLineMarks` removes only that category and its line styling. Empty
 categories, invalid colors and nonpositive lines are programming errors.
 
 `configure(String font, int64 size, int64 tabs, bool spaces, bool numbers, bool wrap,
@@ -403,9 +406,10 @@ bool highlight)` applies a per-view font family/point size, tab width,
 space insertion, line numbers, word/character wrapping, and current-line
 highlighting without replacing the buffer or language. It keeps monospace mode
 enabled. Size must be 6-72 and tabs 1-16; validate user input before calling it.
-`setShowWhitespace(true)` draws spaces, tabs, newlines, and non-breaking spaces
-anywhere in the buffer; `false` draws none. `setShowIndentMarkers(true)` draws
-a vertical guide at each tab-width indent level in the leading whitespace.
+`setShowWhitespace(true)` enables the space drawer and draws spaces, tabs,
+newlines, and non-breaking spaces anywhere in the buffer; `false` disables the
+drawer. `setShowIndentMarkers(true)` draws a vertical guide at each tab-width
+indent level in the leading whitespace.
 Neither call changes the font, tab width, or line numbers.
 `clearShortcuts()` removes all shortcuts installed through `bindShortcut`,
 including their callback roots, without changing GTK's native editing bindings.
