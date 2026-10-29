@@ -58,6 +58,7 @@ namespace GtkSource {
         void _lineMark(int64 token, String category, int64 line)
         void _lineMarkTooltip(int64 token, String category, int64 line, String tooltip)
         void _clearMarks(int64 token, String category)
+        void _contextAction(int64 token, String label, void<> action)
         public:
         // Search option bits; add them together to combine options.
         enum { CASE_SENSITIVE = 1, WHOLE_WORDS = 2, IN_SELECTION = 4, BACKWARD = 8 }
@@ -142,6 +143,10 @@ namespace GtkSource {
             _lineMarkTooltip(_widgetToken(), category, line, tooltip)
         }
         void clearLineMarks(String category) { _clearMarks(_widgetToken(), category) }
+        // Appends to the native right-click menu; does not replace Cut/Copy/Paste.
+        void addContextAction(String label, void<> action) {
+            _contextAction(_widgetToken(), label, action)
+        }
     }
 
     void View._setText(int64 token, String text) from "cwhip_gtk_source_view_set_text"
@@ -205,4 +210,6 @@ namespace GtkSource {
     void View._lineMarkTooltip(int64 token, String category, int64 line, String tooltip)
         from "cwhip_gtk_source_view_line_mark_tooltip"
     void View._clearMarks(int64 token, String category) from "cwhip_gtk_source_view_clear_marks"
+    void View._contextAction(int64 token, String label, void<> action)
+        from "cwhip_gtk_source_view_context_action"
 }

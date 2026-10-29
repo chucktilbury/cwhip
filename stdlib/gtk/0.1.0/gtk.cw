@@ -245,12 +245,28 @@ namespace Gtk {
     class ContextMenu : Widget {
         private:
         void _bind(int64 token, int64 owner)
+        int64 _addItem(int64 token, int64 menu, String label, void<> action)
+        int64 _addCheck(int64 token, int64 menu, String label, bool initial, void<bool> action)
+        void _enabled(int64 token, int64 item, bool value)
+        void _checked(int64 token, int64 item, bool value)
+        bool _isChecked(int64 token, int64 item)
         public:
         ContextMenu(Widget owner) {
             super Widget(15, "", 0, 0)
             _bind(_widgetToken(), owner._widgetToken())
         }
+        // Prefer addItem/addCheckItem so the menu looks like a native popup.
+        // setChild still accepts a custom widget for callers that need one.
         void setChild(Widget child) { _attachChild(child) }
+        int64 addItem(String label, void<> action) {
+            return(_addItem(_widgetToken(), 0, label, action))
+        }
+        int64 addCheckItem(String label, bool initial, void<bool> action) {
+            return(_addCheck(_widgetToken(), 0, label, initial, action))
+        }
+        void setItemEnabled(int64 item, bool enabled) { _enabled(_widgetToken(), item, enabled) }
+        void setItemChecked(int64 item, bool checked) { _checked(_widgetToken(), item, checked) }
+        bool itemChecked(int64 item) { return(_isChecked(_widgetToken(), item)) }
     }
 
     class Button : Widget {
@@ -512,6 +528,13 @@ namespace Gtk {
     void Grid._attachAt(int64 token, int64 child, int64 column, int64 row, int64 width, int64 height)
         from "cwhip_gtk_grid_attach"
     void ContextMenu._bind(int64 token, int64 owner) from "cwhip_gtk_context_menu_bind"
+    int64 ContextMenu._addItem(int64 token, int64 menu, String label, void<> action)
+        from "cwhip_gtk_menu_item_add"
+    int64 ContextMenu._addCheck(int64 token, int64 menu, String label, bool initial, void<bool> action)
+        from "cwhip_gtk_menu_check_add"
+    void ContextMenu._enabled(int64 token, int64 item, bool value) from "cwhip_gtk_menu_item_enabled"
+    void ContextMenu._checked(int64 token, int64 item, bool value) from "cwhip_gtk_menu_item_set_checked"
+    bool ContextMenu._isChecked(int64 token, int64 item) from "cwhip_gtk_menu_item_checked"
     void Entry._editable(int64 token, bool editable) from "cwhip_gtk_entry_editable"
     void Notebook._closable(int64 token, int64 child, String title, void<> close)
         from "cwhip_gtk_notebook_closable"
