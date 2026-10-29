@@ -19,7 +19,7 @@ before every allocation. To stress generated programs too, run
 `CWHIP_GC_STRESS=1 ctest --test-dir build --output-on-failure -R
 'gc|finalizer|inherited_destructors|transitive_virtual_bases'`.
 `cwhip_compile_and_run_string_bytes_across_collection` sets that variable
-itself: a finalizer rewrites a live string during `slice`, `trim`, and
+itself: a finalizer rewrites a live string during a range copy, `trim`, and
 `split`, and the results must still be the bytes from the start of each call.
 Fixtures that assert finalizer output order force collection explicitly
 instead of depending on the allocation budget.

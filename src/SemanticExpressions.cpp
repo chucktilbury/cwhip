@@ -1078,19 +1078,22 @@ std::string SemanticAnalyzer::analyzeExpression(Expression& expression,
                     return rememberNumericType("int64");
                 throw DiagnosticError(expression.location,
                                       "lists support only the read-only 'length' member and "
-                                      "'resize' and 'append' methods");
+                                      "'resize', 'append', 'insert', 'remove', and 'clear' methods");
             }
             if (isMapType(receiverType)) {
                 if (expression.value == "length")
                     return rememberNumericType("int64");
-                if (expression.value == "contains" || expression.value == "remove") {
+                if (expression.value == "contains" || expression.value == "remove" ||
+                    expression.value == "clear") {
                     throw DiagnosticError(expression.location,
-                                          "dict '" + expression.value +
-                                              "' must be called with a strg key");
+                                          expression.value == "clear"
+                                              ? "dict 'clear' must be called"
+                                              : "dict '" + expression.value +
+                                                    "' must be called with a strg key");
                 }
                 throw DiagnosticError(expression.location,
                                       "dicts support only the read-only 'length' member and "
-                                      "'contains' and 'remove' methods");
+                                      "'contains', 'remove', and 'clear' methods");
             }
             if (isBufferType(receiverType)) {
                 if (expression.value == "length")
@@ -1353,10 +1356,17 @@ std::string SemanticAnalyzer::analyzeExpression(Expression& expression,
             }
             return "buffer";
         }
+        if (collectionType == "String" && expression.kind == ExpressionKind::Index) {
+            if (!isIntegerType(analyzeExpression(*expression.arguments.front()))) {
+                throw DiagnosticError(expression.arguments.front()->location,
+                                      "String index must be an integer");
+            }
+            return rememberNumericType("uint8");
+        }
         throw DiagnosticError(expression.location,
                               expression.kind == ExpressionKind::Slice
                                   ? "slicing requires a list, dict, or buffer"
-                                  : "indexing requires a list, dict, or buffer");
+                                  : "indexing requires a list, dict, buffer, or strg");
     }
     case ExpressionKind::BufferConstructor:
         if (expression.arguments.size() != 1) {
@@ -1566,21 +1576,50 @@ std::string SemanticAnalyzer::analyzeExpression(Expression& expression,
         if (!qualified) {
             const auto receiverType = analyzeExpression(*target.left);
             if (isArrayType(receiverType)) {
-                if (target.value != "resize" && target.value != "append") {
+                const auto bagElement = [this](const std::string& type) {
+                    return type == "any" || type == "null" || isNumericType(type) ||
+                           type == "bool" || type == "String" || type == "type" ||
+                           isArrayType(type) || isMapType(type) || isRangeType(type) ||
+                           isBufferType(type) || isOpaqueHandleType(type) ||
+                           classes_.find(type) != classes_.end();
+                };
+                if (target.value == "clear") {
+                    if (!expression.arguments.empty()) {
+                        throw DiagnosticError(expression.location,
+                                              "list 'clear' expects no arguments");
+                    }
+                    return "void";
+                }
+                if (target.value != "resize" && target.value != "append" &&
+                    target.value != "insert" && target.value != "remove") {
                     throw DiagnosticError(target.location,
-                                          "lists support only 'resize(int)' and 'append(value)'");
+                                          "lists support only 'resize(int)', 'append(value)', "
+                                          "'insert(index, value)', 'remove(range)', and 'clear()'");
+                }
+                if (target.value == "insert") {
+                    if (expression.arguments.size() != 2 ||
+                        !isIntegerType(analyzeExpression(*expression.arguments.front())) ||
+                        !bagElement(analyzeExpression(*expression.arguments[1]))) {
+                        throw DiagnosticError(expression.location,
+                                              "list 'insert' expects an integer index and a "
+                                              "supported collection element");
+                    }
+                    return "void";
+                }
+                if (target.value == "remove") {
+                    if (expression.arguments.size() != 1 ||
+                        !isRangeType(analyzeExpression(*expression.arguments.front()))) {
+                        throw DiagnosticError(expression.location,
+                                              "list 'remove' expects one integer range");
+                    }
+                    return "void";
                 }
                 if (expression.arguments.size() != 1) {
                     throw DiagnosticError(expression.location,
                                           "list '" + target.value + "' expects one argument");
                 }
                 const auto type = analyzeExpression(*expression.arguments.front());
-                if (target.value == "resize" ? !isIntegerType(type) :
-                    (type != "any" && type != "null" && !isNumericType(type) &&
-                     type != "bool" &&
-                     type != "String" && type != "type" &&
-                     !isArrayType(type) && !isMapType(type) && !isRangeType(type) &&
-                     classes_.find(type) == classes_.end())) {
+                if (target.value == "resize" ? !isIntegerType(type) : !bagElement(type)) {
                     throw DiagnosticError(expression.arguments.front()->location,
                                           target.value == "resize"
                                               ? "list resize length must be an integer"
@@ -1590,9 +1629,17 @@ std::string SemanticAnalyzer::analyzeExpression(Expression& expression,
                 return "void";
             }
             if (isMapType(receiverType)) {
+                if (target.value == "clear") {
+                    if (!expression.arguments.empty()) {
+                        throw DiagnosticError(expression.location,
+                                              "dict 'clear' expects no arguments");
+                    }
+                    return "void";
+                }
                 if (target.value != "contains" && target.value != "remove") {
                     throw DiagnosticError(target.location,
-                                          "dicts support only the 'contains' and 'remove' methods");
+                                          "dicts support only the 'contains', 'remove', and "
+                                          "'clear' methods");
                 }
                 if (expression.arguments.size() != 1) {
                     throw DiagnosticError(expression.location,
@@ -1606,11 +1653,30 @@ std::string SemanticAnalyzer::analyzeExpression(Expression& expression,
                 return rememberNumericType("int64");
             }
             if (isBufferType(receiverType)) {
+                if (target.value == "insert") {
+                    if (expression.arguments.size() != 2 ||
+                        !isIntegerType(analyzeExpression(*expression.arguments.front())) ||
+                        !isIntegerType(analyzeExpression(*expression.arguments[1]))) {
+                        throw DiagnosticError(expression.location,
+                                              "buffer 'insert' expects an integer index and an "
+                                              "integer value");
+                    }
+                    return "void";
+                }
+                if (target.value == "remove") {
+                    if (expression.arguments.size() != 1 ||
+                        !isRangeType(analyzeExpression(*expression.arguments.front()))) {
+                        throw DiagnosticError(expression.location,
+                                              "buffer 'remove' expects one integer range");
+                    }
+                    return "void";
+                }
                 if (target.value != "resize" && target.value != "clear" &&
                     target.value != "append") {
                     throw DiagnosticError(target.location,
-                                          "buffers support only resize(int), clear(), and "
-                                          "append(integer)");
+                                          "buffers support only resize(int), clear(), "
+                                          "append(integer), insert(index, integer), and "
+                                          "remove(range)");
                 }
                 if (target.value == "resize") {
                     if (expression.arguments.size() != 1 ||
@@ -2145,8 +2211,15 @@ std::string SemanticAnalyzer::analyzeLValue(Expression& expression) {
             }
             return "buffer-byte";
         }
+        if (collectionType == "String") {
+            if (!isIntegerType(analyzeExpression(*expression.arguments.front()))) {
+                throw DiagnosticError(expression.arguments.front()->location,
+                                      "String index must be an integer");
+            }
+            return "string-byte";
+        }
         throw DiagnosticError(expression.location,
-                              "index assignment requires a list, dict, or buffer");
+                              "index assignment requires a list, dict, buffer, or strg");
     }
     if (expression.kind == ExpressionKind::Slice || expression.kind == ExpressionKind::RangeSlice) {
         throw DiagnosticError(expression.location,

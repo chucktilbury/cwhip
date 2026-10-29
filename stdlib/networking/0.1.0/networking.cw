@@ -154,6 +154,13 @@ namespace Networking {
         String _query
         String _fragment
 
+        String copy(String text, int64 first, int64 last) {
+            if (last <= first) {
+                return("")
+            }
+            return(text[first..last - 1])
+        }
+
         public:
         Url(String urlString) {
             _url = urlString
@@ -167,38 +174,38 @@ namespace Networking {
             String rest = urlString
             int64 schemeEnd = rest.find("://")
             if (schemeEnd >= 0) {
-                _scheme = rest.slice(0, schemeEnd)
-                rest = rest.slice(schemeEnd + 3, rest.length)
+                _scheme = copy(rest, 0, schemeEnd)
+                rest = copy(rest, schemeEnd + 3, rest.length)
             }
 
             int64 fragmentStart = rest.find("#")
             if (fragmentStart >= 0) {
-                _fragment = rest.slice(fragmentStart + 1, rest.length)
-                rest = rest.slice(0, fragmentStart)
+                _fragment = copy(rest, fragmentStart + 1, rest.length)
+                rest = copy(rest, 0, fragmentStart)
             }
             int64 queryStart = rest.find("?")
             if (queryStart >= 0) {
-                _query = rest.slice(queryStart + 1, rest.length)
-                rest = rest.slice(0, queryStart)
+                _query = copy(rest, queryStart + 1, rest.length)
+                rest = copy(rest, 0, queryStart)
             }
 
             int64 pathStart = rest.find("/")
             String authority = rest
             if (pathStart >= 0) {
-                authority = rest.slice(0, pathStart)
-                _path = rest.slice(pathStart, rest.length)
+                authority = copy(rest, 0, pathStart)
+                _path = copy(rest, pathStart, rest.length)
             }
 
             int64 atSign = authority.find("@")
             if (atSign >= 0) {
-                authority = authority.slice(atSign + 1, authority.length)
+                authority = copy(authority, atSign + 1, authority.length)
             }
             if (authority.startsWith("[")) {
                 int64 bracketEnd = authority.find("]")
                 if (bracketEnd >= 0) {
-                    _host = authority.slice(1, bracketEnd)
+                    _host = copy(authority, 1, bracketEnd)
                     if (bracketEnd + 1 < authority.length) {
-                        String portText = authority.slice(bracketEnd + 2, authority.length)
+                        String portText = copy(authority, bracketEnd + 2, authority.length)
                         if (portText.length > 0) {
                             _port = portText.toInt64()
                         }
@@ -217,8 +224,8 @@ namespace Networking {
             } else {
                 int64 colon = authority.find(":")
                 if (colon >= 0) {
-                    _host = authority.slice(0, colon)
-                    String portText = authority.slice(colon + 1, authority.length)
+                    _host = copy(authority, 0, colon)
+                    String portText = copy(authority, colon + 1, authority.length)
                     if (portText.length > 0) {
                         _port = portText.toInt64()
                     }

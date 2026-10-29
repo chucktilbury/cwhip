@@ -812,18 +812,21 @@ begin comments, while semicolons are not valid comment or statement syntax.
   The bytes are not a second collected object; the collector frees them when
   it reclaims the string. The private `_bytes` field is not accessible.
   `.toInt64()`, `.toUint64()`, and `.toFp64()` are checked conversions.
-- The class declares `byteAt`, `slice`, `insert`, `removeRange`, `clear`,
-  `find`, `contains`, `startsWith`, `endsWith`, `split`, `replace`, `trim`,
-  `toUpper`, and `toLower`. Their indices and ranges are **byte offsets**:
-  `byteAt` accepts Python-style negative indices (`-1` is the last byte) and
-  returns the unsigned value of that byte, including a UTF-8 continuation
-  byte, and raises when the normalized index is out of bounds. `slice(first,last)` and
-  `removeRange(first,last)` use half-open `[first,last)` ranges; negative bounds
-  are offset from the byte length and bounds clamp to `[0,length]`, as in
-  positive-step Python slices. Every range endpoint and insertion position must
-  be a UTF-8 character boundary or the operation raises; inserted and appended
-  Strings therefore preserve valid UTF-8. `insert` accepts positions from
-  `-length` through `length`, and `removeRange` changes aliases in place.
+- The class declares `insert`, `remove`, `clear`, `find`, `contains`,
+  `startsWith`, `endsWith`, `split`, `replace`, `trim`, `toUpper`, and
+  `toLower`. Indices and ranges are **byte offsets**. `text[index]` returns
+  that byte as `uint8`, including a UTF-8 continuation byte. A negative index
+  counts from the end, and an out-of-range index raises. `text[index] = value`
+  replaces one byte only when the current byte and the new value are both at
+  most 127 and both edges of that byte are UTF-8 boundaries. `text[first..last]`
+  copies an inclusive range and raises unless the selection is valid UTF-8.
+  `remove(first..last)` deletes that inclusive interval in place on every
+  alias; reversing the range does not change the deleted bytes, and both
+  edges must be UTF-8 boundaries. `insert` accepts positions from `-length`
+  through `length` and must land on a character boundary. There is no
+  `byteAt`, half-open `slice`, or `removeRange`, and String has no colon
+  slice. A nonempty half-open slice `slice(first, last)` migrates to
+  `text[first..last - 1]`.
   `find` returns the first matching byte offset or `-1`; an empty needle is
   found at zero. `contains` is based on `find`; empty prefixes/suffixes match.
   `split` requires a nonempty separator, splits on non-overlapping byte
@@ -837,8 +840,8 @@ begin comments, while semicolons are not valid comment or statement syntax.
   `toUpper` and `toLower` convert ASCII letters only; all non-ASCII UTF-8 bytes
   are unchanged. Operations use explicit byte lengths, so embedded NUL bytes
   remain ordinary String content. Inclusive range-index copy slicing is
-  supported; scalar String indexing, colon slices, and buffer-to-String
-  conversion remain deferred.
+  supported, as is scalar byte indexing and ASCII-safe byte assignment.
+  String colon slices and buffer-to-String conversion remain deferred.
 - Formatting `format("{} {}", left, right)` and `format("{first} {second}", second=b, first=a)`
   are expressions usable in declarations, calls, returns, arrays, and maps.
   Arguments are evaluated once in source order. Positional arity and named
@@ -857,8 +860,9 @@ begin comments, while semicolons are not valid comment or statement syntax.
   default alignment is right for numbers, left otherwise. This is not full
   C++20 formatting; see the language reference for exact restrictions.
 - Literal and formatted fragments are UTF-8 validated; runtime append
-  validates supplied bytes and preserves valid UTF-8. No public byte
-  raw-byte mutation or buffer-to-String conversion exists in this prototype.
+  validates supplied bytes and preserves valid UTF-8. Byte assignment can
+  replace one ASCII byte and cannot split a character. Buffer-to-String
+  conversion does not exist in this prototype.
   The native byte view is borrowed, not NUL-terminated, and invalidated by
   resize. `cwhip_string_cstr()` explicitly copies for inline-C callers.
   Unicode case mapping and locale-sensitive trimming are not performed.
@@ -1932,14 +1936,14 @@ The goal is to turn the requirements into stages, not to estimate Copilot credit
   (`s.toInt64()`, `s.toUint64()`, `s.toFp64()`), not general cast syntax
   or an implicit conversion (see "String-to-number conversion
   (implemented)" under "Strings" below for exact semantics).
-- Scalar `String` indexing and colon-slice syntax are deferred; inclusive
-  range-index copy slices and the byte-oriented `byteAt` and `slice` methods
-  are implemented.
+- Scalar `String` indexing reads a `uint8` byte and assigns one ASCII byte.
+  Inclusive range-index copy slices are implemented. String colon slices are
+  not.
 - `buffer` and `handle` are confirmed new built-in reference types (see
   "`buffer` and `handle` types" under "Strings" above): both are
   primitive-like (not classes, no user methods, no subclassing). `buffer`
   is a resizable, GC-traced byte sequence with `.resize`/`.length`/`.clear`/
-  `.append` and array-style slicing; assigning a `buffer` copies it.
+  `.append`/`.insert`/`.remove` and array-style slicing; assigning a `buffer` copies it.
   `handle` is fully opaque with no buffer-like built-in operations.
   Neither supports arithmetic, ordering, or same-type equality; both support
   null comparisons, type inspection, and supported `as` operations.

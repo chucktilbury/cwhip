@@ -28,7 +28,7 @@ The bundled stdlib keeps former integer counts, indices, file offsets,
 descriptors, GUI tokens/coordinates, SQL integer values, and enum constants
 as **int64**. Clock milliseconds/seconds remain **uint64**; math and SQL real
 values remain **fp64**. Math constants now use direct fp64 literals.
-`String.byteAt(int64)` retains its uint64 public/native result.
+`text[index]` reads one String byte as `uint8`.
 Buffer element expressions return **uint8**, with modulo-256 writes; buffer
 lengths and source indices remain int64. Non-language control interfaces
 (C `main` arguments/results, bool native results, runtime status codes) are not

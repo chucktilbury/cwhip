@@ -1,4 +1,4 @@
-# A finalizer rewrites a live string during slice, trim, and split.
+# A finalizer rewrites a live string during a range copy, trim, and split.
 # Each result must be the bytes observed at the start of that call.
 class Box {
     strg text
@@ -31,8 +31,9 @@ class Maker {
 start {
     Maker maker = Maker()
     Box sliceBox = Box("abcdef")
+    range<int64> bounds = 1..3
     maker.abandon(sliceBox)
-    strg sliced = sliceBox.text.slice(1, 4)
+    strg sliced = sliceBox.text[bounds]
     print(sliced)
     print("\n")
     print(sliceBox.text)

@@ -1882,6 +1882,59 @@ void cwhip_array_append(void *object, const CwhipArrayValue *value, const char *
     array->values[array->length - 1] = copy;
 }
 
+static int64_t normalize_collection_index(int64_t index, uint64_t length);
+static uint64_t range_slice_index(uint64_t bits, uint64_t tag, uint64_t length,
+                                  const char *file, uint64_t file_length,
+                                  uint64_t line, uint64_t column);
+static void inclusive_range_bounds(void *bounds, uint64_t length, uint64_t *low,
+                                  uint64_t *high, const char *file,
+                                  uint64_t file_length, uint64_t line,
+                                  uint64_t column);
+
+void cwhip_array_insert(void *object, int64_t index, const CwhipArrayValue *value,
+                       const char *file, uint64_t file_length, uint64_t line,
+                       uint64_t column) {
+    CwhipArray *array = checked_array(object, file, file_length, line, column);
+    if (value == NULL) abort();
+    const CwhipArrayValue copy = *value;
+    const int64_t normalized = normalize_collection_index(index, array->length);
+    if (normalized < 0 || (uint64_t)normalized > array->length ||
+        array->length >= (uint64_t)INT64_MAX) {
+        static const char message[] = "list insertion index out of bounds";
+        cwhip_exception_raise(message, sizeof(message) - 1, file, file_length, line, column);
+    }
+    const uint64_t at = (uint64_t)normalized;
+    const uint64_t old_length = array->length;
+    cwhip_array_resize(array, (int64_t)(old_length + 1), file, file_length, line, column);
+    if (at < old_length) {
+        memmove(array->values + at + 1, array->values + at,
+                (size_t)(old_length - at) * sizeof(*array->values));
+    }
+    array->values[at] = copy;
+}
+
+void cwhip_array_remove(void *object, void *bounds, const char *file,
+                       uint64_t file_length, uint64_t line, uint64_t column) {
+    CwhipArray *array = checked_array(object, file, file_length, line, column);
+    uint64_t low = 0;
+    uint64_t high = 0;
+    inclusive_range_bounds(bounds, array->length, &low, &high, file, file_length,
+                           line, column);
+    const uint64_t count = high - low + 1;
+    const uint64_t tail = array->length - high - 1;
+    if (tail != 0) {
+        memmove(array->values + low, array->values + high + 1,
+                (size_t)tail * sizeof(*array->values));
+    }
+    memset(array->values + (array->length - count), 0, (size_t)count * sizeof(*array->values));
+    array->length -= count;
+}
+
+void cwhip_array_clear(void *object, const char *file, uint64_t file_length,
+                      uint64_t line, uint64_t column) {
+    cwhip_array_resize(object, 0, file, file_length, line, column);
+}
+
 static CwhipMap *checked_map(void *object, const char *file, uint64_t file_length,
                             uint64_t line, uint64_t column) {
     if (object == NULL) {
@@ -1974,14 +2027,6 @@ static int utf8_boundary(const uint8_t *bytes, uint64_t length, uint64_t index) 
 static int64_t normalize_string_index(int64_t index, uint64_t length) {
     int64_t normalized = index;
     if (normalized < 0) normalized += (int64_t)length;
-    return normalized;
-}
-
-static int64_t normalize_string_bound(int64_t bound, uint64_t length) {
-    int64_t normalized = bound;
-    if (normalized < 0) normalized += (int64_t)length;
-    if (normalized < 0) return 0;
-    if ((uint64_t)normalized > length) return (int64_t)length;
     return normalized;
 }
 
@@ -2114,27 +2159,33 @@ DEFINE_STRING_NUMERIC_METHOD(fp32, float)
 DEFINE_STRING_NUMERIC_METHOD(fp64, double)
 #undef DEFINE_STRING_NUMERIC_METHOD
 
-uint64_t cwhip_string_method_byte_at(void *receiver, int64_t index) {
-    CwhipStringObject *buffer = string_object(receiver);
-    const int64_t normalized = normalize_string_index(index, buffer->length);
-    if (normalized < 0 || (uint64_t)normalized >= buffer->length) {
-        raise_string_error("String byte index out of bounds");
+uint64_t cwhip_string_get(void *receiver, int64_t index, const char *file,
+                        uint64_t file_length, uint64_t line, uint64_t column) {
+    CwhipStringObject *string = string_object(receiver);
+    const int64_t normalized = normalize_string_index(index, string->length);
+    if (normalized < 0 || (uint64_t)normalized >= string->length) {
+        cwhip_exception_raise("String byte index out of bounds", 30, file, file_length,
+                             line, column);
     }
-    return buffer->data[normalized];
+    return string->data[normalized];
 }
 
-void *cwhip_string_method_slice(void *receiver, int64_t first, int64_t last) {
-    CwhipStringObject *buffer = string_object(receiver);
-    const uint64_t start = (uint64_t)normalize_string_bound(first, buffer->length);
-    const uint64_t end = (uint64_t)normalize_string_bound(last, buffer->length);
-    if (!utf8_boundary(buffer->data, buffer->length, start) ||
-        !utf8_boundary(buffer->data, buffer->length, end)) {
-        raise_string_error("String range splits a UTF-8 character");
+void cwhip_string_set(void *receiver, int64_t index, uint64_t value, const char *file,
+                     uint64_t file_length, uint64_t line, uint64_t column) {
+    CwhipStringObject *string = string_object(receiver);
+    const int64_t normalized = normalize_string_index(index, string->length);
+    if (normalized < 0 || (uint64_t)normalized >= string->length) {
+        cwhip_exception_raise("String byte index out of bounds", 30, file, file_length,
+                             line, column);
     }
-    const uint64_t length = end > start ? end - start : 0;
-    return cwhip_string_new(&cwhip_string_class_meta,
-                           length == 0 ? NULL : (const char *)buffer->data + start,
-                           length);
+    const uint64_t at = (uint64_t)normalized;
+    if (value > 0x7f || string->data[at] > 0x7f ||
+        !utf8_boundary(string->data, string->length, at) ||
+        !utf8_boundary(string->data, string->length, at + 1)) {
+        cwhip_exception_raise("String byte assignment splits a UTF-8 character", 47,
+                             file, file_length, line, column);
+    }
+    string->data[at] = (uint8_t)value;
 }
 
 void cwhip_string_method_insert(void *receiver, int64_t index, void *other) {
@@ -2168,18 +2219,22 @@ void cwhip_string_method_insert(void *receiver, int64_t index, void *other) {
     free(copy);
 }
 
-void cwhip_string_method_remove_range(void *receiver, int64_t first, int64_t last) {
-    CwhipStringObject *buffer = string_object(receiver);
-    const uint64_t start = (uint64_t)normalize_string_bound(first, buffer->length);
-    const uint64_t end = (uint64_t)normalize_string_bound(last, buffer->length);
-    if (!utf8_boundary(buffer->data, buffer->length, start) ||
-        !utf8_boundary(buffer->data, buffer->length, end)) {
+void cwhip_string_method_remove(void *receiver, void *bounds) {
+    CwhipStringObject *string = string_object(receiver);
+    uint64_t low = 0;
+    uint64_t high = 0;
+    inclusive_range_bounds(bounds, string->length, &low, &high, native_file,
+                           sizeof(native_file) - 1, 0, 0);
+    if (!utf8_boundary(string->data, string->length, low) ||
+        !utf8_boundary(string->data, string->length, high + 1)) {
         raise_string_error("String range splits a UTF-8 character");
     }
-    if (end <= start) return;
-    memmove(buffer->data + start, buffer->data + end,
-            (size_t)(buffer->length - end));
-    buffer->length -= end - start;
+    const uint64_t count = high - low + 1;
+    const uint64_t tail = string->length - high - 1;
+    if (tail != 0) {
+        memmove(string->data + low, string->data + high + 1, (size_t)tail);
+    }
+    string->length -= count;
 }
 
 void cwhip_string_method_clear(void *receiver) {
@@ -2696,6 +2751,40 @@ void cwhip_buffer_append(void *object, uint64_t value, const char *file,
     buffer->data[buffer->length++] = (uint8_t)value;
 }
 
+void cwhip_buffer_insert(void *object, int64_t index, uint64_t value, const char *file,
+                        uint64_t file_length, uint64_t line, uint64_t column) {
+    CwhipBuffer *buffer = checked_buffer(object, file, file_length, line, column);
+    const int64_t normalized = normalize_collection_index(index, buffer->length);
+    if (normalized < 0 || (uint64_t)normalized > buffer->length ||
+        buffer->length >= (uint64_t)INT64_MAX) {
+        static const char message[] = "buffer insertion index out of bounds";
+        cwhip_exception_raise(message, sizeof(message) - 1, file, file_length, line, column);
+    }
+    const uint64_t at = (uint64_t)normalized;
+    const uint64_t old_length = buffer->length;
+    buffer_reserve(buffer, old_length + 1);
+    if (at < old_length) {
+        memmove(buffer->data + at + 1, buffer->data + at, (size_t)(old_length - at));
+    }
+    buffer->data[at] = (uint8_t)value;
+    buffer->length = old_length + 1;
+}
+
+void cwhip_buffer_remove(void *object, void *bounds, const char *file,
+                        uint64_t file_length, uint64_t line, uint64_t column) {
+    CwhipBuffer *buffer = checked_buffer(object, file, file_length, line, column);
+    uint64_t low = 0;
+    uint64_t high = 0;
+    inclusive_range_bounds(bounds, buffer->length, &low, &high, file, file_length,
+                           line, column);
+    const uint64_t count = high - low + 1;
+    const uint64_t tail = buffer->length - high - 1;
+    if (tail != 0) {
+        memmove(buffer->data + low, buffer->data + high + 1, (size_t)tail);
+    }
+    buffer->length -= count;
+}
+
 uint64_t cwhip_buffer_get(void *object, int64_t index, const char *file,
                          uint64_t file_length, uint64_t line, uint64_t column) {
     CwhipBuffer *buffer = checked_buffer(object, file, file_length, line, column);
@@ -2869,6 +2958,18 @@ int64_t cwhip_map_remove(void *object, const char *key, uint64_t key_length,
     return 1;
 }
 
+void cwhip_map_clear(void *object, const char *file, uint64_t file_length,
+                    uint64_t line, uint64_t column) {
+    CwhipMap *map = checked_map(object, file, file_length, line, column);
+    for (uint64_t index = 0; index < map->length; ++index) {
+        free((void *)map->entries[index].key);
+    }
+    map->length = 0;
+    if (map->bucket_capacity != 0) {
+        memset(map->buckets, 0, (size_t)map->bucket_capacity * sizeof(*map->buckets));
+    }
+}
+
 void *cwhip_map_slice_ex(void *object, int64_t start, int64_t end,
                         int has_start, int has_end, const char *file,
                         uint64_t file_length, uint64_t line, uint64_t column) {
@@ -2989,6 +3090,24 @@ void cwhip_range_print(void *object) {
     else
         printf("%llu..%llu", (unsigned long long)range->first,
                (unsigned long long)range->last);
+}
+
+static void inclusive_range_bounds(void *bounds, uint64_t length, uint64_t *low,
+                                  uint64_t *high, const char *file,
+                                  uint64_t file_length, uint64_t line,
+                                  uint64_t column) {
+    cwhip_gc_require_alive(bounds, file, file_length, line, column);
+    if (bounds == NULL) {
+        static const char message[] = "null range";
+        cwhip_exception_raise(message, sizeof(message) - 1, file, file_length, line, column);
+    }
+    const CwhipRange *range = (const CwhipRange *)bounds;
+    const uint64_t first = range_slice_index(range->first, range->element_tag, length,
+                                              file, file_length, line, column);
+    const uint64_t last = range_slice_index(range->last, range->element_tag, length,
+                                             file, file_length, line, column);
+    *low = first <= last ? first : last;
+    *high = first <= last ? last : first;
 }
 
 static uint64_t range_slice_index(uint64_t bits, uint64_t tag, uint64_t length,
