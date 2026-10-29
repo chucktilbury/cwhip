@@ -98,7 +98,7 @@ The first-release additions are:
 | `TransientWindow` | `TransientWindow(String title)`, `setTitle(String)`, `String title()`, `setDefaultSize(int64 width, int64 height)`, `int64 defaultWidth()`, `int64 defaultHeight()`, `setTransientFor(Window parent)`, `setChild(Widget)`, `remove(Widget)`, `present()`, `close()`, `onCloseRequest(bool<>)` |
 | `Box` | `Box(int64 orientation, int64 spacing)`, `setLayout(int64 orientation, int64 spacing)`, `append(Widget)`, `remove(Widget)` |
 | `Grid` | `Grid(int64 spacing)`, `attach(Widget, int64 column, int64 row, int64 width, int64 height)` |
-| `ContextMenu` | `ContextMenu(Widget owner)`, `setChild(Widget)` |
+| `ContextMenu` | `ContextMenu(Widget owner)`, `addItem`, `addCheckItem`, `setChild(Widget)` |
 | `Label` | `Label(String text)`, `setText(String)`, `String text()` |
 | `Button` | `Button(String label)`, `setLabel(String)`, `String label()`, `onClicked(void<>)` |
 | `Entry` | `Entry(String text)`, `setText(String)`, `String text()`, `focus()`, `setEditable(bool)`, `onChanged(void<String>)` |
@@ -121,13 +121,16 @@ The window manager may apply this request asynchronously.
 `onFocusChanged` reports GTK's window-active state (`false` on loss).
 `Grid` uses zero-based, nonnegative row/column positions and positive spans.
 `Entry.setEditable(false)` keeps selection/copy and programmatic updates available.
-`ContextMenu` attaches a secondary-button popover to its owner and accepts a
-single content widget (usually a Box of actions/check buttons); owner disposal
-tears it down. Its capture-phase gesture suppresses the owner's default popup.
-For text views it positions the cursor at the clicked line before opening;
-views with line selection enabled select that whole line instead. A right
-click inside an existing text selection keeps the selection (so a Copy action
-copies it).
+`ContextMenu` attaches a secondary-button `PopoverMenu` to its owner.
+`addItem` / `addCheckItem` append native menu rows (with `setItemEnabled` and
+`setItemChecked`); `setChild` remains for a custom content widget when needed.
+Owner disposal tears the menu down. Its capture-phase gesture suppresses the
+owner's default popup. For text views that still use `ContextMenu`, it
+positions the cursor at the clicked line before opening; views with line
+selection enabled select that whole line instead. A right click inside an
+existing text selection keeps the selection. Prefer
+`GtkSource.View.addContextAction` when the built-in Cut/Copy/Paste menu should
+stay and only extra rows are needed.
 `appendClosablePage` adds a bordered title/close-icon tab, invoking
 the supplied callback without automatically removing the page.
 `setBorderedTabs()` applies the same tab border to every page of a notebook.
@@ -381,6 +384,7 @@ void setMarkStyle(String category, String icon, String background)
 void addLineMark(String category, int64 line)
 void addLineMarkTooltip(String category, int64 line, String tooltip)
 void clearLineMarks(String category)
+void addContextAction(String label, void<> action)
 ```
 
 `onLineActivated` handles a primary single click in the capture phase, positions
@@ -400,6 +404,9 @@ line, and ignores lines beyond the buffer's end. `addLineMarkTooltip` does the
 same and stores hover text shown for the gutter mark and for the line itself.
 `clearLineMarks` removes only that category and its line styling. Empty
 categories, invalid colors and nonpositive lines are programming errors.
+`addContextAction` appends a labeled row to the view's native right-click
+menu (`gtk_text_view_set_extra_menu`) without replacing Cut, Copy, Paste, or
+other built-in entries.
 
 `configure(String font, int64 size, int64 tabs, bool spaces, bool numbers, bool wrap,
 bool highlight)` applies a per-view font family/point size, tab width,

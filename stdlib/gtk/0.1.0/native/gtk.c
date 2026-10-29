@@ -933,7 +933,12 @@ int64_t cwhip_gtk_widget_create(void *self, int64_t kind, void *text,
         gtk_grid_set_row_spacing(GTK_GRID(widget), (guint)spacing);
         gtk_grid_set_column_spacing(GTK_GRID(widget), (guint)spacing);
         break;
-    case 15: widget = gtk_popover_new(); break;
+    case 15: {
+        GMenu *menu = g_menu_new();
+        widget = gtk_popover_menu_new_from_model(G_MENU_MODEL(menu));
+        g_object_unref(menu);
+        break;
+    }
     case 9: widget = gtk_notebook_new(); break;
     case 10: {
         GMenu *menu = g_menu_new();
@@ -958,11 +963,18 @@ int64_t cwhip_gtk_widget_create(void *self, int64_t kind, void *text,
     r->widget = g_object_ref_sink(widget);
     r->receiver = receiver;
     r->root = cwhip_callback_acquire(keep_alive, "callback<void()>");
-    if (kind == 10) {
-        r->menu = G_MENU(g_object_ref(gtk_popover_menu_bar_get_menu_model(GTK_POPOVER_MENU_BAR(widget))));
+    if (kind == 10 || kind == 15) {
+        r->menu = G_MENU(g_object_ref(kind == 10
+            ? gtk_popover_menu_bar_get_menu_model(GTK_POPOVER_MENU_BAR(widget))
+            : gtk_popover_menu_get_menu_model(GTK_POPOVER_MENU(widget))));
         r->submenus = g_ptr_array_new_with_free_func(g_object_unref);
         r->actions = g_simple_action_group_new();
         gtk_widget_insert_action_group(widget, "menu", G_ACTION_GROUP(r->actions));
+        g_object_set_data(G_OBJECT(widget), "cwhip-actions", r->actions);
+        if (kind == 15) {
+            g_ptr_array_add(r->submenus, g_object_ref(r->menu));
+            g_object_set_data(G_OBJECT(r->menu), "cwhip-menu-parent", r->menu);
+        }
     }
     r->next = widgets;
     widgets = r;
@@ -1015,7 +1027,9 @@ void cwhip_gtk_widget_focus(void *self, int64_t token) {
 }
 
 static WidgetRecord *menu_record(int64_t token) {
-    if (!GTK_IS_POPOVER_MENU_BAR(widget_live(token))) fatal("operation requires MenuBar");
+    GtkWidget *widget = widget_live(token);
+    if (!GTK_IS_POPOVER_MENU_BAR(widget) && !GTK_IS_POPOVER_MENU(widget))
+        fatal("operation requires MenuBar or ContextMenu");
     return record_find(token);
 }
 
@@ -1895,6 +1909,37 @@ void cwhip_gtk_source_view_emoji_menu(void *self, int64_t token, bool enabled) {
     GtkInputHints hints = gtk_text_view_get_input_hints(GTK_TEXT_VIEW(widget));
     gtk_text_view_set_input_hints(GTK_TEXT_VIEW(widget),
         enabled ? hints & ~GTK_INPUT_HINT_NO_EMOJI : hints | GTK_INPUT_HINT_NO_EMOJI);
+}
+
+/* Appends a labeled action to the native text-view context menu without
+ * replacing Cut/Copy/Paste or other built-in entries. */
+void cwhip_gtk_source_view_context_action(void *self, int64_t token, void *label_text,
+                                          void *callback) {
+    (void)self;
+    GtkWidget *widget = widget_live(token);
+    if (!GTK_SOURCE_IS_VIEW(widget)) fatal("operation requires SourceView");
+    char *label = text_copy(label_text);
+    GMenu *menu = g_object_get_data(G_OBJECT(widget), "cwhip-extra-menu");
+    GSimpleActionGroup *actions = g_object_get_data(G_OBJECT(widget), "cwhip-extra-actions");
+    if (!menu) {
+        menu = g_menu_new();
+        actions = g_simple_action_group_new();
+        gtk_widget_insert_action_group(widget, "cwhip", G_ACTION_GROUP(actions));
+        gtk_text_view_set_extra_menu(GTK_TEXT_VIEW(widget), G_MENU_MODEL(menu));
+        g_object_set_data_full(G_OBJECT(widget), "cwhip-extra-menu", menu, g_object_unref);
+        g_object_set_data_full(G_OBJECT(widget), "cwhip-extra-actions", actions, g_object_unref);
+    }
+    char *name = g_strdup_printf("extra%" G_GINT64_FORMAT, token_new());
+    GSimpleAction *action = g_simple_action_new(name, NULL);
+    connect_signal(G_OBJECT(action), "activate", G_CALLBACK(menu_activated), callback,
+                   "callback<void()>");
+    g_action_map_add_action(G_ACTION_MAP(actions), G_ACTION(action));
+    char *detailed = g_strconcat("cwhip.", name, NULL);
+    g_menu_append(menu, label, detailed);
+    g_object_unref(action);
+    g_free(detailed);
+    g_free(name);
+    g_free(label);
 }
 
 static GtkSourceBuffer *source_buffer(int64_t token) {

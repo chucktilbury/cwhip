@@ -25,6 +25,12 @@ proof of concept and compiler-testing tool, not a production IDE/debugger.
 
 ## Implemented milestones
 
+### Unreleased: Context menus that keep the native popup
+
+`GtkSource.View.addContextAction` appends a row to the built-in text-view
+menu. `ContextMenu` is a `PopoverMenu` with `addItem` / `addCheckItem` so
+sidebar menus look like ordinary menus instead of a box of buttons.
+
 ### Unreleased: Source mark tooltips and whitespace drawer
 
 `setShowWhitespace` enables GtkSourceView's space-drawer matrix so spaces and
