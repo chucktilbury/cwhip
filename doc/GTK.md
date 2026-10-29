@@ -140,6 +140,9 @@ the supplied callback without automatically removing the page.
 `setBorderedTabs()` applies the same tab border to every page of a notebook.
 `Notebook.setScrollable(bool)` adds tab-strip scrolling when titles do not fit,
 instead of letting the entire tab strip impose its minimum width on a pane.
+After each page change it clears a stuck notebook click gesture so the left
+arrow keeps working after a partial right scroll (GTK can drop the matching
+release when focus moves into the new page).
 `Window.bindShortcut` installs a window-wide shortcut (GTK trigger syntax such
 as `<Control>q`) whose callback may close or dispose the window; it is released
 with the window. Page-change

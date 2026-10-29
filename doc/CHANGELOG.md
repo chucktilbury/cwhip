@@ -25,6 +25,13 @@ proof of concept and compiler-testing tool, not a production IDE/debugger.
 
 ## Implemented milestones
 
+### Unreleased: Notebook tab scroll arrows
+
+`Notebook.setScrollable` resets the notebook click gesture after each page
+change so left/right tab arrows stay usable after a partial scroll. Without
+that, a lost button-release (often when focus moves into the new page) left
+the arrows claiming clicks and doing nothing until another tab was selected.
+
 ### Unreleased: Editor UI GTK helpers
 
 `MenuBar.addSubmenu` / `clearMenu` rebuild nested menus. `Button.setIconName`,
