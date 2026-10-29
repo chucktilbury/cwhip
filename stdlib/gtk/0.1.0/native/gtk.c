@@ -1956,10 +1956,75 @@ int64_t cwhip_gtk_source_view_line_activated(void *self, int64_t token, void *ca
     return connection;
 }
 
+static gchar *mark_tooltip_text(GtkSourceMarkAttributes *attributes, GtkSourceMark *mark,
+                                gpointer data) {
+    (void)attributes;
+    (void)data;
+    const char *text = g_object_get_data(G_OBJECT(mark), "cwhip-tooltip");
+    return text ? g_strdup(text) : NULL;
+}
+
+static gboolean source_query_tooltip(GtkWidget *widget, gint x, gint y, gboolean keyboard_mode,
+                                     GtkTooltip *tooltip, gpointer data) {
+    (void)data;
+    GtkTextView *view = GTK_TEXT_VIEW(widget);
+    GtkTextIter iter;
+    if (keyboard_mode) {
+        GtkTextBuffer *buffer = gtk_text_view_get_buffer(view);
+        GtkTextMark *insert = gtk_text_buffer_get_insert(buffer);
+        gtk_text_buffer_get_iter_at_mark(buffer, &iter, insert);
+    } else {
+        int buffer_x = 0, buffer_y = 0;
+        gtk_text_view_window_to_buffer_coords(view, GTK_TEXT_WINDOW_WIDGET, x, y, &buffer_x,
+                                              &buffer_y);
+        gtk_text_view_get_iter_at_location(view, &iter, buffer_x, buffer_y);
+    }
+    GSList *marks = gtk_source_buffer_get_source_marks_at_line(
+        GTK_SOURCE_BUFFER(gtk_text_view_get_buffer(view)), gtk_text_iter_get_line(&iter), NULL);
+    const char *text = NULL;
+    for (GSList *node = marks; node; node = node->next) {
+        const char *candidate = g_object_get_data(G_OBJECT(node->data), "cwhip-tooltip");
+        if (candidate && *candidate) {
+            text = candidate;
+            break;
+        }
+    }
+    g_slist_free(marks);
+    if (!text) return FALSE;
+    gtk_tooltip_set_text(tooltip, text);
+    return TRUE;
+}
+
+static void source_ensure_tooltips(GtkWidget *widget) {
+    if (g_object_get_data(G_OBJECT(widget), "cwhip-tooltip-connected")) return;
+    gtk_widget_set_has_tooltip(widget, TRUE);
+    g_signal_connect(widget, "query-tooltip", G_CALLBACK(source_query_tooltip), NULL);
+    g_object_set_data(G_OBJECT(widget), "cwhip-tooltip-connected", GINT_TO_POINTER(1));
+}
+
+static GtkTextTag *source_mark_tag(GtkTextBuffer *buffer, const char *category, const GdkRGBA *rgba) {
+    char *name = g_strdup_printf("cwhip-mark:%s", category);
+    GtkTextTagTable *table = gtk_text_buffer_get_tag_table(buffer);
+    GtkTextTag *tag = gtk_text_tag_table_lookup(table, name);
+    if (!tag) {
+        tag = gtk_text_buffer_create_tag(buffer, name, "underline", PANGO_UNDERLINE_ERROR,
+                                         "paragraph-background-rgba", rgba, NULL);
+    } else {
+        g_object_set(tag, "underline", PANGO_UNDERLINE_ERROR, "paragraph-background-rgba", rgba,
+                     NULL);
+    }
+    g_free(name);
+    return tag;
+}
+
+void cwhip_gtk_source_view_line_mark_tooltip(void *self, int64_t token, void *category_text,
+                                             int64_t line, void *tooltip_text);
+
 void cwhip_gtk_source_view_mark_style(void *self, int64_t token, void *category_text,
                                      void *icon_text, void *color_text) {
     (void)self;
-    source_buffer(token);
+    GtkSourceBuffer *buffer = source_buffer(token);
+    GtkWidget *widget = widget_live(token);
     char *category = text_copy(category_text), *icon = text_copy(icon_text);
     char *color = text_copy(color_text);
     GdkRGBA rgba;
@@ -1967,8 +2032,15 @@ void cwhip_gtk_source_view_mark_style(void *self, int64_t token, void *category_
     GtkSourceMarkAttributes *attributes = gtk_source_mark_attributes_new();
     gtk_source_mark_attributes_set_icon_name(attributes, icon);
     gtk_source_mark_attributes_set_background(attributes, &rgba);
-    gtk_source_view_set_mark_attributes(GTK_SOURCE_VIEW(widget_live(token)), category, attributes, 10);
-    gtk_source_view_set_show_line_marks(GTK_SOURCE_VIEW(widget_live(token)), TRUE);
+    g_signal_connect(attributes, "query-tooltip-text", G_CALLBACK(mark_tooltip_text), NULL);
+    gtk_source_view_set_mark_attributes(GTK_SOURCE_VIEW(widget), category, attributes, 10);
+    gtk_source_view_set_show_line_marks(GTK_SOURCE_VIEW(widget), TRUE);
+    source_mark_tag(GTK_TEXT_BUFFER(buffer), category, &rgba);
+    source_ensure_tooltips(widget);
+    char *color_key = g_strdup_printf("cwhip-mark-color:%s", category);
+    g_object_set_data_full(G_OBJECT(widget), g_intern_string(color_key), gdk_rgba_copy(&rgba),
+                           (GDestroyNotify)gdk_rgba_free);
+    g_free(color_key);
     g_object_unref(attributes);
     g_free(category);
     g_free(icon);
@@ -1976,18 +2048,40 @@ void cwhip_gtk_source_view_mark_style(void *self, int64_t token, void *category_
 }
 
 void cwhip_gtk_source_view_line_mark(void *self, int64_t token, void *category_text, int64_t line) {
+    cwhip_gtk_source_view_line_mark_tooltip(self, token, category_text, line, NULL);
+}
+
+void cwhip_gtk_source_view_line_mark_tooltip(void *self, int64_t token, void *category_text,
+                                             int64_t line, void *tooltip_text) {
     (void)self;
     GtkSourceBuffer *buffer = source_buffer(token);
+    GtkWidget *widget = widget_live(token);
     char *category = text_copy(category_text);
+    char *tooltip = tooltip_text ? text_copy(tooltip_text) : g_strdup("");
     if (!*category || line < 1 || line > G_MAXINT) fatal("invalid source mark");
     if (line <= gtk_text_buffer_get_line_count(GTK_TEXT_BUFFER(buffer))) {
-        GtkTextIter iter;
-        gtk_text_buffer_get_iter_at_line(GTK_TEXT_BUFFER(buffer), &iter, line - 1);
+        GtkTextIter start, end;
+        gtk_text_buffer_get_iter_at_line(GTK_TEXT_BUFFER(buffer), &start, line - 1);
+        end = start;
+        if (!gtk_text_iter_ends_line(&end)) gtk_text_iter_forward_to_line_end(&end);
         GSList *marks = gtk_source_buffer_get_source_marks_at_line(buffer, line - 1, category);
-        if (!marks) gtk_source_buffer_create_source_mark(buffer, NULL, category, &iter);
+        GtkSourceMark *mark = marks ? marks->data : NULL;
+        if (!mark) mark = gtk_source_buffer_create_source_mark(buffer, NULL, category, &start);
         g_slist_free(marks);
+        if (*tooltip)
+            g_object_set_data_full(G_OBJECT(mark), "cwhip-tooltip", g_strdup(tooltip), g_free);
+        else g_object_set_data(G_OBJECT(mark), "cwhip-tooltip", NULL);
+        char *color_key = g_strdup_printf("cwhip-mark-color:%s", category);
+        GdkRGBA *rgba = g_object_get_data(G_OBJECT(widget), g_intern_string(color_key));
+        g_free(color_key);
+        if (rgba) {
+            GtkTextTag *tag = source_mark_tag(GTK_TEXT_BUFFER(buffer), category, rgba);
+            gtk_text_buffer_apply_tag(GTK_TEXT_BUFFER(buffer), tag, &start, &end);
+        }
+        source_ensure_tooltips(widget);
     }
     g_free(category);
+    g_free(tooltip);
 }
 
 void cwhip_gtk_source_view_clear_marks(void *self, int64_t token, void *category_text) {
@@ -1998,6 +2092,11 @@ void cwhip_gtk_source_view_clear_marks(void *self, int64_t token, void *category
     GtkTextIter start, end;
     gtk_text_buffer_get_bounds(GTK_TEXT_BUFFER(buffer), &start, &end);
     gtk_source_buffer_remove_source_marks(buffer, &start, &end, category);
+    char *tag_name = g_strdup_printf("cwhip-mark:%s", category);
+    GtkTextTag *tag = gtk_text_tag_table_lookup(gtk_text_buffer_get_tag_table(GTK_TEXT_BUFFER(buffer)),
+                                                tag_name);
+    if (tag) gtk_text_buffer_remove_tag(GTK_TEXT_BUFFER(buffer), tag, &start, &end);
+    g_free(tag_name);
     g_free(category);
 }
 
@@ -2295,6 +2394,8 @@ void cwhip_gtk_source_view_show_whitespace(void *self, int64_t token, bool show)
     (void)self;
     GtkSourceView *view = GTK_SOURCE_VIEW(cwhip_source(token));
     GtkSourceSpaceDrawer *drawer = gtk_source_view_get_space_drawer(view);
+    /* Types alone do nothing until the matrix is enabled. */
+    gtk_source_space_drawer_set_enable_matrix(drawer, show);
     gtk_source_space_drawer_set_types_for_locations(
         drawer, GTK_SOURCE_SPACE_LOCATION_ALL,
         show ? GTK_SOURCE_SPACE_TYPE_ALL : GTK_SOURCE_SPACE_TYPE_NONE);

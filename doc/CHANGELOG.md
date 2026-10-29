@@ -25,6 +25,13 @@ proof of concept and compiler-testing tool, not a production IDE/debugger.
 
 ## Implemented milestones
 
+### Unreleased: Source mark tooltips and whitespace drawer
+
+`setShowWhitespace` enables GtkSourceView's space-drawer matrix so spaces and
+tabs actually appear. Source marks can carry hover text through
+`addLineMarkTooltip`, underline the marked line, and tint its background.
+Mouseover of the gutter mark or the line shows that text.
+
 ### Unreleased: Error recovery and the language server
 
 A source error no longer ends the check. The parser resumes at the next

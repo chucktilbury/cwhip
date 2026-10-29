@@ -56,6 +56,7 @@ namespace GtkSource {
         int64 _lineActivated(int64 token, void<int64> action)
         void _markStyle(int64 token, String category, String icon, String color)
         void _lineMark(int64 token, String category, int64 line)
+        void _lineMarkTooltip(int64 token, String category, int64 line, String tooltip)
         void _clearMarks(int64 token, String category)
         public:
         // Search option bits; add them together to combine options.
@@ -137,6 +138,9 @@ namespace GtkSource {
             _markStyle(_widgetToken(), category, icon, background)
         }
         void addLineMark(String category, int64 line) { _lineMark(_widgetToken(), category, line) }
+        void addLineMarkTooltip(String category, int64 line, String tooltip) {
+            _lineMarkTooltip(_widgetToken(), category, line, tooltip)
+        }
         void clearLineMarks(String category) { _clearMarks(_widgetToken(), category) }
     }
 
@@ -198,5 +202,7 @@ namespace GtkSource {
     void View._markStyle(int64 token, String category, String icon, String color)
         from "cwhip_gtk_source_view_mark_style"
     void View._lineMark(int64 token, String category, int64 line) from "cwhip_gtk_source_view_line_mark"
+    void View._lineMarkTooltip(int64 token, String category, int64 line, String tooltip)
+        from "cwhip_gtk_source_view_line_mark_tooltip"
     void View._clearMarks(int64 token, String category) from "cwhip_gtk_source_view_clear_marks"
 }
