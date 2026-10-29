@@ -267,11 +267,6 @@ typedef struct CwhipRuntimeException {
     uint8_t runtime_owns_message;
 } CwhipRuntimeException;
 
-typedef struct RetainedExceptionMessage {
-    struct RetainedExceptionMessage *next;
-    char *bytes;
-} RetainedExceptionMessage;
-
 _Static_assert(alignof(CwhipExceptionFrame) <= 16,
                "generated exception frames require at most 16-byte alignment");
 
@@ -302,8 +297,6 @@ static _Thread_local CwhipTraceFrame *active_trace = NULL;
 static size_t object_count = 0;
 static _Thread_local int collecting = 0;
 static _Thread_local int running_destructor = 0;
-static RetainedExceptionMessage *retained_exception_messages = NULL;
-static int retained_message_cleanup_registered = 0;
 static void free_trace_snapshot(CwhipTraceSnapshot *trace) {
     free(trace);
 }
@@ -684,15 +677,6 @@ const CwhipClassMeta cwhip_exception_class_meta = {
 /* Standalone runtime tests do not link a compiled Cwhip module. */
 extern const CwhipClassMeta cwhip_string_class_meta __attribute__((weak));
 
-static void release_retained_exception_messages(void) {
-    while (retained_exception_messages != NULL) {
-        RetainedExceptionMessage *message = retained_exception_messages;
-        retained_exception_messages = message->next;
-        free(message->bytes);
-        free(message);
-    }
-}
-
 static void uncaught_exception(const char *message, size_t length,
                                const char *file, size_t file_length,
                                uint64_t line, uint64_t column,
@@ -907,23 +891,9 @@ void cwhip_trace_pop(void *storage) {
 const char *cwhip_exception_copy_message(void *storage) {
     CwhipExceptionFrame *frame = (CwhipExceptionFrame *)storage;
     if (frame == NULL || !frame->has_exception) abort();
+    /* The frame owns these bytes until it is cleared or overwritten. */
     if (frame->message == NULL) return "";
-    RetainedExceptionMessage *retained =
-        (RetainedExceptionMessage *)malloc(sizeof(*retained));
-    if (retained == NULL) abort();
-    retained->bytes = (char *)malloc(frame->message_length);
-    if (retained->bytes == NULL) {
-        free(retained);
-        abort();
-    }
-    memcpy(retained->bytes, frame->message, frame->message_length);
-    retained->next = retained_exception_messages;
-    retained_exception_messages = retained;
-    if (!retained_message_cleanup_registered) {
-        if (atexit(release_retained_exception_messages) != 0) abort();
-        retained_message_cleanup_registered = 1;
-    }
-    return retained->bytes;
+    return frame->message;
 }
 
 uint64_t cwhip_exception_message_length(void *storage) {
@@ -2005,6 +1975,16 @@ void cwhip_string_bytes(void *object, const char **data, uint64_t *length) {
     *length = buffer->length;
 }
 
+/* Caller bytes can point into a managed buffer. Collection does not move
+ * objects, but a finalizer can reallocate that buffer, so copy first. */
+static char *snapshot_bytes(const char *bytes, uint64_t length) {
+    if (length == 0) return NULL;
+    char *copy = (char *)malloc((size_t)length);
+    if (copy == NULL) abort();
+    memcpy(copy, bytes, (size_t)length);
+    return copy;
+}
+
 void *cwhip_string_new(const CwhipClassMeta *metadata, const char *bytes, uint64_t length) {
     if (metadata == NULL || length > (uint64_t)INT64_MAX ||
         length > SIZE_MAX || (bytes == NULL && length != 0)) {
@@ -2017,6 +1997,7 @@ void *cwhip_string_new(const CwhipClassMeta *metadata, const char *bytes, uint64
         cwhip_exception_raise(message, sizeof(message) - 1, native_file,
                              sizeof(native_file) - 1, 0, 0);
     }
+    char *snapshot = snapshot_bytes(bytes, length);
     CwhipStringObject *object = (CwhipStringObject *)cwhip_gc_alloc(metadata);
     void *root = object;
     CwhipRootFrame frame;
@@ -2025,7 +2006,8 @@ void *cwhip_string_new(const CwhipClassMeta *metadata, const char *bytes, uint64
     object->owner = object;
     object->bytes = (CwhipBuffer *)cwhip_buffer_new((int64_t)length, native_file,
                                                    sizeof(native_file) - 1, 0, 0);
-    if (length != 0) memcpy(object->bytes->data, bytes, (size_t)length);
+    if (length != 0) memcpy(object->bytes->data, snapshot, (size_t)length);
+    free(snapshot);
     cwhip_gc_pop_or_abort(&frame);
     return object;
 }
@@ -2218,6 +2200,11 @@ void *cwhip_string_method_split(void *receiver, void *separator) {
         position = found + separator_length;
     }
     if (count > (uint64_t)INT64_MAX) raise_string_error("String split result is too large");
+    /* Snapshot before the result list is allocated. A finalizer can reallocate
+     * either string's buffer while this method is still scanning it. */
+    const uint64_t source_length = buffer->length;
+    char *source = snapshot_bytes((const char *)buffer->data, source_length);
+    char *separator_copy = snapshot_bytes(separator_data, separator_length);
     CwhipArray *result = (CwhipArray *)cwhip_gc_alloc_array((int64_t)count);
     CwhipRootFrame frame;
     void *root = result;
@@ -2226,20 +2213,27 @@ void *cwhip_string_method_split(void *receiver, void *separator) {
     uint64_t field = 0;
     uint64_t start = 0;
     for (;;) {
-        const uint64_t found = find_bytes((const char *)buffer->data, buffer->length,
-                                          separator_data, separator_length, start);
-        const uint64_t end = found == UINT64_MAX ? buffer->length : found;
+        const uint64_t found = find_bytes(source, source_length,
+                                          separator_copy, separator_length, start);
+        const uint64_t end = found == UINT64_MAX ? source_length : found;
         const uint64_t length = end - start;
+        const char *piece = length == 0 ? NULL : source + start;
+        if (length != 0 && !valid_utf8(piece, length)) {
+            free(source);
+            free(separator_copy);
+            cwhip_gc_pop_or_abort(&frame);
+            raise_string_error("String bytes are not valid UTF-8");
+        }
         result->values[field++] = (CwhipArrayValue){
             CWHIP_ARRAY_OBJECT, 0,
-            cwhip_string_new(&cwhip_string_class_meta,
-                            length == 0 ? NULL : (const char *)buffer->data + start,
-                            length),
+            cwhip_string_new(&cwhip_string_class_meta, piece, length),
             0
         };
         if (found == UINT64_MAX) break;
         start = found + separator_length;
     }
+    free(source);
+    free(separator_copy);
     cwhip_gc_pop_or_abort(&frame);
     return result;
 }

@@ -1425,7 +1425,11 @@ destroyed, the remaining base destructor bodies still run, and the first
 exception is propagated only after the chain completes. It cannot be finalized
 a second time. Generated object-value uses validate liveness. Finalizer
 callbacks cannot allocate: allocation during collection aborts to prevent
-reentrant collection from invalidating the sweep. If a finalizer attaches its
+reentrant collection from invalidating the sweep. They may still reallocate a
+live string's byte buffer. `cwhip_string_new` copies its source bytes before
+allocating, and `split` snapshots both strings before it allocates the result,
+so `slice`, `trim`, and `split` keep the bytes observed at the start of the
+call. If a finalizer attaches its
 own object to a live object's reference field, the second trace retains the
 object, but it remains destroyed and unusable; its finalizer will not run a
 second time.
@@ -1450,8 +1454,8 @@ trace-copy allocation only on the exceptional path. This host-ABI mechanism
 uses C `setjmp`/`longjmp`, not LLVM landing pads or a cross-platform exception
 ABI. Generated Cwhip code is serialized by the runtime's global lock.
 Exceptions escaping GC finalizers and recovery from collector invariant
-failures remain unsupported. Catch-all message bindings retain a copy until
-process exit.
+failures remain unsupported. A catch-all binding copies the frame's
+message into a String; that frame keeps its own bytes until it is cleared.
 Uncaught language exceptions and runtime-generated failures report their
 source file, line, and column along with the message, then abort with a
 nonzero process status. They then print Cwhip source frames in innermost-

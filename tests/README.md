@@ -12,12 +12,17 @@ exit
 ```
 
 `cwhip_gc_runtime_lifecycle` covers precise roots, interior pointers, adaptive
-collection, finalizers, and heap-index updates. `cwhip_gc_runtime_stress` runs
-the same checks with collection before every allocation. To stress generated
-programs too, run `CWHIP_GC_STRESS=1 ctest --test-dir build --output-on-failure -R
-'gc|finalizer|inherited_destructors|transitive_virtual_bases'`. Fixtures that
-assert finalizer output order force collection explicitly instead of depending
-on the allocation budget.
+collection, finalizers, and heap-index updates. It also checks that a caught
+message is borrowed from the exception frame rather than retained until
+process exit. `cwhip_gc_runtime_stress` runs the same checks with collection
+before every allocation. To stress generated programs too, run
+`CWHIP_GC_STRESS=1 ctest --test-dir build --output-on-failure -R
+'gc|finalizer|inherited_destructors|transitive_virtual_bases'`.
+`cwhip_compile_and_run_string_bytes_across_collection` sets that variable
+itself: a finalizer rewrites a live string during `slice`, `trim`, and
+`split`, and the results must still be the bytes from the start of each call.
+Fixtures that assert finalizer output order force collection explicitly
+instead of depending on the allocation budget.
 
 ## Adding an integration test
 

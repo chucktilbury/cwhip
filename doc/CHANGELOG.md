@@ -25,6 +25,13 @@ proof of concept and compiler-testing tool, not a production IDE/debugger.
 
 ## Implemented milestones
 
+### Unreleased: String bytes across collection
+
+`cwhip_string_new` copies its source bytes before allocating, so a collection
+in that call cannot invalidate a pointer into a live string buffer. `split`
+snapshots both strings before it allocates the result list. Catch-all
+bindings borrow the exception frame's message until that frame is cleared.
+
 ### Unreleased: Standalone GUI applications
 
 The bundled editor/debugger sources, build targets and application-specific
