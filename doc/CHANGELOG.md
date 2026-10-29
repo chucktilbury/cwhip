@@ -25,6 +25,14 @@ proof of concept and compiler-testing tool, not a production IDE/debugger.
 
 ## Implemented milestones
 
+### Unreleased: Source view markers and check menus
+
+`GtkSource.View.setShowWhitespace` draws every space, tab, newline, and
+non-breaking space. `setShowIndentMarkers` draws a vertical guide at each
+tab-width step of leading indentation. `Gtk.MenuBar.addCheckItem` adds a
+checkbox whose callback receives the new state; `setItemChecked` updates it
+without that callback. `Widget.visible` reports the current visibility.
+
 ### Unreleased: Regular sequence operations
 
 Lists, buffers, and strings share indexing, inclusive range copies, `insert`,

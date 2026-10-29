@@ -18,6 +18,8 @@ typedef struct MenuItem {
     struct MenuItem *next;
     int64_t token;
     GSimpleAction *action;
+    bool check;
+    bool syncing;
 } MenuItem;
 
 typedef struct FileDialog {
@@ -795,6 +797,82 @@ static void window_removed(GtkApplication *app, GtkWindow *window, gpointer data
     cwhip_runtime_managed_leave(acquired);
 }
 
+#ifdef CWHIP_GTK_SOURCEVIEW
+typedef struct _CwhipSourceView {
+    GtkSourceView parent_instance;
+    bool indent_markers;
+} CwhipSourceView;
+
+typedef struct _CwhipSourceViewClass {
+    GtkSourceViewClass parent_class;
+} CwhipSourceViewClass;
+
+G_DEFINE_TYPE(CwhipSourceView, cwhip_source_view, GTK_SOURCE_TYPE_VIEW)
+
+static void cwhip_draw_indent_markers(GtkTextView *text_view, GtkSnapshot *snapshot) {
+    CwhipSourceView *self = (CwhipSourceView *)text_view;
+    if (!self->indent_markers) return;
+    int tab = gtk_source_view_get_tab_width(GTK_SOURCE_VIEW(text_view));
+    if (tab < 1) tab = 4;
+    GdkRectangle visible;
+    gtk_text_view_get_visible_rect(text_view, &visible);
+    GtkTextIter line, end;
+    gtk_text_view_get_line_at_y(text_view, &line, visible.y, NULL);
+    gtk_text_view_get_line_at_y(text_view, &end, visible.y + visible.height, NULL);
+    gtk_text_iter_set_line_offset(&line, 0);
+    int last = gtk_text_iter_get_line(&end);
+    GdkRGBA color;
+    gtk_widget_get_color(GTK_WIDGET(text_view), &color);
+    color.alpha = 0.35f;
+    int guard = 0;
+    while (gtk_text_iter_get_line(&line) <= last && guard < 100000) {
+        ++guard;
+        GtkTextIter scan = line;
+        int indent = 0;
+        while (!gtk_text_iter_ends_line(&scan)) {
+            gunichar ch = gtk_text_iter_get_char(&scan);
+            if (ch == ' ') indent += 1;
+            else if (ch == '\t') indent += tab - (indent % tab);
+            else break;
+            if (!gtk_text_iter_forward_char(&scan)) break;
+        }
+        int levels = indent / tab;
+        for (int level = 1; level <= levels; ++level) {
+            int column = level * tab;
+            GtkTextIter at = line;
+            int visual = 0;
+            while (visual < column && !gtk_text_iter_ends_line(&at)) {
+                gunichar ch = gtk_text_iter_get_char(&at);
+                int width = ch == '\t' ? tab - (visual % tab) : 1;
+                if (visual + width > column) break;
+                visual += width;
+                if (!gtk_text_iter_forward_char(&at)) break;
+            }
+            GdkRectangle location;
+            gtk_text_view_get_iter_location(text_view, &at, &location);
+            graphene_rect_t rect = GRAPHENE_RECT_INIT(location.x, location.y, 1, location.height);
+            gtk_snapshot_append_color(snapshot, &color, &rect);
+        }
+        if (!gtk_text_iter_forward_line(&line)) break;
+    }
+}
+
+static void cwhip_source_view_snapshot_layer(GtkTextView *text_view, GtkTextViewLayer layer,
+                                            GtkSnapshot *snapshot) {
+    GtkTextViewClass *parent = GTK_TEXT_VIEW_CLASS(cwhip_source_view_parent_class);
+    if (parent->snapshot_layer) parent->snapshot_layer(text_view, layer, snapshot);
+    if (layer == GTK_TEXT_VIEW_LAYER_BELOW_TEXT) cwhip_draw_indent_markers(text_view, snapshot);
+}
+
+static void cwhip_source_view_class_init(CwhipSourceViewClass *klass) {
+    GTK_TEXT_VIEW_CLASS(klass)->snapshot_layer = cwhip_source_view_snapshot_layer;
+}
+
+static void cwhip_source_view_init(CwhipSourceView *self) {
+    self->indent_markers = false;
+}
+#endif
+
 int64_t cwhip_gtk_widget_create(void *self, int64_t kind, void *text,
                                int64_t orientation, int64_t spacing, void *keep_alive) {
     require_live();
@@ -848,7 +926,7 @@ int64_t cwhip_gtk_widget_create(void *self, int64_t kind, void *text,
     }
 #ifdef CWHIP_GTK_SOURCEVIEW
     case 8:
-        widget = GTK_WIDGET(gtk_source_view_new());
+        widget = GTK_WIDGET(g_object_new(cwhip_source_view_get_type(), NULL));
         gtk_text_buffer_set_enable_undo(
             gtk_text_view_get_buffer(GTK_TEXT_VIEW(widget)), TRUE);
         break;
@@ -893,6 +971,11 @@ bool cwhip_gtk_widget_disposed(void *self, int64_t token) {
 void cwhip_gtk_widget_visible(void *self, int64_t token, bool value) {
     (void)self;
     gtk_widget_set_visible(widget_live(token), value);
+}
+
+bool cwhip_gtk_widget_is_visible(void *self, int64_t token) {
+    (void)self;
+    return gtk_widget_get_visible(widget_live(token));
 }
 
 void cwhip_gtk_widget_sensitive(void *self, int64_t token, bool value) {
@@ -957,6 +1040,18 @@ static void menu_activated(GSimpleAction *action, GVariant *parameter, gpointer 
     clicked(NULL, data);
 }
 
+static void menu_check_changed(GSimpleAction *action, GVariant *value, gpointer data) {
+    bool state = g_variant_get_boolean(value);
+    g_simple_action_set_state(action, value);
+    MenuItem *item = g_object_get_data(G_OBJECT(action), "cwhip-menu-item");
+    if (item && item->syncing) return;
+    Connection *connection = data;
+    int acquired = signal_enter(connection);
+    typedef void (*Adapter)(CwhipCallbackContext *, bool);
+    ((Adapter)cwhip_callback_adapter(connection->context))(connection->context, state);
+    signal_leave(connection, acquired);
+}
+
 int64_t cwhip_gtk_menu_item_add(void *self, int64_t token, int64_t menu,
                                void *label, void *callback) {
     (void)self;
@@ -980,24 +1075,82 @@ int64_t cwhip_gtk_menu_item_add(void *self, int64_t token, int64_t menu,
     return item->token;
 }
 
-static GSimpleAction *menu_item(int64_t token, int64_t item) {
+static MenuItem *menu_item(int64_t token, int64_t item) {
     for (MenuItem *i = menu_record(token)->items; i; i = i->next)
-        if (i->token == item) return i->action;
+        if (i->token == item) return i;
     fatal("invalid menu item");
+}
+
+int64_t cwhip_gtk_menu_check_add(void *self, int64_t token, int64_t menu,
+                                 void *label, bool initial, void *callback) {
+    (void)self;
+    WidgetRecord *record = menu_record(token);
+    if (menu < 0 || menu >= record->submenus->len) fatal("invalid menu index");
+    char *text = text_copy(label);
+    MenuItem *item = calloc(1, sizeof(*item));
+    if (!item) fatal("allocation failed");
+    char *name = g_strdup_printf("item%" G_GINT64_FORMAT, token_new());
+    item->check = true;
+    item->action = g_simple_action_new_stateful(name, NULL, g_variant_new_boolean(initial));
+    g_object_set_data(G_OBJECT(item->action), "cwhip-menu-item", item);
+    item->token = connect_signal(G_OBJECT(item->action), "change-state",
+                                 G_CALLBACK(menu_check_changed), callback, "callback<void(bool)>");
+    g_action_map_add_action(G_ACTION_MAP(record->actions), G_ACTION(item->action));
+    char *detailed = g_strconcat("menu.", name, NULL);
+    g_menu_append(g_ptr_array_index(record->submenus, (guint)menu), text, detailed);
+    g_free(detailed);
+    g_free(name);
+    g_free(text);
+    item->next = record->items;
+    record->items = item;
+    return item->token;
 }
 
 void cwhip_gtk_menu_item_enabled(void *self, int64_t token, int64_t item, bool enabled) {
     (void)self;
-    GSimpleAction *action = menu_item(token, item);
+    GSimpleAction *action = menu_item(token, item)->action;
     if (g_action_get_enabled(G_ACTION(action)) != (gboolean)enabled)
         g_simple_action_set_enabled(action, enabled);
 }
 
 void cwhip_gtk_menu_item_activate(void *self, int64_t token, int64_t item) {
     (void)self;
-    GSimpleAction *action = g_object_ref(menu_item(token, item));
-    g_action_activate(G_ACTION(action), NULL);
+    MenuItem *entry = menu_item(token, item);
+    GSimpleAction *action = g_object_ref(entry->action);
+    if (g_action_get_enabled(G_ACTION(action))) {
+        if (entry->check) {
+            GVariant *state = g_action_get_state(G_ACTION(action));
+            bool next = !g_variant_get_boolean(state);
+            g_variant_unref(state);
+            g_action_change_state(G_ACTION(action), g_variant_new_boolean(next));
+        } else {
+            g_action_activate(G_ACTION(action), NULL);
+        }
+    }
     g_object_unref(action);
+}
+
+void cwhip_gtk_menu_item_set_checked(void *self, int64_t token, int64_t item, bool checked) {
+    (void)self;
+    MenuItem *entry = menu_item(token, item);
+    if (!entry->check) fatal("menu item is not a check item");
+    GVariant *state = g_action_get_state(G_ACTION(entry->action));
+    bool current = g_variant_get_boolean(state);
+    g_variant_unref(state);
+    if (current == checked) return;
+    entry->syncing = true;
+    g_action_change_state(G_ACTION(entry->action), g_variant_new_boolean(checked));
+    entry->syncing = false;
+}
+
+bool cwhip_gtk_menu_item_checked(void *self, int64_t token, int64_t item) {
+    (void)self;
+    MenuItem *entry = menu_item(token, item);
+    if (!entry->check) fatal("menu item is not a check item");
+    GVariant *state = g_action_get_state(G_ACTION(entry->action));
+    bool checked = g_variant_get_boolean(state);
+    g_variant_unref(state);
+    return checked;
 }
 
 static void *path_string(const char *path) {
@@ -2112,6 +2265,34 @@ void cwhip_gtk_source_view_configure(void *self, int64_t token, void *font_text,
     g_free(css);
     g_free(style_class);
     g_string_free(quoted, TRUE);
+}
+
+static CwhipSourceView *cwhip_source(int64_t token) {
+    GtkWidget *widget = widget_live(token);
+    if (!G_TYPE_CHECK_INSTANCE_TYPE(widget, cwhip_source_view_get_type()))
+        fatal("operation requires GtkSourceView");
+    return (CwhipSourceView *)widget;
+}
+
+void cwhip_gtk_source_view_show_whitespace(void *self, int64_t token, bool show) {
+    (void)self;
+    GtkSourceView *view = GTK_SOURCE_VIEW(cwhip_source(token));
+    GtkSourceSpaceDrawer *drawer = gtk_source_view_get_space_drawer(view);
+    gtk_source_space_drawer_set_types_for_locations(
+        drawer, GTK_SOURCE_SPACE_LOCATION_ALL,
+        show ? GTK_SOURCE_SPACE_TYPE_ALL : GTK_SOURCE_SPACE_TYPE_NONE);
+}
+
+void cwhip_gtk_source_view_show_indent(void *self, int64_t token, bool show) {
+    (void)self;
+    CwhipSourceView *view = cwhip_source(token);
+    view->indent_markers = show;
+    gtk_widget_queue_draw(GTK_WIDGET(view));
+}
+
+bool cwhip_gtk_source_view_indent_visible(void *self, int64_t token) {
+    (void)self;
+    return cwhip_source(token)->indent_markers;
 }
 
 /* Search option bits shared with GtkSource.View in sourceview.cw. */

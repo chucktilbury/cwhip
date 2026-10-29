@@ -109,6 +109,7 @@ namespace Gtk {
         void _dispose(int64 token)
         bool _disposed(int64 token)
         void _visible(int64 token, bool value)
+        bool _isVisible(int64 token)
         void _sensitive(int64 token, bool value)
         void _expand(int64 token, bool horizontal, bool value)
         void _focus(int64 token)
@@ -152,6 +153,7 @@ namespace Gtk {
         void dispose() { _dispose(_id) }
         bool disposed() { return(_disposed(_id))}
         void setVisible(bool value) { _visible(_id, value) }
+        bool visible() { return(_isVisible(_id)) }
         void setSensitive(bool value) { _sensitive(_id, value) }
         void setHExpand(bool value) { _expand(_id, true, value) }
         void setVExpand(bool value) { _expand(_id, false, value) }
@@ -284,6 +286,9 @@ namespace Gtk {
         void _enabled(int64 token, int64 item, bool value)
         void _activate(int64 token, int64 item)
         void _separator(int64 token, int64 menu)
+        int64 _addCheck(int64 token, int64 menu, String label, bool initial, void<bool> action)
+        void _checked(int64 token, int64 item, bool value)
+        bool _isChecked(int64 token, int64 item)
         public:
         MenuBar() { super Widget(10, "", 0, 0) }
         int64 addMenu(String label) { return(_addMenu(_widgetToken(), label))}
@@ -292,8 +297,13 @@ namespace Gtk {
         }
         // Draws a divider before the next item added to menu.
         void addSeparator(int64 menu) { _separator(_widgetToken(), menu) }
+        int64 addCheckItem(int64 menu, String label, bool initial, void<bool> action) {
+            return(_addCheck(_widgetToken(), menu, label, initial, action))
+        }
         void setItemEnabled(int64 item, bool enabled) { _enabled(_widgetToken(), item, enabled) }
         void activateItem(int64 item) { _activate(_widgetToken(), item) }
+        void setItemChecked(int64 item, bool checked) { _checked(_widgetToken(), item, checked) }
+        bool itemChecked(int64 item) { return(_isChecked(_widgetToken(), item)) }
     }
 
     class FileSelection {
@@ -517,6 +527,7 @@ namespace Gtk {
     void Widget._dispose(int64 token) from "cwhip_gtk_widget_dispose"
     bool Widget._disposed(int64 token) from "cwhip_gtk_widget_disposed"
     void Widget._visible(int64 token, bool value) from "cwhip_gtk_widget_visible"
+    bool Widget._isVisible(int64 token) from "cwhip_gtk_widget_is_visible"
     void Widget._sensitive(int64 token, bool value) from "cwhip_gtk_widget_sensitive"
     void Widget._expand(int64 token, bool horizontal, bool value) from "cwhip_gtk_widget_expand"
     void Widget._focus(int64 token) from "cwhip_gtk_widget_focus"
@@ -526,6 +537,10 @@ namespace Gtk {
     void MenuBar._enabled(int64 token, int64 item, bool value) from "cwhip_gtk_menu_item_enabled"
     void MenuBar._activate(int64 token, int64 item) from "cwhip_gtk_menu_item_activate"
     void MenuBar._separator(int64 token, int64 menu) from "cwhip_gtk_menu_separator_add"
+    int64 MenuBar._addCheck(int64 token, int64 menu, String label, bool initial, void<bool> action)
+        from "cwhip_gtk_menu_check_add"
+    void MenuBar._checked(int64 token, int64 item, bool value) from "cwhip_gtk_menu_item_set_checked"
+    bool MenuBar._isChecked(int64 token, int64 item) from "cwhip_gtk_menu_item_checked"
     int64 FileDialog._create(int64 parent, bool save, String initialPath, void<String> result)
         from "cwhip_gtk_file_dialog_create"
     int64 FileDialog._createMultiple(int64 parent, String initialPath, void<String> path)

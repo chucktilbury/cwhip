@@ -44,9 +44,11 @@ import sourceview
 class Keys {
     bool press(int64 token, String trigger)
     void viewProperties(int64 token, int64 tabs, bool enabled)
+    void viewDisplay(int64 token, bool whitespace, bool indent)
 }
 bool Keys.press(int64 token, String trigger) from "binding_shortcut"
 void Keys.viewProperties(int64 token, int64 tabs, bool enabled) from "binding_view_properties"
+void Keys.viewDisplay(int64 token, bool whitespace, bool indent) from "binding_view_display"
 """
 
 CONFIG = r'''
@@ -126,6 +128,9 @@ class Stop {
     void action() { Gtk.Application().shutdown()
         print("stopped;") }
 }
+class Check {
+    void action(bool active) { print(format("check {};", active)) }
+}
 class UI {
     Gtk.Window window
     Gtk.MenuBar menus
@@ -143,6 +148,10 @@ class UI {
         menus.activateItem(item)
         menus.setItemEnabled(item, true)
         menus.activateItem(item)
+        int64 check = menus.addCheckItem(menu, "Numbers", false, Check().action)
+        menus.activateItem(check)
+        menus.setItemChecked(check, false)
+        menus.activateItem(check)
         int64 stop = menus.addItem(menu, "Shutdown", Stop().action)
         menus.activateItem(stop)
         print(menus.disposed())
@@ -413,6 +422,13 @@ class UI {
         Keys().viewProperties(view._widgetToken(), 3, true)
         view.configure("Monospace", 12, 8, false, false, false, false)
         Keys().viewProperties(view._widgetToken(), 8, false)
+        view.setShowWhitespace(true)
+        view.setShowIndentMarkers(true)
+        Keys().viewDisplay(view._widgetToken(), true, true)
+        view.setText("    indented\n\t\talso\n")
+        view.setShowWhitespace(false)
+        view.setShowIndentMarkers(false)
+        Keys().viewDisplay(view._widgetToken(), false, false)
         view.setText("start {\n// comment\nstrg name = \"Cwhip\"\nint64 count = 42\n}\n")
         require(view.hasContextAt("keyword", 0), "keyword highlighting")
         require(view.hasContextAt("comment", 12), "comment highlighting")
@@ -562,7 +578,7 @@ def main():
                        f"true;false0true{existing};false0truetrue"
                        "truefalse0truetruefalse0truetruefalse0true88")
     cases = [("config", CONFIG, "PASS config"),
-             ("menus", MENU, "action;action;stopped;true"),
+             ("menus", MENU, "action;action;check true;check true;stopped;true"),
              ("dialogs", dialog, expected_dialog),
              ("lifetime", LIFETIME, "PASS lifetime")]
     if args.sourceview:
