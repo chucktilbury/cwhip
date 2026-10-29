@@ -84,8 +84,15 @@ private:
     void debugMetadata(const SourceLocation& source);
     std::string debugFile(const std::string& path);
     std::string debugType(const std::string& type);
+    std::string debugClassStructure(const std::string& className);
+    std::string debugEmbeddedClassType(const std::string& className);
+    std::string reserveDebugNode();
+    void defineDebugNode(const std::string& id, const std::string& contents);
     std::string debugNode(const std::string& contents);
+    uint64_t debugAbiSizeBits(const std::string& llvmOrClassType, bool embeddedClass) const;
+    uint64_t debugAbiAlignBits(const std::string& llvmOrClassType, bool embeddedClass) const;
     static std::string debugQuote(const std::string& value);
+    static bool isOpaqueDebugClass(const std::string& name);
     void emitMethod(const ClassDeclaration& owner, const MethodDeclaration& method,
                     const std::string& symbolOverride = {});
     void emitMain(const Program& program);
@@ -245,6 +252,8 @@ private:
     std::string debugNodes_;
     std::unordered_map<std::string, std::string> debugFiles_;
     std::unordered_map<std::string, std::string> debugTypes_;
+    std::unordered_map<std::string, std::string> debugClassStructs_;
+    std::unordered_map<std::string, uint64_t> debugClassSizesBits_;
     std::unordered_map<std::string, std::string> debugScopes_;
     std::unordered_map<std::string, std::string> debugLocations_;
     std::string debugUnit_;

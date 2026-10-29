@@ -448,7 +448,8 @@ gdb -q ./bin/HelloDebug
 
 At the GDB prompt, use `break main`, `run`, `next`, `info locals`, and `quit`.
 The generated `main` represents `start`. Debug visibility varies with source
-scope and generated code; Step Into can enter runtime helpers. See
+scope and generated code; raw Step Into can enter runtime helpers, while
+**cdbg** finishes those frames until a `.cw` stop. See
 [debug information and stepping](DEBUGGING.md) for the boundaries.
 The optional cdbg workflow below adds a GUI; **cedit does not compile or debug
 source**, and its syntax highlighting is not a compiler parser.
@@ -630,14 +631,14 @@ compiler override. `CDBG_GDB` selects GDB instead of `gdb` on PATH.
 Programs run in cdbg's current working directory; source package discovery
 still follows the compiler's normal rules.
 
-In cdbg, use **Run / Continue**. With default **Break at start**, the first stop
-is the generated `main`/`start` line. Click an executable source line and use
-**Breakpoint > Set/Clear Breakpoint** (F9); gutter clicking is not a breakpoint
-toggle. Use Step Over/Into/Out and inspect Locals / Arguments, Stack, and
-Watches. **File > Open Source Code** only opens a read-only source tab; it does
-not compile or change the target. **Restart** reruns the loaded executable
-without recompiling: after editing, restart cdbg with the `.cw` path or load a
-rebuilt executable.
+In cdbg, use **Run / Continue** (F5). With default **Break at start**, the first
+stop is the generated `main`/`start` line. Click an executable source line
+(gutter or text) and press F9 (**Breakpoint > Set/Clear Breakpoint**). Use
+F10/F11/Shift+F11 for Step Over/Into/Out and inspect Locals / Arguments, Stack,
+and Watches (including class fields from `-g` DWARF). **File > Open Source
+Code** only opens a read-only source tab; it does not compile or change the
+target. **Restart** of a `.cw` session recompiles with `cwhip -g` then
+relaunches; prebuilt executables restart without rebuilding.
 
 GDB must be available at runtime. Friendly Cwhip value inspection additionally
 requires Python-enabled GDB with `gdb.MICommand` (validated upstream with GDB
