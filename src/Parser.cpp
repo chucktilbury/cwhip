@@ -426,7 +426,11 @@ Program Parser::parseProgram(bool requireStart) {
     }
     if (!check(TokenType::Start)) {
         if (!requireStart && check(TokenType::End)) return program;
-        error(current(), "program must contain exactly one top-level 'start' block");
+        if (check(TokenType::End)) {
+            error(current(), "program must contain exactly one top-level 'start' block");
+        }
+        error(current(), std::string("unexpected token before top-level 'start' block, found ") +
+                             tokenTypeName(current().type));
     }
     const auto start = current();
     program.location = start.location;
@@ -442,7 +446,12 @@ Program Parser::parseProgram(bool requireStart) {
         if (check(TokenType::Inline)) {
             error(current(), "'inline' is only allowed inside a function or method body");
         }
-        error(current(), "only one top-level 'start' block is allowed");
+        if (check(TokenType::Class) || check(TokenType::Namespace) || check(TokenType::Import) ||
+            check(TokenType::Include) || startsOutOfLineDefinition()) {
+            error(current(), "declarations must appear before the top-level 'start' block");
+        }
+        error(current(), std::string("unexpected token after top-level 'start' block, found ") +
+                             tokenTypeName(current().type));
     }
     return program;
 }
