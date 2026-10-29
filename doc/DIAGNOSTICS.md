@@ -22,6 +22,15 @@ underlying causes. Add help only when that action applies to the actual failure.
 Do not guess an SDK prefix, project root, package, or build directory and then
 report success. An intentional selection fallback must be visible.
 
+A source check can report more than one `file:line:column: error:` line under
+a single `CWHIP1001` header. Recovery continues at the next statement or
+declaration, so one mistake does not hide an independent mistake later in the
+file. The compiler stops after 100 source errors. Code generation runs only
+when that list is empty. A lexical error such as an unexpected character or an
+unterminated string still stops the scan of that file. This text is still for
+people; `cwhip-lsp` publishes the same messages as Language Server Protocol
+diagnostics.
+
 Source locations, excerpts, carets, notes, and detailed subprocess output
 follow or accompany the header when available. Preserve useful upstream
 wording; do not reduce compiler, Git, GDB, or CMake failures to a generic

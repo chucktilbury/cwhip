@@ -301,6 +301,7 @@ add_library(cwhip_frontend
     SemanticExpressions.cpp
     SemanticStatements.cpp
     SourceLoader.cpp
+    SourceCheck.cpp
 )
 target_link_libraries(cwhip_frontend PUBLIC cwhip_headers)
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
@@ -324,6 +325,8 @@ set_target_properties(cwhip_frontend PROPERTIES
 
 add_executable(cwhip main.cpp)
 target_link_libraries(cwhip PRIVATE cwhip_frontend)
+add_executable(cwhip-lsp LspServer.cpp)
+target_link_libraries(cwhip-lsp PRIVATE cwhip_frontend)
 target_compile_definitions(cwhip PRIVATE
     CWHIP_VERSION="${PROJECT_VERSION}"
     CWHIP_CLANG_EXECUTABLE="${CWHIP_CLANG_EXECUTABLE}"
@@ -335,13 +338,17 @@ add_dependencies(cwhip cwhip_runtime)
 set_target_properties(cwhip PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${CWHIP_RUNTIME_OUTPUT_DIRECTORY}"
 )
+set_target_properties(cwhip-lsp PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY "${CWHIP_RUNTIME_OUTPUT_DIRECTORY}"
+)
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
     target_compile_options(cwhip_frontend PRIVATE -Wall -Wextra -Wpedantic)
     target_compile_options(cwhip PRIVATE -Wall -Wextra -Wpedantic)
+    target_compile_options(cwhip-lsp PRIVATE -Wall -Wextra -Wpedantic)
     target_compile_options(cwhip_runtime PRIVATE -Wall -Wextra -Wpedantic)
 endif()
 
-install(TARGETS cwhip RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")
+install(TARGETS cwhip cwhip-lsp RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")
 install(PROGRAMS "${CMAKE_CURRENT_BINARY_DIR}/cwhip-pkg-install"
     DESTINATION "${CMAKE_INSTALL_BINDIR}" RENAME cwhip-pkg)
 install(TARGETS cwhip_runtime

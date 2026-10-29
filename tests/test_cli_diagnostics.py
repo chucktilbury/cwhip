@@ -61,6 +61,21 @@ class DiagnosticTests(unittest.TestCase):
         self.assertIn(f"{self.source}:1:9: error: cannot resolve included source 'absent.cw'",
                       result.stderr)
 
+    def test_recovers_later_errors(self):
+        self.source.write_text(
+            "start {\n"
+            " int64 a = \"no\"\n"
+            " int64 b = missing\n"
+            "}\n",
+            encoding="utf-8",
+        )
+        result = self.run_tool(self.args.compiler, self.source, "--check-only")
+        self.assert_error(result, "cwhip", "CWHIP1001", 1)
+        self.assertEqual(result.stderr.count(": error:"), 2)
+        self.assertIn("cannot initialize int64 variable with String", result.stderr)
+        self.assertIn("undefined variable 'missing'", result.stderr)
+        self.assertNotIn("built ", result.stdout)
+
     def test_semantic_detail(self):
         self.source.write_text("start {\n print(missing)\n}\n", encoding="utf-8")
         result = self.run_tool(self.args.compiler, self.source, "--check-only")

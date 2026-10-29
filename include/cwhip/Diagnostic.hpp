@@ -7,9 +7,11 @@
 
 #include "cwhip/SourceLocation.hpp"
 
+#include <cstddef>
 #include <stdexcept>
 #include <ostream>
 #include <string>
+#include <vector>
 
 namespace cwhip {
 
@@ -42,12 +44,33 @@ public:
     DiagnosticError(SourceLocation location, const std::string& message);
 
     const SourceLocation& location() const noexcept;
+    const std::string& message() const noexcept;
 
 private:
     SourceLocation location_;
+    std::string message_;
+};
+
+struct CollectedDiagnostic {
+    SourceLocation location;
+    std::string message;
+};
+
+class DiagnosticList {
+public:
+    static constexpr std::size_t maximum = 100;
+
+    bool add(const DiagnosticError& error);
+    bool empty() const noexcept;
+    bool full() const noexcept;
+    const std::vector<CollectedDiagnostic>& items() const noexcept;
+
+private:
+    std::vector<CollectedDiagnostic> items_;
 };
 
 std::string formatDiagnostic(const SourceLocation& location, const std::string& message);
 void reportDiagnostic(std::ostream& output, const DiagnosticError& diagnostic);
+void reportSourceDiagnostics(std::ostream& output, const DiagnosticList& diagnostics);
 
 } // namespace cwhip

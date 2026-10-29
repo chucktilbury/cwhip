@@ -7,6 +7,7 @@
 #include "cwhip/RangeType.hpp"
 
 #include "cwhip/Ast.hpp"
+#include "cwhip/Diagnostic.hpp"
 
 #include <cstddef>
 #include <filesystem>
@@ -35,6 +36,7 @@ struct SemanticWarning {
 class SemanticAnalyzer {
 public:
     void analyze(Program& program);
+    void setDiagnostics(DiagnosticList* diagnostics) noexcept;
     void dumpSymbolTable(std::ostream& output) const;
     const std::vector<SemanticWarning>& warnings() const noexcept;
     /// Overrides the String builtin source; defaults to the resolved resource path.
@@ -140,6 +142,8 @@ private:
     std::unordered_map<std::string, std::string> namespaceOwners_;
     std::unordered_map<std::string, ClassDeclaration*> classes_;
     std::unordered_map<std::string, OutOfLineMethodDefinition*> methodDefinitions_;
+    bool note(const DiagnosticError& error);
+    DiagnosticList* diagnostics_ = nullptr;
     const ClassDeclaration* currentClass_ = nullptr;
     const MethodDeclaration* currentMethod_ = nullptr;
     std::vector<std::string> currentNamespace_;

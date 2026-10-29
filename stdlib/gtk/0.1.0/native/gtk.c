@@ -545,6 +545,23 @@ int64_t cwhip_gtk_post(void *self, void *callback) {
     return post->token;
 }
 
+int64_t cwhip_gtk_schedule(void *self, int64_t milliseconds, void *callback) {
+    (void)self;
+    require_managed();
+    if (!initialized || stopped) fatal("schedule requires a live application");
+    if (milliseconds < 0) milliseconds = 0;
+    Post *post = calloc(1, sizeof(*post));
+    if (!post) fatal("allocation failed");
+    post->token = token_new();
+    post->transfer = cwhip_callback_transfer_prepare(callback, "callback<void()>");
+    post->source = g_timeout_source_new((guint)milliseconds);
+    post->next = posts;
+    posts = post;
+    g_source_set_callback(post->source, dispatch, post, NULL);
+    if (!g_source_attach(post->source, main_context)) fatal("schedule attachment failed");
+    return post->token;
+}
+
 static void post_cancel(Post *post) {
     post_remove(post);
     g_source_destroy(post->source);

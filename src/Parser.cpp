@@ -17,6 +17,68 @@ namespace cwhip {
 Parser::Parser(std::vector<Token> tokens, std::ostream* traceOutput)
     : tokens_(std::move(tokens)), traceOutput_(traceOutput) {}
 
+void Parser::setDiagnostics(DiagnosticList* diagnostics) noexcept {
+    diagnostics_ = diagnostics;
+}
+
+bool Parser::recover(const DiagnosticError& diagnostic) {
+    if (diagnostics_ == nullptr) return false;
+    return diagnostics_->add(diagnostic);
+}
+
+void Parser::synchronizeStatement() {
+    const std::size_t start = current_;
+    int depth = 0;
+    while (!check(TokenType::End)) {
+        if (depth == 0 && check(TokenType::RightBrace)) break;
+        if (depth == 0 && check(TokenType::Newline)) {
+            ++current_;
+            break;
+        }
+        if (check(TokenType::LeftBrace)) {
+            ++depth;
+            ++current_;
+            continue;
+        }
+        if (check(TokenType::RightBrace)) {
+            if (depth > 0) --depth;
+            ++current_;
+            continue;
+        }
+        ++current_;
+    }
+    if (current_ == start && !check(TokenType::End) && !check(TokenType::RightBrace)) ++current_;
+}
+
+void Parser::synchronizeDeclaration() {
+    const std::size_t start = current_;
+    int depth = 0;
+    while (!check(TokenType::End)) {
+        if (depth == 0 && (check(TokenType::Class) || check(TokenType::Namespace) ||
+                           check(TokenType::Import) || check(TokenType::Include) ||
+                           check(TokenType::Start) || startsOutOfLineDefinition())) {
+            break;
+        }
+        if (check(TokenType::LeftBrace)) {
+            ++depth;
+            ++current_;
+            continue;
+        }
+        if (check(TokenType::RightBrace)) {
+            ++current_;
+            if (depth > 0) --depth;
+            continue;
+        }
+        ++current_;
+    }
+    if (current_ == start && !check(TokenType::End) && !check(TokenType::Class) &&
+        !check(TokenType::Namespace) && !check(TokenType::Import) &&
+        !check(TokenType::Include) && !check(TokenType::Start) &&
+        !startsOutOfLineDefinition()) {
+        ++current_;
+    }
+}
+
 Parser::NestingGuard::NestingGuard(Parser& parser) : parser_(parser) {
     if (parser_.nestingDepth_ >= maximumNesting) {
         parser_.error(parser_.current(), "parser nesting exceeds 128");
@@ -341,16 +403,21 @@ Program Parser::parseProgram(bool requireStart) {
     skipNewlines();
     while (check(TokenType::Import) || check(TokenType::Include) || check(TokenType::Class) ||
            check(TokenType::Namespace) || startsOutOfLineDefinition()) {
-        if (check(TokenType::Import)) {
-            program.imports.push_back(parseImport());
-        } else if (check(TokenType::Include)) {
-            error(current(), "'include' must be expanded before parsing");
-        } else if (check(TokenType::Class)) {
-            program.classes.push_back(parseClass());
-        } else if (check(TokenType::Namespace)) {
-            parseNamespace(program);
-        } else {
-            program.outOfLineMethods.push_back(parseOutOfLineMethodDefinition());
+        try {
+            if (check(TokenType::Import)) {
+                program.imports.push_back(parseImport());
+            } else if (check(TokenType::Include)) {
+                error(current(), "'include' must be expanded before parsing");
+            } else if (check(TokenType::Class)) {
+                program.classes.push_back(parseClass());
+            } else if (check(TokenType::Namespace)) {
+                parseNamespace(program);
+            } else {
+                program.outOfLineMethods.push_back(parseOutOfLineMethodDefinition());
+            }
+        } catch (const DiagnosticError& diagnostic) {
+            if (!recover(diagnostic)) throw;
+            synchronizeDeclaration();
         }
         skipNewlines();
     }
@@ -384,20 +451,25 @@ Program Parser::parseModule() {
     Program program;
     skipNewlines();
     while (!check(TokenType::End)) {
-        if (check(TokenType::Import)) {
-            program.imports.push_back(parseImport());
-        } else if (check(TokenType::Class)) {
-            program.classes.push_back(parseClass());
-        } else if (check(TokenType::Namespace)) {
-            parseNamespace(program);
-        } else if (startsOutOfLineDefinition()) {
-            program.outOfLineMethods.push_back(parseOutOfLineMethodDefinition());
-        } else if (check(TokenType::Start)) {
-            error(current(), "imported module source cannot declare 'start'");
-        } else if (check(TokenType::Inline)) {
-            error(current(), "'inline' is only allowed inside a function or method body");
-        } else {
-            error(current(), "module source may contain only imports and declarations");
+        try {
+            if (check(TokenType::Import)) {
+                program.imports.push_back(parseImport());
+            } else if (check(TokenType::Class)) {
+                program.classes.push_back(parseClass());
+            } else if (check(TokenType::Namespace)) {
+                parseNamespace(program);
+            } else if (startsOutOfLineDefinition()) {
+                program.outOfLineMethods.push_back(parseOutOfLineMethodDefinition());
+            } else if (check(TokenType::Start)) {
+                error(current(), "imported module source cannot declare 'start'");
+            } else if (check(TokenType::Inline)) {
+                error(current(), "'inline' is only allowed inside a function or method body");
+            } else {
+                error(current(), "module source may contain only imports and declarations");
+            }
+        } catch (const DiagnosticError& diagnostic) {
+            if (!recover(diagnostic)) throw;
+            synchronizeDeclaration();
         }
         skipNewlines();
     }
@@ -436,22 +508,27 @@ void Parser::parseNamespace(Program& program) {
     while (!check(TokenType::RightBrace) && !check(TokenType::End)) {
         skipNewlines();
         if (check(TokenType::RightBrace) || check(TokenType::End)) break;
-        if (check(TokenType::Namespace)) {
-            parseNamespace(program);
-        } else if (check(TokenType::Class)) {
-            program.classes.push_back(parseClass());
-        } else if (check(TokenType::Start)) {
-            error(current(), "'start' cannot be declared inside a namespace");
-        } else if (check(TokenType::Inline)) {
-            error(current(), "'inline' is only allowed inside a function or method body");
-        } else if (check(TokenType::Include)) {
-            error(current(), "'include' is only allowed at top level");
-        } else if (check(TokenType::Import)) {
-            error(current(), "'import' is only allowed at top level");
-        } else if (startsOutOfLineDefinition()) {
-            program.outOfLineMethods.push_back(parseOutOfLineMethodDefinition());
-        } else {
-            error(current(), "namespace body may contain only namespace and class declarations");
+        try {
+            if (check(TokenType::Namespace)) {
+                parseNamespace(program);
+            } else if (check(TokenType::Class)) {
+                program.classes.push_back(parseClass());
+            } else if (check(TokenType::Start)) {
+                error(current(), "'start' cannot be declared inside a namespace");
+            } else if (check(TokenType::Inline)) {
+                error(current(), "'inline' is only allowed inside a function or method body");
+            } else if (check(TokenType::Include)) {
+                error(current(), "'include' is only allowed at top level");
+            } else if (check(TokenType::Import)) {
+                error(current(), "'import' is only allowed at top level");
+            } else if (startsOutOfLineDefinition()) {
+                program.outOfLineMethods.push_back(parseOutOfLineMethodDefinition());
+            } else {
+                error(current(), "namespace body may contain only namespace and class declarations");
+            }
+        } catch (const DiagnosticError& diagnostic) {
+            if (!recover(diagnostic)) throw;
+            synchronizeDeclaration();
         }
         skipNewlines();
     }
@@ -469,10 +546,15 @@ std::vector<Statement> Parser::parseBlock() {
         if (check(TokenType::RightBrace) || check(TokenType::End)) {
             break;
         }
-        statements.push_back(parseStatement());
-        while (!pendingStatements_.empty()) {
-            statements.push_back(std::move(pendingStatements_.front()));
-            pendingStatements_.erase(pendingStatements_.begin());
+        try {
+            statements.push_back(parseStatement());
+            while (!pendingStatements_.empty()) {
+                statements.push_back(std::move(pendingStatements_.front()));
+                pendingStatements_.erase(pendingStatements_.begin());
+            }
+        } catch (const DiagnosticError& diagnostic) {
+            if (!recover(diagnostic)) throw;
+            synchronizeStatement();
         }
     }
     consume(TokenType::RightBrace, "'}'");

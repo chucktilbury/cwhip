@@ -33,16 +33,49 @@ std::string formatDiagnostic(const SourceLocation& location, const std::string& 
 }
 
 DiagnosticError::DiagnosticError(SourceLocation location, const std::string& message)
-    : std::runtime_error(formatDiagnostic(location, message)), location_(std::move(location)) {}
+    : std::runtime_error(formatDiagnostic(location, message)),
+      location_(std::move(location)), message_(message) {}
 
 const SourceLocation& DiagnosticError::location() const noexcept {
     return location_;
+}
+
+const std::string& DiagnosticError::message() const noexcept {
+    return message_;
+}
+
+bool DiagnosticList::add(const DiagnosticError& error) {
+    if (full()) return false;
+    items_.push_back({error.location(), error.message()});
+    return true;
+}
+
+bool DiagnosticList::empty() const noexcept {
+    return items_.empty();
+}
+
+bool DiagnosticList::full() const noexcept {
+    return items_.size() >= maximum;
+}
+
+const std::vector<CollectedDiagnostic>& DiagnosticList::items() const noexcept {
+    return items_;
 }
 
 void reportDiagnostic(std::ostream& output, const DiagnosticError& diagnostic) {
     // Keep the legacy source line intact for editors consuming compiler output.
     output << diagnosticPrefix(DiagnosticCode::Source) << "source compilation failed\n"
            << diagnostic.what() << '\n';
+}
+
+void reportSourceDiagnostics(std::ostream& output, const DiagnosticList& diagnostics) {
+    output << diagnosticPrefix(DiagnosticCode::Source) << "source compilation failed\n";
+    for (const auto& diagnostic : diagnostics.items()) {
+        output << formatDiagnostic(diagnostic.location, diagnostic.message) << '\n';
+    }
+    if (diagnostics.full()) {
+        output << "stopped after " << DiagnosticList::maximum << " errors\n";
+    }
 }
 
 } // namespace cwhip

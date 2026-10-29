@@ -716,6 +716,7 @@ int main(int argc, char** argv) {
     buildContext.verbosity = verbosity;
 
     std::vector<std::string> temporaryPaths;
+    cwhip::DiagnosticList collected;
     const auto cleanupTemporaryPaths = [&temporaryPaths] {
         for (const auto& temporary : temporaryPaths) {
             std::error_code ignored;
@@ -755,6 +756,7 @@ int main(int argc, char** argv) {
                           << " tokens from " << inputPath << '\n';
             }
             cwhip::Parser parser(std::move(tokens), traceParser ? &std::cerr : nullptr);
+            parser.setDiagnostics(&collected);
             auto unit = parser.parseProgram(false);
             if (unit.hasStart) {
                 if (program.hasStart) {
@@ -799,7 +801,19 @@ int main(int argc, char** argv) {
         frontendTimer.emplace(verbosity, "semantic analysis");
         cwhip::SemanticAnalyzer semanticAnalyzer;
         semanticAnalyzer.setBuiltinSource(resources.builtinSource);
+        semanticAnalyzer.setDiagnostics(&collected);
         semanticAnalyzer.analyze(program);
+        if (!collected.empty()) {
+            cwhip::reportSourceDiagnostics(std::cerr, collected);
+            for (const auto& warning : semanticAnalyzer.warnings()) {
+                std::cerr << diagnosticPrefix(cwhip::DiagnosticCode::Source,
+                                              cwhip::DiagnosticSeverity::Warning)
+                          << warning.location.file << ':' << warning.location.line << ':'
+                          << warning.location.column << ": " << warning.message << '\n';
+            }
+            cleanupTemporaryPaths();
+            return 1;
+        }
         for (const auto& warning : semanticAnalyzer.warnings()) {
             std::cerr << diagnosticPrefix(cwhip::DiagnosticCode::Source,
                                           cwhip::DiagnosticSeverity::Warning)
@@ -946,7 +960,9 @@ int main(int argc, char** argv) {
             std::cout << "cwhip: built " << outputPath << '\n';
         }
     } catch (const cwhip::DiagnosticError& diagnostic) {
-        cwhip::reportDiagnostic(std::cerr, diagnostic);
+        if (!collected.full()) collected.add(diagnostic);
+        if (collected.empty()) cwhip::reportDiagnostic(std::cerr, diagnostic);
+        else cwhip::reportSourceDiagnostics(std::cerr, collected);
         cleanupTemporaryPaths();
         return 1;
     } catch (const cwhip::DriverError& error) {

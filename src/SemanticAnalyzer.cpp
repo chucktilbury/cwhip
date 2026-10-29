@@ -396,6 +396,15 @@ void SemanticAnalyzer::warnNumericConversion(const std::string& target,
             "(...) cast to acknowledge it"});
 }
 
+void SemanticAnalyzer::setDiagnostics(DiagnosticList* diagnostics) noexcept {
+    diagnostics_ = diagnostics;
+}
+
+bool SemanticAnalyzer::note(const DiagnosticError& error) {
+    if (diagnostics_ == nullptr) return false;
+    return diagnostics_->add(error);
+}
+
 void SemanticAnalyzer::analyze(Program& program) {
     warnings_.clear();
     program.classes.erase(
@@ -519,6 +528,7 @@ void SemanticAnalyzer::analyze(Program& program) {
     }
 
     for (auto& declaration : program.classes) {
+      try {
         currentModule_ = declaration.moduleName;
         declaration.name = qualify(declaration.namespacePath, declaration.name);
         for (std::size_t index = 0; index < declaration.baseClassNames.size(); ++index) {
@@ -548,6 +558,9 @@ void SemanticAnalyzer::analyze(Program& program) {
             }
             normalizeStatements(method.body, declaration.namespacePath);
         }
+      } catch (const DiagnosticError& error) {
+          if (!note(error)) throw;
+      }
     }
     for (auto& definition : program.outOfLineMethods) {
         currentModule_ = definition.moduleName;
@@ -857,15 +870,23 @@ void SemanticAnalyzer::analyze(Program& program) {
     }
     resolveEnumConstants(program);
     for (auto& declaration : program.classes) {
-        analyzeFieldInitializers(declaration);
+        try {
+            analyzeFieldInitializers(declaration);
+        } catch (const DiagnosticError& error) {
+            if (!note(error)) throw;
+        }
     }
     for (auto& declaration : program.classes) {
         currentModule_ = declaration.moduleName;
         for (auto& method : declaration.methods) {
-            const auto definition = methodDefinitions_.find(methodKey(declaration.name, method));
-            analyzeMethod(declaration, definition == methodDefinitions_.end()
-                                           ? method
-                                           : definition->second->method);
+            try {
+                const auto definition = methodDefinitions_.find(methodKey(declaration.name, method));
+                analyzeMethod(declaration, definition == methodDefinitions_.end()
+                                               ? method
+                                               : definition->second->method);
+            } catch (const DiagnosticError& error) {
+                if (!note(error)) throw;
+            }
         }
     }
     currentModule_.clear();
