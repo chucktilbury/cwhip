@@ -17,6 +17,7 @@ typedef struct ShortcutBinding ShortcutBinding;
 typedef struct MenuItem {
     struct MenuItem *next;
     int64_t token;
+    int64_t menu;
     GSimpleAction *action;
     bool check;
     bool syncing;
@@ -818,6 +819,8 @@ static void window_removed(GtkApplication *app, GtkWindow *window, gpointer data
 typedef struct _CwhipSourceView {
     GtkSourceView parent_instance;
     bool indent_markers;
+    bool show_spaces;
+    bool show_line_ends;
 } CwhipSourceView;
 
 typedef struct _CwhipSourceViewClass {
@@ -887,6 +890,8 @@ static void cwhip_source_view_class_init(CwhipSourceViewClass *klass) {
 
 static void cwhip_source_view_init(CwhipSourceView *self) {
     self->indent_markers = false;
+    self->show_spaces = false;
+    self->show_line_ends = false;
 }
 #endif
 
@@ -1032,6 +1037,34 @@ void cwhip_gtk_widget_width_request(void *self, int64_t token, int64_t width) {
     gtk_widget_set_size_request(widget, (int)width, current_height);
 }
 
+void cwhip_gtk_widget_css_class(void *self, int64_t token, void *name_text, bool add) {
+    (void)self;
+    char *name = text_copy(name_text);
+    if (!*name) fatal("CSS class name must be nonempty");
+    GtkWidget *widget = widget_live(token);
+    if (add) gtk_widget_add_css_class(widget, name);
+    else gtk_widget_remove_css_class(widget, name);
+    g_free(name);
+}
+
+void cwhip_gtk_widget_tooltip(void *self, int64_t token, void *text) {
+    (void)self;
+    GtkWidget *widget = widget_live(token);
+    char *tooltip = text_copy(text);
+    gtk_widget_set_tooltip_text(widget, *tooltip ? tooltip : NULL);
+    g_free(tooltip);
+}
+
+void cwhip_gtk_button_icon(void *self, int64_t token, void *icon_text) {
+    (void)self;
+    GtkWidget *widget = widget_live(token);
+    if (!GTK_IS_BUTTON(widget)) fatal("operation requires Button");
+    char *icon = text_copy(icon_text);
+    if (!*icon) fatal("icon name must be nonempty");
+    gtk_button_set_icon_name(GTK_BUTTON(widget), icon);
+    g_free(icon);
+}
+
 void cwhip_gtk_widget_focus(void *self, int64_t token) {
     (void)self;
     gtk_widget_grab_focus(widget_live(token));
@@ -1103,6 +1136,7 @@ int64_t cwhip_gtk_menu_item_add(void *self, int64_t token, int64_t menu,
     MenuItem *item = calloc(1, sizeof(*item));
     if (!item) fatal("allocation failed");
     char *name = g_strdup_printf("item%" G_GINT64_FORMAT, token_new());
+    item->menu = menu;
     item->action = g_simple_action_new(name, NULL);
     item->token = connect_signal(G_OBJECT(item->action), "activate",
                                 G_CALLBACK(menu_activated), callback, "callback<void()>");
@@ -1132,6 +1166,7 @@ int64_t cwhip_gtk_menu_check_add(void *self, int64_t token, int64_t menu,
     MenuItem *item = calloc(1, sizeof(*item));
     if (!item) fatal("allocation failed");
     char *name = g_strdup_printf("item%" G_GINT64_FORMAT, token_new());
+    item->menu = menu;
     item->check = true;
     item->action = g_simple_action_new_stateful(name, NULL, g_variant_new_boolean(initial));
     g_object_set_data(G_OBJECT(item->action), "cwhip-menu-item", item);
@@ -1146,6 +1181,48 @@ int64_t cwhip_gtk_menu_check_add(void *self, int64_t token, int64_t menu,
     item->next = record->items;
     record->items = item;
     return item->token;
+}
+
+int64_t cwhip_gtk_menu_submenu_add(void *self, int64_t token, int64_t menu, void *label) {
+    (void)self;
+    WidgetRecord *record = menu_record(token);
+    if (menu < 0 || menu >= record->submenus->len) fatal("invalid menu index");
+    char *text = text_copy(label);
+    GMenu *submenu = g_menu_new();
+    GMenu *section = g_menu_new();
+    g_menu_append_section(submenu, NULL, G_MENU_MODEL(section));
+    g_object_set_data(G_OBJECT(section), "cwhip-menu-parent", submenu);
+    int64_t index = record->submenus->len;
+    g_ptr_array_add(record->submenus, section);
+    g_menu_append_submenu(g_ptr_array_index(record->submenus, (guint)menu), text,
+                          G_MENU_MODEL(submenu));
+    g_object_unref(submenu);
+    g_free(text);
+    return index;
+}
+
+void cwhip_gtk_menu_clear(void *self, int64_t token, int64_t menu) {
+    (void)self;
+    WidgetRecord *record = menu_record(token);
+    if (menu < 0 || menu >= record->submenus->len) fatal("invalid menu index");
+    GMenu *current = g_ptr_array_index(record->submenus, (guint)menu);
+    GMenu *parent = g_object_get_data(G_OBJECT(current), "cwhip-menu-parent");
+    if (!parent) fatal("cannot clear top-level menubar model");
+    g_menu_remove_all(current);
+    MenuItem **link = &record->items;
+    while (*link) {
+        MenuItem *item = *link;
+        if (item->menu != menu) {
+            link = &item->next;
+            continue;
+        }
+        *link = item->next;
+        const char *name = g_action_get_name(G_ACTION(item->action));
+        if (name) g_action_map_remove_action(G_ACTION_MAP(record->actions), name);
+        cwhip_gtk_disconnect(item->token);
+        g_object_unref(item->action);
+        free(item);
+    }
 }
 
 void cwhip_gtk_menu_item_enabled(void *self, int64_t token, int64_t item, bool enabled) {
@@ -2446,15 +2523,31 @@ static CwhipSourceView *cwhip_source(int64_t token) {
     return (CwhipSourceView *)widget;
 }
 
+static void source_apply_space_drawer(CwhipSourceView *view) {
+    GtkSourceSpaceDrawer *drawer = gtk_source_view_get_space_drawer(GTK_SOURCE_VIEW(view));
+    GtkSourceSpaceTypeFlags types = GTK_SOURCE_SPACE_TYPE_NONE;
+    if (view->show_spaces) {
+        types |= GTK_SOURCE_SPACE_TYPE_SPACE | GTK_SOURCE_SPACE_TYPE_TAB |
+                 GTK_SOURCE_SPACE_TYPE_NBSP;
+    }
+    if (view->show_line_ends) types |= GTK_SOURCE_SPACE_TYPE_NEWLINE;
+    /* Types alone do nothing until the matrix is enabled. */
+    gtk_source_space_drawer_set_enable_matrix(drawer, types != GTK_SOURCE_SPACE_TYPE_NONE);
+    gtk_source_space_drawer_set_types_for_locations(drawer, GTK_SOURCE_SPACE_LOCATION_ALL, types);
+}
+
 void cwhip_gtk_source_view_show_whitespace(void *self, int64_t token, bool show) {
     (void)self;
-    GtkSourceView *view = GTK_SOURCE_VIEW(cwhip_source(token));
-    GtkSourceSpaceDrawer *drawer = gtk_source_view_get_space_drawer(view);
-    /* Types alone do nothing until the matrix is enabled. */
-    gtk_source_space_drawer_set_enable_matrix(drawer, show);
-    gtk_source_space_drawer_set_types_for_locations(
-        drawer, GTK_SOURCE_SPACE_LOCATION_ALL,
-        show ? GTK_SOURCE_SPACE_TYPE_ALL : GTK_SOURCE_SPACE_TYPE_NONE);
+    CwhipSourceView *view = cwhip_source(token);
+    view->show_spaces = show;
+    source_apply_space_drawer(view);
+}
+
+void cwhip_gtk_source_view_show_line_ends(void *self, int64_t token, bool show) {
+    (void)self;
+    CwhipSourceView *view = cwhip_source(token);
+    view->show_line_ends = show;
+    source_apply_space_drawer(view);
 }
 
 void cwhip_gtk_source_view_show_indent(void *self, int64_t token, bool show) {
