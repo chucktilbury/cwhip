@@ -1,6 +1,9 @@
 # Cwhip Programming Language examples
 
 These are stand-alone programs that demonstrate practical aspects of the **Cwhip** language.
+They are teaching demos, not the compiler regression corpus
+(`tests/functional/`) or hand-repro cases peeled from test drivers
+(`tests/repro/`).
 
 The [cedit editor](https://github.com/chucktilbury/cedit) and
 [cdbg debugger](https://github.com/chucktilbury/cdbg) live in their own repositories

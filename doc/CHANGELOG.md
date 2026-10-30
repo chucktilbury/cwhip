@@ -25,6 +25,12 @@ proof of concept and compiler-testing tool, not a production IDE/debugger.
 
 ## Implemented milestones
 
+### Unreleased: Test repro tree
+
+`tests/repro/` holds curated programs peeled from Python generators
+(numeric/range standalone cases plus GTK SourceView bodies). Label `repro`
+checks the standalone manifest; `cwhip_gtk_bindings` loads `tests/repro/gtk/`.
+
 ### Unreleased: Bracket-aware auto-indent
 
 `setAutoIndent` installs a `GtkSourceIndenter` that still copies the previous

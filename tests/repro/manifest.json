@@ -1,0 +1,8 @@
+{
+  "numeric_boundaries.cw": {
+    "stdout": "0\n255\n-2\n-1\ntrue\n255\n-1\n-128\n65535\n8\ntrue\ntrue\ntrue\ncaught\ncaught\ncaught\n"
+  },
+  "range_control.cw": {
+    "stdout": "13/\n123/98/2\ntrue\nfalse\ntrue\ntrue\nreturn/1\nnull-loop\nnull-membership\n"
+  }
+}

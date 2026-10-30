@@ -67,9 +67,11 @@ To save the generated LLVM IR as well as building an executable:
   --emit-llvm build/positive_integer_output.ll -o bin/positive_integer_output
 ```
 
-These are executable regression fixtures, not standalone documentation
-snippets. The grammar and language reference describe each feature; see
-[`../tests/README.md`](../tests/README.md) for adding or running tests.
+These are executable regression fixtures under `tests/functional/`, not
+teaching examples. For hand-debuggable programs extracted from generative
+drivers, see [`../tests/repro/`](../tests/repro/). The grammar and language
+reference describe each feature; see [`../tests/README.md`](../tests/README.md)
+for adding or running tests.
 
 ## Switches and integer ranges
 
@@ -118,10 +120,10 @@ The first loop's values and the last line have trailing spaces.
 ```text
 capture 2
 capture 4
-2 3 4
+2 3 4 
 captures: 2, source last: 8
 new range: 2..8
-0..-1 visits: 0 -1
+0..-1 visits: 0 -1 
 ```
 
 Every formed interval is nonempty: guard `count > 0` before `0..count-1`,

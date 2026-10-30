@@ -139,6 +139,19 @@ also avoids reporting GTK/font/display process-global caches at exit; it is
 not a suppression of GTK memory access failures. No GTK tests are skipped,
 and external uninstrumented GTK libraries are not claimed to be instrumented.
 
+## Fixture homes
+
+| Tree | Audience |
+| --- | --- |
+| `examples/` | Curated demos for teaching; readable without a harness |
+| `tests/functional/` | Compiler positive/negative corpus (including tiny negatives) |
+| `tests/repro/` | Programs peeled out of Python generators for hand repro |
+
+Prefer one home per program. Exhaustive generative coverage can stay in a
+driver; keep a curated subset under `tests/repro/` when you need
+`cwhip path/to/case.cw` without hunting string literals. See
+[`tests/repro/README.md`](../tests/repro/README.md).
+
 ## Repository examples
 
 `ctest --test-dir build -L examples --output-on-failure -j4` compiles every
@@ -150,6 +163,14 @@ a small importing driver compiles and runs it, checking its answer.
 
 `tests/examples.json` contains exact expectations; configuration fails if any
 example has no expectation or an expectation names a deleted example.
+
+## Test repro programs
+
+`ctest --test-dir build -L repro --output-on-failure` runs standalone language
+cases under `tests/repro/` (`numeric_boundaries.cw`, `range_control.cw`) against
+`tests/repro/manifest.json`. GTK/SourceView bodies in `tests/repro/gtk/` are
+loaded by `cwhip_gtk_bindings` (native fixture required); edit those files and
+re-run that test rather than embedding programs in the Python driver.
 `gtk.cw` explicitly requires optional GTK: it is registered only with
 `CWHIP_GTK=ON`, and runs with `--test` on the headless fixture. Without that
 argument the example is interactive. Compiler-only configurations need no GTK;
