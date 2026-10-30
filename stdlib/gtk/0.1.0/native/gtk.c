@@ -921,7 +921,12 @@ int64_t cwhip_gtk_widget_create(void *self, int64_t kind, void *text,
         gtk_window_set_title(GTK_WINDOW(widget), label); break;
     case 2: widget = gtk_box_new((GtkOrientation)orientation, (int)spacing); break;
     case 3: widget = gtk_label_new(label); break;
-    case 4: widget = gtk_button_new_with_label(label); break;
+    case 4:
+        widget = gtk_button_new_with_label(label);
+        /* Toolbar-style clicks should activate without stealing focus from an
+         * editor; otherwise the first press often only focuses the button. */
+        gtk_widget_set_focus_on_click(widget, FALSE);
+        break;
     case 5: widget = gtk_entry_new();
         gtk_editable_set_text(GTK_EDITABLE(widget), label); break;
     case 6: widget = gtk_check_button_new_with_label(label); break;
@@ -1068,6 +1073,16 @@ void cwhip_gtk_button_icon(void *self, int64_t token, void *icon_text) {
 void cwhip_gtk_widget_focus(void *self, int64_t token) {
     (void)self;
     gtk_widget_grab_focus(widget_live(token));
+}
+
+void cwhip_gtk_widget_focus_on_click(void *self, int64_t token, bool enabled) {
+    (void)self;
+    gtk_widget_set_focus_on_click(widget_live(token), enabled);
+}
+
+void cwhip_gtk_widget_can_focus(void *self, int64_t token, bool enabled) {
+    (void)self;
+    gtk_widget_set_can_focus(widget_live(token), enabled);
 }
 
 static WidgetRecord *menu_record(int64_t token) {

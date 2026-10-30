@@ -117,6 +117,8 @@ namespace Gtk {
         void _cssClass(int64 token, String name, bool add)
         void _tooltip(int64 token, String text)
         void _focus(int64 token)
+        void _focusOnClick(int64 token, bool enabled)
+        void _canFocus(int64 token, bool enabled)
         void _textSet(int64 token, String text)
         String _textGet(int64 token)
         void _attach(int64 parent, int64 child)
@@ -165,6 +167,10 @@ namespace Gtk {
         void addCssClass(String name) { _cssClass(_id, name, true) }
         void removeCssClass(String name) { _cssClass(_id, name, false) }
         void setTooltip(String text) { _tooltip(_id, text) }
+        // Buttons default to focus-on-click off; use these for toolbar controls
+        // that must not take focus from an editor on the first press.
+        void setFocusOnClick(bool enabled) { _focusOnClick(_id, enabled) }
+        void setCanFocus(bool enabled) { _canFocus(_id, enabled) }
     }
 
     class Window : Widget {
@@ -579,6 +585,8 @@ namespace Gtk {
     void Widget._visible(int64 token, bool value) from "cwhip_gtk_widget_visible"
     bool Widget._isVisible(int64 token) from "cwhip_gtk_widget_is_visible"
     void Widget._sensitive(int64 token, bool value) from "cwhip_gtk_widget_sensitive"
+    void Widget._focusOnClick(int64 token, bool enabled) from "cwhip_gtk_widget_focus_on_click"
+    void Widget._canFocus(int64 token, bool enabled) from "cwhip_gtk_widget_can_focus"
     void Widget._expand(int64 token, bool horizontal, bool value) from "cwhip_gtk_widget_expand"
     void Widget._widthRequest(int64 token, int64 width) from "cwhip_gtk_widget_width_request"
     void Widget._cssClass(int64 token, String name, bool add) from "cwhip_gtk_widget_css_class"

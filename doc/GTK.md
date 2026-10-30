@@ -98,13 +98,14 @@ The first-release additions are:
 
 | Class | Constructor and operations |
 | --- | --- |
+| `Widget` | `setVisible(bool)`, `bool visible()`, `setSensitive(bool)`, `setHExpand(bool)`, `setVExpand(bool)`, `setWidthRequest(int64)`, `addCssClass(String)`, `removeCssClass(String)`, `setTooltip(String)`, `setFocusOnClick(bool)`, `setCanFocus(bool)`, `dispose()`, `bool disposed()` |
 | `Window` | `Window(String title)`, `setTitle(String)`, `String title()`, `setDefaultSize(int64 width, int64 height)`, `int64 defaultWidth()`, `int64 defaultHeight()`, `setTransientFor(Window parent)`, `setChild(Widget)`, `remove(Widget)`, `present()`, `close()`, `onCloseRequest(bool<>)`, `onFocusChanged(void<bool>)`, `bindShortcut(String trigger, void<>)`, `bool hasShortcut(String trigger)`, `setMenubarAccel(bool)`, `bool menubarAccel()` |
 | `TransientWindow` | `TransientWindow(String title)`, `setTitle(String)`, `String title()`, `setDefaultSize(int64 width, int64 height)`, `int64 defaultWidth()`, `int64 defaultHeight()`, `setTransientFor(Window parent)`, `setChild(Widget)`, `remove(Widget)`, `present()`, `close()`, `onCloseRequest(bool<>)` |
 | `Box` | `Box(int64 orientation, int64 spacing)`, `setLayout(int64 orientation, int64 spacing)`, `append(Widget)`, `remove(Widget)` |
 | `Grid` | `Grid(int64 spacing)`, `attach(Widget, int64 column, int64 row, int64 width, int64 height)` |
 | `ContextMenu` | `ContextMenu(Widget owner)`, `addItem`, `addCheckItem`, `setChild(Widget)` |
 | `Label` | `Label(String text)`, `setText(String)`, `String text()` |
-| `Button` | `Button(String label)`, `setLabel(String)`, `String label()`, `setIconName(String)`, `onClicked(void<>)` |
+| `Button` | `Button(String label)`, `setLabel(String)`, `String label()`, `setIconName(String)`, `onClicked(void<>)` (created with focus-on-click off) |
 | `Entry` | `Entry(String text)`, `setText(String)`, `String text()`, `focus()`, `setEditable(bool)`, `onChanged(void<String>)` |
 | `CheckButton` | `CheckButton(String label)`, `setLabel(String)`, `String label()`, `setActive(bool)`, `bool active()`, `onToggled(void<bool>)` |
 | `ScrolledWindow` | `ScrolledWindow()`, `setChild(Widget)`, `remove(Widget)` |
