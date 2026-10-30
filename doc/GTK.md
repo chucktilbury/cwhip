@@ -32,6 +32,9 @@ that will own GTK. The ID must be a valid GApplication ID, such as
 install activation handlers **before** `run()`. Create windows and widgets
 during local activation or afterward on the same GUI thread, not before `run()`.
 Each `Window` automatically associates with this `GtkApplication`.
+GTK initialization installs a log writer that drops the known
+`Trying to snapshot GtkGizmo … without a current allocation` warning from
+`GtkTextView` updating scroll adjustments during paint (GTK #6057).
 
 `run()` calls the real `g_application_run()`: GTK handles desktop activation,
 application registration, and normal single-instance behavior on the session

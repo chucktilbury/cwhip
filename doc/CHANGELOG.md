@@ -25,12 +25,14 @@ proof of concept and compiler-testing tool, not a production IDE/debugger.
 
 ## Implemented milestones
 
-### Unreleased: ScrolledWindow policy and snapshot guard
+### Unreleased: ScrolledWindow policy and GtkGizmo warning filter
 
 `Gtk.ScrolledWindow.setPolicy` exposes scrollbar policy;
 `setOverlayScrolling` controls overlay vs classic scrollbars. SourceView custom
-snapshot overlays skip drawing until the view has a non-zero allocation, which
-avoids racing an unallocated scrollbar GtkGizmo on first layout.
+snapshot overlays skip drawing until the view has a non-zero allocation.
+GTK init filters the known GtkTextView scrollbar GtkGizmo snapshot warning
+(GTK [#6057](https://gitlab.gnome.org/GNOME/gtk/-/issues/6057)): TextView updates
+adjustments during paint (undo/scroll), which is harmless but noisy.
 
 ### Unreleased: Auto-indent and gutter-only marks
 
