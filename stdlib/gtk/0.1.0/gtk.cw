@@ -39,6 +39,15 @@ namespace Gtk {
         bool isMonospace(String family)
     }
     bool Font.isMonospace(String family) from "cwhip_gtk_font_is_monospace"
+
+    // Display clipboard helpers. setText updates the system clipboard and a
+    // same-process cache; text() returns that cache (GDK reads are async).
+    class Clipboard {
+        void setText(String text)
+        String text()
+    }
+    void Clipboard.setText(String text) from "cwhip_gtk_clipboard_set_text"
+    String Clipboard.text() from "cwhip_gtk_clipboard_text"
     class Application {
         private:
         void _create(String id)

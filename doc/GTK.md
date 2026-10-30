@@ -362,12 +362,35 @@ void setEmojiMenu(bool enabled)
 void setCursor(int64 line, int64 column)
 void centerCursor(int64 line, int64 column)
 void setEditable(bool editable)
+void setRightMargin(bool show, int64 column)
+bool rightMarginShown()
+int64 rightMarginColumn()
+int64 selectionStartLine()
+int64 selectionStartColumn()
+int64 selectionEndLine()
+int64 selectionEndColumn()
+void beginUserAction()
+void endUserAction()
+void insertText(int64 line, int64 column, String text)
+void deleteRange(int64 startLine, int64 startColumn, int64 endLine, int64 endColumn)
+void replaceRange(int64 startLine, int64 startColumn, int64 endLine, int64 endColumn, String text)
+void selectRange(int64 startLine, int64 startColumn, int64 endLine, int64 endColumn)
 ```
 
 `setCursor` places the insertion cursor at a 1-based line and character column
 and scrolls it into view. Values are clamped to the buffer: lines below 1 or past
 the end select the first/last line, and columns past the end of the line select
 the line end. It matches the 1-based `line()`/`column()` getters.
+`setRightMargin` draws GtkSourceView's column guide; `column` is clamped to
+1–512. Selection edge getters are 1-based; with no selection both edges are the
+insertion cursor. `insertText` / `deleteRange` / `replaceRange` edit without
+replacing the whole buffer (`replaceRange` is one undo group). Wrap multi-step
+edits in `beginUserAction` / `endUserAction`. `selectRange` sets the selection
+bounds with the same clamping.
+
+`Gtk.Clipboard.setText` / `text()` write the display clipboard and keep a
+same-process cache. `text()` returns that cache (GDK clipboard reads are
+asynchronous and are not polled here).
 `centerCursor` uses the same clamping but vertically centers the insertion mark
 in the viewport (subject to the beginning/end of the buffer), without a
 preceding scroll-to-edge. `setEditable(false)` prevents user edits while

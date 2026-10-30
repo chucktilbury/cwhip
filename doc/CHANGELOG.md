@@ -25,6 +25,13 @@ proof of concept and compiler-testing tool, not a production IDE/debugger.
 
 ## Implemented milestones
 
+### Unreleased: SourceView edit primitives for editors
+
+`GtkSource.View` gains a right-margin guide, selection edge queries, undoable
+`insertText` / `deleteRange` / `replaceRange` / `selectRange` with
+`beginUserAction` / `endUserAction`, and `Gtk.Clipboard.setText` / `text()`
+(same-process cache; GDK clipboard reads stay asynchronous).
+
 ### Unreleased: Toolbar buttons activate on press
 
 Non-focusable buttons (`setCanFocus(false)`, as used by debugger toolbars) run

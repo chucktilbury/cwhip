@@ -51,6 +51,22 @@ namespace GtkSource {
         void _whitespace(int64 token, bool show)
         void _lineEnds(int64 token, bool show)
         void _indent(int64 token, bool show)
+        void _rightMargin(int64 token, bool show, int64 column)
+        bool _rightMarginShown(int64 token)
+        int64 _rightMarginColumn(int64 token)
+        int64 _selStartLine(int64 token)
+        int64 _selStartColumn(int64 token)
+        int64 _selEndLine(int64 token)
+        int64 _selEndColumn(int64 token)
+        void _beginUserAction(int64 token)
+        void _endUserAction(int64 token)
+        void _insertText(int64 token, int64 line, int64 column, String text)
+        void _deleteRange(int64 token, int64 startLine, int64 startColumn, int64 endLine,
+                          int64 endColumn)
+        void _replaceRange(int64 token, int64 startLine, int64 startColumn, int64 endLine,
+                           int64 endColumn, String text)
+        void _selectRange(int64 token, int64 startLine, int64 startColumn, int64 endLine,
+                          int64 endColumn)
         int64 _changed(int64 token, void<> action)
         int64 _cursorMoved(int64 token, void<> action)
         void _lineSelection(int64 token, bool enabled)
@@ -129,6 +145,34 @@ namespace GtkSource {
         void setShowWhitespace(bool show) { _whitespace(_widgetToken(), show) }
         void setShowLineEnds(bool show) { _lineEnds(_widgetToken(), show) }
         void setShowIndentMarkers(bool show) { _indent(_widgetToken(), show) }
+        // Column is clamped to 1-512. show=false hides the margin without changing
+        // the remembered column.
+        void setRightMargin(bool show, int64 column) {
+            _rightMargin(_widgetToken(), show, column)
+        }
+        bool rightMarginShown() { return(_rightMarginShown(_widgetToken()))}
+        int64 rightMarginColumn() { return(_rightMarginColumn(_widgetToken()))}
+        // Empty selection reports the insertion cursor for both edges.
+        int64 selectionStartLine() { return(_selStartLine(_widgetToken()))}
+        int64 selectionStartColumn() { return(_selStartColumn(_widgetToken()))}
+        int64 selectionEndLine() { return(_selEndLine(_widgetToken()))}
+        int64 selectionEndColumn() { return(_selEndColumn(_widgetToken()))}
+        void beginUserAction() { _beginUserAction(_widgetToken()) }
+        void endUserAction() { _endUserAction(_widgetToken()) }
+        void insertText(int64 line, int64 column, String text) {
+            _insertText(_widgetToken(), line, column, text)
+        }
+        void deleteRange(int64 startLine, int64 startColumn, int64 endLine, int64 endColumn) {
+            _deleteRange(_widgetToken(), startLine, startColumn, endLine, endColumn)
+        }
+        // One undo group: delete then insert at the start edge.
+        void replaceRange(int64 startLine, int64 startColumn, int64 endLine, int64 endColumn,
+                          String text) {
+            _replaceRange(_widgetToken(), startLine, startColumn, endLine, endColumn, text)
+        }
+        void selectRange(int64 startLine, int64 startColumn, int64 endLine, int64 endColumn) {
+            _selectRange(_widgetToken(), startLine, startColumn, endLine, endColumn)
+        }
         int64 onChanged(void<> action) {
             return(_changed(_widgetToken(), action))
         }
@@ -200,6 +244,25 @@ namespace GtkSource {
     void View._whitespace(int64 token, bool show) from "cwhip_gtk_source_view_show_whitespace"
     void View._lineEnds(int64 token, bool show) from "cwhip_gtk_source_view_show_line_ends"
     void View._indent(int64 token, bool show) from "cwhip_gtk_source_view_show_indent"
+    void View._rightMargin(int64 token, bool show, int64 column)
+        from "cwhip_gtk_source_view_set_right_margin"
+    bool View._rightMarginShown(int64 token) from "cwhip_gtk_source_view_right_margin_shown"
+    int64 View._rightMarginColumn(int64 token) from "cwhip_gtk_source_view_right_margin_column"
+    int64 View._selStartLine(int64 token) from "cwhip_gtk_source_view_selection_start_line"
+    int64 View._selStartColumn(int64 token) from "cwhip_gtk_source_view_selection_start_column"
+    int64 View._selEndLine(int64 token) from "cwhip_gtk_source_view_selection_end_line"
+    int64 View._selEndColumn(int64 token) from "cwhip_gtk_source_view_selection_end_column"
+    void View._beginUserAction(int64 token) from "cwhip_gtk_source_view_begin_user_action"
+    void View._endUserAction(int64 token) from "cwhip_gtk_source_view_end_user_action"
+    void View._insertText(int64 token, int64 line, int64 column, String text)
+        from "cwhip_gtk_source_view_insert_text"
+    void View._deleteRange(int64 token, int64 startLine, int64 startColumn, int64 endLine,
+                           int64 endColumn) from "cwhip_gtk_source_view_delete_range"
+    void View._replaceRange(int64 token, int64 startLine, int64 startColumn, int64 endLine,
+                            int64 endColumn, String text)
+        from "cwhip_gtk_source_view_replace_range"
+    void View._selectRange(int64 token, int64 startLine, int64 startColumn, int64 endLine,
+                           int64 endColumn) from "cwhip_gtk_source_view_select_range"
     int64 View._changed(int64 token, void<> action)
         from "cwhip_gtk_source_view_changed"
     int64 View._cursorMoved(int64 token, void<> action)
