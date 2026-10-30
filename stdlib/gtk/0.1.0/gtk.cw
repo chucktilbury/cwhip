@@ -174,6 +174,8 @@ namespace Gtk {
         bool _hasShortcut(int64 token, String trigger)
         bool _maximized(int64 token)
         void _maximize(int64 token, bool enabled)
+        void _setMenubarAccel(int64 token, bool enabled)
+        bool _menubarAccel(int64 token)
         public:
         Window(String title) { super Widget(1, title, 0, 0) }
         void setTitle(String title) { _setText(title) }
@@ -183,6 +185,10 @@ namespace Gtk {
         int64 defaultHeight() { return(_defaultHeight())}
         bool maximized() { return(_maximized(_widgetToken()))}
         void setMaximized(bool enabled) { _maximize(_widgetToken(), enabled) }
+        // GTK defaults to consuming F10 for the menubar; set false when F10 is
+        // an application shortcut (bindShortcut("F10", ...) also clears it).
+        void setMenubarAccel(bool enabled) { _setMenubarAccel(_widgetToken(), enabled) }
+        bool menubarAccel() { return(_menubarAccel(_widgetToken()))}
         void setTransientFor(Window parent) {
             _setTransientFor(parent._widgetToken())
         }
@@ -560,6 +566,10 @@ namespace Gtk {
     bool Window._hasShortcut(int64 token, String trigger) from "cwhip_gtk_window_has_shortcut"
     bool Window._maximized(int64 token) from "cwhip_gtk_window_maximized"
     void Window._maximize(int64 token, bool enabled) from "cwhip_gtk_window_maximize"
+    void Window._setMenubarAccel(int64 token, bool enabled)
+        from "cwhip_gtk_window_handle_menubar_accel"
+    bool Window._menubarAccel(int64 token)
+        from "cwhip_gtk_window_handles_menubar_accel"
     bool SignalConnection._disconnect(int64 token) from "cwhip_gtk_connection_disconnect"
     bool SignalConnection._connected(int64 token) from "cwhip_gtk_connected"
     int64 Widget._create(int64 kind, String text, int64 orientation, int64 spacing, void<> root)

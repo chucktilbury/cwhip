@@ -2132,6 +2132,23 @@ static bool shortcut_bound(WidgetRecord *record, void *trigger_text) {
     return found;
 }
 
+/* GTK Windows consume F10 for the menubar accelerator by default. Cwhip apps
+ * that bind F10 (for example a debugger's Step Over) must turn that off or the
+ * first keypress only focuses the menubar and never runs the shortcut. */
+void cwhip_gtk_window_handle_menubar_accel(void *self, int64_t token, bool enabled) {
+    (void)self;
+    GtkWidget *widget = widget_live(token);
+    if (!GTK_IS_WINDOW(widget)) fatal("operation requires Window");
+    gtk_window_set_handle_menubar_accel(GTK_WINDOW(widget), enabled);
+}
+
+bool cwhip_gtk_window_handles_menubar_accel(void *self, int64_t token) {
+    (void)self;
+    GtkWidget *widget = widget_live(token);
+    if (!GTK_IS_WINDOW(widget)) fatal("operation requires Window");
+    return gtk_window_get_handle_menubar_accel(GTK_WINDOW(widget));
+}
+
 /* A window-level controller sees key events bubbling up from any focused
  * descendant, including entries and read-only source panes. */
 bool cwhip_gtk_window_bind_shortcut(void *self, int64_t token, void *trigger_text,
@@ -2139,6 +2156,10 @@ bool cwhip_gtk_window_bind_shortcut(void *self, int64_t token, void *trigger_tex
     (void)self;
     GtkWidget *widget = widget_live(token);
     if (!GTK_IS_WINDOW(widget)) fatal("operation requires Window");
+    char *trigger = text_copy(trigger_text);
+    if (g_strcmp0(trigger, "F10") == 0)
+        gtk_window_set_handle_menubar_accel(GTK_WINDOW(widget), FALSE);
+    g_free(trigger);
     return shortcut_bind(widget, token, trigger_text, callback, GTK_SHORTCUT_SCOPE_LOCAL);
 }
 
