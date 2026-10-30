@@ -20,6 +20,7 @@ namespace GtkSource {
         void _redo(int64 token)
         bool _stripTrailingSpaces(int64 token)
         void _autoPair(int64 token, bool enabled)
+        void _selectedLines(int64 token, bool enabled)
         bool _canUndo(int64 token)
         bool _canRedo(int64 token)
         bool _hasSelection(int64 token)
@@ -95,6 +96,9 @@ namespace GtkSource {
         bool stripTrailingSpaces() { return(_stripTrailingSpaces(_widgetToken()))}
         // Auto-closes ()[]{}"'' pairs, wraps selections, and steps over closers.
         void setAutoCompleteBrackets(bool enabled) { _autoPair(_widgetToken(), enabled) }
+        // When enabled, printable typing / Backspace / Delete apply at the
+        // selection-start column on each line of a multi-line selection.
+        void setSelectedLinesEdit(bool enabled) { _selectedLines(_widgetToken(), enabled) }
         bool canUndo() { return(_canUndo(_widgetToken()))}
         bool canRedo() { return(_canRedo(_widgetToken()))}
         bool hasSelection() { return(_hasSelection(_widgetToken()))}
@@ -203,6 +207,8 @@ namespace GtkSource {
     void View._redo(int64 token) from "cwhip_gtk_source_view_redo"
     bool View._stripTrailingSpaces(int64 token) from "cwhip_gtk_source_view_strip_trailing_spaces"
     void View._autoPair(int64 token, bool enabled) from "cwhip_gtk_source_view_auto_pair"
+    void View._selectedLines(int64 token, bool enabled)
+        from "cwhip_gtk_source_view_selected_lines_edit"
     bool View._canUndo(int64 token) from "cwhip_gtk_source_view_can_undo"
     bool View._canRedo(int64 token) from "cwhip_gtk_source_view_can_redo"
     bool View._hasSelection(int64 token) from "cwhip_gtk_source_view_has_selection"
