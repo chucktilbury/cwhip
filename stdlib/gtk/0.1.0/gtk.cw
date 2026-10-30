@@ -432,11 +432,19 @@ namespace Gtk {
     }
 
     class ScrolledWindow : Widget {
+        // Matches GtkPolicyType: always / automatic / never / external.
+        enum { POLICY_ALWAYS = 0, POLICY_AUTOMATIC = 1, POLICY_NEVER = 2, POLICY_EXTERNAL = 3 }
         public:
         ScrolledWindow() { super Widget(7, "", 0, 0) }
         void setChild(Widget child) { _attachChild(child) }
         void remove(Widget child) { _removeChild(child) }
+        void setPolicy(int64 horizontal, int64 vertical) {
+            _policy(_widgetToken(), horizontal, vertical)
+        }
+        void _policy(int64 token, int64 horizontal, int64 vertical)
     }
+    void ScrolledWindow._policy(int64 token, int64 horizontal, int64 vertical)
+        from "cwhip_gtk_scrolled_window_set_policy"
 
     class Notebook : Widget {
         private:

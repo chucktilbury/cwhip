@@ -25,6 +25,12 @@ proof of concept and compiler-testing tool, not a production IDE/debugger.
 
 ## Implemented milestones
 
+### Unreleased: ScrolledWindow policy and snapshot guard
+
+`Gtk.ScrolledWindow.setPolicy` exposes scrollbar policy. SourceView custom
+snapshot overlays skip drawing until the view has a non-zero allocation, which
+avoids racing an unallocated scrollbar GtkGizmo on first layout.
+
 ### Unreleased: Auto-indent and gutter-only marks
 
 `setAutoIndent` exposes GtkSourceView auto-indent. `setMarkStyle` accepts an
