@@ -542,6 +542,29 @@ foreach(example_case IN LISTS example_cases)
         ${gtk_program_arguments})
     set_tests_properties("cwhip_example_${example_name}" PROPERTIES LABELS examples TIMEOUT 60)
 endforeach()
+
+set(repro_directory "${CMAKE_CURRENT_SOURCE_DIR}/repro")
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+    "${repro_directory}/manifest.json")
+execute_process(COMMAND "${Python3_EXECUTABLE}"
+    "${CMAKE_CURRENT_SOURCE_DIR}/test_repro.py"
+    --repro "${repro_directory}"
+    --manifest "${repro_directory}/manifest.json" --list
+    OUTPUT_VARIABLE repro_cases OUTPUT_STRIP_TRAILING_WHITESPACE
+    RESULT_VARIABLE repro_result ERROR_VARIABLE repro_error)
+if(NOT repro_result EQUAL 0)
+    message(FATAL_ERROR "Repro inventory check failed: ${repro_error}")
+endif()
+foreach(repro_case IN LISTS repro_cases)
+    string(REPLACE "/" "_" repro_name "${repro_case}")
+    add_test(NAME "cwhip_repro_${repro_name}"
+        COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/test_repro.py"
+        --compiler "$<TARGET_FILE:cwhip>" --repro "${repro_directory}"
+        --manifest "${repro_directory}/manifest.json"
+        --work "${CMAKE_CURRENT_BINARY_DIR}/repro" --case "${repro_case}")
+    set_tests_properties("cwhip_repro_${repro_name}" PROPERTIES LABELS repro TIMEOUT 60)
+endforeach()
+
 add_test(NAME cwhip_documentation_programs
     COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/test_doc_programs.py"
     --compiler "$<TARGET_FILE:cwhip>" --doc "${CMAKE_CURRENT_SOURCE_DIR}/../doc"

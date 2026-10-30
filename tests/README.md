@@ -59,6 +59,14 @@ installed, exercises a breakpoint and local-variable inspection. See a
 neighboring case file and its runner for details. Reconfigure after adding a
 case so CMake discovers it; no central test list needs editing.
 
+## Repro programs
+
+`repro/` holds curated programs extracted from generative Python drivers so they
+can be opened and run with `cwhip` directly. Label `repro` checks
+`repro/manifest.json`. GTK/SourceView bodies under `repro/gtk/` are loaded by
+`test_gtk_bindings.py`. See [`repro/README.md`](repro/README.md) for the policy
+versus `examples/` and `functional/`.
+
 ## Unit and CLI tests
 
 `test_switch_cases.cpp` covers switch syntax/AST, compile-time labels,
