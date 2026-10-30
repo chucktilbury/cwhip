@@ -954,9 +954,10 @@ int64_t cwhip_gtk_widget_create(void *self, int64_t kind, void *text,
         gtk_editable_set_text(GTK_EDITABLE(widget), label); break;
     case 6: widget = gtk_check_button_new_with_label(label); break;
     case 7: widget = gtk_scrolled_window_new(); break;
-    case 12: widget = gtk_paned_new(GTK_ORIENTATION_HORIZONTAL);
-        /* Start (sidebar) keeps its width on window resize and cannot collapse
-         * past its minimum. End (editor) may shrink so the start can grow. */
+    case 12: widget = gtk_paned_new((GtkOrientation)orientation);
+        /* Start child keeps its size on window resize and cannot collapse
+         * past its minimum. End child may shrink so the start can grow.
+         * orientation 0 = horizontal (left|right), 1 = vertical (top/bottom). */
         gtk_paned_set_resize_start_child(GTK_PANED(widget), FALSE);
         gtk_paned_set_shrink_start_child(GTK_PANED(widget), FALSE);
         gtk_paned_set_shrink_end_child(GTK_PANED(widget), TRUE);

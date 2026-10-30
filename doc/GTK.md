@@ -100,6 +100,7 @@ The first-release additions are:
 | --- | --- |
 | `Widget` | `setVisible(bool)`, `bool visible()`, `setSensitive(bool)`, `setHExpand(bool)`, `setVExpand(bool)`, `setWidthRequest(int64)`, `addCssClass(String)`, `removeCssClass(String)`, `setTooltip(String)`, `setFocusOnClick(bool)`, `setCanFocus(bool)`, `dispose()`, `bool disposed()` |
 | `Window` | `Window(String title)`, `setTitle(String)`, `String title()`, `setDefaultSize(int64 width, int64 height)`, `int64 defaultWidth()`, `int64 defaultHeight()`, `setTransientFor(Window parent)`, `setChild(Widget)`, `remove(Widget)`, `present()`, `close()`, `onCloseRequest(bool<>)`, `onFocusChanged(void<bool>)`, `bindShortcut(String trigger, void<>)`, `bool hasShortcut(String trigger)`, `clearShortcuts()`, `setMenubarAccel(bool)`, `bool menubarAccel()` |
+| `Paned` | `Paned()` (horizontal), `Paned(int64 orientation)` with `Paned.HORIZONTAL` / `Paned.VERTICAL`, `append(Widget)`, `setPosition(int64)`, `int64 position()` |
 | `TransientWindow` | `TransientWindow(String title)`, `setTitle(String)`, `String title()`, `setDefaultSize(int64 width, int64 height)`, `int64 defaultWidth()`, `int64 defaultHeight()`, `setTransientFor(Window parent)`, `setChild(Widget)`, `remove(Widget)`, `present()`, `close()`, `onCloseRequest(bool<>)` |
 | `Box` | `Box(int64 orientation, int64 spacing)`, `setLayout(int64 orientation, int64 spacing)`, `append(Widget)`, `remove(Widget)` |
 | `Grid` | `Grid(int64 spacing)`, `attach(Widget, int64 column, int64 row, int64 width, int64 height)` |
@@ -110,7 +111,6 @@ The first-release additions are:
 | `CheckButton` | `CheckButton(String label)`, `setLabel(String)`, `String label()`, `setActive(bool)`, `bool active()`, `onToggled(void<bool>)` |
 | `ScrolledWindow` | `ScrolledWindow()`, `setChild(Widget)`, `remove(Widget)` |
 | `Notebook` | `Notebook()`, `appendPage(Widget, String)`, `appendClosablePage(Widget, String, void<>)`, `int64 currentPage()`, `setCurrentPage(int64)`, `int64 pageCount()`, `setPageTitle(int64, String)`, `remove(Widget)`, `onPageChanged(void<>)`, `setBorderedTabs()` |
-| `Paned` | `Paned()`, `append(Widget)`, `setPosition(int64)`, `int64 position()` |
 | `MenuBar` | `MenuBar()`, `int64 addMenu(String)`, `int64 addItem(int64 menu, String label, void<>)`, `int64 addCheckItem(int64 menu, String label, bool initial, void<bool>)`, `int64 addSubmenu(int64 menu, String label)`, `clearMenu(int64 menu)`, `addSeparator(int64 menu)`, `setItemEnabled(int64 item, bool)`, `activateItem(int64 item)`, `setItemChecked(int64 item, bool)`, `bool itemChecked(int64 item)` |
 
 Methods without a listed result return `void`, except signal registration,
@@ -252,7 +252,8 @@ code. Folder selection is not treated as an open-file request.
 
 ## Trees and asynchronous directory enumeration
 
-`Paned` is a horizontal, draggable two-child splitter. `append` attaches the
+`Paned` is a draggable two-child splitter (`Paned()` is horizontal; pass
+`Paned.VERTICAL` for top/bottom). `append` attaches the
 start child first, then the end child. A third child is an error.
 `setPosition` accepts a nonnegative GTK integer pixel position, and `position()`
 returns the current divider position. The start side keeps its requested width
