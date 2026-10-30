@@ -25,6 +25,13 @@ proof of concept and compiler-testing tool, not a production IDE/debugger.
 
 ## Implemented milestones
 
+### Unreleased: Bracket-aware auto-indent
+
+`setAutoIndent` installs a `GtkSourceIndenter` that still copies the previous
+line's indent, then adds one tab/spaces unit when that line ends with `{` or
+`[`. Enter between `{|}` or `[|]` opens a middle line and keeps the closer at
+the outer indent.
+
 ### Unreleased: ScrolledWindow policy and GtkGizmo warning filter
 
 `Gtk.ScrolledWindow.setPolicy` exposes scrollbar policy;
