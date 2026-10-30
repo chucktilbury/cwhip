@@ -25,6 +25,12 @@ proof of concept and compiler-testing tool, not a production IDE/debugger.
 
 ## Implemented milestones
 
+### Unreleased: Window F10 / menubar accelerator
+
+`Window.bindShortcut("F10", …)` clears GTK's default menubar F10 accelerator
+so the bound action runs on the first keypress. `setMenubarAccel(bool)` /
+`menubarAccel()` expose the same `GtkWindow` property explicitly.
+
 ### Unreleased: Notebook tab scroll arrows
 
 `Notebook.setScrollable` resets the notebook click gesture after each page

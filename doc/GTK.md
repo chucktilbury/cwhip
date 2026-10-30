@@ -98,7 +98,7 @@ The first-release additions are:
 
 | Class | Constructor and operations |
 | --- | --- |
-| `Window` | `Window(String title)`, `setTitle(String)`, `String title()`, `setDefaultSize(int64 width, int64 height)`, `int64 defaultWidth()`, `int64 defaultHeight()`, `setTransientFor(Window parent)`, `setChild(Widget)`, `remove(Widget)`, `present()`, `close()`, `onCloseRequest(bool<>)`, `onFocusChanged(void<bool>)`, `bindShortcut(String trigger, void<>)`, `bool hasShortcut(String trigger)` |
+| `Window` | `Window(String title)`, `setTitle(String)`, `String title()`, `setDefaultSize(int64 width, int64 height)`, `int64 defaultWidth()`, `int64 defaultHeight()`, `setTransientFor(Window parent)`, `setChild(Widget)`, `remove(Widget)`, `present()`, `close()`, `onCloseRequest(bool<>)`, `onFocusChanged(void<bool>)`, `bindShortcut(String trigger, void<>)`, `bool hasShortcut(String trigger)`, `setMenubarAccel(bool)`, `bool menubarAccel()` |
 | `TransientWindow` | `TransientWindow(String title)`, `setTitle(String)`, `String title()`, `setDefaultSize(int64 width, int64 height)`, `int64 defaultWidth()`, `int64 defaultHeight()`, `setTransientFor(Window parent)`, `setChild(Widget)`, `remove(Widget)`, `present()`, `close()`, `onCloseRequest(bool<>)` |
 | `Box` | `Box(int64 orientation, int64 spacing)`, `setLayout(int64 orientation, int64 spacing)`, `append(Widget)`, `remove(Widget)` |
 | `Grid` | `Grid(int64 spacing)`, `attach(Widget, int64 column, int64 row, int64 width, int64 height)` |
@@ -145,8 +145,10 @@ arrow keeps working after a partial right scroll (GTK can drop the matching
 release when focus moves into the new page).
 `Window.bindShortcut` installs a window-wide shortcut (GTK trigger syntax such
 as `<Control>q`) whose callback may close or dispose the window; it is released
-with the window. Page-change
-callbacks run after GTK changes its current page.
+with the window. Binding `F10` also clears GTK's default menubar accelerator
+(`handle-menubar-accel`) so the first F10 runs the shortcut instead of only
+focusing a menubar; use `setMenubarAccel(bool)` / `menubarAccel()` for the same
+property explicitly. Page-change callbacks run after GTK changes its current page.
 Text accepts managed UTF-8 strings, including empty strings, but not null,
 embedded NULs, or invalid UTF-8. Getters return managed copies.
 
