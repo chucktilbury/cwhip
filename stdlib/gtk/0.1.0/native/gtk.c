@@ -1865,7 +1865,11 @@ bool cwhip_gtk_window_maximized(void *self, int64_t token) {
  * later arrow clicks hit the arrow, claim the sequence, and no-op until some
  * other click clears the stuck press. Resetting click gestures after a page
  * change restores left/right arrow use. Hold-to-repeat on the arrows may stop
- * after the first step; single clicks remain reliable. */
+ * after the first step; single clicks remain reliable.
+ *
+ * Resizing so the arrows hide and reappear recreates (or remaps) the arrow
+ * widgets without a page change, so the same unstick/wire path must also run
+ * when the notebook allocation changes. */
 static void notebook_schedule_wire_scroll_arrows(GtkNotebook *notebook);
 
 static void notebook_reset_click_gestures(GtkWidget *widget) {
@@ -1880,10 +1884,19 @@ static void notebook_reset_click_gestures(GtkWidget *widget) {
     g_object_unref(controllers);
 }
 
+static void notebook_reset_click_gestures_walk(GtkWidget *widget) {
+    notebook_reset_click_gestures(widget);
+    for (GtkWidget *child = gtk_widget_get_first_child(widget); child;
+         child = gtk_widget_get_next_sibling(child))
+        notebook_reset_click_gestures_walk(child);
+}
+
 static gboolean notebook_scroll_unstick(gpointer data) {
     GtkWidget *notebook = data;
     g_object_set_data(G_OBJECT(notebook), "cwhip-scroll-unstick", NULL);
-    notebook_reset_click_gestures(notebook);
+    /* Reset gestures on the notebook and its arrow children; the stuck
+     * pressed_button lives on the arrow's capture-phase click gesture. */
+    notebook_reset_click_gestures_walk(notebook);
     return G_SOURCE_REMOVE;
 }
 
@@ -1895,12 +1908,24 @@ static void notebook_schedule_scroll_unstick(GtkNotebook *notebook) {
                     g_object_ref(widget), g_object_unref);
 }
 
+static void notebook_refresh_scroll_arrows(GtkNotebook *notebook) {
+    notebook_schedule_scroll_unstick(notebook);
+    notebook_schedule_wire_scroll_arrows(notebook);
+}
+
 static void notebook_page_notify_scroll(GObject *object, GParamSpec *pspec,
                                        gpointer data) {
     (void)pspec;
     (void)data;
-    notebook_schedule_scroll_unstick(GTK_NOTEBOOK(object));
-    notebook_schedule_wire_scroll_arrows(GTK_NOTEBOOK(object));
+    notebook_refresh_scroll_arrows(GTK_NOTEBOOK(object));
+}
+
+static void notebook_pages_changed(GtkNotebook *notebook, GtkWidget *child,
+                                  guint page_num, gpointer data) {
+    (void)child;
+    (void)page_num;
+    (void)data;
+    notebook_refresh_scroll_arrows(notebook);
 }
 
 static void notebook_arrow_clicked(GtkButton *button, gpointer data) {
@@ -1909,6 +1934,13 @@ static void notebook_arrow_clicked(GtkButton *button, gpointer data) {
         gtk_notebook_prev_page(notebook);
     else
         gtk_notebook_next_page(notebook);
+}
+
+static void notebook_arrow_map(GtkWidget *arrow, gpointer data) {
+    (void)arrow;
+    GtkNotebook *notebook = data;
+    notebook_schedule_scroll_unstick(notebook);
+    notebook_schedule_wire_scroll_arrows(notebook);
 }
 
 static void notebook_wire_scroll_arrow(GtkNotebook *notebook, GtkWidget *arrow,
@@ -1920,6 +1952,11 @@ static void notebook_wire_scroll_arrow(GtkNotebook *notebook, GtkWidget *arrow,
     gtk_widget_set_focus_on_click(arrow, FALSE);
     g_signal_connect_object(arrow, "clicked", G_CALLBACK(notebook_arrow_clicked),
                             notebook, 0);
+    /* Arrows are often destroyed/recreated or unmapped when the tab bar no
+     * longer needs scrolling; remapping must re-run the unstick/wire path. */
+    g_signal_connect_object(arrow, "map", G_CALLBACK(notebook_arrow_map),
+                            notebook, 0);
+    notebook_reset_click_gestures(arrow);
 }
 
 static void notebook_wire_scroll_arrows_walk(GtkNotebook *notebook, GtkWidget *widget) {
@@ -1948,6 +1985,23 @@ static void notebook_schedule_wire_scroll_arrows(GtkNotebook *notebook) {
                     g_object_ref(widget), g_object_unref);
 }
 
+static gboolean notebook_scroll_tick(GtkWidget *widget, GdkFrameClock *clock,
+                                    gpointer data) {
+    (void)clock;
+    (void)data;
+    int width = gtk_widget_get_width(widget);
+    int height = gtk_widget_get_height(widget);
+    int prev_w = GPOINTER_TO_INT(g_object_get_data(G_OBJECT(widget), "cwhip-nb-w"));
+    int prev_h = GPOINTER_TO_INT(g_object_get_data(G_OBJECT(widget), "cwhip-nb-h"));
+    if (width != prev_w || height != prev_h) {
+        g_object_set_data(G_OBJECT(widget), "cwhip-nb-w", GINT_TO_POINTER(width));
+        g_object_set_data(G_OBJECT(widget), "cwhip-nb-h", GINT_TO_POINTER(height));
+        notebook_schedule_wire_scroll_arrows(GTK_NOTEBOOK(widget));
+        notebook_schedule_scroll_unstick(GTK_NOTEBOOK(widget));
+    }
+    return G_SOURCE_CONTINUE;
+}
+
 void cwhip_gtk_notebook_scrollable(void *self, int64_t token, bool enabled) {
     (void)self;
     GtkWidget *widget = widget_live(token);
@@ -1957,7 +2011,17 @@ void cwhip_gtk_notebook_scrollable(void *self, int64_t token, bool enabled) {
     if (!g_object_get_data(G_OBJECT(widget), "cwhip-scroll-page-hook")) {
         g_signal_connect(widget, "notify::page", G_CALLBACK(notebook_page_notify_scroll),
                          NULL);
+        /* Overflow arrows can appear/disappear when pages are added/removed
+         * without a notebook allocation change. */
+        g_signal_connect(widget, "page-added", G_CALLBACK(notebook_pages_changed),
+                         NULL);
+        g_signal_connect(widget, "page-removed", G_CALLBACK(notebook_pages_changed),
+                         NULL);
         g_object_set_data(G_OBJECT(widget), "cwhip-scroll-page-hook", GINT_TO_POINTER(1));
+    }
+    if (!g_object_get_data(G_OBJECT(widget), "cwhip-scroll-tick")) {
+        gtk_widget_add_tick_callback(widget, notebook_scroll_tick, NULL, NULL);
+        g_object_set_data(G_OBJECT(widget), "cwhip-scroll-tick", GINT_TO_POINTER(1));
     }
     notebook_schedule_wire_scroll_arrows(GTK_NOTEBOOK(widget));
 }

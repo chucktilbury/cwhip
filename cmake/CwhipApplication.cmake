@@ -77,13 +77,22 @@ function(cwhip_add_program target)
         COMMAND ${environment} "${Python3_EXECUTABLE}" "${Cwhip_PACKAGE_TOOL}" init "${work}"
         DEPENDS "${Cwhip_PACKAGE_TOOL}" ${sdk_inputs} "${work}/inputs.txt"
         VERBATIM)
+    # Match CMAKE_BUILD_TYPE so Debug/RelWithDebInfo apps get DWARF for .cw
+    # sources. Without -g, only linked C libraries have debug info and cdbg
+    # opens Runtime*.c / gtk.c instead of the program's Cwhip sources.
+    set(_cwhip_debug_flags)
+    string(TOUPPER "${CMAKE_BUILD_TYPE}" _cwhip_build_type_upper)
+    if(_cwhip_build_type_upper STREQUAL "DEBUG" OR
+       _cwhip_build_type_upper STREQUAL "RELWITHDEBINFO")
+        set(_cwhip_debug_flags -g)
+    endif()
     add_custom_command(OUTPUT "${output}"
         COMMAND "${CMAKE_COMMAND}" -E make_directory "${output_directory}"
         COMMAND "${CMAKE_COMMAND}" "-Dsource_dir=${source_dir}"
             "-Doutput_dir=${work}/src" "-Dinventory=${work}/source-inputs.cmake"
             -P "${stage_sources}"
         COMMAND ${environment} "${Cwhip_COMPILER}" "${work}/src/${source_name}"
-            -M "${Cwhip_MODULE_DIR}" -o "${output}" ${APP_OBJECTS}
+            -M "${Cwhip_MODULE_DIR}" ${_cwhip_debug_flags} -o "${output}" ${APP_OBJECTS}
         DEPENDS "${Cwhip_COMPILER}" "${Cwhip_RUNTIME_LIBRARY}" ${sdk_inputs}
             ${inputs} "${work}/inputs.txt" "${work}/source-inputs.cmake"
             "${stage_sources}" ${APP_OBJECTS} ${APP_DEPENDS}

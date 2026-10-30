@@ -27,10 +27,19 @@ proof of concept and compiler-testing tool, not a production IDE/debugger.
 
 ### Unreleased: Notebook tab scroll arrows
 
-`Notebook.setScrollable` resets the notebook click gesture after each page
-change so left/right tab arrows stay usable after a partial scroll. Without
-that, a lost button-release (often when focus moves into the new page) left
-the arrows claiming clicks and doing nothing until another tab was selected.
+`Notebook.setScrollable` resets click gestures on the notebook and its arrow
+children after page changes, page add/remove, and notebook resize, and rewires
+arrow `clicked` handlers when overflow arrows are recreated. Without that, a
+lost button-release (often when focus moves into the new page) or a resize that
+hides and shows the arrows left them claiming clicks and doing nothing until
+another tab was selected.
+
+### Unreleased: Debug builds emit Cwhip DWARF
+
+`cwhip_add_program` passes `-g` when `CMAKE_BUILD_TYPE` is `Debug` or
+`RelWithDebInfo`, so application binaries include line info for `.cw` sources.
+Previously only linked C libraries had DWARF, so cdbg opened runtime/GTK C
+files and not the program source.
 
 ### Unreleased: Editor UI GTK helpers
 
