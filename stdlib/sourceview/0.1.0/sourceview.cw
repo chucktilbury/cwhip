@@ -72,7 +72,8 @@ namespace GtkSource {
         int64 _cursorMoved(int64 token, void<> action)
         void _lineSelection(int64 token, bool enabled)
         int64 _lineActivated(int64 token, void<int64> action)
-        void _markStyle(int64 token, String category, String icon, String color)
+        void _markStyle(int64 token, String category, String icon, String color, bool lineHighlight)
+        void _autoIndent(int64 token, bool enabled)
         void _lineMark(int64 token, String category, int64 line)
         void _lineMarkTooltip(int64 token, String category, int64 line, String tooltip)
         void _clearMarks(int64 token, String category)
@@ -185,9 +186,14 @@ namespace GtkSource {
         }
         void setLineSelection(bool enabled) { _lineSelection(_widgetToken(), enabled) }
         int64 onLineActivated(void<int64> action) { return(_lineActivated(_widgetToken(), action))}
+        // lineHighlight applies underline + paragraph tint; false is gutter icon only.
         void setMarkStyle(String category, String icon, String background) {
-            _markStyle(_widgetToken(), category, icon, background)
+            _markStyle(_widgetToken(), category, icon, background, true)
         }
+        void setMarkStyle(String category, String icon, String background, bool lineHighlight) {
+            _markStyle(_widgetToken(), category, icon, background, lineHighlight)
+        }
+        void setAutoIndent(bool enabled) { _autoIndent(_widgetToken(), enabled) }
         void addLineMark(String category, int64 line) { _lineMark(_widgetToken(), category, line) }
         void addLineMarkTooltip(String category, int64 line, String tooltip) {
             _lineMarkTooltip(_widgetToken(), category, line, tooltip)
@@ -276,8 +282,9 @@ namespace GtkSource {
     void View._lineSelection(int64 token, bool enabled) from "cwhip_gtk_source_view_line_selection"
     int64 View._lineActivated(int64 token, void<int64> action)
         from "cwhip_gtk_source_view_line_activated"
-    void View._markStyle(int64 token, String category, String icon, String color)
+    void View._markStyle(int64 token, String category, String icon, String color, bool lineHighlight)
         from "cwhip_gtk_source_view_mark_style"
+    void View._autoIndent(int64 token, bool enabled) from "cwhip_gtk_source_view_auto_indent"
     void View._lineMark(int64 token, String category, int64 line) from "cwhip_gtk_source_view_line_mark"
     void View._lineMarkTooltip(int64 token, String category, int64 line, String tooltip)
         from "cwhip_gtk_source_view_line_mark_tooltip"

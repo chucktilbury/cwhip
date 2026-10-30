@@ -424,6 +424,8 @@ Read-only line-oriented interactions and source marks are also supported:
 void setLineSelection(bool enabled)
 int64 onLineActivated(void<int64> action)
 void setMarkStyle(String category, String icon, String background)
+void setMarkStyle(String category, String icon, String background, bool lineHighlight)
+void setAutoIndent(bool enabled)
 void addLineMark(String category, int64 line)
 void addLineMarkTooltip(String category, int64 line, String tooltip)
 void clearLineMarks(String category)
@@ -441,8 +443,10 @@ controller callbacks and releases their receivers, including during invocation.
 These APIs do not turn arbitrary text views into list models.
 
 Source marks use GtkSourceView categories, with a GTK icon name and CSS-parsable
-background color configured by `setMarkStyle`. Marks display in the gutter,
-underline the marked line, and tint its background without changing the cursor.
+background color configured by `setMarkStyle`. Marks always show in the gutter.
+The three-argument form also underlines and tints the line; pass
+`lineHighlight=false` for a gutter spot only. `setAutoIndent` controls
+GtkSourceView's Enter-key indent (independent of `configure`).
 `addLineMark` uses one-based lines, deduplicates marks in that category at a
 line, and ignores lines beyond the buffer's end. `addLineMarkTooltip` does the
 same and stores hover text shown for the gutter mark and for the line itself.

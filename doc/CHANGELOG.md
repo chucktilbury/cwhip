@@ -25,6 +25,13 @@ proof of concept and compiler-testing tool, not a production IDE/debugger.
 
 ## Implemented milestones
 
+### Unreleased: Auto-indent and gutter-only marks
+
+`setAutoIndent` exposes GtkSourceView auto-indent. `setMarkStyle` accepts an
+optional `lineHighlight` flag (default true); false keeps the gutter icon without
+underlining or tinting the line. Setting a language no longer forces auto-indent
+or tab defaults.
+
 ### Unreleased: Selected-lines typing filter
 
 `GtkSource.View.setSelectedLinesEdit` applies printable typing, Backspace, and

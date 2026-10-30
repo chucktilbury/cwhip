@@ -2376,7 +2376,7 @@ void cwhip_gtk_source_view_line_mark_tooltip(void *self, int64_t token, void *ca
                                              int64_t line, void *tooltip_text);
 
 void cwhip_gtk_source_view_mark_style(void *self, int64_t token, void *category_text,
-                                     void *icon_text, void *color_text) {
+                                     void *icon_text, void *color_text, bool line_highlight) {
     (void)self;
     GtkSourceBuffer *buffer = source_buffer(token);
     GtkWidget *widget = widget_live(token);
@@ -2390,7 +2390,11 @@ void cwhip_gtk_source_view_mark_style(void *self, int64_t token, void *category_
     g_signal_connect(attributes, "query-tooltip-text", G_CALLBACK(mark_tooltip_text), NULL);
     gtk_source_view_set_mark_attributes(GTK_SOURCE_VIEW(widget), category, attributes, 10);
     gtk_source_view_set_show_line_marks(GTK_SOURCE_VIEW(widget), TRUE);
-    source_mark_tag(GTK_TEXT_BUFFER(buffer), category, &rgba);
+    char *highlight_key = g_strdup_printf("cwhip-mark-highlight:%s", category);
+    g_object_set_data(G_OBJECT(widget), g_intern_string(highlight_key),
+                      GINT_TO_POINTER(line_highlight ? 1 : 0));
+    g_free(highlight_key);
+    if (line_highlight) source_mark_tag(GTK_TEXT_BUFFER(buffer), category, &rgba);
     source_ensure_tooltips(widget);
     char *color_key = g_strdup_printf("cwhip-mark-color:%s", category);
     g_object_set_data_full(G_OBJECT(widget), g_intern_string(color_key), gdk_rgba_copy(&rgba),
@@ -2426,10 +2430,14 @@ void cwhip_gtk_source_view_line_mark_tooltip(void *self, int64_t token, void *ca
         if (*tooltip)
             g_object_set_data_full(G_OBJECT(mark), "cwhip-tooltip", g_strdup(tooltip), g_free);
         else g_object_set_data(G_OBJECT(mark), "cwhip-tooltip", NULL);
+        char *highlight_key = g_strdup_printf("cwhip-mark-highlight:%s", category);
+        bool line_highlight =
+            GPOINTER_TO_INT(g_object_get_data(G_OBJECT(widget), g_intern_string(highlight_key))) != 0;
+        g_free(highlight_key);
         char *color_key = g_strdup_printf("cwhip-mark-color:%s", category);
         GdkRGBA *rgba = g_object_get_data(G_OBJECT(widget), g_intern_string(color_key));
         g_free(color_key);
-        if (rgba) {
+        if (line_highlight && rgba) {
             GtkTextTag *tag = source_mark_tag(GTK_TEXT_BUFFER(buffer), category, rgba);
             gtk_text_buffer_apply_tag(GTK_TEXT_BUFFER(buffer), tag, &start, &end);
         }
@@ -3165,10 +3173,15 @@ bool cwhip_gtk_source_view_language(void *self, int64_t token, void *language_id
     gtk_source_buffer_set_language(buffer, language);
     gtk_source_buffer_set_highlight_syntax(buffer, language != NULL);
     gtk_source_view_set_show_line_numbers(view, TRUE);
-    gtk_source_view_set_auto_indent(view, TRUE);
-    gtk_source_view_set_tab_width(view, 4);
-    gtk_source_view_set_insert_spaces_instead_of_tabs(view, TRUE);
+    /* Tab width, spaces, and auto-indent are left to configure / setAutoIndent. */
     return true;
+}
+
+void cwhip_gtk_source_view_auto_indent(void *self, int64_t token, bool enabled) {
+    (void)self;
+    GtkWidget *widget = widget_live(token);
+    if (!GTK_SOURCE_IS_VIEW(widget)) fatal("operation requires GtkSourceView");
+    gtk_source_view_set_auto_indent(GTK_SOURCE_VIEW(widget), enabled);
 }
 
 void *cwhip_gtk_source_view_language_id(void *self, int64_t token) {
