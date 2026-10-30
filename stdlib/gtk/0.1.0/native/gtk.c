@@ -340,9 +340,32 @@ static void connect_state(int64_t token, const char *signal) {
 }
 #endif
 
+/* Non-focusable (toolbar) buttons activate on press. Waiting for the default
+ * clicked-on-release path loses the action when the matching release is dropped
+ * — the same failure mode as stuck notebook scroll arrows — so the first mouse
+ * press appears to do nothing and only the second press runs the command. */
+static void button_pressed(GtkGestureClick *gesture, gint n_press, gdouble x, gdouble y,
+                           gpointer data) {
+    (void)x;
+    (void)y;
+    if (n_press != 1) return;
+    gtk_gesture_set_state(GTK_GESTURE(gesture), GTK_EVENT_SEQUENCE_CLAIMED);
+    clicked(NULL, data);
+}
+
 int64_t cwhip_gtk_connect_clicked(GtkButton *button, void *callback) {
     require_live();
     if (!GTK_IS_BUTTON(button)) fatal("clicked requires GtkButton");
+    if (!gtk_widget_get_can_focus(GTK_WIDGET(button))) {
+        GtkGesture *gesture = gtk_gesture_click_new();
+        gtk_gesture_single_set_button(GTK_GESTURE_SINGLE(gesture), GDK_BUTTON_PRIMARY);
+        gtk_event_controller_set_propagation_phase(GTK_EVENT_CONTROLLER(gesture),
+                                                   GTK_PHASE_CAPTURE);
+        int64_t token = connect_signal(G_OBJECT(gesture), "pressed",
+            G_CALLBACK(button_pressed), callback, "callback<void()>");
+        gtk_widget_add_controller(GTK_WIDGET(button), GTK_EVENT_CONTROLLER(gesture));
+        return token;
+    }
     return connect_signal(G_OBJECT(button), "clicked", G_CALLBACK(clicked),
                           callback, "callback<void()>");
 }
@@ -2265,8 +2288,10 @@ static void source_line_pressed(GtkGestureClick *gesture, int count, double x, d
     int acquired = signal_enter(connection);
     GtkWidget *widget = gtk_event_controller_get_widget(GTK_EVENT_CONTROLLER(gesture));
     int line = text_click_line(widget, x, y);
-    if (g_object_get_data(G_OBJECT(widget), "cwhip-line-selection"))
-        gtk_gesture_set_state(GTK_GESTURE(gesture), GTK_EVENT_SEQUENCE_CLAIMED);
+    /* Do not claim the sequence. Claiming on press and then losing the release
+     * (common when focus moves during the click) leaves the capture gesture
+     * stuck so a later toolbar click is swallowed until a second press. */
+    (void)gesture;
     typedef void (*Adapter)(CwhipCallbackContext *, int64_t);
     ((Adapter)cwhip_callback_adapter(connection->context))(connection->context, line);
     signal_leave(connection, acquired);
