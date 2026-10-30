@@ -463,7 +463,10 @@ namespace Gtk {
         void _position(int64 token, int64 position)
         int64 _getPosition(int64 token)
         public:
-        Paned() { super Widget(12, "", 0, 0) }
+        enum { HORIZONTAL = 0, VERTICAL = 1 }
+        // Default remains a horizontal split for existing call sites.
+        Paned() { super Widget(12, "", HORIZONTAL, 0) }
+        Paned(int64 orientation) { super Widget(12, "", orientation, 0) }
         void append(Widget child) { _attachChild(child) }
         void setPosition(int64 position) { _position(_widgetToken(), position) }
         int64 position() { return(_getPosition(_widgetToken()))}
