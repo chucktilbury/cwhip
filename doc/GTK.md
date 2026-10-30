@@ -444,9 +444,11 @@ controller callbacks and releases their receivers, including during invocation.
 These APIs do not turn arbitrary text views into list models.
 
 Source marks use GtkSourceView categories, with a GTK icon name and CSS-parsable
-background color configured by `setMarkStyle`. Marks always show in the gutter.
+background color configured by `setMarkStyle` (gutter tint and optional line tag).
+Marks always show in the gutter.
 The three-argument form also underlines and tints the line; pass
-`lineHighlight=false` for a gutter spot only. `setAutoIndent` controls
+`lineHighlight=false` for a gutter icon only (no gutter tint or line color).
+`setAutoIndent` controls
 GtkSourceView's Enter-key indent (independent of `configure`).
 `addLineMark` uses one-based lines, deduplicates marks in that category at a
 line, and ignores lines beyond the buffer's end. `addLineMarkTooltip` does the

@@ -2439,14 +2439,26 @@ void cwhip_gtk_source_view_mark_style(void *self, int64_t token, void *category_
     if (!*category || !gdk_rgba_parse(&rgba, color)) fatal("invalid source mark style");
     GtkSourceMarkAttributes *attributes = gtk_source_mark_attributes_new();
     gtk_source_mark_attributes_set_icon_name(attributes, icon);
-    gtk_source_mark_attributes_set_background(attributes, &rgba);
+    /* Background tints the gutter cell and, with a line tag, the paragraph. Skip both
+     * when line_highlight is false so marks stay as icons only. */
+    if (line_highlight) gtk_source_mark_attributes_set_background(attributes, &rgba);
     g_signal_connect(attributes, "query-tooltip-text", G_CALLBACK(mark_tooltip_text), NULL);
     gtk_source_view_set_mark_attributes(GTK_SOURCE_VIEW(widget), category, attributes, 10);
     gtk_source_view_set_show_line_marks(GTK_SOURCE_VIEW(widget), TRUE);
     char *highlight_key = g_strdup_printf("cwhip-mark-highlight:%s", category);
+    /* Avoid GINT_TO_POINTER(0): g_object_set_data treats NULL as "remove key". */
     g_object_set_data(G_OBJECT(widget), g_intern_string(highlight_key),
-                      GINT_TO_POINTER(line_highlight ? 1 : 0));
+                      GINT_TO_POINTER(line_highlight ? 1 : 2));
     g_free(highlight_key);
+    char *tag_name = g_strdup_printf("cwhip-mark:%s", category);
+    GtkTextTag *existing =
+        gtk_text_tag_table_lookup(gtk_text_buffer_get_tag_table(GTK_TEXT_BUFFER(buffer)), tag_name);
+    if (existing) {
+        GtkTextIter start, end;
+        gtk_text_buffer_get_bounds(GTK_TEXT_BUFFER(buffer), &start, &end);
+        gtk_text_buffer_remove_tag(GTK_TEXT_BUFFER(buffer), existing, &start, &end);
+    }
+    g_free(tag_name);
     if (line_highlight) source_mark_tag(GTK_TEXT_BUFFER(buffer), category, &rgba);
     source_ensure_tooltips(widget);
     char *color_key = g_strdup_printf("cwhip-mark-color:%s", category);
@@ -2485,7 +2497,7 @@ void cwhip_gtk_source_view_line_mark_tooltip(void *self, int64_t token, void *ca
         else g_object_set_data(G_OBJECT(mark), "cwhip-tooltip", NULL);
         char *highlight_key = g_strdup_printf("cwhip-mark-highlight:%s", category);
         bool line_highlight =
-            GPOINTER_TO_INT(g_object_get_data(G_OBJECT(widget), g_intern_string(highlight_key))) != 0;
+            GPOINTER_TO_INT(g_object_get_data(G_OBJECT(widget), g_intern_string(highlight_key))) == 1;
         g_free(highlight_key);
         char *color_key = g_strdup_printf("cwhip-mark-color:%s", category);
         GdkRGBA *rgba = g_object_get_data(G_OBJECT(widget), g_intern_string(color_key));
