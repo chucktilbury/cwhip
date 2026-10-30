@@ -952,6 +952,12 @@ static void cwhip_source_view_snapshot_layer(GtkTextView *text_view, GtkTextView
                                             GtkSnapshot *snapshot) {
     GtkTextViewClass *parent = GTK_TEXT_VIEW_CLASS(cwhip_source_view_parent_class);
     if (parent->snapshot_layer) parent->snapshot_layer(text_view, layer, snapshot);
+    /* Skip overlays until the view has an allocation; drawing against a zero
+     * size can race with scrollbar GtkGizmo snapshot during first layout. */
+    if (gtk_widget_get_width(GTK_WIDGET(text_view)) <= 0 ||
+        gtk_widget_get_height(GTK_WIDGET(text_view)) <= 0) {
+        return;
+    }
     if (layer == GTK_TEXT_VIEW_LAYER_BELOW_TEXT) {
         cwhip_draw_indent_markers(text_view, snapshot);
         cwhip_draw_right_margin(text_view, snapshot);
@@ -1638,6 +1644,19 @@ void *cwhip_gtk_widget_text_get(void *self, int64_t token) {
     else fatal("widget has no text property");
     if (!text) text = "";
     return cwhip_string_new(&cwhip_string_class_meta, text, strlen(text));
+}
+
+void cwhip_gtk_scrolled_window_set_policy(void *self, int64_t token, int64_t horizontal,
+                                          int64_t vertical) {
+    (void)self;
+    GtkWidget *widget = widget_live(token);
+    if (!GTK_IS_SCROLLED_WINDOW(widget)) fatal("operation requires GtkScrolledWindow");
+    if (horizontal < GTK_POLICY_ALWAYS || horizontal > GTK_POLICY_EXTERNAL ||
+        vertical < GTK_POLICY_ALWAYS || vertical > GTK_POLICY_EXTERNAL) {
+        fatal("invalid scrolled window policy");
+    }
+    gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(widget), (GtkPolicyType)horizontal,
+                                   (GtkPolicyType)vertical);
 }
 
 void cwhip_gtk_widget_attach(void *self, int64_t parent, int64_t child) {
