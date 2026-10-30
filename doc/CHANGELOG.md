@@ -31,6 +31,10 @@ proof of concept and compiler-testing tool, not a production IDE/debugger.
 optional `lineHighlight` flag (default true); false keeps the gutter icon without
 underlining or tinting the line. Setting a language no longer forces auto-indent
 or tab defaults.
+### Unreleased: Visible right-margin guide
+
+`setRightMargin` draws the column guide in the SourceView snapshot layer so it
+remains visible when the active style scheme has no right-margin color.
 
 ### Unreleased: Selected-lines typing filter
 

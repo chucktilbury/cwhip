@@ -844,6 +844,8 @@ typedef struct _CwhipSourceView {
     bool indent_markers;
     bool show_spaces;
     bool show_line_ends;
+    bool show_right_margin;
+    int right_margin_column;
 } CwhipSourceView;
 
 typedef struct _CwhipSourceViewClass {
@@ -900,11 +902,60 @@ static void cwhip_draw_indent_markers(GtkTextView *text_view, GtkSnapshot *snaps
     }
 }
 
+/* Draw a column guide even when the style scheme's right-margin color is
+ * invisible or unset (common with plain/default schemes). */
+static void cwhip_draw_right_margin(GtkTextView *text_view, GtkSnapshot *snapshot) {
+    CwhipSourceView *self = (CwhipSourceView *)text_view;
+    if (!self->show_right_margin || self->right_margin_column < 1) return;
+    GdkRectangle visible;
+    gtk_text_view_get_visible_rect(text_view, &visible);
+    GtkTextIter line;
+    gtk_text_view_get_line_at_y(text_view, &line, visible.y, NULL);
+    gtk_text_iter_set_line_offset(&line, 0);
+    int tab = gtk_source_view_get_tab_width(GTK_SOURCE_VIEW(text_view));
+    if (tab < 1) tab = 4;
+    GtkTextIter at = line;
+    int visual = 0;
+    int column = self->right_margin_column;
+    while (visual < column && !gtk_text_iter_ends_line(&at)) {
+        gunichar ch = gtk_text_iter_get_char(&at);
+        int width = ch == '\t' ? tab - (visual % tab) : 1;
+        if (visual + width > column) break;
+        visual += width;
+        if (!gtk_text_iter_forward_char(&at)) break;
+    }
+    GdkRectangle location;
+    gtk_text_view_get_iter_location(text_view, &at, &location);
+    /* When the line is shorter than the margin column, advance by average
+     * character width from the line start. */
+    int x = location.x;
+    if (visual < column) {
+        PangoLayout *layout = gtk_widget_create_pango_layout(GTK_WIDGET(text_view), "M");
+        int char_width = 0, char_height = 0;
+        pango_layout_get_pixel_size(layout, &char_width, &char_height);
+        g_object_unref(layout);
+        if (char_width < 1) char_width = 8;
+        GtkTextIter start = line;
+        GdkRectangle origin;
+        gtk_text_view_get_iter_location(text_view, &start, &origin);
+        x = origin.x + column * char_width;
+    }
+    GdkRGBA color;
+    gtk_widget_get_color(GTK_WIDGET(text_view), &color);
+    color.alpha = 0.45f;
+    graphene_rect_t rect = GRAPHENE_RECT_INIT((float)x, (float)visible.y, 1.0f,
+                                              (float)visible.height);
+    gtk_snapshot_append_color(snapshot, &color, &rect);
+}
+
 static void cwhip_source_view_snapshot_layer(GtkTextView *text_view, GtkTextViewLayer layer,
                                             GtkSnapshot *snapshot) {
     GtkTextViewClass *parent = GTK_TEXT_VIEW_CLASS(cwhip_source_view_parent_class);
     if (parent->snapshot_layer) parent->snapshot_layer(text_view, layer, snapshot);
-    if (layer == GTK_TEXT_VIEW_LAYER_BELOW_TEXT) cwhip_draw_indent_markers(text_view, snapshot);
+    if (layer == GTK_TEXT_VIEW_LAYER_BELOW_TEXT) {
+        cwhip_draw_indent_markers(text_view, snapshot);
+        cwhip_draw_right_margin(text_view, snapshot);
+    }
 }
 
 static void cwhip_source_view_class_init(CwhipSourceViewClass *klass) {
@@ -915,6 +966,8 @@ static void cwhip_source_view_init(CwhipSourceView *self) {
     self->indent_markers = false;
     self->show_spaces = false;
     self->show_line_ends = false;
+    self->show_right_margin = false;
+    self->right_margin_column = 80;
 }
 #endif
 
@@ -3315,26 +3368,25 @@ static void source_selection_edge(int64_t token, bool start_edge, int64_t *line,
 
 void cwhip_gtk_source_view_set_right_margin(void *self, int64_t token, bool show, int64_t column) {
     (void)self;
-    GtkWidget *widget = widget_live(token);
-    if (!GTK_SOURCE_IS_VIEW(widget)) fatal("operation requires GtkSourceView");
+    CwhipSourceView *view = cwhip_source(token);
     if (column < 1) column = 1;
     if (column > 512) column = 512;
-    gtk_source_view_set_right_margin_position(GTK_SOURCE_VIEW(widget), (guint)column);
-    gtk_source_view_set_show_right_margin(GTK_SOURCE_VIEW(widget), show);
+    view->show_right_margin = show;
+    view->right_margin_column = (int)column;
+    gtk_source_view_set_right_margin_position(GTK_SOURCE_VIEW(view), (guint)column);
+    /* Keep the stock GSV flag off; our snapshot draw is the visible guide. */
+    gtk_source_view_set_show_right_margin(GTK_SOURCE_VIEW(view), FALSE);
+    gtk_widget_queue_draw(GTK_WIDGET(view));
 }
 
 bool cwhip_gtk_source_view_right_margin_shown(void *self, int64_t token) {
     (void)self;
-    GtkWidget *widget = widget_live(token);
-    if (!GTK_SOURCE_IS_VIEW(widget)) fatal("operation requires GtkSourceView");
-    return gtk_source_view_get_show_right_margin(GTK_SOURCE_VIEW(widget)) != FALSE;
+    return cwhip_source(token)->show_right_margin;
 }
 
 int64_t cwhip_gtk_source_view_right_margin_column(void *self, int64_t token) {
     (void)self;
-    GtkWidget *widget = widget_live(token);
-    if (!GTK_SOURCE_IS_VIEW(widget)) fatal("operation requires GtkSourceView");
-    return (int64_t)gtk_source_view_get_right_margin_position(GTK_SOURCE_VIEW(widget));
+    return cwhip_source(token)->right_margin_column;
 }
 
 int64_t cwhip_gtk_source_view_selection_start_line(void *self, int64_t token) {
