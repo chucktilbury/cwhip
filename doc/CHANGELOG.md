@@ -25,6 +25,11 @@ proof of concept and compiler-testing tool, not a production IDE/debugger.
 
 ## Implemented milestones
 
+### Unreleased: Visible right-margin guide
+
+`setRightMargin` draws the column guide in the SourceView snapshot layer so it
+remains visible when the active style scheme has no right-margin color.
+
 ### Unreleased: Selected-lines typing filter
 
 `GtkSource.View.setSelectedLinesEdit` applies printable typing, Backspace, and

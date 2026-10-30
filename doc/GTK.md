@@ -381,9 +381,10 @@ void selectRange(int64 startLine, int64 startColumn, int64 endLine, int64 endCol
 and scrolls it into view. Values are clamped to the buffer: lines below 1 or past
 the end select the first/last line, and columns past the end of the line select
 the line end. It matches the 1-based `line()`/`column()` getters.
-`setRightMargin` draws GtkSourceView's column guide; `column` is clamped to
-1–512. Selection edge getters are 1-based; with no selection both edges are the
-insertion cursor. `insertText` / `deleteRange` / `replaceRange` edit without
+`setRightMargin` draws a visible column guide (custom snapshot overlay so it
+stays visible when the style scheme omits a right-margin color); `column` is
+clamped to 1–512. Selection edge getters are 1-based; with no selection both
+edges are the insertion cursor. `insertText` / `deleteRange` / `replaceRange` edit without
 replacing the whole buffer (`replaceRange` is one undo group). Wrap multi-step
 edits in `beginUserAction` / `endUserAction`. `selectRange` sets the selection
 bounds with the same clamping.
