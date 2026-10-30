@@ -451,8 +451,9 @@ background color configured by `setMarkStyle` (gutter tint and optional line tag
 Marks always show in the gutter.
 The three-argument form also underlines and tints the line; pass
 `lineHighlight=false` for a gutter icon only (no gutter tint or line color).
-`setAutoIndent` controls
-GtkSourceView's Enter-key indent (independent of `configure`).
+`setAutoIndent` enables Enter-key indent that copies the previous line's leading
+whitespace and adds one indent level when that line ends with `{` or `[`
+(and splits `{|}` / `[|]` across three lines). Independent of `configure`.
 `addLineMark` uses one-based lines, deduplicates marks in that category at a
 line, and ignores lines beyond the buffer's end. `addLineMarkTooltip` does the
 same and stores hover text shown for the gutter mark and for the line itself.

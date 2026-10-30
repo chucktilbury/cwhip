@@ -3294,11 +3294,130 @@ bool cwhip_gtk_source_view_language(void *self, int64_t token, void *language_id
     return true;
 }
 
+/* Copies the previous line's leading whitespace (GtkSource default), then adds
+ * one indent level when that line ends with { or [. If Enter was pressed
+ * between a matching pair ({|} or [|]), also opens a line for the closer. */
+typedef struct {
+    GObject parent_instance;
+} CwhipBracketIndenter;
+
+typedef struct {
+    GObjectClass parent_class;
+} CwhipBracketIndenterClass;
+
+static void cwhip_bracket_indenter_iface_init(GtkSourceIndenterInterface *iface);
+
+G_DEFINE_TYPE_WITH_CODE(CwhipBracketIndenter, cwhip_bracket_indenter, G_TYPE_OBJECT,
+                        G_IMPLEMENT_INTERFACE(GTK_SOURCE_TYPE_INDENTER,
+                                              cwhip_bracket_indenter_iface_init))
+
+static gboolean cwhip_bracket_char_is_space(gunichar ch) {
+    return ch != '\n' && ch != '\r' && g_unichar_isspace(ch);
+}
+
+static gboolean cwhip_bracket_indenter_is_trigger(GtkSourceIndenter *self, GtkSourceView *view,
+                                                  const GtkTextIter *location, GdkModifierType state,
+                                                  guint keyval) {
+    (void)self;
+    (void)view;
+    if ((state & (GDK_SHIFT_MASK | GDK_CONTROL_MASK | GDK_SUPER_MASK)) != 0) return FALSE;
+    if (keyval != GDK_KEY_Return && keyval != GDK_KEY_KP_Enter) return FALSE;
+    if (gtk_text_iter_starts_line(location)) return FALSE;
+    return !gtk_text_buffer_get_has_selection(gtk_text_iter_get_buffer(location));
+}
+
+static char *cwhip_indent_unit_for_view(GtkSourceView *view) {
+    guint tab = gtk_source_view_get_tab_width(view);
+    if (tab < 1) tab = 4;
+    int width = gtk_source_view_get_indent_width(view);
+    if (width < 1) width = (int)tab;
+    if (gtk_source_view_get_insert_spaces_instead_of_tabs(view))
+        return g_strnfill((gsize)width, ' ');
+    return g_strdup("\t");
+}
+
+static char *cwhip_copy_line_prefix(GtkTextBuffer *buffer, int line) {
+    GtkTextIter begin, end;
+    gtk_text_buffer_get_iter_at_line_offset(buffer, &begin, line, 0);
+    end = begin;
+    while (!gtk_text_iter_ends_line(&end) && cwhip_bracket_char_is_space(gtk_text_iter_get_char(&end)) &&
+           gtk_text_iter_forward_char(&end)) {
+    }
+    return gtk_text_iter_get_slice(&begin, &end);
+}
+
+static gunichar cwhip_previous_line_last_nonspace(GtkTextBuffer *buffer, int line) {
+    if (line < 0) return 0;
+    GtkTextIter end;
+    gtk_text_buffer_get_iter_at_line(buffer, &end, line);
+    if (!gtk_text_iter_ends_line(&end)) gtk_text_iter_forward_to_line_end(&end);
+    while (!gtk_text_iter_starts_line(&end)) {
+        GtkTextIter prev = end;
+        if (!gtk_text_iter_backward_char(&prev)) break;
+        gunichar ch = gtk_text_iter_get_char(&prev);
+        if (!cwhip_bracket_char_is_space(ch)) return ch;
+        end = prev;
+    }
+    return 0;
+}
+
+static void cwhip_bracket_indenter_indent(GtkSourceIndenter *self, GtkSourceView *view,
+                                         GtkTextIter *location) {
+    (void)self;
+    GtkTextBuffer *buffer = gtk_text_iter_get_buffer(location);
+    int line = gtk_text_iter_get_line(location);
+    GtkTextIter begin = *location;
+    if (!gtk_text_iter_starts_line(&begin)) gtk_text_iter_set_line_offset(&begin, 0);
+    GtkTextIter end = *location;
+    while (!gtk_text_iter_ends_line(&end) && cwhip_bracket_char_is_space(gtk_text_iter_get_char(&end)) &&
+           gtk_text_iter_forward_char(&end)) {
+    }
+    if (!gtk_text_iter_equal(&begin, &end)) gtk_text_buffer_delete(buffer, &begin, &end);
+
+    char *prefix = line > 0 ? cwhip_copy_line_prefix(buffer, line - 1) : g_strdup("");
+    gunichar open = cwhip_previous_line_last_nonspace(buffer, line - 1);
+    bool deeper = open == '{' || open == '[';
+    char *unit = deeper ? cwhip_indent_unit_for_view(view) : NULL;
+    char *indent = deeper ? g_strconcat(prefix, unit, NULL) : g_strdup(prefix);
+    gtk_text_buffer_insert(buffer, &begin, indent, -1);
+    *location = begin;
+
+    gunichar expect_close = open == '{' ? '}' : open == '[' ? ']' : 0;
+    if (expect_close && gtk_text_iter_get_char(location) == expect_close) {
+        GtkTextMark *here = gtk_text_buffer_create_mark(buffer, NULL, location, TRUE);
+        gtk_text_buffer_insert(buffer, location, "\n", 1);
+        gtk_text_buffer_insert(buffer, location, prefix, -1);
+        gtk_text_buffer_get_iter_at_mark(buffer, location, here);
+        gtk_text_buffer_delete_mark(buffer, here);
+    }
+
+    g_free(prefix);
+    g_free(unit);
+    g_free(indent);
+}
+
+static void cwhip_bracket_indenter_iface_init(GtkSourceIndenterInterface *iface) {
+    iface->is_trigger = cwhip_bracket_indenter_is_trigger;
+    iface->indent = cwhip_bracket_indenter_indent;
+}
+
+static void cwhip_bracket_indenter_class_init(CwhipBracketIndenterClass *klass) { (void)klass; }
+static void cwhip_bracket_indenter_init(CwhipBracketIndenter *self) { (void)self; }
+
+static GtkSourceIndenter *cwhip_bracket_indenter_get(void) {
+    static GtkSourceIndenter *singleton;
+    if (!singleton) singleton = g_object_new(cwhip_bracket_indenter_get_type(), NULL);
+    return singleton;
+}
+
 void cwhip_gtk_source_view_auto_indent(void *self, int64_t token, bool enabled) {
     (void)self;
     GtkWidget *widget = widget_live(token);
     if (!GTK_SOURCE_IS_VIEW(widget)) fatal("operation requires GtkSourceView");
-    gtk_source_view_set_auto_indent(GTK_SOURCE_VIEW(widget), enabled);
+    GtkSourceView *view = GTK_SOURCE_VIEW(widget);
+    gtk_source_view_set_auto_indent(view, enabled);
+    /* Replace the copy-only default indenter with bracket-aware indentation. */
+    if (enabled) gtk_source_view_set_indenter(view, cwhip_bracket_indenter_get());
 }
 
 void *cwhip_gtk_source_view_language_id(void *self, int64_t token) {
