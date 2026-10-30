@@ -28,9 +28,9 @@ proof of concept and compiler-testing tool, not a production IDE/debugger.
 ### Unreleased: Auto-indent and gutter-only marks
 
 `setAutoIndent` exposes GtkSourceView auto-indent. `setMarkStyle` accepts an
-optional `lineHighlight` flag (default true); false keeps the gutter icon without
-underlining or tinting the line. Setting a language no longer forces auto-indent
-or tab defaults.
+optional `lineHighlight` flag (default true); false keeps a gutter icon only—no
+gutter background tint, underline, or paragraph color. Setting a language no
+longer forces auto-indent or tab defaults.
 ### Unreleased: Visible right-margin guide
 
 `setRightMargin` draws the column guide in the SourceView snapshot layer so it
