@@ -178,6 +178,7 @@ namespace Gtk {
         Window _windowSelf()
         bool _bindShortcut(int64 token, String trigger, void<> action)
         bool _hasShortcut(int64 token, String trigger)
+        void _clearWindowShortcuts(int64 token)
         bool _maximized(int64 token)
         void _maximize(int64 token, bool enabled)
         void _setMenubarAccel(int64 token, bool enabled)
@@ -207,6 +208,9 @@ namespace Gtk {
             return(_bindShortcut(_widgetToken(), trigger, action))
         }
         bool hasShortcut(String trigger) { return(_hasShortcut(_widgetToken(), trigger))}
+        // Same native helper as SourceView.clearShortcuts: drops every binding
+        // installed through bindShortcut on this window.
+        void clearShortcuts() { _clearWindowShortcuts(_widgetToken()) }
         SignalConnection onCloseRequest(bool<> action) {
             return(SignalConnection(_windowSelf(), action))
         }
@@ -570,6 +574,8 @@ namespace Gtk {
     bool Window._bindShortcut(int64 token, String trigger, void<> action)
         from "cwhip_gtk_window_bind_shortcut"
     bool Window._hasShortcut(int64 token, String trigger) from "cwhip_gtk_window_has_shortcut"
+    void Window._clearWindowShortcuts(int64 token)
+        from "cwhip_gtk_source_view_clear_shortcuts"
     bool Window._maximized(int64 token) from "cwhip_gtk_window_maximized"
     void Window._maximize(int64 token, bool enabled) from "cwhip_gtk_window_maximize"
     void Window._setMenubarAccel(int64 token, bool enabled)
