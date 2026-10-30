@@ -106,7 +106,9 @@ or package-private headers.
 `cwhip_add_program(name SOURCE file [OUTPUT_NAME file] [OUTPUT_DIRECTORY dir]
 [OBJECTS objects...] [DEPENDS dependencies...])` creates an ALL custom target
 with executable `<current-binary-dir>/bin/name` by default, or in the supplied
-output directory. `CWHIP_EXECUTABLE` is its path; this is not a CMake native
+output directory. When `CMAKE_BUILD_TYPE` is `Debug` or `RelWithDebInfo`, the
+helper passes `-g` so the linked image includes DWARF for `.cw` sources (needed
+by cdbg). `CWHIP_EXECUTABLE` is its path; this is not a CMake native
 executable target or a custom language toolchain file. Consumers that use the
 new `OUTPUT_DIRECTORY` and `RESOURCE_DIRECTORY` arguments must check
 `Cwhip_APPLICATION_OUTPUT_DIRECTORIES` after `find_package`; older installed
