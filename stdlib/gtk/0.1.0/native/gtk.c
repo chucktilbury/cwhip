@@ -3193,4 +3193,174 @@ int64_t cwhip_gtk_window_focus_signal(void *self, void *source, void *callback) 
                           G_CALLBACK(window_focus_changed), callback, "callback<void(bool)>");
 }
 
+/* Clamps a 1-based line/column to a buffer iter (same rules as setCursor). */
+static void source_iter_at(GtkTextBuffer *buffer, int64_t line, int64_t column,
+                           GtkTextIter *iter) {
+    int lines = gtk_text_buffer_get_line_count(buffer);
+    if (line < 1) line = 1;
+    if (line > lines) line = lines;
+    gtk_text_buffer_get_iter_at_line(buffer, iter, (int)line - 1);
+    int length = gtk_text_iter_ends_line(iter) ? 0 : gtk_text_iter_get_chars_in_line(iter);
+    if (length && gtk_text_iter_get_line(iter) < lines - 1) --length;
+    if (column < 1) column = 1;
+    if (column - 1 > length) column = length + 1;
+    gtk_text_iter_set_line_offset(iter, (int)column - 1);
+}
+
+static void source_selection_edge(int64_t token, bool start_edge, int64_t *line, int64_t *column) {
+    GtkTextBuffer *buffer = GTK_TEXT_BUFFER(source_buffer(token));
+    GtkTextIter a, b, *edge;
+    if (gtk_text_buffer_get_selection_bounds(buffer, &a, &b))
+        edge = start_edge ? &a : &b;
+    else {
+        gtk_text_buffer_get_iter_at_mark(buffer, &a, gtk_text_buffer_get_insert(buffer));
+        edge = &a;
+    }
+    *line = gtk_text_iter_get_line(edge) + 1;
+    *column = gtk_text_iter_get_line_offset(edge) + 1;
+}
+
+void cwhip_gtk_source_view_set_right_margin(void *self, int64_t token, bool show, int64_t column) {
+    (void)self;
+    GtkWidget *widget = widget_live(token);
+    if (!GTK_SOURCE_IS_VIEW(widget)) fatal("operation requires GtkSourceView");
+    if (column < 1) column = 1;
+    if (column > 512) column = 512;
+    gtk_source_view_set_right_margin_position(GTK_SOURCE_VIEW(widget), (guint)column);
+    gtk_source_view_set_show_right_margin(GTK_SOURCE_VIEW(widget), show);
+}
+
+bool cwhip_gtk_source_view_right_margin_shown(void *self, int64_t token) {
+    (void)self;
+    GtkWidget *widget = widget_live(token);
+    if (!GTK_SOURCE_IS_VIEW(widget)) fatal("operation requires GtkSourceView");
+    return gtk_source_view_get_show_right_margin(GTK_SOURCE_VIEW(widget)) != FALSE;
+}
+
+int64_t cwhip_gtk_source_view_right_margin_column(void *self, int64_t token) {
+    (void)self;
+    GtkWidget *widget = widget_live(token);
+    if (!GTK_SOURCE_IS_VIEW(widget)) fatal("operation requires GtkSourceView");
+    return (int64_t)gtk_source_view_get_right_margin_position(GTK_SOURCE_VIEW(widget));
+}
+
+int64_t cwhip_gtk_source_view_selection_start_line(void *self, int64_t token) {
+    (void)self;
+    int64_t line = 1, column = 1;
+    source_selection_edge(token, true, &line, &column);
+    return line;
+}
+
+int64_t cwhip_gtk_source_view_selection_start_column(void *self, int64_t token) {
+    (void)self;
+    int64_t line = 1, column = 1;
+    source_selection_edge(token, true, &line, &column);
+    return column;
+}
+
+int64_t cwhip_gtk_source_view_selection_end_line(void *self, int64_t token) {
+    (void)self;
+    int64_t line = 1, column = 1;
+    source_selection_edge(token, false, &line, &column);
+    return line;
+}
+
+int64_t cwhip_gtk_source_view_selection_end_column(void *self, int64_t token) {
+    (void)self;
+    int64_t line = 1, column = 1;
+    source_selection_edge(token, false, &line, &column);
+    return column;
+}
+
+void cwhip_gtk_source_view_begin_user_action(void *self, int64_t token) {
+    (void)self;
+    gtk_text_buffer_begin_user_action(GTK_TEXT_BUFFER(source_buffer(token)));
+}
+
+void cwhip_gtk_source_view_end_user_action(void *self, int64_t token) {
+    (void)self;
+    gtk_text_buffer_end_user_action(GTK_TEXT_BUFFER(source_buffer(token)));
+}
+
+void cwhip_gtk_source_view_insert_text(void *self, int64_t token, int64_t line, int64_t column,
+                                       void *text) {
+    (void)self;
+    GtkTextBuffer *buffer = GTK_TEXT_BUFFER(source_buffer(token));
+    GtkTextIter iter;
+    source_iter_at(buffer, line, column, &iter);
+    char *bytes = text_copy(text);
+    gtk_text_buffer_insert(buffer, &iter, bytes, -1);
+    g_free(bytes);
+}
+
+void cwhip_gtk_source_view_delete_range(void *self, int64_t token, int64_t start_line,
+                                        int64_t start_column, int64_t end_line,
+                                        int64_t end_column) {
+    (void)self;
+    GtkTextBuffer *buffer = GTK_TEXT_BUFFER(source_buffer(token));
+    GtkTextIter start, end;
+    source_iter_at(buffer, start_line, start_column, &start);
+    source_iter_at(buffer, end_line, end_column, &end);
+    if (gtk_text_iter_compare(&start, &end) > 0) {
+        GtkTextIter swap = start;
+        start = end;
+        end = swap;
+    }
+    if (!gtk_text_iter_equal(&start, &end)) gtk_text_buffer_delete(buffer, &start, &end);
+}
+
+void cwhip_gtk_source_view_replace_range(void *self, int64_t token, int64_t start_line,
+                                         int64_t start_column, int64_t end_line,
+                                         int64_t end_column, void *text) {
+    (void)self;
+    GtkTextBuffer *buffer = GTK_TEXT_BUFFER(source_buffer(token));
+    GtkTextIter start, end;
+    source_iter_at(buffer, start_line, start_column, &start);
+    source_iter_at(buffer, end_line, end_column, &end);
+    if (gtk_text_iter_compare(&start, &end) > 0) {
+        GtkTextIter swap = start;
+        start = end;
+        end = swap;
+    }
+    char *bytes = text_copy(text);
+    gtk_text_buffer_begin_user_action(buffer);
+    if (!gtk_text_iter_equal(&start, &end)) gtk_text_buffer_delete(buffer, &start, &end);
+    gtk_text_buffer_insert(buffer, &start, bytes, -1);
+    gtk_text_buffer_end_user_action(buffer);
+    g_free(bytes);
+}
+
+void cwhip_gtk_source_view_select_range(void *self, int64_t token, int64_t start_line,
+                                        int64_t start_column, int64_t end_line,
+                                        int64_t end_column) {
+    (void)self;
+    GtkTextBuffer *buffer = GTK_TEXT_BUFFER(source_buffer(token));
+    GtkTextIter start, end;
+    source_iter_at(buffer, start_line, start_column, &start);
+    source_iter_at(buffer, end_line, end_column, &end);
+    gtk_text_buffer_select_range(buffer, &start, &end);
+}
+
+static char *clipboard_cache = NULL;
+
+void cwhip_gtk_clipboard_set_text(void *self, void *text) {
+    (void)self;
+    require_live();
+    char *bytes = text_copy(text);
+    g_free(clipboard_cache);
+    clipboard_cache = g_strdup(bytes);
+    GdkDisplay *display = gdk_display_get_default();
+    if (display) gdk_clipboard_set_text(gdk_display_get_clipboard(display), bytes);
+    g_free(bytes);
+}
+
+void *cwhip_gtk_clipboard_text(void *self) {
+    (void)self;
+    require_live();
+    /* GDK clipboard reads are asynchronous; return the last setText value for
+     * same-process use (plugins/tests). Empty when nothing was set here. */
+    const char *text = clipboard_cache ? clipboard_cache : "";
+    return cwhip_string_new(&cwhip_string_class_meta, text, strlen(text));
+}
+
 #include "gtk_config.c"
