@@ -450,10 +450,36 @@ static gchar *host_language_directory(void) {
 }
 #endif
 
+/* GtkTextView updates scrollbar adjustments during snapshot (GTK #6057), which
+ * marks the scrollbar's GtkGizmo as needing allocation and then warns when that
+ * gizmo is snapshotted in the same frame. Harmless; common on undo/scroll. */
+static GLogWriterOutput cwhip_gtk_log_writer(GLogLevelFlags log_level,
+                                             const GLogField *fields,
+                                             gsize n_fields,
+                                             gpointer user_data) {
+    if ((log_level & G_LOG_LEVEL_WARNING) != 0) {
+        const char *domain = NULL;
+        const char *message = NULL;
+        for (gsize i = 0; i < n_fields; ++i) {
+            if (g_strcmp0(fields[i].key, "GLIB_DOMAIN") == 0)
+                domain = fields[i].value;
+            else if (g_strcmp0(fields[i].key, "MESSAGE") == 0)
+                message = fields[i].value;
+        }
+        if (domain && message && g_strcmp0(domain, "Gtk") == 0 &&
+            strstr(message, "Trying to snapshot") &&
+            strstr(message, "without a current allocation")) {
+            return G_LOG_WRITER_HANDLED;
+        }
+    }
+    return g_log_writer_default(log_level, fields, n_fields, user_data);
+}
+
 static void application_initialize(const char *id, bool scheduler) {
     require_managed();
     if (initialized) fatal("application initialization is single-use");
     if (!gtk_init_check()) fatal("GTK initialization failed (display unavailable)");
+    g_log_set_writer_func(cwhip_gtk_log_writer, NULL, NULL);
 #ifdef CWHIP_GTK_SOURCEVIEW
     GtkSourceLanguageManager *defaults = gtk_source_language_manager_get_default();
     const char * const *existing_paths =
