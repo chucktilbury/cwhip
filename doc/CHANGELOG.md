@@ -25,6 +25,13 @@ proof of concept and compiler-testing tool, not a production IDE/debugger.
 
 ## Implemented milestones
 
+### Unreleased: Button focus-on-click and toolbar focus
+
+`Gtk.Button` is created with `focus-on-click` disabled so the first mouse press
+activates the button instead of only focusing it (important when focus was in a
+text/source view). `Widget.setFocusOnClick` / `setCanFocus` expose the same
+controls for toolbars that must leave editor focus alone.
+
 ### Unreleased: Window F10 / menubar accelerator
 
 `Window.bindShortcut("F10", …)` clears GTK's default menubar F10 accelerator
