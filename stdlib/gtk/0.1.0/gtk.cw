@@ -441,10 +441,16 @@ namespace Gtk {
         void setPolicy(int64 horizontal, int64 vertical) {
             _policy(_widgetToken(), horizontal, vertical)
         }
+        void setOverlayScrolling(bool enabled) {
+            _overlay(_widgetToken(), enabled)
+        }
         void _policy(int64 token, int64 horizontal, int64 vertical)
+        void _overlay(int64 token, bool enabled)
     }
     void ScrolledWindow._policy(int64 token, int64 horizontal, int64 vertical)
         from "cwhip_gtk_scrolled_window_set_policy"
+    void ScrolledWindow._overlay(int64 token, bool enabled)
+        from "cwhip_gtk_scrolled_window_set_overlay_scrolling"
 
     class Notebook : Widget {
         private:

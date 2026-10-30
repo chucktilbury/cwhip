@@ -109,7 +109,7 @@ The first-release additions are:
 | `Button` | `Button(String label)`, `setLabel(String)`, `String label()`, `setIconName(String)`, `onClicked(void<>)` (focus-on-click off; non-focusable buttons activate on press) |
 | `Entry` | `Entry(String text)`, `setText(String)`, `String text()`, `focus()`, `setEditable(bool)`, `onChanged(void<String>)` |
 | `CheckButton` | `CheckButton(String label)`, `setLabel(String)`, `String label()`, `setActive(bool)`, `bool active()`, `onToggled(void<bool>)` |
-| `ScrolledWindow` | `ScrolledWindow()`, `setChild(Widget)`, `remove(Widget)`, `setPolicy(h, v)` with `POLICY_ALWAYS` / `POLICY_AUTOMATIC` / `POLICY_NEVER` / `POLICY_EXTERNAL` |
+| `ScrolledWindow` | `ScrolledWindow()`, `setChild(Widget)`, `remove(Widget)`, `setPolicy(h, v)` with `POLICY_ALWAYS` / `POLICY_AUTOMATIC` / `POLICY_NEVER` / `POLICY_EXTERNAL`, `setOverlayScrolling(bool)` |
 | `Notebook` | `Notebook()`, `appendPage(Widget, String)`, `appendClosablePage(Widget, String, void<>)`, `int64 currentPage()`, `setCurrentPage(int64)`, `int64 pageCount()`, `setPageTitle(int64, String)`, `remove(Widget)`, `onPageChanged(void<>)`, `setBorderedTabs()` |
 | `MenuBar` | `MenuBar()`, `int64 addMenu(String)`, `int64 addItem(int64 menu, String label, void<>)`, `int64 addCheckItem(int64 menu, String label, bool initial, void<bool>)`, `int64 addSubmenu(int64 menu, String label)`, `clearMenu(int64 menu)`, `addSeparator(int64 menu)`, `setItemEnabled(int64 item, bool)`, `activateItem(int64 item)`, `setItemChecked(int64 item, bool)`, `bool itemChecked(int64 item)` |
 
