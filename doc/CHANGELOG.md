@@ -27,7 +27,8 @@ proof of concept and compiler-testing tool, not a production IDE/debugger.
 
 ### Unreleased: ScrolledWindow policy and snapshot guard
 
-`Gtk.ScrolledWindow.setPolicy` exposes scrollbar policy. SourceView custom
+`Gtk.ScrolledWindow.setPolicy` exposes scrollbar policy;
+`setOverlayScrolling` controls overlay vs classic scrollbars. SourceView custom
 snapshot overlays skip drawing until the view has a non-zero allocation, which
 avoids racing an unallocated scrollbar GtkGizmo on first layout.
 

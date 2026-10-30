@@ -1659,6 +1659,13 @@ void cwhip_gtk_scrolled_window_set_policy(void *self, int64_t token, int64_t hor
                                    (GtkPolicyType)vertical);
 }
 
+void cwhip_gtk_scrolled_window_set_overlay_scrolling(void *self, int64_t token, bool enabled) {
+    (void)self;
+    GtkWidget *widget = widget_live(token);
+    if (!GTK_IS_SCROLLED_WINDOW(widget)) fatal("operation requires GtkScrolledWindow");
+    gtk_scrolled_window_set_overlay_scrolling(GTK_SCROLLED_WINDOW(widget), enabled);
+}
+
 void cwhip_gtk_widget_attach(void *self, int64_t parent, int64_t child) {
     (void)self;
     GtkWidget *p = widget_live(parent);
