@@ -25,6 +25,12 @@ proof of concept and compiler-testing tool, not a production IDE/debugger.
 
 ## Implemented milestones
 
+### Unreleased: Selected-lines typing filter
+
+`GtkSource.View.setSelectedLinesEdit` applies printable typing, Backspace, and
+Delete at the selection-start column across a multi-line selection (not true
+multi-carets).
+
 ### Unreleased: SourceView edit primitives for editors
 
 `GtkSource.View` gains a right-margin guide, selection edge queries, undoable

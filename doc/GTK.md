@@ -390,6 +390,12 @@ bounds with the same clamping.
 `Gtk.Clipboard.setText` / `text()` write the display clipboard and keep a
 same-process cache. `text()` returns that cache (GDK clipboard reads are
 asynchronous and are not polled here).
+
+`setSelectedLinesEdit(true)` installs a capture-phase key filter: when the
+selection spans two or more lines, printable characters, Backspace, and Delete
+apply at the selection-start column on each selected line as one undo group.
+Tab/Enter and modified keys are left to other handlers. This is not true
+multi-cursor editing.
 `centerCursor` uses the same clamping but vertically centers the insertion mark
 in the viewport (subject to the beginning/end of the buffer), without a
 preceding scroll-to-edge. `setEditable(false)` prevents user edits while

@@ -2636,6 +2636,85 @@ void cwhip_gtk_source_view_auto_pair(void *self, int64_t token, bool enabled) {
     g_object_set_data(G_OBJECT(widget), AUTO_PAIR_ENABLED, GINT_TO_POINTER(enabled ? 1 : 0));
 }
 
+#define SELECTED_LINES_ENABLED "cwhip-selected-lines-enabled"
+#define SELECTED_LINES_CONTROLLER "cwhip-selected-lines-controller"
+
+static gboolean selected_lines_key(GtkEventControllerKey *controller, guint keyval, guint keycode,
+                                   GdkModifierType state, gpointer data) {
+    (void)keycode;
+    (void)data;
+    GtkWidget *widget = gtk_event_controller_get_widget(GTK_EVENT_CONTROLLER(controller));
+    if (!g_object_get_data(G_OBJECT(widget), SELECTED_LINES_ENABLED)) return FALSE;
+    if (!gtk_text_view_get_editable(GTK_TEXT_VIEW(widget))) return FALSE;
+    if (state & (GDK_CONTROL_MASK | GDK_ALT_MASK | GDK_SUPER_MASK | GDK_META_MASK)) return FALSE;
+    GtkTextBuffer *buffer = gtk_text_view_get_buffer(GTK_TEXT_VIEW(widget));
+    GtkTextIter start, end;
+    if (!gtk_text_buffer_get_selection_bounds(buffer, &start, &end)) return FALSE;
+    int start_line = gtk_text_iter_get_line(&start);
+    int end_line = gtk_text_iter_get_line(&end);
+    int start_col = gtk_text_iter_get_line_offset(&start);
+    if (gtk_text_iter_get_line_offset(&end) == 0 && end_line > start_line) --end_line;
+    if (end_line <= start_line) return FALSE;
+    gunichar c = gdk_keyval_to_unicode(keyval);
+    bool backspace = keyval == GDK_KEY_BackSpace;
+    bool del = keyval == GDK_KEY_Delete;
+    if (!backspace && !del && (c < 32 || g_unichar_iscntrl(c))) return FALSE;
+    if (keyval == GDK_KEY_Return || keyval == GDK_KEY_Tab || keyval == GDK_KEY_ISO_Left_Tab)
+        return FALSE;
+    char insert[8] = {0};
+    if (!backspace && !del) g_unichar_to_utf8(c, insert);
+    gtk_text_buffer_begin_user_action(buffer);
+    for (int line = end_line; line >= start_line; --line) {
+        GtkTextIter at;
+        gtk_text_buffer_get_iter_at_line(buffer, &at, line);
+        int length = gtk_text_iter_ends_line(&at) ? 0 : gtk_text_iter_get_chars_in_line(&at);
+        if (length && gtk_text_iter_get_line(&at) < gtk_text_buffer_get_line_count(buffer) - 1)
+            --length;
+        int col = start_col;
+        if (col > length) col = length;
+        gtk_text_iter_set_line_offset(&at, col);
+        if (backspace) {
+            if (col <= 0) continue;
+            GtkTextIter before = at;
+            gtk_text_iter_backward_char(&before);
+            gtk_text_buffer_delete(buffer, &before, &at);
+        } else if (del) {
+            if (col >= length) continue;
+            GtkTextIter after = at;
+            gtk_text_iter_forward_char(&after);
+            gtk_text_buffer_delete(buffer, &at, &after);
+        } else {
+            gtk_text_buffer_insert(buffer, &at, insert, -1);
+        }
+    }
+    gtk_text_buffer_get_iter_at_line_offset(buffer, &start, start_line, start_col);
+    int end_col = start_col;
+    if (!backspace && !del) end_col = start_col + 1;
+    gtk_text_buffer_get_iter_at_line(buffer, &end, end_line);
+    int end_length = gtk_text_iter_ends_line(&end) ? 0 : gtk_text_iter_get_chars_in_line(&end);
+    if (end_length && gtk_text_iter_get_line(&end) < gtk_text_buffer_get_line_count(buffer) - 1)
+        --end_length;
+    if (end_col > end_length) end_col = end_length;
+    gtk_text_iter_set_line_offset(&end, end_col);
+    gtk_text_buffer_select_range(buffer, &start, &end);
+    gtk_text_buffer_end_user_action(buffer);
+    return TRUE;
+}
+
+void cwhip_gtk_source_view_selected_lines_edit(void *self, int64_t token, bool enabled) {
+    (void)self;
+    GtkWidget *widget = widget_live(token);
+    if (!GTK_SOURCE_IS_VIEW(widget)) fatal("operation requires GtkSourceView");
+    if (!g_object_get_data(G_OBJECT(widget), SELECTED_LINES_CONTROLLER)) {
+        GtkEventController *controller = gtk_event_controller_key_new();
+        gtk_event_controller_set_propagation_phase(controller, GTK_PHASE_CAPTURE);
+        g_signal_connect(controller, "key-pressed", G_CALLBACK(selected_lines_key), NULL);
+        gtk_widget_add_controller(widget, controller);
+        g_object_set_data(G_OBJECT(widget), SELECTED_LINES_CONTROLLER, controller);
+    }
+    g_object_set_data(G_OBJECT(widget), SELECTED_LINES_ENABLED, GINT_TO_POINTER(enabled ? 1 : 0));
+}
+
 bool cwhip_gtk_source_view_can_undo(void *self, int64_t token) {
     (void)self;
     return gtk_text_buffer_get_can_undo(GTK_TEXT_BUFFER(source_buffer(token))) != FALSE;
