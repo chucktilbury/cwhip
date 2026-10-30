@@ -105,7 +105,7 @@ The first-release additions are:
 | `Grid` | `Grid(int64 spacing)`, `attach(Widget, int64 column, int64 row, int64 width, int64 height)` |
 | `ContextMenu` | `ContextMenu(Widget owner)`, `addItem`, `addCheckItem`, `setChild(Widget)` |
 | `Label` | `Label(String text)`, `setText(String)`, `String text()` |
-| `Button` | `Button(String label)`, `setLabel(String)`, `String label()`, `setIconName(String)`, `onClicked(void<>)` (created with focus-on-click off) |
+| `Button` | `Button(String label)`, `setLabel(String)`, `String label()`, `setIconName(String)`, `onClicked(void<>)` (focus-on-click off; non-focusable buttons activate on press) |
 | `Entry` | `Entry(String text)`, `setText(String)`, `String text()`, `focus()`, `setEditable(bool)`, `onChanged(void<String>)` |
 | `CheckButton` | `CheckButton(String label)`, `setLabel(String)`, `String label()`, `setActive(bool)`, `bool active()`, `onToggled(void<bool>)` |
 | `ScrolledWindow` | `ScrolledWindow()`, `setChild(Widget)`, `remove(Widget)` |
@@ -402,8 +402,9 @@ void addContextAction(String label, void<> action)
 
 `onLineActivated` handles a primary single click in the capture phase, positions
 the cursor (or selects the line when `setLineSelection(true)`), and reports the
-one-based line number. Only line-selection mode claims the gesture; otherwise
-native text selection/drag behavior continues. Double clicks retain normal text selection behavior.
+one-based line number without claiming the click sequence (so a lost release
+cannot stick the capture gesture and swallow a later toolbar click). Double
+clicks retain normal text selection behavior.
 The returned signal token can be disconnected; widget disposal disconnects
 controller callbacks and releases their receivers, including during invocation.
 `setLineSelection` also applies to a text view's `ContextMenu` right click.

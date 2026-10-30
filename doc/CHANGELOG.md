@@ -25,6 +25,13 @@ proof of concept and compiler-testing tool, not a production IDE/debugger.
 
 ## Implemented milestones
 
+### Unreleased: Toolbar buttons activate on press
+
+Non-focusable buttons (`setCanFocus(false)`, as used by debugger toolbars) run
+their `onClicked` handler on mouse press instead of release, so a dropped
+button-release cannot swallow the first click. SourceView line-selection no
+longer claims the capture click sequence for the same reason.
+
 ### Unreleased: Button focus-on-click and toolbar focus
 
 `Gtk.Button` is created with `focus-on-click` disabled so the first mouse press
