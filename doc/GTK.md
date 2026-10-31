@@ -576,9 +576,11 @@ settings models, not a settings framework:
 | `String merge(String original, String updates)` | Both inputs must be validated TOML; recursively overlays updates and serializes, preserving unrelated values but not comments/formatting. |
 | `void save(String path, String text, String expected, void<String> result)` | Asynchronously loads the local file, checks expected previous contents, then atomically replaces using its ETag where supported. Expected `""` allows a missing first-run file. Result is `""` on success, or an explicit I/O/concurrent-edit error. The caller creates the parent directory and bounds/validates the data. |
 | `String saveNow(String path, String text, String expected)` | Synchronous counterpart for small bounded state snapshots that must finish before window teardown. Uses the same content/ETag guard and atomic private-file replacement. Returns `""` on success or an explicit error; callers must report it. Bounds/validation and parent-directory creation remain the caller's responsibility. |
+| `void flush()` | GUI-owner only. Blocks until every in-flight `save` completion callback has run (including coalesced follow-up saves). Use when a caller must observe `save` side effects before continuing on the same turn. |
 
 Save callback roots and copied bytes survive asynchronous I/O. Shutdown drains
-pending operations without invoking their callbacks after teardown. These
+pending operations without invoking their callbacks after teardown. `flush()`
+is the same drain for live code that still needs those callbacks. These
 operations, except pure TOML conversion, share GTK's GUI-owner rules. The TOML
 parser is vendored MIT-licensed
 [tomlc99](https://github.com/cktan/tomlc99/tree/29076dfd095bbbbd50a3c1b2760d29f4b83e74ac)
