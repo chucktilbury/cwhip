@@ -14,7 +14,7 @@ command below requires `sudo` or changes shell startup files.
 For the broader compiler-only/project/package workflow, see
 [Getting started](GETTING_STARTED.md).
 
-## 1. Check prerequisites
+## Check prerequisites
 
 You need Git, Make (or another CMake build tool), CMake **3.24+**, Python
 **3.11+**, a C11/C++17 toolchain, **Clang** on PATH, SQLite 3 development
@@ -47,7 +47,7 @@ not interactive editor prerequisites. Without suitable GTK libraries, use
 the [compiler-only route](GETTING_STARTED.md#build-and-install-the-sdk) and
 your existing text editor instead.
 
-## 2. Build and install the SDK first
+## Build and install the SDK first
 
 Choose an unused installation prefix; do not mix files from different SDKs:
 
@@ -132,7 +132,7 @@ If you prefer not to open a project shell, use the app's
 Keep the installed `cedit` executable and its `share/` resources together.
 The installed editor does not need either source checkout to open files.
 
-## 4. Write and save hello world
+## Write and save hello world
 
 Create a new empty project directory outside the checkouts:
 
@@ -159,7 +159,7 @@ unsaved-change protection. You do not need **Project > New Project**:
 editor `.cwhip/project.toml` metadata is not a compiler manifest or CMake
 build file. cedit has no integrated compile/run action; use the terminal.
 
-## 5. Compile, run, edit, and rebuild
+## Compile, run, edit, and rebuild
 
 From the same project directory:
 
