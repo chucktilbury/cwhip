@@ -149,9 +149,25 @@ void *cwhip_gtk_config_key(void *self, void *text, void *section_text, int64_t i
 static void config_quote(GString *out, const char *text) {
     g_string_append_c(out, '"');
     for (const unsigned char *p = (const unsigned char *)text; *p; ++p) {
-        if (*p == '\\' || *p == '"') g_string_append_c(out, '\\');
-        if (*p < 32 || *p == 127) g_string_append_printf(out, "\\u%04x", *p);
-        else g_string_append_c(out, *p);
+        /* tomlc99 accepts basic escapes, not \uXXXX unicode escapes. */
+        if (*p == '\\' || *p == '"') {
+            g_string_append_c(out, '\\');
+            g_string_append_c(out, *p);
+        } else if (*p == '\n') {
+            g_string_append(out, "\\n");
+        } else if (*p == '\t') {
+            g_string_append(out, "\\t");
+        } else if (*p == '\r') {
+            g_string_append(out, "\\r");
+        } else if (*p == '\b') {
+            g_string_append(out, "\\b");
+        } else if (*p == '\f') {
+            g_string_append(out, "\\f");
+        } else if (*p < 32 || *p == 127) {
+            g_string_append_printf(out, "\\u%04x", *p);
+        } else {
+            g_string_append_c(out, *p);
+        }
     }
     g_string_append_c(out, '"');
 }
@@ -259,8 +275,16 @@ void *cwhip_gtk_config_merge(void *self, void *original, void *changes) {
     (void)self;
     char error[256] = "";
     toml_table_t *base = config_parse(original, error);
-    toml_table_t *updates = config_parse(changes, error);
-    if (!base || !updates) fatal("merge requires validated TOML");
+    /* Empty original is a first-run snapshot; treat it as an empty table. */
+    if (!base) {
+        char *empty = g_strdup("");
+        base = toml_parse(empty, error, sizeof error);
+        g_free(empty);
+    }
+    char update_error[256] = "";
+    toml_table_t *updates = config_parse(changes, update_error);
+    if (!base) fatal("merge requires validated TOML original");
+    if (!updates) fatal(update_error[0] ? update_error : "merge requires validated TOML updates");
     void *result = config_render(base, updates, NULL, NULL);
     toml_free(base);
     toml_free(updates);
