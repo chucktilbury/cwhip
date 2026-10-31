@@ -263,6 +263,7 @@ Cwhip programs.
 
 ```cwhip
 import cli as Cli
+// test: {"args": ["-o", "out.txt", "input.cw"], "stdout": "out.txt"}
 
 start {
     Cli.CommandLine commandLine = Cli.CommandLine("demo", "demo options", "1.0")
