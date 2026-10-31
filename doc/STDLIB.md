@@ -221,6 +221,66 @@ start {
 }
 ```
 
+## `cli`
+
+Import with `import cli as Cli`. The package provides a registration-based
+command-line parser for Cwhip applications (`Cli.CommandLine`, `Cli.Option`,
+`Cli.Positional`, plus `Cli.ValueType` and `Cli.Action` constants). It mirrors
+the compiler's C++ `CommandLine` helper and adds multiple named positionals and
+optional capture of argv after `--`.
+
+```text
+CommandLine(String program, String summary, String version)
+void setCaptureRemainder(bool enabled)
+void addOption(Option option)
+void addPositional(Positional positional)
+void parse(list arguments)
+void parseArgv()
+bool wasProvided(String name)
+bool switchValue(String name)
+int64 count(String name)
+bool hasValue(String name)
+String value(String name)
+list valuesFor(String name)
+bool containsItem(String name, String item)
+list allPositionalValues()
+list allRemainderValues()
+int64 currentAction()
+String helpText()
+String versionText()
+```
+
+Option kinds are `ValueType.FLAG`, `COUNTER`, `STRING`, and `NUMBER`. Multi-value
+options set `Option.isList` (and `Positional.isList` for variadic positionals) and
+split on `listSeparator` (default `:`). Help and version options set
+`Option.action` to `Action.HELP` or `Action.VERSION`; `parse` then stops before
+required checks. Short options accept attached values (`-oFILE`, `-o=FILE`,
+`-IFOO:BAR`). `parse` raises `Exception` on usage errors; applications map those
+to their own diagnostic codes and exit status. `setCaptureRemainder(true)` sends
+arguments after `--` to `allRemainderValues()` instead of positionals. The C++
+compiler driver keeps its own `CommandLine` implementation; this package is for
+Cwhip programs.
+
+```cwhip
+import cli as Cli
+
+start {
+    Cli.CommandLine commandLine = Cli.CommandLine("demo", "demo options", "1.0")
+    Cli.Option output = Cli.Option()
+    output.shortName = "o"
+    output.longName = "output"
+    output.name = "output"
+    output.valueType = Cli.ValueType().STRING
+    commandLine.addOption(output)
+    Cli.Positional input = Cli.Positional()
+    input.name = "input"
+    input.required = true
+    commandLine.addPositional(input)
+    commandLine.parseArgv()
+    print(commandLine.value("output"))
+}
+```
+
 ## `math`
 
 Import with `import math as M`; the alias names the package namespace and its

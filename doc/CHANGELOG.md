@@ -25,6 +25,13 @@ proof of concept and compiler-testing tool, not a production IDE/debugger.
 
 ## Implemented milestones
 
+### Unreleased: Stdlib CLI parser
+
+`stdlib/cli/0.1.0` ports the compiler's registration-based `CommandLine` to
+Cwhip applications (`import cli as Cli`), including attached short options,
+list separators, help/version actions, multiple named positionals, and optional
+remainder capture after `--`. The compiler driver keeps its C++ parser.
+
 ### Unreleased: Test repro tree
 
 `tests/repro/` holds curated programs peeled from Python generators
