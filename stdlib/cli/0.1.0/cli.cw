@@ -605,10 +605,6 @@ namespace Cli {
                 argument = arguments[index + 1] as String
                 consumed = 1
             }
-            if (argument.equals("")) {
-                raise(Exception(format("option {} requires a non-empty argument",
-                                       displayName(option))))
-            }
             recordValue(option, argument, true)
             return(consumed)
         }
