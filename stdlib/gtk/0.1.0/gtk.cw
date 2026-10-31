@@ -11,6 +11,7 @@ namespace Gtk {
         int64 arraySize(String text, String section, String key)
         void save(String path, String text, String expected, void<String> result)
         String saveNow(String path, String text, String expected)
+        void flush()
     }
     String Config.validate(String text) from "cwhip_gtk_config_validate"
     String Config.fileStatus(String path) from "cwhip_gtk_config_file_status"
@@ -25,6 +26,7 @@ namespace Gtk {
     void Config.save(String path, String text, String expected, void<String> result)
         from "cwhip_gtk_config_save"
     String Config.saveNow(String path, String text, String expected) from "cwhip_gtk_config_save_now"
+    void Config.flush() from "cwhip_gtk_config_flush"
 
     class Keyboard {
         String normalize(String trigger)

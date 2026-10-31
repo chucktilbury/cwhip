@@ -434,6 +434,14 @@ static void config_finish_shutdown(void) {
     while (config_saves) g_main_context_iteration(main_context, TRUE);
 }
 
+/* Drain in-flight Config.save callbacks. Safe to call from the GTK owner
+ * thread while waiting for preference auto-save to settle. */
+void cwhip_gtk_config_flush(void *self) {
+    (void)self;
+    require_live();
+    while (config_saves) g_main_context_iteration(main_context, TRUE);
+}
+
 /* Bounded state snapshots must finish before the last window is destroyed. */
 void *cwhip_gtk_config_save_now(void *self, void *path_text, void *text, void *expected_text) {
     (void)self;
