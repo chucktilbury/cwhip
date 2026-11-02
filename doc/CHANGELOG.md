@@ -25,6 +25,14 @@ proof of concept and compiler-testing tool, not a production IDE/debugger.
 
 ## Implemented milestones
 
+### Unreleased: Return from start
+
+`return(expr)` is now valid inside `start`, including nested blocks and loops.
+The integer `expr` becomes the process exit status and a bare `return` exits 0;
+enclosing `finally` blocks run first. A non-integer value is rejected at compile
+time. `System().exit(code)` (already in the `system` package) is documented as
+the way to end the program from any method or callback without cleanup.
+
 ### Unreleased: Stdlib CLI parser
 
 `stdlib/cli/0.1.0` ports the compiler's registration-based `CommandLine` to

@@ -288,6 +288,8 @@ foreach-statement   ::= "for", "(", IDENT, [ ",", IDENT ], "in",
                         expression, ")", { NEWLINE }, block ;
 loop-control        ::= ("break" | "continue"), terminator ;
 return-statement    ::= "return", [ "(", [ expression ], ")" ], terminator ;
+                        (* in start: expression must be an integer; it is the
+                           process exit status, and a bare return exits 0 *)
 raise-statement     ::= "raise", [ "(", [ expression ], ")" ], terminator ;
 try-statement       ::= "try", { NEWLINE }, block, { NEWLINE },
                         ( except-clause, { NEWLINE },
@@ -348,7 +350,7 @@ branch. It executes that following body unconditionally, without testing its
 labels, after normal branch cleanup. Nested or conditional `next` is rejected.
 Branches block `break`/`continue` from targeting an outer loop; loops introduced
 inside a branch retain their own loop transfers. `return` still exits the
-enclosing method and runs its usual cleanup.
+enclosing method (or, inside `start`, the program) and runs its usual cleanup.
 
 ### Expressions
 

@@ -371,7 +371,14 @@ void CodeGenerator::emitStatement(const Statement& statement) {
         return;
     case StatementKind::Return: {
         std::string result;
-        if (!statement.expressions.empty()) {
+        if (currentMethod_ == nullptr) {
+            std::string status = "0";
+            if (!statement.expressions.empty()) {
+                const auto value = emitExpression(*statement.expressions.front(), "int32");
+                status = convertNumericValue(value, "int32", statement.expressions.front()->location).operand;
+            }
+            result = status;
+        } else if (!statement.expressions.empty()) {
             const auto value = emitExpression(*statement.expressions.front(),
                                               currentMethod_->returnType);
             const auto converted = convertObjectValue(value, currentMethod_->returnType,
@@ -406,6 +413,10 @@ void CodeGenerator::emitStatement(const Statement& statement) {
             }
         }
         emitRootFramePop();
+        if (currentMethod_ == nullptr) {
+            instructions_ += "  call void @cwhip_runtime_thread_exit()\n"
+                             "  ret i32 " + result + "\n";
+        } else
         instructions_ += statement.expressions.empty()
                              ? "  ret void\n"
                              : "  ret " + llvmType(currentMethod_->returnType) + " " +

@@ -752,6 +752,11 @@ begin comments, while semicolons are not valid comment or statement syntax.
 
 ### Control flow and logical operators
 
+- `return(expr)` in the `start` block (at any nesting depth) ends the program
+  with the integer `expr` as the OS exit status; bare `return` exits 0.
+  Enclosing `finally` blocks run first. `System().exit(code)` ends the program
+  from anywhere (methods, callbacks) immediately, without running `finally`.
+
 - `while (<expr>) { <statement>* }` tests its boolean condition before each
   iteration. `do { <statement>* } while (<expr>)` executes its body once before
   testing the boolean condition at the end of each iteration. `if`, `while`,

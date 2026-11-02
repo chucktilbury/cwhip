@@ -84,6 +84,12 @@ String getEnv(String name)
 bool setEnv(String name, String value)
 ```
 
+`exit(code)` (on `Process` or `System`) ends the program immediately from any
+point, including methods and callbacks, with `code` as the OS exit status
+(low 8 bits). It does not run `finally` blocks or other pending Cwhip code;
+the C runtime flushes stdio. From `start` itself, prefer `return(code)`, which
+runs enclosing `finally` blocks.
+
 `System` forwards `argc`, `argv`, `arg`, `exit`, `abort`, and `getEnv`, and
 also provides `StandardIO io()`, `String lastError()`, `File open(String path,
 String mode)`, and `bool exists(String path)`. Calling `open(path, mode)`
