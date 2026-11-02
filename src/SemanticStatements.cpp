@@ -599,7 +599,18 @@ void SemanticAnalyzer::analyzeStatement(Statement& statement) {
             throw DiagnosticError(statement.location, "return is not allowed inside finally");
         }
         if (currentMethod_ == nullptr) {
-            throw DiagnosticError(statement.location, "return is only valid inside a class method");
+            if (currentClass_ != nullptr) {
+                throw DiagnosticError(statement.location,
+                                      "return is only valid inside a class method or the start block");
+            }
+            if (!statement.expressions.empty()) {
+                const auto resultType = analyzeExpression(*statement.expressions.front(), "int32");
+                if (!isIntegerType(resultType)) {
+                    throw DiagnosticError(statement.expressions.front()->location,
+                                          "return value in start must be an integer exit status");
+                }
+            }
+            return;
         }
         if (currentMethod_->returnType == "void") {
             if (!statement.expressions.empty()) {

@@ -231,7 +231,7 @@ const TestGroupRegistration registration{3, {
                  "return is not allowed inside finally");
          }},
         {"return type and entry restrictions remain enforced", [] {
-             expectDiagnostic("start { return }", "only valid inside a class method");
+             expectDiagnostic("start { return(\"x\") }", "must be an integer exit status");
              expectDiagnostic("class C { void f() { if (true) { return(1) } } }\nstart {}",
                               "void method cannot return a value");
              expectDiagnostic("class C { int64 f() { return } }\nstart {}",

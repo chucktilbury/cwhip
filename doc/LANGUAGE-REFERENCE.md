@@ -71,8 +71,15 @@ are not aliases.
 
 A program has zero or more top-level imports and declarations, followed by
 exactly one `start { ... }` block (`program`, `start-block`). The `start`
-block is the executable entry point; `return` is reserved for methods and is
-not a way to exit from `start`. A separately imported module may contain
+block is the executable entry point. `return(expr)` inside `start` (including
+nested blocks, branches, and loops) ends the program; `expr` must have an
+integer type and becomes the process exit status (the OS keeps the low 8 bits
+on POSIX). A bare `return` exits with status 0. Enclosing `finally` blocks run
+first, as for a method return. Falling off the end of `start` still exits 0, and
+an unhandled `raise` is still an error exit. `System().exit(code)` (package
+`system`) ends the program immediately from any point, including methods and
+callbacks, without running `finally` blocks or other pending Cwhip code;
+buffered C stdio output is flushed by the C runtime. A separately imported module may contain
 declarations but no `start` (`module`). The compiler can also compile several
 source files as one compilation unit, with exactly one `start` among them.
 
