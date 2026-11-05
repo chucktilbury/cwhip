@@ -61,8 +61,8 @@ The `sourceview/0.1.0` package is enabled by
 5. It provides editor-oriented source buffers/views, search and replace,
 undo/redo, cursor information, and shortcut binding. The cwhip language syntax
 definition lives with that package. The standalone
-[cedit editor](https://github.com/chucktilbury/cedit) and
-[cdbg debugger](https://github.com/chucktilbury/cdbg) consume these SDK packages. Neither
+[cedit editor](https://github.com/cwhip-lang/cedit) and
+[cdbg debugger](https://github.com/cwhip-lang/cdbg) consume these SDK packages. Neither
 optional package is linked into the compiler or programs that do not import it.
 Fresh configurations default these options to available development dependencies;
 see [build and installation](../doc/INSTALLATION.md) for compiler-only settings.

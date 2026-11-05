@@ -147,5 +147,5 @@ callbacks, captures, boxing, and arithmetic.
 
 Verified execution platform: Linux x86-64. Other target C ABIs still require
 platform validation. Consumer migrations are owned by the standalone
-[cedit](https://github.com/chucktilbury/cedit) and
-[cdbg](https://github.com/chucktilbury/cdbg) repositories, not this compiler tree.
+[cedit](https://github.com/cwhip-lang/cedit) and
+[cdbg](https://github.com/cwhip-lang/cdbg) repositories, not this compiler tree.

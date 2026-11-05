@@ -15,7 +15,7 @@ DWARF maps generated instructions back to Cwhip source lines and can expose
 in-scope Cwhip locals when their locations are available. With current `-g`,
 user class types include named member DWARF that matches the LLVM `%Class`
 layout (including runtime metadata slots and inherited fields), so GDB and
-[cdbg](https://github.com/chucktilbury/cdbg) can show fields such as
+[cdbg](https://github.com/cwhip-lang/cdbg) can show fields such as
 `Counter {value: 7}` and evaluate watches like `worker.value`. Visibility is
 still not guaranteed for every value: compiler-generated temporaries and
 optimized-out or out-of-scope locals are not inspectable. This is ordinary

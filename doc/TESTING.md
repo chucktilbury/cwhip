@@ -62,8 +62,8 @@ dependencies are installed; headless GUI tests also default on when Xvfb and
 `dbus-daemon` are found. Thus `make test` in a configured Makefile build directory
 (or `ctest --test-dir build`) includes compiler-owned GTK/SourceView binding
 fixtures and `examples/gtk.cw` on such hosts. Application-specific tests belong
-to the standalone [cedit](https://github.com/chucktilbury/cedit) and
-[cdbg](https://github.com/chucktilbury/cdbg) repositories.
+to the standalone [cedit](https://github.com/cwhip-lang/cedit) and
+[cdbg](https://github.com/cwhip-lang/cdbg) repositories.
 Labels such as `examples` and `gtk` categorize tests, not
 exclude them from the default suite.
 

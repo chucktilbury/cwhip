@@ -1,8 +1,8 @@
 # Diagnostic contract and code registry
 
 This is the canonical policy for incremental diagnostic work in `cwhip`,
-`cwhip-pkg`, and the standalone [cedit](https://github.com/chucktilbury/cedit)
-and [cdbg](https://github.com/chucktilbury/cdbg) consumers. It is not a claim that every legacy message
+`cwhip-pkg`, and the standalone [cedit](https://github.com/cwhip-lang/cedit)
+and [cdbg](https://github.com/cwhip-lang/cdbg) consumers. It is not a claim that every legacy message
 already follows it. Each tool owns its implementation and local code
 allocations; coordinated application allocations are recorded below.
 

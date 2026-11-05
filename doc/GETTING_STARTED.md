@@ -32,23 +32,23 @@ build standalone cedit with its own `scripts/setup`, and write/run hello world.
 | `cwhip` | Compiles `.cw` source to LLVM IR, then invokes Clang to produce native executables or objects. |
 | Cwhip SDK | The complete installation prefix: compiler, runtime archive, public headers, String builtin, standard packages, package tool, and CMake integration. |
 | `cwhip-pkg` | Checks the SDK/host, creates projects, and manages project dependencies and locks. It does not build or run applications. |
-| [cwhip-template](https://github.com/chucktilbury/cwhip-template) | A small installed-SDK consumer, used by `cwhip-pkg new`. |
-| [cedit](https://github.com/chucktilbury/cedit) | Optional standalone GTK source editor; not a compiler/debugger integration or semantic language service. |
-| [cdbg](https://github.com/chucktilbury/cdbg) | Optional standalone local GDB/MI debugger; can compile a `.cw` target with debug information or load a built executable. |
-| [cmacros](https://github.com/chucktilbury/cmacros) | Optional standalone command-line macro processor implemented in Cwhip. It processes UTF-8 input independently of the compiler and does not invoke a shell or subprocess. |
+| [app-template](https://github.com/cwhip-lang/app-template) | A small installed-SDK consumer, used by `cwhip-pkg new`. |
+| [cedit](https://github.com/cwhip-lang/cedit) | Optional standalone GTK source editor; not a compiler/debugger integration or semantic language service. |
+| [cdbg](https://github.com/cwhip-lang/cdbg) | Optional standalone local GDB/MI debugger; can compile a `.cw` target with debug information or load a built executable. |
+| [cmacros](https://github.com/cwhip-lang/cmacros) | Optional standalone command-line macro processor implemented in Cwhip. It processes UTF-8 input independently of the compiler and does not invoke a shell or subprocess. |
 
 Install and retain the **whole SDK prefix**, not just `bin/cwhip`. Host Clang,
 Python, Git, and shared system libraries are not bundled. This guide uses source
 builds; it does not assume binary installers or packaged application releases.
 `cmacros` has its own build and installation instructions in
-[its build guide](https://github.com/chucktilbury/cmacros/blob/main/doc/BUILD.md);
-the [macro language reference](https://github.com/chucktilbury/cmacros/blob/main/doc/LANGUAGE.md)
-and [examples guide](https://github.com/chucktilbury/cmacros/blob/main/examples/README.md)
+[its build guide](https://github.com/cwhip-lang/cmacros/blob/main/doc/BUILD.md);
+the [macro language reference](https://github.com/cwhip-lang/cmacros/blob/main/doc/LANGUAGE.md)
+and [examples guide](https://github.com/cwhip-lang/cmacros/blob/main/examples/README.md)
 describe its input syntax and runnable examples. It is an optional standalone
 tool, not part of the compiler command or package workflow. `cparsegen` is a
 separately built, bounded parser-generator prototype that emits parsers for
 Cwhip or standalone ISO C99. See its
-[input/output reference](https://github.com/chucktilbury/cparsegen/blob/main/doc/INPUT-OUTPUT.md)
+[input/output reference](https://github.com/cwhip-lang/cparsegen/blob/main/doc/INPUT-OUTPUT.md)
 for supported grammar features, commands, and limits.
 
 ## Host prerequisites
@@ -109,7 +109,7 @@ flags, private staging and a non-interactive installation; setup does not accept
 ```sh
 mkdir -p "$HOME/Src"
 cd "$HOME/Src"
-git clone https://github.com/chucktilbury/cwhip.git
+git clone https://github.com/cwhip-lang/cwhip.git
 cd cwhip
 
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug \
@@ -304,8 +304,8 @@ These are **alternative** project creation examples, not steps required for Hell
 ```sh
 cwhip-pkg new MyApp "$HOME/Src/my-app"
 cwhip-pkg new PinnedApp --ref 7c14dbd0bca5c336700bc32f6fc8fba941eef889
-cwhip-pkg new OfflineApp --source /absolute/path/to/cwhip-template
-cwhip-pkg new ArchivedApp --source /absolute/path/to/cwhip-template.tar.gz
+cwhip-pkg new OfflineApp --source /absolute/path/to/app-template
+cwhip-pkg new ArchivedApp --source /absolute/path/to/app-template.tar.gz
 ```
 
 `--ref` accepts a branch, tag, or commit; the default is `main`, and the template
@@ -583,7 +583,7 @@ With the GUI SDK selected as above:
 
 ```sh
 cd "$HOME/Src"
-git clone https://github.com/chucktilbury/cedit.git
+git clone https://github.com/cwhip-lang/cedit.git
 cedit/scripts/setup debug
 build
 cmake --install . --prefix "$HOME/.local/cedit"
@@ -597,14 +597,14 @@ compiler action/parser or debug workflow. Move the whole installed application
 prefix, including `share/` language resources. The `cedit` executable stays
 attached to the terminal that started it. Use it in a graphical session; an SSH/headless shell
 alone is not a desktop. See the standalone
-[cedit build guide](https://github.com/chucktilbury/cedit/blob/main/doc/BUILD.md)
-and [editor guide](https://github.com/chucktilbury/cedit/blob/main/CEDIT.md).
+[cedit build guide](https://github.com/cwhip-lang/cedit/blob/main/doc/BUILD.md)
+and [editor guide](https://github.com/cwhip-lang/cedit/blob/main/CEDIT.md).
 
 Build the debugger independently:
 
 ```sh
 cd "$HOME/Src"
-git clone https://github.com/chucktilbury/cdbg.git
+git clone https://github.com/cwhip-lang/cdbg.git
 cdbg/scripts/setup debug
 build cdbg
 cmake --install . --prefix "$HOME/.local/cdbg"
@@ -647,8 +647,8 @@ usable. Debug metadata does not expose full Cwhip class-member layouts, and
 stepping can enter runtime helpers. This prototype supports local launch, not
 attach, remote debugging, DAP/LLDB, or an interactive stdin terminal. Programs
 waiting for input cannot receive it through cdbg's output-only PTY. See the
-[standalone debugger guide](https://github.com/chucktilbury/cdbg/blob/main/CDBG.md)
-and [build/test guidance](https://github.com/chucktilbury/cdbg/blob/main/doc/BUILD.md)
+[standalone debugger guide](https://github.com/cwhip-lang/cdbg/blob/main/CDBG.md)
+and [build/test guidance](https://github.com/cwhip-lang/cdbg/blob/main/doc/BUILD.md)
 for further limits.
 
 Both apps use their own `./scripts/setup [--clean] [debug|release|profile]`
@@ -705,7 +705,7 @@ for more source-level practice; use [installation](INSTALLATION.md) and
 and native application integration.
 
 This guide's canonical source is
-[`cwhip/doc/GETTING_STARTED.md`](https://github.com/chucktilbury/cwhip/blob/master/doc/GETTING_STARTED.md);
+[`cwhip/doc/GETTING_STARTED.md`](https://github.com/cwhip-lang/cwhip/blob/master/doc/GETTING_STARTED.md);
 the project website is [cwhip.org](https://cwhip.org). Standalone application
 behavior and tests are owned by the linked app repositories, not this compiler
 repository.

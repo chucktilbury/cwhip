@@ -188,8 +188,8 @@ relative to the running executable, never through a compiler checkout or
 configured absolute SDK prefix. Flat test programs can instead carry the same
 `share` tree alongside the executable.
 
-The standalone [cedit](https://github.com/chucktilbury/cedit) and
-[cdbg](https://github.com/chucktilbury/cdbg) applications consume only this
+The standalone [cedit](https://github.com/cwhip-lang/cedit) and
+[cdbg](https://github.com/cwhip-lang/cdbg) applications consume only this
 installed contract and own their sources, build targets, tests and install rules.
 No copies or application targets remain in the compiler repository.
 They remain proof-of-concept applications. GNU/Clang builds retain runtime
