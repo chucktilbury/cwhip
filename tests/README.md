@@ -125,8 +125,8 @@ callback-root release under GC and native finalization after late cancellation
 completions, chooser accept/cancel/overwrite, SourceView language highlighting,
 editing/search/undo/redo, file round trips, notebook buffers, allocations and
 shortcut disposal. Application-level tests live in the standalone
-[cedit](https://github.com/chucktilbury/cedit) and
-[cdbg](https://github.com/chucktilbury/cdbg) repositories.
+[cedit](https://github.com/cwhip-lang/cedit) and
+[cdbg](https://github.com/cwhip-lang/cdbg) repositories.
 Direct binding fixtures also check native view settings and TOML parsing/merging,
 atomic saves, concurrent-edit rejection and pending-save shutdown behavior.
 

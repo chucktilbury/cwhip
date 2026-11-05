@@ -1263,7 +1263,7 @@ def command_new(name: str, directory: str | None, ref: str, source: str | None) 
     try:
         archive_path = Path(source).expanduser().resolve() if source else scratch / "template.tar.gz"
         if source is None:
-            url = "https://codeload.github.com/chucktilbury/cwhip-template/tar.gz/" + urllib.parse.quote(ref, safe="")
+            url = "https://codeload.github.com/cwhip-lang/app-template/tar.gz/" + urllib.parse.quote(ref, safe="")
             try:
                 with urllib.request.urlopen(url, timeout=30) as response, archive_path.open("wb") as stream:
                     total = 0

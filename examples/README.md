@@ -5,8 +5,8 @@ They are teaching demos, not the compiler regression corpus
 (`tests/functional/`) or hand-repro cases peeled from test drivers
 (`tests/repro/`).
 
-The [cedit editor](https://github.com/chucktilbury/cedit) and
-[cdbg debugger](https://github.com/chucktilbury/cdbg) live in their own repositories
+The [cedit editor](https://github.com/cwhip-lang/cedit) and
+[cdbg debugger](https://github.com/cwhip-lang/cdbg) live in their own repositories
 and build against the installed Cwhip SDK; they are not examples in this tree.
 
 ## Switches and integer ranges

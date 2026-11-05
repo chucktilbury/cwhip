@@ -59,7 +59,7 @@ see [the developer shell](INSTALLATION.md#developer-shell).
 
 ```sh
 mkdir -p "$HOME/Src"
-git clone https://github.com/chucktilbury/cwhip.git "$HOME/Src/cwhip"
+git clone https://github.com/cwhip-lang/cwhip.git "$HOME/Src/cwhip"
 cd "$HOME/Src/cwhip"
 export CWHIP_PREFIX="$HOME/.local/opt/cwhip-first"
 
@@ -100,7 +100,7 @@ The compiler install does not build cedit or cdbg.
 cedit owns its CMake project and setup script. Clone it independently:
 
 ```sh
-git clone https://github.com/chucktilbury/cedit.git "$HOME/Src/cedit"
+git clone https://github.com/cwhip-lang/cedit.git "$HOME/Src/cedit"
 cd "$HOME/Src/cedit"
 ./scripts/setup debug
 ```
@@ -128,7 +128,7 @@ and run `./scripts/setup --clean debug` to remove all default generated output
 before reconfiguring. `clean` remains available as a script; after using it,
 exit and rerun setup.
 If you prefer not to open a project shell, use the app's
-[direct CMake instructions](https://github.com/chucktilbury/cedit/blob/main/doc/BUILD.md).
+[direct CMake instructions](https://github.com/cwhip-lang/cedit/blob/main/doc/BUILD.md).
 Keep the installed `cedit` executable and its `share/` resources together.
 The installed editor does not need either source checkout to open files.
 
@@ -207,11 +207,11 @@ See [the CMake SDK contract](CMAKE-SDK.md) for native bindings and relocation.
 
 ## Optional: add the standalone debugger
 
-[cdbg](https://github.com/chucktilbury/cdbg) consumes the same GUI-enabled SDK.
+[cdbg](https://github.com/cwhip-lang/cdbg) consumes the same GUI-enabled SDK.
 It owns its setup/build/install interface too. With `CWHIP_SDK` still exported:
 
 ```sh
-git clone https://github.com/chucktilbury/cdbg.git "$HOME/Src/cdbg"
+git clone https://github.com/cwhip-lang/cdbg.git "$HOME/Src/cdbg"
 cd "$HOME/Src/cdbg"
 ./scripts/setup debug
 ```
@@ -235,8 +235,8 @@ cdbg hello.cw
 Install GDB separately; friendly Cwhip value inspection requires Python-enabled
 GDB with `gdb.MICommand`. cdbg can compile the source with debug information
 using `cwhip` on PATH; `CDBG_COMPILER` overrides that compiler. See
-[debugger controls and limits](https://github.com/chucktilbury/cdbg/blob/main/CDBG.md)
-and its [standalone build/test guide](https://github.com/chucktilbury/cdbg/blob/main/doc/BUILD.md).
+[debugger controls and limits](https://github.com/cwhip-lang/cdbg/blob/main/CDBG.md)
+and its [standalone build/test guide](https://github.com/cwhip-lang/cdbg/blob/main/doc/BUILD.md).
 Compiler tests and each app's own tests remain separate; building the SDK
 does not exercise the standalone app suites.
 

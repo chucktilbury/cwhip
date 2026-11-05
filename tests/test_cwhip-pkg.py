@@ -241,10 +241,10 @@ class CwhipkgTest(unittest.TestCase):
         tar_path = self.root / "template.tar.gz"
         zip_path = self.root / "template.zip"
         with tarfile.open(tar_path, "w:gz") as archive:
-            archive.add(template, arcname="cwhip-template-main")
+            archive.add(template, arcname="app-template-main")
         with zipfile.ZipFile(zip_path, "w") as archive:
             for path in template.rglob("*"):
-                archive.write(path, "cwhip-template-main/" + path.relative_to(template).as_posix())
+                archive.write(path, "app-template-main/" + path.relative_to(template).as_posix())
         module = self.script_module()
         for index, source in enumerate((template, tar_path, zip_path)):
             destination = self.root / f"destination {index}"
