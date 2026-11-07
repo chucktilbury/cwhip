@@ -81,6 +81,7 @@ namespace Gtk {
         int64 _toggled(CheckButton source, void<bool> action)
         int64 _pageChanged(Notebook source, void<> action)
         int64 _focusChanged(Window source, void<bool> action)
+        int64 _draw(DrawingArea source, void<int64, int64> action)
         bool _disconnect(int64 token)
         bool _connected(int64 token)
         public:
@@ -107,6 +108,9 @@ namespace Gtk {
         }
         SignalConnection(Window source, void<bool> action) {
             _token = _focusChanged(source, action)
+        }
+        SignalConnection(DrawingArea source, void<int64, int64> action) {
+            _token = _draw(source, action)
         }
         bool disconnect() { return(_disconnect(_token))}
         bool connected() { return(_connected(_token))}
@@ -497,6 +501,58 @@ namespace Gtk {
         int64 position() { return(_getPosition(_widgetToken()))}
     }
 
+    // Custom paint surface embeddable as a normal child of Box, Paned,
+    // Notebook, ScrolledWindow, Grid, or Window. Paint helpers are valid only
+    // inside the onDraw callback. Pointer input, view scrollbars, and
+    // ContextMenu wiring on the canvas are deferred to later GTK growth.
+    class DrawingArea : Widget {
+        private:
+        DrawingArea _drawSelf()
+        void _queueDraw(int64 token)
+        void _contentSize(int64 token, int64 width, int64 height)
+        void _color(int64 token, fp64 r, fp64 g, fp64 b, fp64 a)
+        void _lineWidth(int64 token, fp64 width)
+        void _fillRect(int64 token, fp64 x, fp64 y, fp64 width, fp64 height)
+        void _strokeRect(int64 token, fp64 x, fp64 y, fp64 width, fp64 height)
+        void _fillCircle(int64 token, fp64 cx, fp64 cy, fp64 radius)
+        void _strokeCircle(int64 token, fp64 cx, fp64 cy, fp64 radius)
+        void _strokeLine(int64 token, fp64 x1, fp64 y1, fp64 x2, fp64 y2)
+        public:
+        DrawingArea() { super Widget(16, "", 0, 0) }
+        // Marks the area dirty so GTK schedules another onDraw.
+        void queueDraw() { _queueDraw(_widgetToken()) }
+        // Sets GtkDrawingArea content width/height used for measuring
+        // (useful inside ScrolledWindow or when a fixed canvas size is wanted).
+        void setContentSize(int64 width, int64 height) {
+            _contentSize(_widgetToken(), width, height)
+        }
+        // Installs the paint callback; width/height are the current allocation.
+        // A later onDraw replaces the previous draw func.
+        SignalConnection onDraw(void<int64, int64> action) {
+            return(SignalConnection(_drawSelf(), action))
+        }
+        // Source color for subsequent fill/stroke calls (components 0..1).
+        void setColor(fp64 r, fp64 g, fp64 b, fp64 a) {
+            _color(_widgetToken(), r, g, b, a)
+        }
+        void setLineWidth(fp64 width) { _lineWidth(_widgetToken(), width) }
+        void fillRect(fp64 x, fp64 y, fp64 width, fp64 height) {
+            _fillRect(_widgetToken(), x, y, width, height)
+        }
+        void strokeRect(fp64 x, fp64 y, fp64 width, fp64 height) {
+            _strokeRect(_widgetToken(), x, y, width, height)
+        }
+        void fillCircle(fp64 cx, fp64 cy, fp64 radius) {
+            _fillCircle(_widgetToken(), cx, cy, radius)
+        }
+        void strokeCircle(fp64 cx, fp64 cy, fp64 radius) {
+            _strokeCircle(_widgetToken(), cx, cy, radius)
+        }
+        void strokeLine(fp64 x1, fp64 y1, fp64 x2, fp64 y2) {
+            _strokeLine(_widgetToken(), x1, y1, x2, y2)
+        }
+    }
+
     class Tree : Widget {
         private:
         void _singleClick(int64 token, bool enabled)
@@ -564,6 +620,7 @@ namespace Gtk {
     Entry Entry._entrySelf() from "cwhip_gtk_self"
     CheckButton CheckButton._checkSelf() from "cwhip_gtk_self"
     Notebook Notebook._notebookSelf() from "cwhip_gtk_self"
+    DrawingArea DrawingArea._drawSelf() from "cwhip_gtk_self"
     void Application.initialize() from "cwhip_gtk_initialize"
     String Application.id() from "cwhip_gtk_application_id"
     void Application.run() from "cwhip_gtk_run"
@@ -584,6 +641,25 @@ namespace Gtk {
         from "cwhip_gtk_notebook_signal"
     int64 SignalConnection._focusChanged(Window source, void<bool> action)
         from "cwhip_gtk_window_focus_signal"
+    int64 SignalConnection._draw(DrawingArea source, void<int64, int64> action)
+        from "cwhip_gtk_drawing_area_signal"
+    void DrawingArea._queueDraw(int64 token) from "cwhip_gtk_drawing_area_queue_draw"
+    void DrawingArea._contentSize(int64 token, int64 width, int64 height)
+        from "cwhip_gtk_drawing_area_set_content_size"
+    void DrawingArea._color(int64 token, fp64 r, fp64 g, fp64 b, fp64 a)
+        from "cwhip_gtk_drawing_area_set_color"
+    void DrawingArea._lineWidth(int64 token, fp64 width)
+        from "cwhip_gtk_drawing_area_set_line_width"
+    void DrawingArea._fillRect(int64 token, fp64 x, fp64 y, fp64 width, fp64 height)
+        from "cwhip_gtk_drawing_area_fill_rect"
+    void DrawingArea._strokeRect(int64 token, fp64 x, fp64 y, fp64 width, fp64 height)
+        from "cwhip_gtk_drawing_area_stroke_rect"
+    void DrawingArea._fillCircle(int64 token, fp64 cx, fp64 cy, fp64 radius)
+        from "cwhip_gtk_drawing_area_fill_circle"
+    void DrawingArea._strokeCircle(int64 token, fp64 cx, fp64 cy, fp64 radius)
+        from "cwhip_gtk_drawing_area_stroke_circle"
+    void DrawingArea._strokeLine(int64 token, fp64 x1, fp64 y1, fp64 x2, fp64 y2)
+        from "cwhip_gtk_drawing_area_stroke_line"
     void Grid._attachAt(int64 token, int64 child, int64 column, int64 row, int64 width, int64 height)
         from "cwhip_gtk_grid_attach"
     void ContextMenu._bind(int64 token, int64 owner) from "cwhip_gtk_context_menu_bind"

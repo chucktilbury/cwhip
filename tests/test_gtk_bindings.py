@@ -255,6 +255,80 @@ start {
 }
 """
 
+DRAWING = """
+import system
+class UI {
+    Gtk.Window window
+    Gtk.DrawingArea area
+    Gtk.DrawingArea paneArea
+    int64 paints
+    void<int64, int64> paintAction
+    void<int64, int64> panePaintAction
+    void<> checkAction
+    void require(bool condition, String label) {
+        if (!condition) {
+            System.StandardIO().writeErrorLine(label)
+            System.Process().exit(1)
+        }
+    }
+    void paint(int64 width, int64 height) {
+        require(width > 0 && height > 0, "draw size")
+        paints = paints + 1
+        area.setColor(0.10f64, 0.12f64, 0.18f64, 1.0f64)
+        area.fillRect(0.0f64, 0.0f64, width, height)
+        area.setColor(0.20f64, 0.70f64, 0.35f64, 1.0f64)
+        area.fillCircle(width / 2, height / 2, 24.0f64)
+        area.setColor(1.0f64, 1.0f64, 1.0f64, 1.0f64)
+        area.setLineWidth(2.0f64)
+        area.strokeRect(8.0f64, 8.0f64, width - 16, height - 16)
+        area.strokeCircle(width / 2, height / 2, 32.0f64)
+        area.strokeLine(0.0f64, 0.0f64, width, height)
+    }
+    void panePaint(int64 width, int64 height) {
+        paneArea.setColor(0.30f64, 0.30f64, 0.55f64, 1.0f64)
+        paneArea.fillRect(0.0f64, 0.0f64, width, height)
+        paints = paints + 1
+    }
+    void check() {
+        require(paints >= 2, "expected DrawingArea paints")
+        print("PASS drawing")
+        Gtk.Application().quit()
+    }
+    void activate() {
+        window = Gtk.Window("Drawing bindings")
+        window.setDefaultSize(420, 280)
+        Gtk.Paned split = Gtk.Paned(Gtk.Paned.HORIZONTAL)
+        Gtk.Box left = Gtk.Box(Gtk.Box.VERTICAL, 0)
+        area = Gtk.DrawingArea()
+        area.setContentSize(200, 200)
+        area.setHExpand(true)
+        area.setVExpand(true)
+        area.onDraw(paintAction)
+        left.append(area)
+        paneArea = Gtk.DrawingArea()
+        paneArea.setHExpand(true)
+        paneArea.setVExpand(true)
+        paneArea.onDraw(panePaintAction)
+        split.append(left)
+        split.append(paneArea)
+        window.setChild(split)
+        window.present()
+        area.queueDraw()
+        paneArea.queueDraw()
+        Gtk.Application().schedule(250, checkAction)
+    }
+}
+start {
+    Gtk.Application app = Gtk.Application("org.cwhip.BindingDrawing")
+    UI ui = UI()
+    ui.paintAction = ui.paint
+    ui.panePaintAction = ui.panePaint
+    ui.checkAction = ui.check
+    app.onActivate(ui.activate)
+    app.run()
+}
+"""
+
 LIFETIME = """
 import system
 class Relay {
@@ -366,6 +440,7 @@ def main():
     cases = [("config", CONFIG, "PASS config"),
              ("menus", MENU, "action;action;check true;check true;stopped;true"),
              ("dialogs", dialog, expected_dialog),
+             ("drawing", DRAWING, "PASS drawing"),
              ("lifetime", LIFETIME, "PASS lifetime")]
     if args.sourceview:
         cases.append(("sourceview-editing", SHORTCUT_NATIVE + SOURCEVIEW_EDITING,
