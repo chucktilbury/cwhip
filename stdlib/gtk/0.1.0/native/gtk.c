@@ -54,6 +54,10 @@ typedef struct WidgetRecord {
     bool native_destroying;
     /* Borrowed Cairo context valid only while a DrawingArea draw callback runs. */
     cairo_t *draw_cr;
+    /* Last pointer position inside a DrawingArea (widget coordinates). */
+    double pointer_x;
+    double pointer_y;
+    bool pointer_inside;
 } WidgetRecord;
 
 /* A shortcut callback may dispose its own view (closing a tab or the window).
@@ -132,6 +136,11 @@ static void window_removed(GtkApplication *app, GtkWindow *window, gpointer data
 static void dialog_finish(FileDialog *dialog, bool invoke);
 static void dialog_cancel(FileDialog *dialog);
 static void config_finish_shutdown(void);
+static void drawing_area_pointer_enter(GtkEventControllerMotion *controller, double x,
+                                       double y, gpointer data);
+static void drawing_area_pointer_leave(GtkEventControllerMotion *controller, gpointer data);
+static void drawing_area_pointer_motion(GtkEventControllerMotion *controller, double x,
+                                        double y, gpointer data);
 
 static _Noreturn void fatal(const char *message) {
     fprintf(stderr, "Cwhip GTK error: %s\n", message);
@@ -1110,6 +1119,14 @@ int64_t cwhip_gtk_widget_create(void *self, int64_t kind, void *text,
     }
     r->next = widgets;
     widgets = r;
+    if (kind == 16) {
+        /* Track pointer position so scroll callbacks can report zoom focus. */
+        GtkEventController *motion = gtk_event_controller_motion_new();
+        g_signal_connect(motion, "enter", G_CALLBACK(drawing_area_pointer_enter), r);
+        g_signal_connect(motion, "leave", G_CALLBACK(drawing_area_pointer_leave), r);
+        g_signal_connect(motion, "motion", G_CALLBACK(drawing_area_pointer_motion), r);
+        gtk_widget_add_controller(widget, motion);
+    }
     g_signal_connect(widget, "destroy", G_CALLBACK(widget_destroyed), r);
     return r->token;
 }
@@ -3508,6 +3525,134 @@ static void drawing_area_draw(GtkDrawingArea *area, cairo_t *cr, int width, int 
     signal_leave(connection, acquired);
 }
 
+static void drawing_area_pointer_enter(GtkEventControllerMotion *controller, double x,
+                                       double y, gpointer data) {
+    (void)controller;
+    WidgetRecord *record = data;
+    record->pointer_x = x;
+    record->pointer_y = y;
+    record->pointer_inside = true;
+}
+
+static void drawing_area_pointer_leave(GtkEventControllerMotion *controller, gpointer data) {
+    (void)controller;
+    WidgetRecord *record = data;
+    record->pointer_inside = false;
+}
+
+static void drawing_area_pointer_motion(GtkEventControllerMotion *controller, double x,
+                                        double y, gpointer data) {
+    (void)controller;
+    WidgetRecord *record = data;
+    record->pointer_x = x;
+    record->pointer_y = y;
+    record->pointer_inside = true;
+}
+
+static void drawing_area_click_released(GtkGestureClick *gesture, gint n_press, gdouble x,
+                                        gdouble y, gpointer data) {
+    if (n_press != 1) return;
+    Connection *connection = data;
+    guint button = gtk_gesture_single_get_current_button(GTK_GESTURE_SINGLE(gesture));
+    WidgetRecord *record =
+        record_for_widget(gtk_event_controller_get_widget(GTK_EVENT_CONTROLLER(gesture)));
+    if (record) {
+        record->pointer_x = x;
+        record->pointer_y = y;
+        record->pointer_inside = true;
+    }
+    int acquired = signal_enter(connection);
+    typedef void (*Adapter)(CwhipCallbackContext *, int64_t, double, double);
+    ((Adapter)cwhip_callback_adapter(connection->context))(
+        connection->context, (int64_t)button, x, y);
+    signal_leave(connection, acquired);
+}
+
+static void drawing_area_drag_begin(GtkGestureDrag *gesture, gdouble x, gdouble y,
+                                    gpointer data) {
+    Connection *connection = data;
+    WidgetRecord *record =
+        record_for_widget(gtk_event_controller_get_widget(GTK_EVENT_CONTROLLER(gesture)));
+    if (record) {
+        record->pointer_x = x;
+        record->pointer_y = y;
+        record->pointer_inside = true;
+    }
+    int acquired = signal_enter(connection);
+    typedef void (*Adapter)(CwhipCallbackContext *, int64_t, double, double, double, double);
+    ((Adapter)cwhip_callback_adapter(connection->context))(
+        connection->context, 0, x, y, 0.0, 0.0);
+    signal_leave(connection, acquired);
+}
+
+static void drawing_area_drag_update(GtkGestureDrag *gesture, gdouble offset_x,
+                                     gdouble offset_y, gpointer data) {
+    Connection *connection = data;
+    double start_x = 0.0;
+    double start_y = 0.0;
+    gtk_gesture_drag_get_start_point(gesture, &start_x, &start_y);
+    WidgetRecord *record =
+        record_for_widget(gtk_event_controller_get_widget(GTK_EVENT_CONTROLLER(gesture)));
+    if (record) {
+        record->pointer_x = start_x + offset_x;
+        record->pointer_y = start_y + offset_y;
+        record->pointer_inside = true;
+    }
+    int acquired = signal_enter(connection);
+    typedef void (*Adapter)(CwhipCallbackContext *, int64_t, double, double, double, double);
+    ((Adapter)cwhip_callback_adapter(connection->context))(
+        connection->context, 1, start_x, start_y, offset_x, offset_y);
+    signal_leave(connection, acquired);
+}
+
+static void drawing_area_drag_end(GtkGestureDrag *gesture, gdouble offset_x, gdouble offset_y,
+                                  gpointer data) {
+    Connection *connection = data;
+    double start_x = 0.0;
+    double start_y = 0.0;
+    gtk_gesture_drag_get_start_point(gesture, &start_x, &start_y);
+    WidgetRecord *record =
+        record_for_widget(gtk_event_controller_get_widget(GTK_EVENT_CONTROLLER(gesture)));
+    if (record) {
+        record->pointer_x = start_x + offset_x;
+        record->pointer_y = start_y + offset_y;
+        record->pointer_inside = true;
+    }
+    int acquired = signal_enter(connection);
+    typedef void (*Adapter)(CwhipCallbackContext *, int64_t, double, double, double, double);
+    ((Adapter)cwhip_callback_adapter(connection->context))(
+        connection->context, 2, start_x, start_y, offset_x, offset_y);
+    signal_leave(connection, acquired);
+}
+
+static gboolean drawing_area_scroll(GtkEventControllerScroll *controller, gdouble dx,
+                                    gdouble dy, gpointer data) {
+    Connection *connection = data;
+    WidgetRecord *record =
+        record_for_widget(gtk_event_controller_get_widget(GTK_EVENT_CONTROLLER(controller)));
+    double x = record ? record->pointer_x : 0.0;
+    double y = record ? record->pointer_y : 0.0;
+    GdkEvent *event = gtk_event_controller_get_current_event(GTK_EVENT_CONTROLLER(controller));
+    if (event) {
+        double event_x = 0.0;
+        double event_y = 0.0;
+        if (gdk_event_get_position(event, &event_x, &event_y)) {
+            x = event_x;
+            y = event_y;
+            if (record) {
+                record->pointer_x = x;
+                record->pointer_y = y;
+                record->pointer_inside = true;
+            }
+        }
+    }
+    int acquired = signal_enter(connection);
+    typedef void (*Adapter)(CwhipCallbackContext *, double, double, double, double);
+    ((Adapter)cwhip_callback_adapter(connection->context))(connection->context, x, y, dx, dy);
+    signal_leave(connection, acquired);
+    return TRUE;
+}
+
 static cairo_t *drawing_cr(int64_t token) {
     WidgetRecord *record = record_find(token);
     GtkWidget *widget = record->widget;
@@ -3640,6 +3785,65 @@ int64_t cwhip_gtk_drawing_area_signal(void *self, void *source, void *callback) 
     gtk_drawing_area_set_draw_func(GTK_DRAWING_AREA(widget), drawing_area_draw, connection,
                                    draw_connection_destroy);
     return connection->token;
+}
+
+int64_t cwhip_gtk_drawing_area_click_signal(void *self, void *source, void *callback) {
+    (void)self;
+    GtkWidget *widget = widget_live(source_token(source));
+    if (!GTK_IS_DRAWING_AREA(widget)) fatal("click requires DrawingArea");
+    GtkGesture *gesture = gtk_gesture_click_new();
+    /* Button 0 = any mouse button; the callback reports which one fired. */
+    gtk_gesture_single_set_button(GTK_GESTURE_SINGLE(gesture), 0);
+    gtk_event_controller_set_propagation_phase(GTK_EVENT_CONTROLLER(gesture),
+                                               GTK_PHASE_BUBBLE);
+    int64_t token = connect_signal(G_OBJECT(gesture), "released",
+        G_CALLBACK(drawing_area_click_released), callback,
+        "callback<void(int64,fp64,fp64)>");
+    gtk_widget_add_controller(widget, GTK_EVENT_CONTROLLER(gesture));
+    return token;
+}
+
+int64_t cwhip_gtk_drawing_area_drag_signal(void *self, void *source, void *callback) {
+    (void)self;
+    GtkWidget *widget = widget_live(source_token(source));
+    if (!GTK_IS_DRAWING_AREA(widget)) fatal("drag requires DrawingArea");
+    GtkGesture *gesture = gtk_gesture_drag_new();
+    gtk_gesture_single_set_button(GTK_GESTURE_SINGLE(gesture), GDK_BUTTON_PRIMARY);
+    gtk_event_controller_set_propagation_phase(GTK_EVENT_CONTROLLER(gesture),
+                                               GTK_PHASE_BUBBLE);
+    int64_t token = connect_signal(G_OBJECT(gesture), "drag-begin",
+        G_CALLBACK(drawing_area_drag_begin), callback,
+        "callback<void(int64,fp64,fp64,fp64,fp64)>");
+    /* Group begin/update/end on one Connection so disconnect() drops all three. */
+    Connection *connection = connections;
+    while (connection && connection->token != token) connection = connection->next;
+    if (!connection || connection->additional_count + 2 > G_N_ELEMENTS(connection->additional))
+        fatal("invalid grouped signal connection");
+    ++connection->closures;
+    connection->additional[connection->additional_count++] = g_signal_connect_data(
+        connection->object, "drag-update", G_CALLBACK(drawing_area_drag_update), connection,
+        connection_destroy, 0);
+    ++connection->closures;
+    connection->additional[connection->additional_count++] = g_signal_connect_data(
+        connection->object, "drag-end", G_CALLBACK(drawing_area_drag_end), connection,
+        connection_destroy, 0);
+    if (!connection->additional[0] || !connection->additional[1])
+        fatal("signal connection failed");
+    gtk_widget_add_controller(widget, GTK_EVENT_CONTROLLER(gesture));
+    return token;
+}
+
+int64_t cwhip_gtk_drawing_area_scroll_signal(void *self, void *source, void *callback) {
+    (void)self;
+    GtkWidget *widget = widget_live(source_token(source));
+    if (!GTK_IS_DRAWING_AREA(widget)) fatal("scroll requires DrawingArea");
+    GtkEventController *controller =
+        gtk_event_controller_scroll_new(GTK_EVENT_CONTROLLER_SCROLL_BOTH_AXES);
+    gtk_event_controller_set_propagation_phase(controller, GTK_PHASE_BUBBLE);
+    int64_t token = connect_signal(G_OBJECT(controller), "scroll",
+        G_CALLBACK(drawing_area_scroll), callback, "callback<void(fp64,fp64,fp64,fp64)>");
+    gtk_widget_add_controller(widget, controller);
+    return token;
 }
 
 int64_t cwhip_gtk_button_signal(void *self, void *source, void *callback) {

@@ -23,6 +23,9 @@ class F {
     void waitSize(int64 token, int64 width, int64 height, void<> ready)
     void assertMenu(int64 token)
     void resize(int64 token, int64 width, int64 height)
+    void click(int64 token, int64 button, fp64 x, fp64 y)
+    void drag(int64 token, int64 phase, fp64 startX, fp64 startY, fp64 offsetX, fp64 offsetY)
+    void scroll(int64 token, fp64 x, fp64 y, fp64 dx, fp64 dy)
 }
 void F.collect() from "binding_collect"
 int64 F.dialogs() from "binding_dialogs"
@@ -37,6 +40,10 @@ void F.waitSize(int64 token, int64 width, int64 height, void<> ready)
     from "binding_wait_size"
 void F.assertMenu(int64 token) from "binding_assert_menu"
 void F.resize(int64 token, int64 width, int64 height) from "binding_resize"
+void F.click(int64 token, int64 button, fp64 x, fp64 y) from "binding_drawing_click"
+void F.drag(int64 token, int64 phase, fp64 startX, fp64 startY, fp64 offsetX, fp64 offsetY)
+    from "binding_drawing_drag"
+void F.scroll(int64 token, fp64 x, fp64 y, fp64 dx, fp64 dy) from "binding_drawing_scroll"
 """
 
 SHORTCUT_NATIVE = """
@@ -262,8 +269,20 @@ class UI {
     Gtk.DrawingArea area
     Gtk.DrawingArea paneArea
     int64 paints
+    int64 clicks
+    int64 drags
+    int64 scrolls
+    int64 lastButton
+    fp64 lastX
+    fp64 lastY
+    fp64 lastDx
+    fp64 lastDy
+    int64 lastPhase
     void<int64, int64> paintAction
     void<int64, int64> panePaintAction
+    void<int64, fp64, fp64> clickAction
+    void<int64, fp64, fp64, fp64, fp64> dragAction
+    void<fp64, fp64, fp64, fp64> scrollAction
     void<> checkAction
     void require(bool condition, String label) {
         if (!condition) {
@@ -289,8 +308,42 @@ class UI {
         paneArea.fillRect(0.0f64, 0.0f64, width, height)
         paints = paints + 1
     }
+    void clicked(int64 button, fp64 x, fp64 y) {
+        clicks = clicks + 1
+        lastButton = button
+        lastX = x
+        lastY = y
+    }
+    void dragged(int64 phase, fp64 startX, fp64 startY, fp64 offsetX, fp64 offsetY) {
+        drags = drags + 1
+        lastPhase = phase
+        lastX = startX
+        lastY = startY
+        lastDx = offsetX
+        lastDy = offsetY
+    }
+    void scrolled(fp64 x, fp64 y, fp64 dx, fp64 dy) {
+        scrolls = scrolls + 1
+        lastX = x
+        lastY = y
+        lastDx = dx
+        lastDy = dy
+    }
     void check() {
         require(paints >= 2, "expected DrawingArea paints")
+        F().click(area._widgetToken(), Gtk.DrawingArea.BUTTON_PRIMARY, 12.5f64, 34.0f64)
+        require(clicks == 1 && lastButton == Gtk.DrawingArea.BUTTON_PRIMARY, "click button")
+        require(lastX == 12.5f64 && lastY == 34.0f64, "click coords")
+        F().drag(area._widgetToken(), Gtk.DrawingArea.DRAG_BEGIN, 10.0f64, 20.0f64, 0.0f64, 0.0f64)
+        F().drag(area._widgetToken(), Gtk.DrawingArea.DRAG_UPDATE, 10.0f64, 20.0f64, 5.0f64, -3.0f64)
+        F().drag(area._widgetToken(), Gtk.DrawingArea.DRAG_END, 10.0f64, 20.0f64, 8.0f64, -4.0f64)
+        require(drags == 3 && lastPhase == Gtk.DrawingArea.DRAG_END, "drag phases")
+        require(lastX == 10.0f64 && lastY == 20.0f64, "drag start")
+        require(lastDx == 8.0f64 && lastDy == -4.0f64, "drag offset")
+        F().scroll(area._widgetToken(), 40.0f64, 50.0f64, 0.0f64, -1.0f64)
+        require(scrolls == 1, "scroll count")
+        require(lastX == 40.0f64 && lastY == 50.0f64, "scroll focus")
+        require(lastDx == 0.0f64 && lastDy == -1.0f64, "scroll delta")
         print("PASS drawing")
         Gtk.Application().quit()
     }
@@ -304,6 +357,9 @@ class UI {
         area.setHExpand(true)
         area.setVExpand(true)
         area.onDraw(paintAction)
+        area.onClick(clickAction)
+        area.onDrag(dragAction)
+        area.onScroll(scrollAction)
         left.append(area)
         paneArea = Gtk.DrawingArea()
         paneArea.setHExpand(true)
@@ -323,6 +379,9 @@ start {
     UI ui = UI()
     ui.paintAction = ui.paint
     ui.panePaintAction = ui.panePaint
+    ui.clickAction = ui.clicked
+    ui.dragAction = ui.dragged
+    ui.scrollAction = ui.scrolled
     ui.checkAction = ui.check
     app.onActivate(ui.activate)
     app.run()

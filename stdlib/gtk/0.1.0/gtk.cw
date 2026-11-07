@@ -82,6 +82,9 @@ namespace Gtk {
         int64 _pageChanged(Notebook source, void<> action)
         int64 _focusChanged(Window source, void<bool> action)
         int64 _draw(DrawingArea source, void<int64, int64> action)
+        int64 _click(DrawingArea source, void<int64, fp64, fp64> action)
+        int64 _drag(DrawingArea source, void<int64, fp64, fp64, fp64, fp64> action)
+        int64 _scroll(DrawingArea source, void<fp64, fp64, fp64, fp64> action)
         bool _disconnect(int64 token)
         bool _connected(int64 token)
         public:
@@ -111,6 +114,15 @@ namespace Gtk {
         }
         SignalConnection(DrawingArea source, void<int64, int64> action) {
             _token = _draw(source, action)
+        }
+        SignalConnection(DrawingArea source, void<int64, fp64, fp64> action) {
+            _token = _click(source, action)
+        }
+        SignalConnection(DrawingArea source, void<int64, fp64, fp64, fp64, fp64> action) {
+            _token = _drag(source, action)
+        }
+        SignalConnection(DrawingArea source, void<fp64, fp64, fp64, fp64> action) {
+            _token = _scroll(source, action)
         }
         bool disconnect() { return(_disconnect(_token))}
         bool connected() { return(_connected(_token))}
@@ -503,8 +515,8 @@ namespace Gtk {
 
     // Custom paint surface embeddable as a normal child of Box, Paned,
     // Notebook, ScrolledWindow, Grid, or Window. Paint helpers are valid only
-    // inside the onDraw callback. Pointer input, view scrollbars, and
-    // ContextMenu wiring on the canvas are deferred to later GTK growth.
+    // inside the onDraw callback. View scrollbars and ContextMenu wiring on
+    // the canvas remain deferred GTK growth.
     class DrawingArea : Widget {
         private:
         DrawingArea _drawSelf()
@@ -518,6 +530,10 @@ namespace Gtk {
         void _strokeCircle(int64 token, fp64 cx, fp64 cy, fp64 radius)
         void _strokeLine(int64 token, fp64 x1, fp64 y1, fp64 x2, fp64 y2)
         public:
+        // Mouse button numbers match GDK (1 primary, 2 middle, 3 secondary).
+        enum { BUTTON_PRIMARY = 1, BUTTON_MIDDLE = 2, BUTTON_SECONDARY = 3 }
+        // onDrag phase values: begin at the press point, then update/end offsets.
+        enum { DRAG_BEGIN = 0, DRAG_UPDATE = 1, DRAG_END = 2 }
         DrawingArea() { super Widget(16, "", 0, 0) }
         // Marks the area dirty so GTK schedules another onDraw.
         void queueDraw() { _queueDraw(_widgetToken()) }
@@ -529,6 +545,23 @@ namespace Gtk {
         // Installs the paint callback; width/height are the current allocation.
         // A later onDraw replaces the previous draw func.
         SignalConnection onDraw(void<int64, int64> action) {
+            return(SignalConnection(_drawSelf(), action))
+        }
+        // Click with widget-local coordinates. Fires on release of any button
+        // (button is BUTTON_PRIMARY / MIDDLE / SECONDARY). A primary-button
+        // drag that moves past GTK's drag threshold typically suppresses the
+        // click so pick and pan can share the left button.
+        SignalConnection onClick(void<int64, fp64, fp64> action) {
+            return(SignalConnection(_drawSelf(), action))
+        }
+        // Primary-button drag for pan. Callback args are
+        // (phase, start_x, start_y, offset_x, offset_y) with phase DRAG_*.
+        SignalConnection onDrag(void<int64, fp64, fp64, fp64, fp64> action) {
+            return(SignalConnection(_drawSelf(), action))
+        }
+        // Scroll-wheel / trackpad scroll for zoom. Args are (x, y, dx, dy) in
+        // widget coordinates; x/y are the pointer focus when known.
+        SignalConnection onScroll(void<fp64, fp64, fp64, fp64> action) {
             return(SignalConnection(_drawSelf(), action))
         }
         // Source color for subsequent fill/stroke calls (components 0..1).
@@ -643,6 +676,12 @@ namespace Gtk {
         from "cwhip_gtk_window_focus_signal"
     int64 SignalConnection._draw(DrawingArea source, void<int64, int64> action)
         from "cwhip_gtk_drawing_area_signal"
+    int64 SignalConnection._click(DrawingArea source, void<int64, fp64, fp64> action)
+        from "cwhip_gtk_drawing_area_click_signal"
+    int64 SignalConnection._drag(DrawingArea source, void<int64, fp64, fp64, fp64, fp64> action)
+        from "cwhip_gtk_drawing_area_drag_signal"
+    int64 SignalConnection._scroll(DrawingArea source, void<fp64, fp64, fp64, fp64> action)
+        from "cwhip_gtk_drawing_area_scroll_signal"
     void DrawingArea._queueDraw(int64 token) from "cwhip_gtk_drawing_area_queue_draw"
     void DrawingArea._contentSize(int64 token, int64 width, int64 height)
         from "cwhip_gtk_drawing_area_set_content_size"

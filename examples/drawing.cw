@@ -4,20 +4,81 @@ import system
 class Demo {
     Gtk.DrawingArea area
     int64 paints
+    int64 clicks
+    int64 drags
+    int64 scrolls
+    fp64 markX
+    fp64 markY
+    fp64 panX
+    fp64 panY
+    fp64 dragOriginX
+    fp64 dragOriginY
+    fp64 zoom
     void<> doneAction
     void<int64, int64> paintAction
+    void<int64, fp64, fp64> clickAction
+    void<int64, fp64, fp64, fp64, fp64> dragAction
+    void<fp64, fp64, fp64, fp64> scrollAction
 
     void paint(int64 width, int64 height) {
         paints = paints + 1
         area.setColor(0.12f64, 0.14f64, 0.20f64, 1.0f64)
         area.fillRect(0.0f64, 0.0f64, width, height)
+        fp64 cx = width / 2 + panX
+        fp64 cy = height / 2 + panY
+        fp64 radius = 48.0f64 * zoom
         area.setColor(0.25f64, 0.75f64, 0.40f64, 1.0f64)
-        area.fillCircle(width / 2, height / 2, 48.0f64)
+        area.fillCircle(cx, cy, radius)
         area.setColor(1.0f64, 1.0f64, 1.0f64, 1.0f64)
         area.setLineWidth(2.0f64)
-        area.strokeCircle(width / 2, height / 2, 56.0f64)
-        area.strokeLine(16.0f64, 16.0f64, width - 16, height - 16)
+        area.strokeCircle(cx, cy, radius + 8.0f64)
+        if (clicks > 0) {
+            area.setColor(0.95f64, 0.55f64, 0.20f64, 1.0f64)
+            area.fillCircle(markX, markY, 6.0f64)
+        }
         area.strokeRect(24.0f64, 24.0f64, width - 48, height - 48)
+    }
+
+    void clicked(int64 button, fp64 x, fp64 y) {
+        if (button != Gtk.DrawingArea.BUTTON_PRIMARY) {
+            return
+        }
+        clicks = clicks + 1
+        markX = x
+        markY = y
+        area.queueDraw()
+    }
+
+    void dragged(int64 phase, fp64 startX, fp64 startY, fp64 offsetX, fp64 offsetY) {
+        if (phase == Gtk.DrawingArea.DRAG_BEGIN) {
+            dragOriginX = panX
+            dragOriginY = panY
+            markX = startX
+            markY = startY
+        }
+        panX = dragOriginX + offsetX
+        panY = dragOriginY + offsetY
+        drags = drags + 1
+        area.queueDraw()
+    }
+
+    void scrolled(fp64 x, fp64 y, fp64 dx, fp64 dy) {
+        markX = x + dx
+        markY = y
+        if (dy < 0.0f64) {
+            zoom = zoom * 1.1f64
+        }
+        if (dy > 0.0f64) {
+            zoom = zoom / 1.1f64
+        }
+        if (zoom < 0.25f64) {
+            zoom = 0.25f64
+        }
+        if (zoom > 4.0f64) {
+            zoom = 4.0f64
+        }
+        scrolls = scrolls + 1
+        area.queueDraw()
     }
 
     void done() {
@@ -30,6 +91,7 @@ class Demo {
     }
 
     void activate() {
+        zoom = 1.0f64
         Gtk.Window window = Gtk.Window("DrawingArea demo")
         window.setDefaultSize(480, 320)
         Gtk.Box layout = Gtk.Box(Gtk.Box.VERTICAL, 0)
@@ -37,6 +99,9 @@ class Demo {
         area.setHExpand(true)
         area.setVExpand(true)
         area.onDraw(paintAction)
+        area.onClick(clickAction)
+        area.onDrag(dragAction)
+        area.onScroll(scrollAction)
         layout.append(area)
         window.setChild(layout)
         window.present()
@@ -44,7 +109,7 @@ class Demo {
         if (System.Process().arg(1).equals("--test")) {
             Gtk.Application().schedule(250, doneAction)
         } else {
-            Gtk.Application().schedule(2000, doneAction)
+            Gtk.Application().schedule(8000, doneAction)
         }
     }
 }
@@ -53,6 +118,9 @@ start {
     Gtk.Application app = Gtk.Application("org.cwhip.DrawingDemo")
     Demo demo = Demo()
     demo.paintAction = demo.paint
+    demo.clickAction = demo.clicked
+    demo.dragAction = demo.dragged
+    demo.scrollAction = demo.scrolled
     demo.doneAction = demo.done
     app.onActivate(demo.activate)
     app.run()
