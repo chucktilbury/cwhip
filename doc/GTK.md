@@ -3,7 +3,8 @@
 The optional `gtk` package (`0.1.0`, `import gtk`, namespace `Gtk`) provides a
 compact GTK-aligned interface: `Application`, `Widget`, `Window`, `Box`, `Label`,
 `Button`, `Entry`, `CheckButton`, `ScrolledWindow`, `Notebook`, `MenuBar`,
-`FileDialog`, `Paned`, `Tree`, `DirectoryScan`, and `SignalConnection`, plus the optional `sourceview` package.
+`FileDialog`, `Paned`, `DrawingArea`, `Tree`, `DirectoryScan`, and
+`SignalConnection`, plus the optional `sourceview` package.
 It is not a complete GTK binding or a generic GUI framework.
 
 ## Build and package linkage
@@ -18,8 +19,9 @@ standard modules. With it on, `lib/libcwhip_gtk.a` resides inside
 `share/cwhip/modules/gtk/0.1.0/`, beside the source and manifest.
 
 Package `[link]` metadata links importing applications with `cwhip_gtk`, `gtk-4`,
-`gio-2.0`, `gobject-2.0`, `glib-2.0`, `pango-1.0`, and `pangocairo-1.0`. The compiler and non-import applications
-remain unlinked to GTK. Compile-only objects retain package link sidecars.
+`gio-2.0`, `gobject-2.0`, `glib-2.0`, `pango-1.0`, `pangocairo-1.0`, and `cairo`.
+The compiler and non-import applications remain unlinked to GTK. Compile-only
+objects retain package link sidecars.
 Installed consumers use the normal `cwhip-pkg init` / `cwhip-pkg install` lock flow.
 GTK runtime libraries and a usable display are external requirements; they
 are not bundled. The native platform remains POSIX.
@@ -104,6 +106,7 @@ The first-release additions are:
 | `Widget` | `setVisible(bool)`, `bool visible()`, `setSensitive(bool)`, `setHExpand(bool)`, `setVExpand(bool)`, `setWidthRequest(int64)`, `addCssClass(String)`, `removeCssClass(String)`, `setTooltip(String)`, `setFocusOnClick(bool)`, `setCanFocus(bool)`, `dispose()`, `bool disposed()` |
 | `Window` | `Window(String title)`, `setTitle(String)`, `String title()`, `setDefaultSize(int64 width, int64 height)`, `int64 defaultWidth()`, `int64 defaultHeight()`, `setTransientFor(Window parent)`, `setChild(Widget)`, `remove(Widget)`, `present()`, `close()`, `onCloseRequest(bool<>)`, `onFocusChanged(void<bool>)`, `bindShortcut(String trigger, void<>)`, `bool hasShortcut(String trigger)`, `clearShortcuts()`, `setMenubarAccel(bool)`, `bool menubarAccel()` |
 | `Paned` | `Paned()` (horizontal), `Paned(int64 orientation)` with `Paned.HORIZONTAL` / `Paned.VERTICAL`, `append(Widget)`, `setPosition(int64)`, `int64 position()` |
+| `DrawingArea` | `DrawingArea()`, `queueDraw()`, `setContentSize(int64 width, int64 height)`, `onDraw(void<int64, int64>)`, paint helpers `setColor` / `setLineWidth` / `fillRect` / `strokeRect` / `fillCircle` / `strokeCircle` / `strokeLine` (valid only inside `onDraw`) |
 | `TransientWindow` | `TransientWindow(String title)`, `setTitle(String)`, `String title()`, `setDefaultSize(int64 width, int64 height)`, `int64 defaultWidth()`, `int64 defaultHeight()`, `setTransientFor(Window parent)`, `setChild(Widget)`, `remove(Widget)`, `present()`, `close()`, `onCloseRequest(bool<>)` |
 | `Box` | `Box(int64 orientation, int64 spacing)`, `setLayout(int64 orientation, int64 spacing)`, `append(Widget)`, `remove(Widget)` |
 | `Grid` | `Grid(int64 spacing)`, `attach(Widget, int64 column, int64 row, int64 width, int64 height)` |
@@ -166,6 +169,90 @@ windows cannot be children. Self-parenting, cycles, already-parented children,
 occupied single-child containers, and removing from the wrong parent are errors.
 GTK may internally insert a viewport in a scrolled window; the Cwhip ownership
 relationship still refers to the child supplied by the caller.
+
+## DrawingArea
+
+`DrawingArea` is a normal child widget (`GtkDrawingArea`) for custom 2D paint.
+Embed it with the same parenting rules as any other widget: `Box.append`,
+`Paned.append`, `Notebook.appendPage`, `Grid.attach`, `ScrolledWindow.setChild`,
+or `Window.setChild`. Expand it with `setHExpand` / `setVExpand` when it should
+fill a panel; call `setContentSize(width, height)` when the canvas should report
+a fixed natural size (for example as a `ScrolledWindow` child).
+
+```text
+DrawingArea()
+void queueDraw()
+void setContentSize(int64 width, int64 height)
+SignalConnection onDraw(void<int64, int64> action)
+void setColor(fp64 r, fp64 g, fp64 b, fp64 a)
+void setLineWidth(fp64 width)
+void fillRect(fp64 x, fp64 y, fp64 width, fp64 height)
+void strokeRect(fp64 x, fp64 y, fp64 width, fp64 height)
+void fillCircle(fp64 cx, fp64 cy, fp64 radius)
+void strokeCircle(fp64 cx, fp64 cy, fp64 radius)
+void strokeLine(fp64 x1, fp64 y1, fp64 x2, fp64 y2)
+```
+
+`onDraw` receives the current allocation width and height in pixels. Paint
+helpers may run only during that callback; calling them afterward aborts with a
+GTK diagnostic. Prefer `f64` float literals for colors and geometry. A later
+`onDraw` replaces the previous draw function. `queueDraw` marks the area dirty
+so GTK schedules another paint (for example after application state changes).
+
+Minimal demo (panel child + clear + circle):
+
+```cwhip
+import gtk
+
+class Demo {
+    Gtk.DrawingArea area
+    void<> quitAction
+    void<int64, int64> paintAction
+
+    void paint(int64 width, int64 height) {
+        area.setColor(0.12f64, 0.14f64, 0.20f64, 1.0f64)
+        area.fillRect(0.0f64, 0.0f64, width, height)
+        area.setColor(0.25f64, 0.75f64, 0.40f64, 1.0f64)
+        area.fillCircle(width / 2, height / 2, 48.0f64)
+        area.setColor(1.0f64, 1.0f64, 1.0f64, 1.0f64)
+        area.setLineWidth(2.0f64)
+        area.strokeCircle(width / 2, height / 2, 56.0f64)
+        area.strokeLine(16.0f64, 16.0f64, width - 16, height - 16)
+    }
+
+    void quit() { Gtk.Application().quit() }
+
+    void activate() {
+        Gtk.Window window = Gtk.Window("DrawingArea demo")
+        window.setDefaultSize(480, 320)
+        Gtk.Box layout = Gtk.Box(Gtk.Box.VERTICAL, 0)
+        area = Gtk.DrawingArea()
+        area.setHExpand(true)
+        area.setVExpand(true)
+        area.onDraw(paintAction)
+        layout.append(area)
+        window.setChild(layout)
+        window.present()
+        area.queueDraw()
+        Gtk.Application().schedule(1500, quitAction)
+    }
+}
+
+start {
+    Gtk.Application app = Gtk.Application("org.cwhip.DrawingDemo")
+    Demo demo = Demo()
+    demo.paintAction = demo.paint
+    demo.quitAction = demo.quit
+    app.onActivate(demo.activate)
+    app.run()
+}
+```
+
+**Deferred (not in this release):** pointer/gesture input with coordinates on
+the area, scrollbar / `Adjustment` APIs for pan/zoom chrome, and DrawingArea
+`ContextMenu` ownership at right-click coordinates. `ContextMenu` already exists
+for other widgets; canvas wiring comes later. Dashed strokes and draw-text
+helpers are also later growth.
 
 Expansion uses GTK's actual `hexpand`/`vexpand` layout properties. For an editor,
 expand the notebook, scrolled window and source widget vertically and horizontally
@@ -733,6 +820,7 @@ consumers, GC/reentry/misuse cases, optional documentation/examples, and ASan/UB
 overwrite acceptance/decline, callback GC and cancellation/teardown, menu actions,
 and actual multiline source-widget allocations before and after window resize.
 Its private fixture is not shipped in the package.
-See [TESTING.md](TESTING.md). Styling, broad dialog/model coverage, drawing, input events,
+See [TESTING.md](TESTING.md). Styling, broad dialog/model coverage, input events,
 arbitrary native-widget adoption, file-open/command-line activation, and broad GTK
-property coverage are not implemented in this release.
+property coverage are not implemented in this release. `DrawingArea` provides a
+first custom-paint surface; pointer input and richer path/text APIs remain open.

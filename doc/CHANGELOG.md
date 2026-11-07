@@ -25,6 +25,15 @@ proof of concept and compiler-testing tool, not a production IDE/debugger.
 
 ## Implemented milestones
 
+### Unreleased: GTK DrawingArea foundation
+
+`Gtk.DrawingArea` is a normal embeddable child widget with `queueDraw`,
+`setContentSize`, `onDraw(void<int64,int64>)`, and Cairo paint helpers
+(`setColor`, `setLineWidth`, fill/stroke rect and circle, `strokeLine`).
+Pointer input, scrollbar adjustments, canvas ContextMenu wiring, dash,
+and draw-text remain deferred. See `doc/GTK.md` and
+`examples/drawing.cw`.
+
 ### Unreleased: Return from start
 
 `return(expr)` is now valid inside `start`, including nested blocks and loops.

@@ -52,6 +52,8 @@ typedef struct WidgetRecord {
     GSimpleActionGroup *actions;
     MenuItem *items;
     bool native_destroying;
+    /* Borrowed Cairo context valid only while a DrawingArea draw callback runs. */
+    cairo_t *draw_cr;
 } WidgetRecord;
 
 /* A shortcut callback may dispose its own view (closing a tab or the window).
@@ -93,6 +95,8 @@ typedef struct Connection {
     unsigned active;
     bool closed;
     bool detached;
+    /* DrawingArea draw-func connections are not GObject signals. */
+    bool draw_func;
 } Connection;
 
 typedef struct Post {
@@ -394,6 +398,12 @@ bool cwhip_gtk_disconnect(int64_t token) {
          * count also covers synchronous/nested callbacks explicitly. */
         connection->closed = true;
         GObject *object = connection->object;
+        if (connection->draw_func) {
+            /* Clearing the draw func invokes its destroy notify, which
+             * releases the Connection the same way a GClosure notify does. */
+            gtk_drawing_area_set_draw_func(GTK_DRAWING_AREA(object), NULL, NULL, NULL);
+            return true;
+        }
         gulong ids[4] = { connection->signal };
         unsigned count = connection->additional_count + 1;
         memcpy(ids + 1, connection->additional, connection->additional_count * sizeof(gulong));
@@ -1060,6 +1070,7 @@ int64_t cwhip_gtk_widget_create(void *self, int64_t kind, void *text,
         g_object_unref(menu);
         break;
     }
+    case 16: widget = gtk_drawing_area_new(); break;
     case 9: widget = gtk_notebook_new(); break;
     case 10: {
         GMenu *menu = g_menu_new();
@@ -3467,6 +3478,119 @@ bool cwhip_gtk_source_view_has_context(void *self, int64_t token, void *context_
 }
 #endif
 
+static WidgetRecord *record_for_widget(GtkWidget *widget) {
+    for (WidgetRecord *r = widgets; r; r = r->next)
+        if (r->widget == widget) return r;
+    return NULL;
+}
+
+static void draw_connection_destroy(gpointer data) {
+    cwhip_gtk_require_owner();
+    int acquired = cwhip_runtime_managed_enter();
+    Connection *connection = data;
+    connection->object = NULL;
+    connection->closed = true;
+    connection->detached = true;
+    connection_collect(connection);
+    cwhip_runtime_managed_leave(acquired);
+}
+
+static void drawing_area_draw(GtkDrawingArea *area, cairo_t *cr, int width, int height,
+                              gpointer data) {
+    Connection *connection = data;
+    WidgetRecord *record = record_for_widget(GTK_WIDGET(area));
+    int acquired = signal_enter(connection);
+    if (record) record->draw_cr = cr;
+    typedef void (*Adapter)(CwhipCallbackContext *, int64_t, int64_t);
+    ((Adapter)cwhip_callback_adapter(connection->context))(
+        connection->context, (int64_t)width, (int64_t)height);
+    if (record) record->draw_cr = NULL;
+    signal_leave(connection, acquired);
+}
+
+static cairo_t *drawing_cr(int64_t token) {
+    WidgetRecord *record = record_find(token);
+    GtkWidget *widget = record->widget;
+    if (!widget || !GTK_IS_DRAWING_AREA(widget))
+        fatal("operation requires DrawingArea");
+    if (!record->draw_cr)
+        fatal("DrawingArea paint methods require an active onDraw callback");
+    return record->draw_cr;
+}
+
+void cwhip_gtk_drawing_area_queue_draw(void *self, int64_t token) {
+    (void)self;
+    GtkWidget *widget = widget_live(token);
+    if (!GTK_IS_DRAWING_AREA(widget)) fatal("operation requires DrawingArea");
+    gtk_widget_queue_draw(widget);
+}
+
+void cwhip_gtk_drawing_area_set_content_size(void *self, int64_t token, int64_t width,
+                                             int64_t height) {
+    (void)self;
+    GtkWidget *widget = widget_live(token);
+    if (!GTK_IS_DRAWING_AREA(widget) || width < 0 || height < 0 ||
+        width > G_MAXINT || height > G_MAXINT)
+        fatal("invalid DrawingArea content size");
+    gtk_drawing_area_set_content_width(GTK_DRAWING_AREA(widget), (int)width);
+    gtk_drawing_area_set_content_height(GTK_DRAWING_AREA(widget), (int)height);
+}
+
+void cwhip_gtk_drawing_area_set_color(void *self, int64_t token, double r, double g,
+                                      double b, double a) {
+    (void)self;
+    cairo_set_source_rgba(drawing_cr(token), r, g, b, a);
+}
+
+void cwhip_gtk_drawing_area_set_line_width(void *self, int64_t token, double width) {
+    (void)self;
+    if (!(width > 0.0)) fatal("line width must be positive");
+    cairo_set_line_width(drawing_cr(token), width);
+}
+
+void cwhip_gtk_drawing_area_fill_rect(void *self, int64_t token, double x, double y,
+                                      double width, double height) {
+    (void)self;
+    cairo_t *cr = drawing_cr(token);
+    cairo_rectangle(cr, x, y, width, height);
+    cairo_fill(cr);
+}
+
+void cwhip_gtk_drawing_area_stroke_rect(void *self, int64_t token, double x, double y,
+                                        double width, double height) {
+    (void)self;
+    cairo_t *cr = drawing_cr(token);
+    cairo_rectangle(cr, x, y, width, height);
+    cairo_stroke(cr);
+}
+
+void cwhip_gtk_drawing_area_fill_circle(void *self, int64_t token, double cx, double cy,
+                                        double radius) {
+    (void)self;
+    if (!(radius >= 0.0)) fatal("circle radius must be nonnegative");
+    cairo_t *cr = drawing_cr(token);
+    cairo_arc(cr, cx, cy, radius, 0.0, G_PI * 2.0);
+    cairo_fill(cr);
+}
+
+void cwhip_gtk_drawing_area_stroke_circle(void *self, int64_t token, double cx, double cy,
+                                          double radius) {
+    (void)self;
+    if (!(radius >= 0.0)) fatal("circle radius must be nonnegative");
+    cairo_t *cr = drawing_cr(token);
+    cairo_arc(cr, cx, cy, radius, 0.0, G_PI * 2.0);
+    cairo_stroke(cr);
+}
+
+void cwhip_gtk_drawing_area_stroke_line(void *self, int64_t token, double x1, double y1,
+                                        double x2, double y2) {
+    (void)self;
+    cairo_t *cr = drawing_cr(token);
+    cairo_move_to(cr, x1, y1);
+    cairo_line_to(cr, x2, y2);
+    cairo_stroke(cr);
+}
+
 int64_t cwhip_gtk_widget_signal(void *self, int64_t token, int64_t kind, void *callback) {
     (void)self;
     GtkWidget *w = widget_live(token);
@@ -3497,6 +3621,25 @@ static int64_t source_token(void *source) {
     for (WidgetRecord *r = widgets; r; r = r->next)
         if (r->receiver == receiver && r->widget) return r->token;
     fatal("widget has been disposed or is not initialized");
+}
+
+int64_t cwhip_gtk_drawing_area_signal(void *self, void *source, void *callback) {
+    (void)self;
+    int64_t token = source_token(source);
+    GtkWidget *widget = widget_live(token);
+    if (!GTK_IS_DRAWING_AREA(widget)) fatal("draw requires DrawingArea");
+    Connection *connection = calloc(1, sizeof(*connection));
+    if (!connection) fatal("allocation failed");
+    connection->token = token_new();
+    connection->object = G_OBJECT(widget);
+    connection->context = cwhip_callback_acquire(callback, "callback<void(int64,int64)>");
+    connection->closures = 1;
+    connection->draw_func = true;
+    connection->next = connections;
+    connections = connection;
+    gtk_drawing_area_set_draw_func(GTK_DRAWING_AREA(widget), drawing_area_draw, connection,
+                                   draw_connection_destroy);
+    return connection->token;
 }
 
 int64_t cwhip_gtk_button_signal(void *self, void *source, void *callback) {
