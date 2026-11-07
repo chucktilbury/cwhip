@@ -832,9 +832,11 @@ static void widget_dispose(WidgetRecord *r) {
         g_clear_pointer(&r->submenus, g_ptr_array_unref);
         g_clear_object(&r->menu);
     }
-    /* Scrollbar value-changed connections live on the GtkAdjustment. */
+    /* Scrollbar/Scale value-changed connections live on the GtkAdjustment. */
     if (GTK_IS_SCROLLBAR(widget))
         disconnect_object(G_OBJECT(gtk_scrollbar_get_adjustment(GTK_SCROLLBAR(widget))));
+    if (GTK_IS_SCALE(widget))
+        disconnect_object(G_OBJECT(gtk_range_get_adjustment(GTK_RANGE(widget))));
     disconnect_object(G_OBJECT(widget));
     GListModel *controllers = gtk_widget_observe_controllers(widget);
     for (guint i = 0; i < g_list_model_get_n_items(controllers); ++i) {
@@ -1094,6 +1096,11 @@ int64_t cwhip_gtk_widget_create(void *self, int64_t kind, void *text,
     }
     case 16: widget = gtk_drawing_area_new(); break;
     case 17: widget = gtk_scrollbar_new((GtkOrientation)orientation, NULL); break;
+    case 18:
+        /* Default 0..1 step 0.1 until Scale.configure(); matches
+         * gtk_scale_new_with_range page = step*10 convention. */
+        widget = gtk_scale_new_with_range((GtkOrientation)orientation, 0.0, 1.0, 0.1);
+        break;
     case 9: widget = gtk_notebook_new(); break;
     case 10: {
         GMenu *menu = g_menu_new();
@@ -2299,6 +2306,69 @@ double cwhip_gtk_scrollbar_get_page_size(void *self, int64_t token) {
 }
 
 static void scrollbar_value_changed(GtkAdjustment *adjustment, gpointer data) {
+    Connection *connection = data;
+    int acquired = signal_enter(connection);
+    typedef void (*Adapter)(CwhipCallbackContext *, double);
+    ((Adapter)cwhip_callback_adapter(connection->context))(
+        connection->context, gtk_adjustment_get_value(adjustment));
+    signal_leave(connection, acquired);
+}
+
+static GtkAdjustment *scale_adjustment(int64_t token) {
+    GtkWidget *widget = widget_live(token);
+    if (!GTK_IS_SCALE(widget)) fatal("operation requires Scale");
+    return gtk_range_get_adjustment(GTK_RANGE(widget));
+}
+
+void cwhip_gtk_scale_configure(void *self, int64_t token, double value, double lower,
+                               double upper, double step) {
+    (void)self;
+    if (!(upper > lower) || !(step > 0.0))
+        fatal("invalid scale range or step");
+    GtkWidget *widget = widget_live(token);
+    if (!GTK_IS_SCALE(widget)) fatal("operation requires Scale");
+    gtk_adjustment_configure(gtk_range_get_adjustment(GTK_RANGE(widget)), value, lower, upper,
+                             step, step * 10.0, 0.0);
+    /* Match gtk_scale_new_with_range digit heuristic for common step sizes. */
+    int digits = 0;
+    double probe = step;
+    while (digits < 6 && probe < 1.0) {
+        probe *= 10.0;
+        ++digits;
+    }
+    gtk_scale_set_digits(GTK_SCALE(widget), digits);
+}
+
+void cwhip_gtk_scale_set_value(void *self, int64_t token, double value) {
+    (void)self;
+    GtkWidget *widget = widget_live(token);
+    if (!GTK_IS_SCALE(widget)) fatal("operation requires Scale");
+    gtk_range_set_value(GTK_RANGE(widget), value);
+}
+
+double cwhip_gtk_scale_get_value(void *self, int64_t token) {
+    (void)self;
+    GtkWidget *widget = widget_live(token);
+    if (!GTK_IS_SCALE(widget)) fatal("operation requires Scale");
+    return gtk_range_get_value(GTK_RANGE(widget));
+}
+
+double cwhip_gtk_scale_get_lower(void *self, int64_t token) {
+    (void)self;
+    return gtk_adjustment_get_lower(scale_adjustment(token));
+}
+
+double cwhip_gtk_scale_get_upper(void *self, int64_t token) {
+    (void)self;
+    return gtk_adjustment_get_upper(scale_adjustment(token));
+}
+
+double cwhip_gtk_scale_get_step(void *self, int64_t token) {
+    (void)self;
+    return gtk_adjustment_get_step_increment(scale_adjustment(token));
+}
+
+static void scale_value_changed(GtkAdjustment *adjustment, gpointer data) {
     Connection *connection = data;
     int acquired = signal_enter(connection);
     typedef void (*Adapter)(CwhipCallbackContext *, double);
@@ -3954,6 +4024,14 @@ int64_t cwhip_gtk_scrollbar_signal(void *self, void *source, void *callback) {
     GtkAdjustment *adjustment = scrollbar_adjustment(source_token(source));
     return connect_signal(G_OBJECT(adjustment), "value-changed",
                           G_CALLBACK(scrollbar_value_changed), callback,
+                          "callback<void(fp64)>");
+}
+
+int64_t cwhip_gtk_scale_signal(void *self, void *source, void *callback) {
+    (void)self;
+    GtkAdjustment *adjustment = scale_adjustment(source_token(source));
+    return connect_signal(G_OBJECT(adjustment), "value-changed",
+                          G_CALLBACK(scale_value_changed), callback,
                           "callback<void(fp64)>");
 }
 

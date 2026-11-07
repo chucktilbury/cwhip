@@ -28,6 +28,7 @@ class F {
     void scroll(int64 token, fp64 x, fp64 y, fp64 dx, fp64 dy)
     void popup(int64 token, fp64 x, fp64 y)
     void setBar(int64 token, fp64 value)
+    void setScale(int64 token, fp64 value)
 }
 void F.collect() from "binding_collect"
 int64 F.dialogs() from "binding_dialogs"
@@ -48,6 +49,7 @@ void F.drag(int64 token, int64 phase, fp64 startX, fp64 startY, fp64 offsetX, fp
 void F.scroll(int64 token, fp64 x, fp64 y, fp64 dx, fp64 dy) from "binding_drawing_scroll"
 void F.popup(int64 token, fp64 x, fp64 y) from "binding_context_popup"
 void F.setBar(int64 token, fp64 value) from "binding_scrollbar_set"
+void F.setScale(int64 token, fp64 value) from "binding_scale_set"
 """
 
 SHORTCUT_NATIVE = """
@@ -450,6 +452,81 @@ start {
 }
 """
 
+SCALE = """
+import system
+class UI {
+    Gtk.Window window
+    Gtk.Scale horizontal
+    Gtk.Scale vertical
+    int64 hChanges
+    int64 vChanges
+    fp64 lastH
+    fp64 lastV
+    void<fp64> hAction
+    void<fp64> vAction
+    void<> checkAction
+    void require(bool condition, String label) {
+        if (!condition) {
+            System.StandardIO().writeErrorLine(label)
+            System.Process().exit(1)
+        }
+    }
+    void hMoved(fp64 value) {
+        hChanges = hChanges + 1
+        lastH = value
+    }
+    void vMoved(fp64 value) {
+        vChanges = vChanges + 1
+        lastV = value
+    }
+    void check() {
+        require(horizontal.lower() == 0.0f64 && horizontal.upper() == 100.0f64, "h range")
+        require(horizontal.step() == 0.5f64, "h step")
+        require(horizontal.value() == 50.0f64, "h initial")
+        require(vertical.lower() == 1.0f64 && vertical.upper() == 10.0f64, "v range")
+        require(vertical.step() == 1.0f64, "v step")
+        require(vertical.value() == 5.0f64, "v initial")
+        F().setScale(horizontal._widgetToken(), 25.5f64)
+        require(hChanges >= 1 && lastH == 25.5f64, "h value changed")
+        require(horizontal.value() == 25.5f64, "h getter")
+        vertical.setValue(8.0f64)
+        require(vChanges >= 1 && lastV == 8.0f64, "v setValue callback")
+        require(vertical.value() == 8.0f64, "v getter")
+        horizontal.configure(3.0f64, -5.0f64, 5.0f64, 0.25f64)
+        require(horizontal.lower() == -5.0f64 && horizontal.upper() == 5.0f64, "reconfigure range")
+        require(horizontal.step() == 0.25f64, "reconfigure step")
+        require(horizontal.value() == 3.0f64, "reconfigure value")
+        print("PASS scale")
+        Gtk.Application().quit()
+    }
+    void activate() {
+        window = Gtk.Window("Scale bindings")
+        window.setDefaultSize(360, 200)
+        Gtk.Box root = Gtk.Box(Gtk.Box.VERTICAL, 8)
+        horizontal = Gtk.Scale(Gtk.Scale.HORIZONTAL)
+        horizontal.configure(50.0f64, 0.0f64, 100.0f64, 0.5f64)
+        horizontal.onValueChanged(hAction)
+        vertical = Gtk.Scale(Gtk.Scale.VERTICAL)
+        vertical.configure(5.0f64, 1.0f64, 10.0f64, 1.0f64)
+        vertical.onValueChanged(vAction)
+        root.append(horizontal)
+        root.append(vertical)
+        window.setChild(root)
+        window.present()
+        Gtk.Application().schedule(100, checkAction)
+    }
+}
+start {
+    Gtk.Application app = Gtk.Application("org.cwhip.BindingScale")
+    UI ui = UI()
+    ui.hAction = ui.hMoved
+    ui.vAction = ui.vMoved
+    ui.checkAction = ui.check
+    app.onActivate(ui.activate)
+    app.run()
+}
+"""
+
 LIFETIME = """
 import system
 class Relay {
@@ -562,6 +639,7 @@ def main():
              ("menus", MENU, "action;action;check true;check true;stopped;true"),
              ("dialogs", dialog, expected_dialog),
              ("drawing", DRAWING, "PASS drawing"),
+             ("scale", SCALE, "PASS scale"),
              ("lifetime", LIFETIME, "PASS lifetime")]
     if args.sourceview:
         cases.append(("sourceview-editing", SHORTCUT_NATIVE + SOURCEVIEW_EDITING,

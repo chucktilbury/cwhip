@@ -87,6 +87,7 @@ namespace Gtk {
         int64 _scroll(DrawingArea source, void<fp64, fp64, fp64, fp64> action)
         int64 _popup(ContextMenu source, void<fp64, fp64> action)
         int64 _valueChanged(Scrollbar source, void<fp64> action)
+        int64 _valueChanged(Scale source, void<fp64> action)
         bool _disconnect(int64 token)
         bool _connected(int64 token)
         public:
@@ -130,6 +131,9 @@ namespace Gtk {
             _token = _popup(source, action)
         }
         SignalConnection(Scrollbar source, void<fp64> action) {
+            _token = _valueChanged(source, action)
+        }
+        SignalConnection(Scale source, void<fp64> action) {
             _token = _valueChanged(source, action)
         }
         bool disconnect() { return(_disconnect(_token))}
@@ -391,6 +395,38 @@ namespace Gtk {
         // Invoked when the user (or setValue) moves the thumb; arg is the new value.
         SignalConnection onValueChanged(void<fp64> action) {
             return(SignalConnection(_barSelf(), action))
+        }
+    }
+
+    // Continuous or stepped numeric slider (GtkScale). Prefer Scale for
+    // settings knobs; use Scrollbar for pan/zoom view extents.
+    class Scale : Widget {
+        private:
+        Scale _scaleSelf()
+        void _configure(int64 token, fp64 value, fp64 lower, fp64 upper, fp64 step)
+        void _setValue(int64 token, fp64 value)
+        fp64 _getValue(int64 token)
+        fp64 _getLower(int64 token)
+        fp64 _getUpper(int64 token)
+        fp64 _getStep(int64 token)
+        public:
+        enum { HORIZONTAL = 0, VERTICAL = 1 }
+        // Creates a GtkScale; orientation matches Box/Paned/Scrollbar (0/1).
+        // Default range is 0..1 with step 0.1 until configure() is called.
+        Scale(int64 orientation) { super Widget(18, "", orientation, 0) }
+        // Sets value, inclusive lower/upper bounds, and step increment.
+        // Page increment is step*10 (GTK Scale with-range convention).
+        void configure(fp64 value, fp64 lower, fp64 upper, fp64 step) {
+            _configure(_widgetToken(), value, lower, upper, step)
+        }
+        void setValue(fp64 value) { _setValue(_widgetToken(), value) }
+        fp64 value() { return(_getValue(_widgetToken())) }
+        fp64 lower() { return(_getLower(_widgetToken())) }
+        fp64 upper() { return(_getUpper(_widgetToken())) }
+        fp64 step() { return(_getStep(_widgetToken())) }
+        // Invoked when the user (or setValue) moves the slider; arg is the new value.
+        SignalConnection onValueChanged(void<fp64> action) {
+            return(SignalConnection(_scaleSelf(), action))
         }
     }
 
@@ -732,6 +768,7 @@ namespace Gtk {
     DrawingArea DrawingArea._drawSelf() from "cwhip_gtk_self"
     ContextMenu ContextMenu._menuSelf() from "cwhip_gtk_self"
     Scrollbar Scrollbar._barSelf() from "cwhip_gtk_self"
+    Scale Scale._scaleSelf() from "cwhip_gtk_self"
     void Application.initialize() from "cwhip_gtk_initialize"
     String Application.id() from "cwhip_gtk_application_id"
     void Application.run() from "cwhip_gtk_run"
@@ -764,6 +801,8 @@ namespace Gtk {
         from "cwhip_gtk_context_menu_popup_signal"
     int64 SignalConnection._valueChanged(Scrollbar source, void<fp64> action)
         from "cwhip_gtk_scrollbar_signal"
+    int64 SignalConnection._valueChanged(Scale source, void<fp64> action)
+        from "cwhip_gtk_scale_signal"
     void DrawingArea._queueDraw(int64 token) from "cwhip_gtk_drawing_area_queue_draw"
     void DrawingArea._contentSize(int64 token, int64 width, int64 height)
         from "cwhip_gtk_drawing_area_set_content_size"
@@ -803,6 +842,13 @@ namespace Gtk {
     fp64 Scrollbar._getLower(int64 token) from "cwhip_gtk_scrollbar_get_lower"
     fp64 Scrollbar._getUpper(int64 token) from "cwhip_gtk_scrollbar_get_upper"
     fp64 Scrollbar._getPageSize(int64 token) from "cwhip_gtk_scrollbar_get_page_size"
+    void Scale._configure(int64 token, fp64 value, fp64 lower, fp64 upper, fp64 step)
+        from "cwhip_gtk_scale_configure"
+    void Scale._setValue(int64 token, fp64 value) from "cwhip_gtk_scale_set_value"
+    fp64 Scale._getValue(int64 token) from "cwhip_gtk_scale_get_value"
+    fp64 Scale._getLower(int64 token) from "cwhip_gtk_scale_get_lower"
+    fp64 Scale._getUpper(int64 token) from "cwhip_gtk_scale_get_upper"
+    fp64 Scale._getStep(int64 token) from "cwhip_gtk_scale_get_step"
     void Entry._editable(int64 token, bool editable) from "cwhip_gtk_entry_editable"
     void Notebook._closable(int64 token, int64 child, String title, void<> close)
         from "cwhip_gtk_notebook_closable"
