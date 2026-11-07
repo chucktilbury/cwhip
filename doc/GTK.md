@@ -3,7 +3,7 @@
 The optional `gtk` package (`0.1.0`, `import gtk`, namespace `Gtk`) provides a
 compact GTK-aligned interface: `Application`, `Widget`, `Window`, `Box`, `Label`,
 `Button`, `Entry`, `CheckButton`, `ScrolledWindow`, `Notebook`, `MenuBar`,
-`ContextMenu`, `Scrollbar`, `FileDialog`, `Paned`, `DrawingArea`, `Tree`,
+`ContextMenu`, `Scrollbar`, `Scale`, `FileDialog`, `Paned`, `DrawingArea`, `Tree`,
 `DirectoryScan`, and `SignalConnection`, plus the optional `sourceview` package.
 It is not a complete GTK binding or a generic GUI framework.
 
@@ -112,6 +112,7 @@ The first-release additions are:
 | `Grid` | `Grid(int64 spacing)`, `attach(Widget, int64 column, int64 row, int64 width, int64 height)` |
 | `ContextMenu` | `ContextMenu(Widget owner)`, `addItem` / `addCheckItem` (root or submenu), `addSeparator`, `addSubmenu`, `clear` / `clearMenu`, `onPopup(void<fp64, fp64>)`, `popupAt(fp64, fp64)`, `setChild(Widget)` |
 | `Scrollbar` | `Scrollbar(int64 orientation)` with `HORIZONTAL` / `VERTICAL`, `configure(value, lower, upper, step, page, pageSize)`, `setValue` / `value` / `lower` / `upper` / `pageSize`, `onValueChanged(void<fp64>)` |
+| `Scale` | `Scale(int64 orientation)` with `HORIZONTAL` / `VERTICAL`, `configure(value, lower, upper, step)`, `setValue` / `value` / `lower` / `upper` / `step`, `onValueChanged(void<fp64>)` |
 | `Label` | `Label(String text)`, `setText(String)`, `String text()` |
 | `Button` | `Button(String label)`, `setLabel(String)`, `String label()`, `setIconName(String)`, `onClicked(void<>)` (focus-on-click off; non-focusable buttons activate on press) |
 | `Entry` | `Entry(String text)`, `setText(String)`, `String text()`, `focus()`, `setEditable(bool)`, `onChanged(void<String>)` |
@@ -331,8 +332,35 @@ menu.addItem(places, "Planet A", jumpAction)
 `popupAt(x, y)` opens the same menu without a right-click when the app already
 has coordinates (for example from `onClick` with `BUTTON_SECONDARY`).
 
-**Deferred (not in this release):** dashed strokes, draw-text helpers, and
-`Scale` (slider) controls.
+### Scale (sliders)
+
+`Scale` is a `GtkScale` for continuous or stepped numeric settings (policy
+knobs, budgets, discrete 1–10 bands). Orientation matches `Box` / `Paned` /
+`Scrollbar` (`HORIZONTAL` = 0, `VERTICAL` = 1). Default range is `0..1` with
+step `0.1` until `configure` runs. Page increment follows GTK's
+`gtk_scale_new_with_range` convention (`step * 10`). Display digits track the
+step size. Prefer `Scale` for settings; use `Scrollbar` for pan/zoom extents.
+
+```text
+Scale(int64 orientation)   // HORIZONTAL = 0, VERTICAL = 1
+void configure(fp64 value, fp64 lower, fp64 upper, fp64 step)
+void setValue(fp64 value)
+fp64 value() / lower() / upper() / step()
+SignalConnection onValueChanged(void<fp64> action)
+```
+
+```cwhip
+Gtk.Scale expansion = Gtk.Scale(Gtk.Scale.HORIZONTAL)
+expansion.configure(50.0f64, 0.0f64, 100.0f64, 1.0f64)
+expansion.onValueChanged(policyChanged)
+Gtk.Scale livability = Gtk.Scale(Gtk.Scale.VERTICAL)
+livability.configure(5.0f64, 1.0f64, 10.0f64, 1.0f64)
+```
+
+See `examples/scale.cw`.
+
+**Deferred (not in this release):** dashed strokes, draw-text helpers,
+`SpinButton`, and `DropDown`.
 
 Expansion uses GTK's actual `hexpand`/`vexpand` layout properties. For an editor,
 expand the notebook, scrolled window and source widget vertically and horizontally
@@ -904,5 +932,6 @@ See [TESTING.md](TESTING.md). Styling, broad dialog/model coverage, input events
 arbitrary native-widget adoption, file-open/command-line activation, and broad GTK
 property coverage are not implemented in this release. `DrawingArea` provides a
 custom-paint surface with click/drag/scroll coordinates, `Scrollbar` /
-`ScrolledWindow` view chrome, and DrawingArea `ContextMenu` hooks; richer
-path/text APIs and `Scale` remain open.
+`ScrolledWindow` view chrome, and DrawingArea `ContextMenu` hooks; `Scale`
+covers numeric sliders. Richer path/text paint APIs, `SpinButton`, and
+`DropDown` remain open.

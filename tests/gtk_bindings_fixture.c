@@ -323,6 +323,13 @@ void binding_scrollbar_set(void *self, int64_t token, double value) {
     gtk_adjustment_set_value(gtk_scrollbar_get_adjustment(GTK_SCROLLBAR(widget)), value);
 }
 
+void binding_scale_set(void *self, int64_t token, double value) {
+    (void)self;
+    GtkWidget *widget = widget_live(token);
+    assert(GTK_IS_SCALE(widget));
+    gtk_range_set_value(GTK_RANGE(widget), value);
+}
+
 #ifdef CWHIP_GTK_SOURCEVIEW
 void binding_view_properties(void *self, int64_t token, int64_t tabs, bool enabled) {
     (void)self;

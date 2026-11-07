@@ -25,6 +25,14 @@ proof of concept and compiler-testing tool, not a production IDE/debugger.
 
 ## Implemented milestones
 
+### Unreleased: GTK Scale sliders
+
+`Gtk.Scale` for horizontal/vertical numeric sliders: `configure(value, lower,
+upper, step)`, get/set value, range/step getters, and
+`onValueChanged(void<fp64>)`. Page increment follows GTK's with-range
+convention (`step * 10`). See `doc/GTK.md` and `examples/scale.cw`.
+`SpinButton` / `DropDown` remain deferred.
+
 ### Unreleased: GTK DrawingArea scrollbars and ContextMenu hooks
 
 View chrome for custom canvases: `Gtk.Scrollbar` (configure / value /
@@ -32,7 +40,7 @@ View chrome for custom canvases: `Gtk.Scrollbar` (configure / value /
 documented `ScrolledWindow` + `DrawingArea.setContentSize` for stock bars,
 and `ContextMenu` DrawingArea ownership with `onPopup(void<fp64,fp64>)`,
 `clear` / separators / submenus, and `popupAt`. Dash and draw-text remain
-deferred; `Scale` is next. See `doc/GTK.md` and `examples/drawing.cw`.
+deferred. See `doc/GTK.md` and `examples/drawing.cw`.
 
 ### Unreleased: GTK DrawingArea pointer input
 
