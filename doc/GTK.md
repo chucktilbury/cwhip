@@ -3,8 +3,8 @@
 The optional `gtk` package (`0.1.0`, `import gtk`, namespace `Gtk`) provides a
 compact GTK-aligned interface: `Application`, `Widget`, `Window`, `Box`, `Label`,
 `Button`, `Entry`, `CheckButton`, `ScrolledWindow`, `Notebook`, `MenuBar`,
-`FileDialog`, `Paned`, `DrawingArea`, `Tree`, `DirectoryScan`, and
-`SignalConnection`, plus the optional `sourceview` package.
+`ContextMenu`, `Scrollbar`, `FileDialog`, `Paned`, `DrawingArea`, `Tree`,
+`DirectoryScan`, and `SignalConnection`, plus the optional `sourceview` package.
 It is not a complete GTK binding or a generic GUI framework.
 
 ## Build and package linkage
@@ -110,7 +110,8 @@ The first-release additions are:
 | `TransientWindow` | `TransientWindow(String title)`, `setTitle(String)`, `String title()`, `setDefaultSize(int64 width, int64 height)`, `int64 defaultWidth()`, `int64 defaultHeight()`, `setTransientFor(Window parent)`, `setChild(Widget)`, `remove(Widget)`, `present()`, `close()`, `onCloseRequest(bool<>)` |
 | `Box` | `Box(int64 orientation, int64 spacing)`, `setLayout(int64 orientation, int64 spacing)`, `append(Widget)`, `remove(Widget)` |
 | `Grid` | `Grid(int64 spacing)`, `attach(Widget, int64 column, int64 row, int64 width, int64 height)` |
-| `ContextMenu` | `ContextMenu(Widget owner)`, `addItem`, `addCheckItem`, `setChild(Widget)` |
+| `ContextMenu` | `ContextMenu(Widget owner)`, `addItem` / `addCheckItem` (root or submenu), `addSeparator`, `addSubmenu`, `clear` / `clearMenu`, `onPopup(void<fp64, fp64>)`, `popupAt(fp64, fp64)`, `setChild(Widget)` |
+| `Scrollbar` | `Scrollbar(int64 orientation)` with `HORIZONTAL` / `VERTICAL`, `configure(value, lower, upper, step, page, pageSize)`, `setValue` / `value` / `lower` / `upper` / `pageSize`, `onValueChanged(void<fp64>)` |
 | `Label` | `Label(String text)`, `setText(String)`, `String text()` |
 | `Button` | `Button(String label)`, `setLabel(String)`, `String label()`, `setIconName(String)`, `onClicked(void<>)` (focus-on-click off; non-focusable buttons activate on press) |
 | `Entry` | `Entry(String text)`, `setText(String)`, `String text()`, `focus()`, `setEditable(bool)`, `onChanged(void<String>)` |
@@ -132,14 +133,18 @@ The window manager may apply this request asynchronously.
 `onFocusChanged` reports GTK's window-active state (`false` on loss).
 `Grid` uses zero-based, nonnegative row/column positions and positive spans.
 `Entry.setEditable(false)` keeps selection/copy and programmatic updates available.
-`ContextMenu` attaches a secondary-button `PopoverMenu` to its owner.
-`addItem` / `addCheckItem` append native menu rows (with `setItemEnabled` and
-`setItemChecked`); `setChild` remains for a custom content widget when needed.
-Owner disposal tears the menu down. Its capture-phase gesture suppresses the
-owner's default popup. For text views that still use `ContextMenu`, it
-positions the cursor at the clicked line before opening; views with line
-selection enabled select that whole line instead. A right click inside an
-existing text selection keeps the selection. Prefer
+`ContextMenu` attaches a secondary-button `PopoverMenu` to its owner (any
+`Widget`, including `DrawingArea`). `onPopup(void<fp64,fp64>)` fires with
+owner-local click coordinates immediately before the menu opens so the app can
+`clear()` and rebuild items (status rows, jump targets, and so on).
+`addItem` / `addCheckItem` append native menu rows (root or submenu index from
+`addSubmenu`); `addSeparator` starts a native divider section; `popupAt(x, y)`
+opens the menu programmatically. `setChild` remains for a custom content widget
+when needed. Owner disposal tears the menu down. Its capture-phase gesture
+suppresses the owner's default popup. For text views that still use
+`ContextMenu`, it positions the cursor at the clicked line before opening;
+views with line selection enabled select that whole line instead. A right click
+inside an existing text selection keeps the selection. Prefer
 `GtkSource.View.addContextAction` when the built-in Cut/Copy/Paste menu should
 stay and only extra rows are needed.
 `appendClosablePage` adds a bordered title/close-icon tab, invoking
@@ -276,12 +281,58 @@ start {
 }
 ```
 
-See `examples/drawing.cw` for click + drag pan + scroll zoom together.
+See `examples/drawing.cw` for click + drag pan + scroll zoom, custom
+`Scrollbar` extents, and `ContextMenu` `onPopup` rebuild together.
 
-**Deferred (not in this release):** scrollbar / `Adjustment` APIs for pan/zoom
-chrome, and DrawingArea `ContextMenu` ownership at right-click coordinates.
-`ContextMenu` already exists for other widgets; canvas wiring comes later.
-Dashed strokes and draw-text helpers are also later growth.
+### View scroll bars (two supported approaches)
+
+**Path 1 — `ScrolledWindow` + content size.** When the canvas has a natural
+size larger than the viewport, wrap the area and let GTK show stock bars:
+
+```cwhip
+Gtk.ScrolledWindow scroll = Gtk.ScrolledWindow()
+scroll.setPolicy(Gtk.ScrolledWindow.POLICY_AUTOMATIC,
+                 Gtk.ScrolledWindow.POLICY_AUTOMATIC)
+Gtk.DrawingArea area = Gtk.DrawingArea()
+area.setContentSize(2000, 1500)
+area.onDraw(paintAction)
+scroll.setChild(area)
+```
+
+**Path 2 — `Scrollbar` tied to pan/zoom extents.** When zoom is a client-side
+transform (content size stays fixed; `onDraw` applies scale/offset), stock
+`ScrolledWindow` alone is not enough. Create horizontal/vertical `Scrollbar`
+widgets, `configure(value, lower, upper, step, page, pageSize)` from the
+current extents, and update the view from `onValueChanged(void<fp64>)`.
+
+```text
+Scrollbar(int64 orientation)   // HORIZONTAL = 0, VERTICAL = 1
+void configure(fp64 value, fp64 lower, fp64 upper, fp64 step, fp64 page, fp64 pageSize)
+void setValue(fp64 value)
+fp64 value() / lower() / upper() / pageSize()
+SignalConnection onValueChanged(void<fp64> action)
+```
+
+Either path (or both) is valid; apps should not assume mouse-only pan.
+
+### DrawingArea ContextMenu hooks
+
+```cwhip
+Gtk.ContextMenu menu = Gtk.ContextMenu(area)
+menu.onPopup(prepareMenu)   // (x, y) in area coordinates
+// inside prepareMenu:
+menu.clear()
+menu.addItem("Status…", statusAction)
+menu.addSeparator()
+int64 places = menu.addSubmenu("Known places")
+menu.addItem(places, "Planet A", jumpAction)
+```
+
+`popupAt(x, y)` opens the same menu without a right-click when the app already
+has coordinates (for example from `onClick` with `BUTTON_SECONDARY`).
+
+**Deferred (not in this release):** dashed strokes, draw-text helpers, and
+`Scale` (slider) controls.
 
 Expansion uses GTK's actual `hexpand`/`vexpand` layout properties. For an editor,
 expand the notebook, scrolled window and source widget vertically and horizontally
@@ -852,5 +903,6 @@ Its private fixture is not shipped in the package.
 See [TESTING.md](TESTING.md). Styling, broad dialog/model coverage, input events,
 arbitrary native-widget adoption, file-open/command-line activation, and broad GTK
 property coverage are not implemented in this release. `DrawingArea` provides a
-custom-paint surface with click/drag/scroll coordinates; richer path/text APIs
-and canvas scrollbars / ContextMenu wiring remain open.
+custom-paint surface with click/drag/scroll coordinates, `Scrollbar` /
+`ScrolledWindow` view chrome, and DrawingArea `ContextMenu` hooks; richer
+path/text APIs and `Scale` remain open.

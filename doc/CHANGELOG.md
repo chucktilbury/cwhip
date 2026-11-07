@@ -25,22 +25,28 @@ proof of concept and compiler-testing tool, not a production IDE/debugger.
 
 ## Implemented milestones
 
+### Unreleased: GTK DrawingArea scrollbars and ContextMenu hooks
+
+View chrome for custom canvases: `Gtk.Scrollbar` (configure / value /
+`onValueChanged`) for pan/zoom extents when zoom is a draw-time transform,
+documented `ScrolledWindow` + `DrawingArea.setContentSize` for stock bars,
+and `ContextMenu` DrawingArea ownership with `onPopup(void<fp64,fp64>)`,
+`clear` / separators / submenus, and `popupAt`. Dash and draw-text remain
+deferred; `Scale` is next. See `doc/GTK.md` and `examples/drawing.cw`.
+
 ### Unreleased: GTK DrawingArea pointer input
 
 `Gtk.DrawingArea` adds `onClick(void<int64,fp64,fp64>)`,
 `onDrag(void<int64,fp64,fp64,fp64,fp64>)`, and
 `onScroll(void<fp64,fp64,fp64,fp64>)` for pick / pan / zoom with widget-local
-coordinates. Scrollbar adjustments, canvas ContextMenu wiring, dash, and
-draw-text remain deferred. See `doc/GTK.md` and `examples/drawing.cw`.
+coordinates. See `doc/GTK.md` and `examples/drawing.cw`.
 
 ### Unreleased: GTK DrawingArea foundation
 
 `Gtk.DrawingArea` is a normal embeddable child widget with `queueDraw`,
 `setContentSize`, `onDraw(void<int64,int64>)`, and Cairo paint helpers
 (`setColor`, `setLineWidth`, fill/stroke rect and circle, `strokeLine`).
-Scrollbar adjustments, canvas ContextMenu wiring, dash, and draw-text
-remain deferred after the pointer-input follow-up. See `doc/GTK.md` and
-`examples/drawing.cw`.
+See `doc/GTK.md` and `examples/drawing.cw`.
 
 ### Unreleased: Return from start
 
