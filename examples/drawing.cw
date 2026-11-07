@@ -1,12 +1,20 @@
 import gtk
 import system
 
+// Demonstrates DrawingArea view chrome: custom Scrollbars tied to pan/zoom
+// extents (path 2) plus ContextMenu owner/onPopup rebuild. Path 1
+// (ScrolledWindow + setContentSize) is documented in doc/GTK.md.
 class Demo {
     Gtk.DrawingArea area
+    Gtk.Scrollbar hBar
+    Gtk.Scrollbar vBar
+    Gtk.ContextMenu menu
     int64 paints
     int64 clicks
     int64 drags
     int64 scrolls
+    int64 popups
+    int64 menuActions
     fp64 markX
     fp64 markY
     fp64 panX
@@ -14,14 +22,49 @@ class Demo {
     fp64 dragOriginX
     fp64 dragOriginY
     fp64 zoom
+    fp64 viewW
+    fp64 viewH
+    bool syncingBars
     void<> doneAction
     void<int64, int64> paintAction
     void<int64, fp64, fp64> clickAction
     void<int64, fp64, fp64, fp64, fp64> dragAction
     void<fp64, fp64, fp64, fp64> scrollAction
+    void<fp64, fp64> popupAction
+    void<fp64> hScrollAction
+    void<fp64> vScrollAction
+    void<> jumpAction
+
+    void syncBars() {
+        fp64 world = 800.0f64 * zoom
+        fp64 pageW = viewW
+        fp64 pageH = viewH
+        if (pageW < 1.0f64) {
+            pageW = 1.0f64
+        }
+        if (pageH < 1.0f64) {
+            pageH = 1.0f64
+        }
+        fp64 upperW = world
+        fp64 upperH = world
+        if (upperW < pageW) {
+            upperW = pageW
+        }
+        if (upperH < pageH) {
+            upperH = pageH
+        }
+        fp64 valueX = -panX
+        fp64 valueY = -panY
+        syncingBars = true
+        hBar.configure(valueX, 0.0f64, upperW, 16.0f64, pageW, pageW)
+        vBar.configure(valueY, 0.0f64, upperH, 16.0f64, pageH, pageH)
+        syncingBars = false
+    }
 
     void paint(int64 width, int64 height) {
         paints = paints + 1
+        viewW = width
+        viewH = height
         area.setColor(0.12f64, 0.14f64, 0.20f64, 1.0f64)
         area.fillRect(0.0f64, 0.0f64, width, height)
         fp64 cx = width / 2 + panX
@@ -37,6 +80,7 @@ class Demo {
             area.fillCircle(markX, markY, 6.0f64)
         }
         area.strokeRect(24.0f64, 24.0f64, width - 48, height - 48)
+        syncBars()
     }
 
     void clicked(int64 button, fp64 x, fp64 y) {
@@ -81,6 +125,42 @@ class Demo {
         area.queueDraw()
     }
 
+    void hScrolled(fp64 value) {
+        if (syncingBars) {
+            return
+        }
+        panX = -value
+        area.queueDraw()
+    }
+
+    void vScrolled(fp64 value) {
+        if (syncingBars) {
+            return
+        }
+        panY = -value
+        area.queueDraw()
+    }
+
+    void jumpHome() {
+        menuActions = menuActions + 1
+        panX = 0.0f64
+        panY = 0.0f64
+        zoom = 1.0f64
+        area.queueDraw()
+    }
+
+    void prepareMenu(fp64 x, fp64 y) {
+        popups = popups + 1
+        markX = x
+        markY = y
+        menu.clear()
+        menu.addItem("Mark here", jumpAction)
+        menu.addSeparator()
+        menu.addItem("Reset view", jumpAction)
+        int64 places = menu.addSubmenu("Known places")
+        menu.addItem(places, "Origin", jumpAction)
+    }
+
     void done() {
         if (paints < 1) {
             System.StandardIO().writeErrorLine("DrawingArea did not paint")
@@ -93,8 +173,8 @@ class Demo {
     void activate() {
         zoom = 1.0f64
         Gtk.Window window = Gtk.Window("DrawingArea demo")
-        window.setDefaultSize(480, 320)
-        Gtk.Box layout = Gtk.Box(Gtk.Box.VERTICAL, 0)
+        window.setDefaultSize(520, 360)
+        Gtk.Grid layout = Gtk.Grid(0)
         area = Gtk.DrawingArea()
         area.setHExpand(true)
         area.setVExpand(true)
@@ -102,7 +182,15 @@ class Demo {
         area.onClick(clickAction)
         area.onDrag(dragAction)
         area.onScroll(scrollAction)
-        layout.append(area)
+        hBar = Gtk.Scrollbar(Gtk.Scrollbar.HORIZONTAL)
+        vBar = Gtk.Scrollbar(Gtk.Scrollbar.VERTICAL)
+        hBar.onValueChanged(hScrollAction)
+        vBar.onValueChanged(vScrollAction)
+        layout.attach(area, 0, 0, 1, 1)
+        layout.attach(vBar, 1, 0, 1, 1)
+        layout.attach(hBar, 0, 1, 1, 1)
+        menu = Gtk.ContextMenu(area)
+        menu.onPopup(popupAction)
         window.setChild(layout)
         window.present()
         area.queueDraw()
@@ -121,6 +209,10 @@ start {
     demo.clickAction = demo.clicked
     demo.dragAction = demo.dragged
     demo.scrollAction = demo.scrolled
+    demo.popupAction = demo.prepareMenu
+    demo.hScrollAction = demo.hScrolled
+    demo.vScrollAction = demo.vScrolled
+    demo.jumpAction = demo.jumpHome
     demo.doneAction = demo.done
     app.onActivate(demo.activate)
     app.run()

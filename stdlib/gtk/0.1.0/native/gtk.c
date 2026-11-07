@@ -99,8 +99,10 @@ typedef struct Connection {
     unsigned active;
     bool closed;
     bool detached;
-    /* DrawingArea draw-func connections are not GObject signals. */
+    /* DrawingArea draw-func / ContextMenu popup-prepare connections are not
+     * GObject signals; disconnect clears them explicitly. */
     bool draw_func;
+    bool popup_func;
 } Connection;
 
 typedef struct Post {
@@ -411,6 +413,14 @@ bool cwhip_gtk_disconnect(int64_t token) {
             /* Clearing the draw func invokes its destroy notify, which
              * releases the Connection the same way a GClosure notify does. */
             gtk_drawing_area_set_draw_func(GTK_DRAWING_AREA(object), NULL, NULL, NULL);
+            return true;
+        }
+        if (connection->popup_func) {
+            /* Drop the prepare callback stored on the popover; no GClosure. */
+            if (object) g_object_set_data(object, "cwhip-popup", NULL);
+            connection->object = NULL;
+            connection->detached = true;
+            connection_collect(connection);
             return true;
         }
         gulong ids[4] = { connection->signal };
@@ -822,6 +832,9 @@ static void widget_dispose(WidgetRecord *r) {
         g_clear_pointer(&r->submenus, g_ptr_array_unref);
         g_clear_object(&r->menu);
     }
+    /* Scrollbar value-changed connections live on the GtkAdjustment. */
+    if (GTK_IS_SCROLLBAR(widget))
+        disconnect_object(G_OBJECT(gtk_scrollbar_get_adjustment(GTK_SCROLLBAR(widget))));
     disconnect_object(G_OBJECT(widget));
     GListModel *controllers = gtk_widget_observe_controllers(widget);
     for (guint i = 0; i < g_list_model_get_n_items(controllers); ++i) {
@@ -1080,6 +1093,7 @@ int64_t cwhip_gtk_widget_create(void *self, int64_t kind, void *text,
         break;
     }
     case 16: widget = gtk_drawing_area_new(); break;
+    case 17: widget = gtk_scrollbar_new((GtkOrientation)orientation, NULL); break;
     case 9: widget = gtk_notebook_new(); break;
     case 10: {
         GMenu *menu = g_menu_new();
@@ -2016,6 +2030,18 @@ static void context_pressed(GtkGestureClick *gesture, int count, double x, doubl
     (void)count;
     GtkPopover *popover = data;
     GtkWidget *owner_widget = gtk_event_controller_get_widget(GTK_EVENT_CONTROLLER(gesture));
+    Connection *popup = g_object_get_data(G_OBJECT(popover), "cwhip-popup");
+    if (popup && !popup->closed) {
+        /* Deliver owner-local coords before opening so the app can rebuild. */
+        int acquired = signal_enter(popup);
+        typedef void (*Adapter)(CwhipCallbackContext *, double, double);
+        ((Adapter)cwhip_callback_adapter(popup->context))(popup->context, x, y);
+        signal_leave(popup, acquired);
+        if (popup->closed || !GTK_IS_POPOVER(popover)) {
+            gtk_gesture_set_state(GTK_GESTURE(gesture), GTK_EVENT_SEQUENCE_CLAIMED);
+            return;
+        }
+    }
     if (GTK_IS_TEXT_VIEW(owner_widget) && !click_in_selection(owner_widget, x, y))
         text_click_line(owner_widget, x, y);
     GdkRectangle point = { (int)x, (int)y, 1, 1 };
@@ -2221,6 +2247,64 @@ void cwhip_gtk_context_menu_bind(void *self, int64_t token, int64_t owner_token)
     gtk_gesture_single_set_button(GTK_GESTURE_SINGLE(gesture), GDK_BUTTON_SECONDARY);
     g_signal_connect_object(gesture, "pressed", G_CALLBACK(context_pressed), menu, 0);
     gtk_widget_add_controller(owner_widget, GTK_EVENT_CONTROLLER(gesture));
+}
+
+void cwhip_gtk_context_menu_popup_at(void *self, int64_t token, double x, double y) {
+    (void)self;
+    GtkWidget *menu = widget_live(token);
+    if (!GTK_IS_POPOVER(menu)) fatal("operation requires ContextMenu");
+    GdkRectangle point = { (int)x, (int)y, 1, 1 };
+    gtk_popover_set_pointing_to(GTK_POPOVER(menu), &point);
+    gtk_popover_popup(GTK_POPOVER(menu));
+}
+
+static GtkAdjustment *scrollbar_adjustment(int64_t token) {
+    GtkWidget *widget = widget_live(token);
+    if (!GTK_IS_SCROLLBAR(widget)) fatal("operation requires Scrollbar");
+    return gtk_scrollbar_get_adjustment(GTK_SCROLLBAR(widget));
+}
+
+void cwhip_gtk_scrollbar_configure(void *self, int64_t token, double value, double lower,
+                                   double upper, double step, double page, double page_size) {
+    (void)self;
+    if (!(upper > lower) || page_size < 0.0 || step < 0.0 || page < 0.0)
+        fatal("invalid scrollbar adjustment range");
+    gtk_adjustment_configure(scrollbar_adjustment(token), value, lower, upper, step, page,
+                             page_size);
+}
+
+void cwhip_gtk_scrollbar_set_value(void *self, int64_t token, double value) {
+    (void)self;
+    gtk_adjustment_set_value(scrollbar_adjustment(token), value);
+}
+
+double cwhip_gtk_scrollbar_get_value(void *self, int64_t token) {
+    (void)self;
+    return gtk_adjustment_get_value(scrollbar_adjustment(token));
+}
+
+double cwhip_gtk_scrollbar_get_lower(void *self, int64_t token) {
+    (void)self;
+    return gtk_adjustment_get_lower(scrollbar_adjustment(token));
+}
+
+double cwhip_gtk_scrollbar_get_upper(void *self, int64_t token) {
+    (void)self;
+    return gtk_adjustment_get_upper(scrollbar_adjustment(token));
+}
+
+double cwhip_gtk_scrollbar_get_page_size(void *self, int64_t token) {
+    (void)self;
+    return gtk_adjustment_get_page_size(scrollbar_adjustment(token));
+}
+
+static void scrollbar_value_changed(GtkAdjustment *adjustment, gpointer data) {
+    Connection *connection = data;
+    int acquired = signal_enter(connection);
+    typedef void (*Adapter)(CwhipCallbackContext *, double);
+    ((Adapter)cwhip_callback_adapter(connection->context))(
+        connection->context, gtk_adjustment_get_value(adjustment));
+    signal_leave(connection, acquired);
 }
 
 static void shortcut_free(ShortcutBinding *binding) {
@@ -3844,6 +3928,33 @@ int64_t cwhip_gtk_drawing_area_scroll_signal(void *self, void *source, void *cal
         G_CALLBACK(drawing_area_scroll), callback, "callback<void(fp64,fp64,fp64,fp64)>");
     gtk_widget_add_controller(widget, controller);
     return token;
+}
+
+int64_t cwhip_gtk_context_menu_popup_signal(void *self, void *source, void *callback) {
+    (void)self;
+    GtkWidget *widget = widget_live(source_token(source));
+    if (!GTK_IS_POPOVER_MENU(widget)) fatal("popup requires ContextMenu");
+    Connection *previous = g_object_get_data(G_OBJECT(widget), "cwhip-popup");
+    if (previous && !previous->closed) cwhip_gtk_disconnect(previous->token);
+    Connection *connection = calloc(1, sizeof(*connection));
+    if (!connection) fatal("allocation failed");
+    connection->token = token_new();
+    connection->object = G_OBJECT(widget);
+    connection->context = cwhip_callback_acquire(callback, "callback<void(fp64,fp64)>");
+    connection->closures = 1;
+    connection->popup_func = true;
+    connection->next = connections;
+    connections = connection;
+    g_object_set_data(G_OBJECT(widget), "cwhip-popup", connection);
+    return connection->token;
+}
+
+int64_t cwhip_gtk_scrollbar_signal(void *self, void *source, void *callback) {
+    (void)self;
+    GtkAdjustment *adjustment = scrollbar_adjustment(source_token(source));
+    return connect_signal(G_OBJECT(adjustment), "value-changed",
+                          G_CALLBACK(scrollbar_value_changed), callback,
+                          "callback<void(fp64)>");
 }
 
 int64_t cwhip_gtk_button_signal(void *self, void *source, void *callback) {

@@ -26,6 +26,8 @@ class F {
     void click(int64 token, int64 button, fp64 x, fp64 y)
     void drag(int64 token, int64 phase, fp64 startX, fp64 startY, fp64 offsetX, fp64 offsetY)
     void scroll(int64 token, fp64 x, fp64 y, fp64 dx, fp64 dy)
+    void popup(int64 token, fp64 x, fp64 y)
+    void setBar(int64 token, fp64 value)
 }
 void F.collect() from "binding_collect"
 int64 F.dialogs() from "binding_dialogs"
@@ -44,6 +46,8 @@ void F.click(int64 token, int64 button, fp64 x, fp64 y) from "binding_drawing_cl
 void F.drag(int64 token, int64 phase, fp64 startX, fp64 startY, fp64 offsetX, fp64 offsetY)
     from "binding_drawing_drag"
 void F.scroll(int64 token, fp64 x, fp64 y, fp64 dx, fp64 dy) from "binding_drawing_scroll"
+void F.popup(int64 token, fp64 x, fp64 y) from "binding_context_popup"
+void F.setBar(int64 token, fp64 value) from "binding_scrollbar_set"
 """
 
 SHORTCUT_NATIVE = """
@@ -268,21 +272,32 @@ class UI {
     Gtk.Window window
     Gtk.DrawingArea area
     Gtk.DrawingArea paneArea
+    Gtk.DrawingArea scrollChild
+    Gtk.Scrollbar bar
+    Gtk.ContextMenu menu
     int64 paints
     int64 clicks
     int64 drags
     int64 scrolls
+    int64 popups
+    int64 barChanges
+    int64 menuItems
     int64 lastButton
     fp64 lastX
     fp64 lastY
     fp64 lastDx
     fp64 lastDy
+    fp64 lastBar
     int64 lastPhase
     void<int64, int64> paintAction
     void<int64, int64> panePaintAction
+    void<int64, int64> scrollPaintAction
     void<int64, fp64, fp64> clickAction
     void<int64, fp64, fp64, fp64, fp64> dragAction
     void<fp64, fp64, fp64, fp64> scrollAction
+    void<fp64, fp64> popupAction
+    void<fp64> barAction
+    void<> noopAction
     void<> checkAction
     void require(bool condition, String label) {
         if (!condition) {
@@ -308,6 +323,11 @@ class UI {
         paneArea.fillRect(0.0f64, 0.0f64, width, height)
         paints = paints + 1
     }
+    void scrollPaint(int64 width, int64 height) {
+        scrollChild.setColor(0.15f64, 0.20f64, 0.25f64, 1.0f64)
+        scrollChild.fillRect(0.0f64, 0.0f64, width, height)
+        paints = paints + 1
+    }
     void clicked(int64 button, fp64 x, fp64 y) {
         clicks = clicks + 1
         lastButton = button
@@ -329,8 +349,24 @@ class UI {
         lastDx = dx
         lastDy = dy
     }
+    void prepareMenu(fp64 x, fp64 y) {
+        popups = popups + 1
+        lastX = x
+        lastY = y
+        menu.clear()
+        menu.addItem("Status", noopAction)
+        menu.addSeparator()
+        int64 places = menu.addSubmenu("Places")
+        menu.addItem(places, "Home", noopAction)
+        menuItems = menuItems + 1
+    }
+    void barMoved(fp64 value) {
+        barChanges = barChanges + 1
+        lastBar = value
+    }
+    void noop() {}
     void check() {
-        require(paints >= 2, "expected DrawingArea paints")
+        require(paints >= 3, "expected DrawingArea paints")
         F().click(area._widgetToken(), Gtk.DrawingArea.BUTTON_PRIMARY, 12.5f64, 34.0f64)
         require(clicks == 1 && lastButton == Gtk.DrawingArea.BUTTON_PRIMARY, "click button")
         require(lastX == 12.5f64 && lastY == 34.0f64, "click coords")
@@ -344,6 +380,15 @@ class UI {
         require(scrolls == 1, "scroll count")
         require(lastX == 40.0f64 && lastY == 50.0f64, "scroll focus")
         require(lastDx == 0.0f64 && lastDy == -1.0f64, "scroll delta")
+        F().popup(menu._widgetToken(), 64.0f64, 80.0f64)
+        require(popups == 1 && menuItems == 1, "context popup rebuild")
+        require(lastX == 64.0f64 && lastY == 80.0f64, "popup coords")
+        bar.configure(10.0f64, 0.0f64, 100.0f64, 1.0f64, 10.0f64, 20.0f64)
+        require(bar.lower() == 0.0f64 && bar.upper() == 100.0f64, "bar range")
+        require(bar.pageSize() == 20.0f64, "bar page")
+        F().setBar(bar._widgetToken(), 33.0f64)
+        require(barChanges >= 1 && lastBar == 33.0f64, "bar value changed")
+        require(bar.value() == 33.0f64, "bar getter")
         print("PASS drawing")
         Gtk.Application().quit()
     }
@@ -360,7 +405,19 @@ class UI {
         area.onClick(clickAction)
         area.onDrag(dragAction)
         area.onScroll(scrollAction)
+        menu = Gtk.ContextMenu(area)
+        menu.onPopup(popupAction)
+        bar = Gtk.Scrollbar(Gtk.Scrollbar.HORIZONTAL)
+        bar.onValueChanged(barAction)
         left.append(area)
+        left.append(bar)
+        Gtk.ScrolledWindow scroll = Gtk.ScrolledWindow()
+        scroll.setPolicy(Gtk.ScrolledWindow.POLICY_AUTOMATIC, Gtk.ScrolledWindow.POLICY_AUTOMATIC)
+        scrollChild = Gtk.DrawingArea()
+        scrollChild.setContentSize(400, 400)
+        scrollChild.onDraw(scrollPaintAction)
+        scroll.setChild(scrollChild)
+        left.append(scroll)
         paneArea = Gtk.DrawingArea()
         paneArea.setHExpand(true)
         paneArea.setVExpand(true)
@@ -371,6 +428,7 @@ class UI {
         window.present()
         area.queueDraw()
         paneArea.queueDraw()
+        scrollChild.queueDraw()
         Gtk.Application().schedule(250, checkAction)
     }
 }
@@ -379,9 +437,13 @@ start {
     UI ui = UI()
     ui.paintAction = ui.paint
     ui.panePaintAction = ui.panePaint
+    ui.scrollPaintAction = ui.scrollPaint
     ui.clickAction = ui.clicked
     ui.dragAction = ui.dragged
     ui.scrollAction = ui.scrolled
+    ui.popupAction = ui.prepareMenu
+    ui.barAction = ui.barMoved
+    ui.noopAction = ui.noop
     ui.checkAction = ui.check
     app.onActivate(ui.activate)
     app.run()

@@ -302,6 +302,27 @@ void binding_drawing_scroll(void *self, int64_t token, double x, double y, doubl
     signal_leave(connection, acquired);
 }
 
+/* Drive ContextMenu.onPopup the same way a secondary-button press does, without
+ * requiring a real GDK event under Xvfb. */
+void binding_context_popup(void *self, int64_t token, double x, double y) {
+    (void)self;
+    GtkWidget *widget = widget_live(token);
+    assert(GTK_IS_POPOVER_MENU(widget));
+    Connection *popup = g_object_get_data(G_OBJECT(widget), "cwhip-popup");
+    assert(popup && !popup->closed);
+    int acquired = signal_enter(popup);
+    typedef void (*Adapter)(CwhipCallbackContext *, double, double);
+    ((Adapter)cwhip_callback_adapter(popup->context))(popup->context, x, y);
+    signal_leave(popup, acquired);
+}
+
+void binding_scrollbar_set(void *self, int64_t token, double value) {
+    (void)self;
+    GtkWidget *widget = widget_live(token);
+    assert(GTK_IS_SCROLLBAR(widget));
+    gtk_adjustment_set_value(gtk_scrollbar_get_adjustment(GTK_SCROLLBAR(widget)), value);
+}
+
 #ifdef CWHIP_GTK_SOURCEVIEW
 void binding_view_properties(void *self, int64_t token, int64_t tabs, bool enabled) {
     (void)self;

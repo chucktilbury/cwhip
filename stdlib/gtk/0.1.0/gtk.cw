@@ -85,6 +85,8 @@ namespace Gtk {
         int64 _click(DrawingArea source, void<int64, fp64, fp64> action)
         int64 _drag(DrawingArea source, void<int64, fp64, fp64, fp64, fp64> action)
         int64 _scroll(DrawingArea source, void<fp64, fp64, fp64, fp64> action)
+        int64 _popup(ContextMenu source, void<fp64, fp64> action)
+        int64 _valueChanged(Scrollbar source, void<fp64> action)
         bool _disconnect(int64 token)
         bool _connected(int64 token)
         public:
@@ -123,6 +125,12 @@ namespace Gtk {
         }
         SignalConnection(DrawingArea source, void<fp64, fp64, fp64, fp64> action) {
             _token = _scroll(source, action)
+        }
+        SignalConnection(ContextMenu source, void<fp64, fp64> action) {
+            _token = _popup(source, action)
+        }
+        SignalConnection(Scrollbar source, void<fp64> action) {
+            _token = _valueChanged(source, action)
         }
         bool disconnect() { return(_disconnect(_token))}
         bool connected() { return(_connected(_token))}
@@ -294,13 +302,21 @@ namespace Gtk {
 
     class ContextMenu : Widget {
         private:
+        ContextMenu _menuSelf()
         void _bind(int64 token, int64 owner)
         int64 _addItem(int64 token, int64 menu, String label, void<> action)
         int64 _addCheck(int64 token, int64 menu, String label, bool initial, void<bool> action)
+        int64 _addSubmenu(int64 token, int64 menu, String label)
+        void _separator(int64 token, int64 menu)
+        void _clearMenu(int64 token, int64 menu)
+        void _popupAt(int64 token, fp64 x, fp64 y)
         void _enabled(int64 token, int64 item, bool value)
         void _checked(int64 token, int64 item, bool value)
         bool _isChecked(int64 token, int64 item)
         public:
+        // Attaches a secondary-button PopoverMenu to owner (any Widget,
+        // including DrawingArea). Right-click coords are delivered via onPopup
+        // before the menu opens so the app can clear/rebuild items.
         ContextMenu(Widget owner) {
             super Widget(15, "", 0, 0)
             _bind(_widgetToken(), owner._widgetToken())
@@ -308,15 +324,74 @@ namespace Gtk {
         // Prefer addItem/addCheckItem so the menu looks like a native popup.
         // setChild still accepts a custom widget for callers that need one.
         void setChild(Widget child) { _attachChild(child) }
+        // Appends a row to the root menu; returns an item token for enable/check.
         int64 addItem(String label, void<> action) {
             return(_addItem(_widgetToken(), 0, label, action))
+        }
+        // Appends a row to submenu index from addSubmenu.
+        int64 addItem(int64 menu, String label, void<> action) {
+            return(_addItem(_widgetToken(), menu, label, action))
         }
         int64 addCheckItem(String label, bool initial, void<bool> action) {
             return(_addCheck(_widgetToken(), 0, label, initial, action))
         }
+        int64 addCheckItem(int64 menu, String label, bool initial, void<bool> action) {
+            return(_addCheck(_widgetToken(), menu, label, initial, action))
+        }
+        // Starts a new section on the root menu (native divider).
+        void addSeparator() { _separator(_widgetToken(), 0) }
+        void addSeparator(int64 menu) { _separator(_widgetToken(), menu) }
+        // Nested submenu under the root; returns a menu index for addItem(menu, ...).
+        int64 addSubmenu(String label) { return(_addSubmenu(_widgetToken(), 0, label)) }
+        int64 addSubmenu(int64 menu, String label) {
+            return(_addSubmenu(_widgetToken(), menu, label))
+        }
+        // Removes all rows from the root menu so the app can rebuild on each popup.
+        void clear() { _clearMenu(_widgetToken(), 0) }
+        void clearMenu(int64 menu) { _clearMenu(_widgetToken(), menu) }
         void setItemEnabled(int64 item, bool enabled) { _enabled(_widgetToken(), item, enabled) }
         void setItemChecked(int64 item, bool checked) { _checked(_widgetToken(), item, checked) }
         bool itemChecked(int64 item) { return(_isChecked(_widgetToken(), item)) }
+        // Fires just before the menu opens with owner-local click coordinates.
+        // A later onPopup replaces the previous callback.
+        SignalConnection onPopup(void<fp64, fp64> action) {
+            return(SignalConnection(_menuSelf(), action))
+        }
+        // Programmatic popup at owner-local coordinates (after building items).
+        void popupAt(fp64 x, fp64 y) { _popupAt(_widgetToken(), x, y) }
+    }
+
+    // Standalone scrollbar for client-driven pan/zoom extents. Prefer
+    // ScrolledWindow around a sized DrawingArea when stock bars suffice;
+    // use Scrollbar when zoom is a draw-time transform and content size
+    // stays fixed (configure lower/upper/page from current extents).
+    class Scrollbar : Widget {
+        private:
+        Scrollbar _barSelf()
+        void _configure(int64 token, fp64 value, fp64 lower, fp64 upper, fp64 step, fp64 page,
+            fp64 pageSize)
+        void _setValue(int64 token, fp64 value)
+        fp64 _getValue(int64 token)
+        fp64 _getLower(int64 token)
+        fp64 _getUpper(int64 token)
+        fp64 _getPageSize(int64 token)
+        public:
+        enum { HORIZONTAL = 0, VERTICAL = 1 }
+        // Creates a GtkScrollbar; orientation matches Box/Paned (0/1).
+        Scrollbar(int64 orientation) { super Widget(17, "", orientation, 0) }
+        // Sets adjustment range and page size in one call (GTK clamps value).
+        void configure(fp64 value, fp64 lower, fp64 upper, fp64 step, fp64 page, fp64 pageSize) {
+            _configure(_widgetToken(), value, lower, upper, step, page, pageSize)
+        }
+        void setValue(fp64 value) { _setValue(_widgetToken(), value) }
+        fp64 value() { return(_getValue(_widgetToken())) }
+        fp64 lower() { return(_getLower(_widgetToken())) }
+        fp64 upper() { return(_getUpper(_widgetToken())) }
+        fp64 pageSize() { return(_getPageSize(_widgetToken())) }
+        // Invoked when the user (or setValue) moves the thumb; arg is the new value.
+        SignalConnection onValueChanged(void<fp64> action) {
+            return(SignalConnection(_barSelf(), action))
+        }
     }
 
     class Button : Widget {
@@ -515,8 +590,9 @@ namespace Gtk {
 
     // Custom paint surface embeddable as a normal child of Box, Paned,
     // Notebook, ScrolledWindow, Grid, or Window. Paint helpers are valid only
-    // inside the onDraw callback. View scrollbars and ContextMenu wiring on
-    // the canvas remain deferred GTK growth.
+    // inside the onDraw callback. For view chrome: wrap with ScrolledWindow
+    // after setContentSize, and/or drive Scrollbar widgets from pan/zoom
+    // extents; attach ContextMenu(area) and rebuild items in onPopup.
     class DrawingArea : Widget {
         private:
         DrawingArea _drawSelf()
@@ -654,6 +730,8 @@ namespace Gtk {
     CheckButton CheckButton._checkSelf() from "cwhip_gtk_self"
     Notebook Notebook._notebookSelf() from "cwhip_gtk_self"
     DrawingArea DrawingArea._drawSelf() from "cwhip_gtk_self"
+    ContextMenu ContextMenu._menuSelf() from "cwhip_gtk_self"
+    Scrollbar Scrollbar._barSelf() from "cwhip_gtk_self"
     void Application.initialize() from "cwhip_gtk_initialize"
     String Application.id() from "cwhip_gtk_application_id"
     void Application.run() from "cwhip_gtk_run"
@@ -682,6 +760,10 @@ namespace Gtk {
         from "cwhip_gtk_drawing_area_drag_signal"
     int64 SignalConnection._scroll(DrawingArea source, void<fp64, fp64, fp64, fp64> action)
         from "cwhip_gtk_drawing_area_scroll_signal"
+    int64 SignalConnection._popup(ContextMenu source, void<fp64, fp64> action)
+        from "cwhip_gtk_context_menu_popup_signal"
+    int64 SignalConnection._valueChanged(Scrollbar source, void<fp64> action)
+        from "cwhip_gtk_scrollbar_signal"
     void DrawingArea._queueDraw(int64 token) from "cwhip_gtk_drawing_area_queue_draw"
     void DrawingArea._contentSize(int64 token, int64 width, int64 height)
         from "cwhip_gtk_drawing_area_set_content_size"
@@ -706,9 +788,21 @@ namespace Gtk {
         from "cwhip_gtk_menu_item_add"
     int64 ContextMenu._addCheck(int64 token, int64 menu, String label, bool initial, void<bool> action)
         from "cwhip_gtk_menu_check_add"
+    int64 ContextMenu._addSubmenu(int64 token, int64 menu, String label)
+        from "cwhip_gtk_menu_submenu_add"
+    void ContextMenu._separator(int64 token, int64 menu) from "cwhip_gtk_menu_separator_add"
+    void ContextMenu._clearMenu(int64 token, int64 menu) from "cwhip_gtk_menu_clear"
+    void ContextMenu._popupAt(int64 token, fp64 x, fp64 y) from "cwhip_gtk_context_menu_popup_at"
     void ContextMenu._enabled(int64 token, int64 item, bool value) from "cwhip_gtk_menu_item_enabled"
     void ContextMenu._checked(int64 token, int64 item, bool value) from "cwhip_gtk_menu_item_set_checked"
     bool ContextMenu._isChecked(int64 token, int64 item) from "cwhip_gtk_menu_item_checked"
+    void Scrollbar._configure(int64 token, fp64 value, fp64 lower, fp64 upper, fp64 step, fp64 page,
+        fp64 pageSize) from "cwhip_gtk_scrollbar_configure"
+    void Scrollbar._setValue(int64 token, fp64 value) from "cwhip_gtk_scrollbar_set_value"
+    fp64 Scrollbar._getValue(int64 token) from "cwhip_gtk_scrollbar_get_value"
+    fp64 Scrollbar._getLower(int64 token) from "cwhip_gtk_scrollbar_get_lower"
+    fp64 Scrollbar._getUpper(int64 token) from "cwhip_gtk_scrollbar_get_upper"
+    fp64 Scrollbar._getPageSize(int64 token) from "cwhip_gtk_scrollbar_get_page_size"
     void Entry._editable(int64 token, bool editable) from "cwhip_gtk_entry_editable"
     void Notebook._closable(int64 token, int64 child, String title, void<> close)
         from "cwhip_gtk_notebook_closable"
