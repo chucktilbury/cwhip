@@ -25,13 +25,21 @@ proof of concept and compiler-testing tool, not a production IDE/debugger.
 
 ## Implemented milestones
 
+### Unreleased: GTK DrawingArea pointer input
+
+`Gtk.DrawingArea` adds `onClick(void<int64,fp64,fp64>)`,
+`onDrag(void<int64,fp64,fp64,fp64,fp64>)`, and
+`onScroll(void<fp64,fp64,fp64,fp64>)` for pick / pan / zoom with widget-local
+coordinates. Scrollbar adjustments, canvas ContextMenu wiring, dash, and
+draw-text remain deferred. See `doc/GTK.md` and `examples/drawing.cw`.
+
 ### Unreleased: GTK DrawingArea foundation
 
 `Gtk.DrawingArea` is a normal embeddable child widget with `queueDraw`,
 `setContentSize`, `onDraw(void<int64,int64>)`, and Cairo paint helpers
 (`setColor`, `setLineWidth`, fill/stroke rect and circle, `strokeLine`).
-Pointer input, scrollbar adjustments, canvas ContextMenu wiring, dash,
-and draw-text remain deferred. See `doc/GTK.md` and
+Scrollbar adjustments, canvas ContextMenu wiring, dash, and draw-text
+remain deferred after the pointer-input follow-up. See `doc/GTK.md` and
 `examples/drawing.cw`.
 
 ### Unreleased: Return from start

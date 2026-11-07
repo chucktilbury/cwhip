@@ -106,7 +106,7 @@ The first-release additions are:
 | `Widget` | `setVisible(bool)`, `bool visible()`, `setSensitive(bool)`, `setHExpand(bool)`, `setVExpand(bool)`, `setWidthRequest(int64)`, `addCssClass(String)`, `removeCssClass(String)`, `setTooltip(String)`, `setFocusOnClick(bool)`, `setCanFocus(bool)`, `dispose()`, `bool disposed()` |
 | `Window` | `Window(String title)`, `setTitle(String)`, `String title()`, `setDefaultSize(int64 width, int64 height)`, `int64 defaultWidth()`, `int64 defaultHeight()`, `setTransientFor(Window parent)`, `setChild(Widget)`, `remove(Widget)`, `present()`, `close()`, `onCloseRequest(bool<>)`, `onFocusChanged(void<bool>)`, `bindShortcut(String trigger, void<>)`, `bool hasShortcut(String trigger)`, `clearShortcuts()`, `setMenubarAccel(bool)`, `bool menubarAccel()` |
 | `Paned` | `Paned()` (horizontal), `Paned(int64 orientation)` with `Paned.HORIZONTAL` / `Paned.VERTICAL`, `append(Widget)`, `setPosition(int64)`, `int64 position()` |
-| `DrawingArea` | `DrawingArea()`, `queueDraw()`, `setContentSize(int64 width, int64 height)`, `onDraw(void<int64, int64>)`, paint helpers `setColor` / `setLineWidth` / `fillRect` / `strokeRect` / `fillCircle` / `strokeCircle` / `strokeLine` (valid only inside `onDraw`) |
+| `DrawingArea` | `DrawingArea()`, `queueDraw()`, `setContentSize(int64 width, int64 height)`, `onDraw(void<int64, int64>)`, `onClick(void<int64, fp64, fp64>)`, `onDrag(void<int64, fp64, fp64, fp64, fp64>)`, `onScroll(void<fp64, fp64, fp64, fp64>)`, paint helpers `setColor` / `setLineWidth` / `fillRect` / `strokeRect` / `fillCircle` / `strokeCircle` / `strokeLine` (valid only inside `onDraw`) |
 | `TransientWindow` | `TransientWindow(String title)`, `setTitle(String)`, `String title()`, `setDefaultSize(int64 width, int64 height)`, `int64 defaultWidth()`, `int64 defaultHeight()`, `setTransientFor(Window parent)`, `setChild(Widget)`, `remove(Widget)`, `present()`, `close()`, `onCloseRequest(bool<>)` |
 | `Box` | `Box(int64 orientation, int64 spacing)`, `setLayout(int64 orientation, int64 spacing)`, `append(Widget)`, `remove(Widget)` |
 | `Grid` | `Grid(int64 spacing)`, `attach(Widget, int64 column, int64 row, int64 width, int64 height)` |
@@ -184,6 +184,11 @@ DrawingArea()
 void queueDraw()
 void setContentSize(int64 width, int64 height)
 SignalConnection onDraw(void<int64, int64> action)
+SignalConnection onClick(void<int64, fp64, fp64> action)
+SignalConnection onDrag(void<int64, fp64, fp64, fp64, fp64> action)
+SignalConnection onScroll(void<fp64, fp64, fp64, fp64> action)
+enum BUTTON_PRIMARY = 1, BUTTON_MIDDLE = 2, BUTTON_SECONDARY = 3
+enum DRAG_BEGIN = 0, DRAG_UPDATE = 1, DRAG_END = 2
 void setColor(fp64 r, fp64 g, fp64 b, fp64 a)
 void setLineWidth(fp64 width)
 void fillRect(fp64 x, fp64 y, fp64 width, fp64 height)
@@ -199,25 +204,46 @@ GTK diagnostic. Prefer `f64` float literals for colors and geometry. A later
 `onDraw` replaces the previous draw function. `queueDraw` marks the area dirty
 so GTK schedules another paint (for example after application state changes).
 
-Minimal demo (panel child + clear + circle):
+Pointer callbacks use widget-local coordinates:
+
+- `onClick(button, x, y)` fires on mouse-button release. `button` matches GDK
+  (`BUTTON_PRIMARY` / `MIDDLE` / `SECONDARY`). A primary-button drag that moves
+  past GTK's drag threshold typically suppresses the click, so pick and pan can
+  share the left button.
+- `onDrag(phase, start_x, start_y, offset_x, offset_y)` tracks a primary-button
+  drag (`DRAG_BEGIN` / `UPDATE` / `END`). Offsets are relative to the press point;
+  apps usually keep a pan origin at begin and apply `origin + offset` on update.
+- `onScroll(x, y, dx, dy)` reports scroll-wheel / trackpad deltas. `x`/`y` are
+  the pointer focus when known (last motion or the scroll event position).
+
+Minimal demo (panel child + clear + circle + click mark):
 
 ```cwhip
 import gtk
 
 class Demo {
     Gtk.DrawingArea area
+    fp64 markX
+    fp64 markY
     void<> quitAction
     void<int64, int64> paintAction
+    void<int64, fp64, fp64> clickAction
 
     void paint(int64 width, int64 height) {
         area.setColor(0.12f64, 0.14f64, 0.20f64, 1.0f64)
         area.fillRect(0.0f64, 0.0f64, width, height)
         area.setColor(0.25f64, 0.75f64, 0.40f64, 1.0f64)
         area.fillCircle(width / 2, height / 2, 48.0f64)
-        area.setColor(1.0f64, 1.0f64, 1.0f64, 1.0f64)
-        area.setLineWidth(2.0f64)
-        area.strokeCircle(width / 2, height / 2, 56.0f64)
-        area.strokeLine(16.0f64, 16.0f64, width - 16, height - 16)
+        area.setColor(0.95f64, 0.55f64, 0.20f64, 1.0f64)
+        area.fillCircle(markX, markY, 6.0f64)
+    }
+
+    void clicked(int64 button, fp64 x, fp64 y) {
+        if (button == Gtk.DrawingArea.BUTTON_PRIMARY) {
+            markX = x
+            markY = y
+            area.queueDraw()
+        }
     }
 
     void quit() { Gtk.Application().quit() }
@@ -230,6 +256,7 @@ class Demo {
         area.setHExpand(true)
         area.setVExpand(true)
         area.onDraw(paintAction)
+        area.onClick(clickAction)
         layout.append(area)
         window.setChild(layout)
         window.present()
@@ -242,17 +269,19 @@ start {
     Gtk.Application app = Gtk.Application("org.cwhip.DrawingDemo")
     Demo demo = Demo()
     demo.paintAction = demo.paint
+    demo.clickAction = demo.clicked
     demo.quitAction = demo.quit
     app.onActivate(demo.activate)
     app.run()
 }
 ```
 
-**Deferred (not in this release):** pointer/gesture input with coordinates on
-the area, scrollbar / `Adjustment` APIs for pan/zoom chrome, and DrawingArea
-`ContextMenu` ownership at right-click coordinates. `ContextMenu` already exists
-for other widgets; canvas wiring comes later. Dashed strokes and draw-text
-helpers are also later growth.
+See `examples/drawing.cw` for click + drag pan + scroll zoom together.
+
+**Deferred (not in this release):** scrollbar / `Adjustment` APIs for pan/zoom
+chrome, and DrawingArea `ContextMenu` ownership at right-click coordinates.
+`ContextMenu` already exists for other widgets; canvas wiring comes later.
+Dashed strokes and draw-text helpers are also later growth.
 
 Expansion uses GTK's actual `hexpand`/`vexpand` layout properties. For an editor,
 expand the notebook, scrolled window and source widget vertically and horizontally
@@ -823,4 +852,5 @@ Its private fixture is not shipped in the package.
 See [TESTING.md](TESTING.md). Styling, broad dialog/model coverage, input events,
 arbitrary native-widget adoption, file-open/command-line activation, and broad GTK
 property coverage are not implemented in this release. `DrawingArea` provides a
-first custom-paint surface; pointer input and richer path/text APIs remain open.
+custom-paint surface with click/drag/scroll coordinates; richer path/text APIs
+and canvas scrollbars / ContextMenu wiring remain open.
