@@ -25,6 +25,14 @@ proof of concept and compiler-testing tool, not a production IDE/debugger.
 
 ## Implemented milestones
 
+### Unreleased: GTK ProgressBar
+
+`Gtk.ProgressBar` for determinate fraction (0..1) and indeterminate `pulse`
+feedback: `setFraction` / `fraction`, optional `setText` / `setShowText`,
+`pulse` / `setPulseStep` / `pulseStep`, horizontal and vertical orientation.
+See `doc/GTK.md` and `examples/progress.cw`. `SpinButton` / `DropDown` remain
+deferred.
+
 ### Unreleased: GTK Scale sliders
 
 `Gtk.Scale` for horizontal/vertical numeric sliders: `configure(value, lower,

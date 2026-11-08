@@ -430,6 +430,40 @@ namespace Gtk {
         }
     }
 
+    // Determinate or pulsing progress indicator (GtkProgressBar). Fraction is
+    // 0..1; optional overlay text when showText is true; pulse() for unknown ETA.
+    class ProgressBar : Widget {
+        private:
+        void _setFraction(int64 token, fp64 fraction)
+        fp64 _getFraction(int64 token)
+        void _setText(int64 token, String text)
+        String _getText(int64 token)
+        void _setShowText(int64 token, bool show)
+        bool _getShowText(int64 token)
+        void _pulse(int64 token)
+        void _setPulseStep(int64 token, fp64 step)
+        fp64 _getPulseStep(int64 token)
+        public:
+        enum { HORIZONTAL = 0, VERTICAL = 1 }
+        // Creates a GtkProgressBar; orientation matches Box/Paned/Scale (0/1).
+        // Defaults: fraction 0, showText false, empty text, pulseStep 0.1.
+        ProgressBar(int64 orientation) { super Widget(19, "", orientation, 0) }
+        // Sets filled fraction in [0.0, 1.0]; out-of-range values abort.
+        void setFraction(fp64 fraction) { _setFraction(_widgetToken(), fraction) }
+        fp64 fraction() { return(_getFraction(_widgetToken())) }
+        // Overlay label when showText is true; empty string clears custom text
+        // so GTK may show a percentage when showText remains enabled.
+        void setText(String text) { _setText(_widgetToken(), text) }
+        String text() { return(_getText(_widgetToken())) }
+        void setShowText(bool show) { _setShowText(_widgetToken(), show) }
+        bool showText() { return(_getShowText(_widgetToken())) }
+        // Advances an indeterminate pulse animation by pulseStep.
+        void pulse() { _pulse(_widgetToken()) }
+        // Fraction advanced per pulse(); must be in (0.0, 1.0].
+        void setPulseStep(fp64 step) { _setPulseStep(_widgetToken(), step) }
+        fp64 pulseStep() { return(_getPulseStep(_widgetToken())) }
+    }
+
     class Button : Widget {
         private:
         Button _buttonSelf()
@@ -849,6 +883,18 @@ namespace Gtk {
     fp64 Scale._getLower(int64 token) from "cwhip_gtk_scale_get_lower"
     fp64 Scale._getUpper(int64 token) from "cwhip_gtk_scale_get_upper"
     fp64 Scale._getStep(int64 token) from "cwhip_gtk_scale_get_step"
+    void ProgressBar._setFraction(int64 token, fp64 fraction)
+        from "cwhip_gtk_progress_bar_set_fraction"
+    fp64 ProgressBar._getFraction(int64 token) from "cwhip_gtk_progress_bar_get_fraction"
+    void ProgressBar._setText(int64 token, String text) from "cwhip_gtk_progress_bar_set_text"
+    String ProgressBar._getText(int64 token) from "cwhip_gtk_progress_bar_get_text"
+    void ProgressBar._setShowText(int64 token, bool show)
+        from "cwhip_gtk_progress_bar_set_show_text"
+    bool ProgressBar._getShowText(int64 token) from "cwhip_gtk_progress_bar_get_show_text"
+    void ProgressBar._pulse(int64 token) from "cwhip_gtk_progress_bar_pulse"
+    void ProgressBar._setPulseStep(int64 token, fp64 step)
+        from "cwhip_gtk_progress_bar_set_pulse_step"
+    fp64 ProgressBar._getPulseStep(int64 token) from "cwhip_gtk_progress_bar_get_pulse_step"
     void Entry._editable(int64 token, bool editable) from "cwhip_gtk_entry_editable"
     void Notebook._closable(int64 token, int64 child, String title, void<> close)
         from "cwhip_gtk_notebook_closable"

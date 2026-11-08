@@ -3,9 +3,10 @@
 The optional `gtk` package (`0.1.0`, `import gtk`, namespace `Gtk`) provides a
 compact GTK-aligned interface: `Application`, `Widget`, `Window`, `Box`, `Label`,
 `Button`, `Entry`, `CheckButton`, `ScrolledWindow`, `Notebook`, `MenuBar`,
-`ContextMenu`, `Scrollbar`, `Scale`, `FileDialog`, `Paned`, `DrawingArea`, `Tree`,
-`DirectoryScan`, and `SignalConnection`, plus the optional `sourceview` package.
-It is not a complete GTK binding or a generic GUI framework.
+`ContextMenu`, `Scrollbar`, `Scale`, `ProgressBar`, `FileDialog`, `Paned`,
+`DrawingArea`, `Tree`, `DirectoryScan`, and `SignalConnection`, plus the optional
+`sourceview` package. It is not a complete GTK binding or a generic GUI
+framework.
 
 ## Build and package linkage
 
@@ -113,6 +114,7 @@ The first-release additions are:
 | `ContextMenu` | `ContextMenu(Widget owner)`, `addItem` / `addCheckItem` (root or submenu), `addSeparator`, `addSubmenu`, `clear` / `clearMenu`, `onPopup(void<fp64, fp64>)`, `popupAt(fp64, fp64)`, `setChild(Widget)` |
 | `Scrollbar` | `Scrollbar(int64 orientation)` with `HORIZONTAL` / `VERTICAL`, `configure(value, lower, upper, step, page, pageSize)`, `setValue` / `value` / `lower` / `upper` / `pageSize`, `onValueChanged(void<fp64>)` |
 | `Scale` | `Scale(int64 orientation)` with `HORIZONTAL` / `VERTICAL`, `configure(value, lower, upper, step)`, `setValue` / `value` / `lower` / `upper` / `step`, `onValueChanged(void<fp64>)` |
+| `ProgressBar` | `ProgressBar(int64 orientation)` with `HORIZONTAL` / `VERTICAL`, `setFraction` / `fraction` (0..1), `setText` / `text`, `setShowText` / `showText`, `pulse`, `setPulseStep` / `pulseStep` |
 | `Label` | `Label(String text)`, `setText(String)`, `String text()` |
 | `Button` | `Button(String label)`, `setLabel(String)`, `String label()`, `setIconName(String)`, `onClicked(void<>)` (focus-on-click off; non-focusable buttons activate on press) |
 | `Entry` | `Entry(String text)`, `setText(String)`, `String text()`, `focus()`, `setEditable(bool)`, `onChanged(void<String>)` |
@@ -358,6 +360,38 @@ livability.configure(5.0f64, 1.0f64, 10.0f64, 1.0f64)
 ```
 
 See `examples/scale.cw`.
+
+### ProgressBar
+
+`ProgressBar` is a `GtkProgressBar` for determinate fraction (0..1) or
+indeterminate `pulse` feedback (build/download/ETA chrome, long jobs).
+Orientation matches `Box` / `Paned` / `Scale` (`HORIZONTAL` = 0,
+`VERTICAL` = 1). Defaults are fraction `0`, `showText` false, empty text, and
+pulse step `0.1`. With `showText` true and empty text, GTK may display a
+percentage; `setText` supplies a custom overlay label. `pulse` advances the
+block by `pulseStep` (must be in `(0.0, 1.0]`). Out-of-range fractions abort.
+
+```text
+ProgressBar(int64 orientation)   // HORIZONTAL = 0, VERTICAL = 1
+void setFraction(fp64 fraction) / fp64 fraction()
+void setText(String text) / String text()
+void setShowText(bool show) / bool showText()
+void pulse()
+void setPulseStep(fp64 step) / fp64 pulseStep()
+```
+
+```cwhip
+Gtk.ProgressBar develop = Gtk.ProgressBar(Gtk.ProgressBar.HORIZONTAL)
+develop.setHExpand(true)
+develop.setShowText(true)
+develop.setText("developing…")
+develop.setFraction(0.35f64)
+Gtk.ProgressBar unknown = Gtk.ProgressBar(Gtk.ProgressBar.HORIZONTAL)
+unknown.setPulseStep(0.15f64)
+unknown.pulse()
+```
+
+See `examples/progress.cw`.
 
 **Deferred (not in this release):** dashed strokes, draw-text helpers,
 `SpinButton`, and `DropDown`.
@@ -933,5 +967,5 @@ arbitrary native-widget adoption, file-open/command-line activation, and broad G
 property coverage are not implemented in this release. `DrawingArea` provides a
 custom-paint surface with click/drag/scroll coordinates, `Scrollbar` /
 `ScrolledWindow` view chrome, and DrawingArea `ContextMenu` hooks; `Scale`
-covers numeric sliders. Richer path/text paint APIs, `SpinButton`, and
-`DropDown` remain open.
+covers numeric sliders; `ProgressBar` covers determinate fraction and pulse
+feedback. Richer path/text paint APIs, `SpinButton`, and `DropDown` remain open.
