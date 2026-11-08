@@ -527,6 +527,62 @@ start {
 }
 """
 
+PROGRESS = """
+import system
+class UI {
+    Gtk.Window window
+    Gtk.ProgressBar bar
+    Gtk.ProgressBar vertical
+    void<> checkAction
+    void require(bool condition, String label) {
+        if (!condition) {
+            System.StandardIO().writeErrorLine(label)
+            System.Process().exit(1)
+        }
+    }
+    void check() {
+        require(bar.fraction() == 0.0f64, "default fraction")
+        require(!bar.showText(), "default showText")
+        require(bar.text().equals(""), "default text")
+        require(bar.pulseStep() == 0.1f64, "default pulse step")
+        bar.setShowText(true)
+        bar.setText("working")
+        bar.setFraction(0.4f64)
+        require(bar.showText(), "showText on")
+        require(bar.text().equals("working"), "custom text")
+        require(bar.fraction() == 0.4f64, "fraction set")
+        bar.setText("")
+        require(bar.text().equals(""), "cleared text")
+        bar.setPulseStep(0.25f64)
+        require(bar.pulseStep() == 0.25f64, "pulse step")
+        bar.pulse()
+        vertical.setFraction(1.0f64)
+        require(vertical.fraction() == 1.0f64, "vertical fraction")
+        print("PASS progress")
+        Gtk.Application().quit()
+    }
+    void activate() {
+        window = Gtk.Window("ProgressBar bindings")
+        window.setDefaultSize(360, 160)
+        Gtk.Box root = Gtk.Box(Gtk.Box.VERTICAL, 8)
+        bar = Gtk.ProgressBar(Gtk.ProgressBar.HORIZONTAL)
+        vertical = Gtk.ProgressBar(Gtk.ProgressBar.VERTICAL)
+        root.append(bar)
+        root.append(vertical)
+        window.setChild(root)
+        window.present()
+        Gtk.Application().schedule(100, checkAction)
+    }
+}
+start {
+    Gtk.Application app = Gtk.Application("org.cwhip.BindingProgress")
+    UI ui = UI()
+    ui.checkAction = ui.check
+    app.onActivate(ui.activate)
+    app.run()
+}
+"""
+
 LIFETIME = """
 import system
 class Relay {
@@ -640,6 +696,7 @@ def main():
              ("dialogs", dialog, expected_dialog),
              ("drawing", DRAWING, "PASS drawing"),
              ("scale", SCALE, "PASS scale"),
+             ("progress", PROGRESS, "PASS progress"),
              ("lifetime", LIFETIME, "PASS lifetime")]
     if args.sourceview:
         cases.append(("sourceview-editing", SHORTCUT_NATIVE + SOURCEVIEW_EDITING,

@@ -1101,6 +1101,11 @@ int64_t cwhip_gtk_widget_create(void *self, int64_t kind, void *text,
          * gtk_scale_new_with_range page = step*10 convention. */
         widget = gtk_scale_new_with_range((GtkOrientation)orientation, 0.0, 1.0, 0.1);
         break;
+    case 19:
+        /* ProgressBar defaults: fraction 0, no overlay text, pulse step 0.1. */
+        widget = gtk_progress_bar_new();
+        gtk_orientable_set_orientation(GTK_ORIENTABLE(widget), (GtkOrientation)orientation);
+        break;
     case 9: widget = gtk_notebook_new(); break;
     case 10: {
         GMenu *menu = g_menu_new();
@@ -2375,6 +2380,66 @@ static void scale_value_changed(GtkAdjustment *adjustment, gpointer data) {
     ((Adapter)cwhip_callback_adapter(connection->context))(
         connection->context, gtk_adjustment_get_value(adjustment));
     signal_leave(connection, acquired);
+}
+
+static GtkProgressBar *progress_bar_live(int64_t token) {
+    GtkWidget *widget = widget_live(token);
+    if (!GTK_IS_PROGRESS_BAR(widget)) fatal("operation requires ProgressBar");
+    return GTK_PROGRESS_BAR(widget);
+}
+
+void cwhip_gtk_progress_bar_set_fraction(void *self, int64_t token, double fraction) {
+    (void)self;
+    if (!(fraction >= 0.0) || !(fraction <= 1.0))
+        fatal("progress fraction must be between 0.0 and 1.0");
+    gtk_progress_bar_set_fraction(progress_bar_live(token), fraction);
+}
+
+double cwhip_gtk_progress_bar_get_fraction(void *self, int64_t token) {
+    (void)self;
+    return gtk_progress_bar_get_fraction(progress_bar_live(token));
+}
+
+void cwhip_gtk_progress_bar_set_text(void *self, int64_t token, void *text) {
+    (void)self;
+    char *label = text_copy(text);
+    /* Empty string clears custom text so GTK may show a percentage. */
+    gtk_progress_bar_set_text(progress_bar_live(token), label[0] ? label : NULL);
+    g_free(label);
+}
+
+void *cwhip_gtk_progress_bar_get_text(void *self, int64_t token) {
+    (void)self;
+    const char *text = gtk_progress_bar_get_text(progress_bar_live(token));
+    if (!text) text = "";
+    return cwhip_string_new(&cwhip_string_class_meta, text, strlen(text));
+}
+
+void cwhip_gtk_progress_bar_set_show_text(void *self, int64_t token, bool show) {
+    (void)self;
+    gtk_progress_bar_set_show_text(progress_bar_live(token), show);
+}
+
+bool cwhip_gtk_progress_bar_get_show_text(void *self, int64_t token) {
+    (void)self;
+    return gtk_progress_bar_get_show_text(progress_bar_live(token));
+}
+
+void cwhip_gtk_progress_bar_pulse(void *self, int64_t token) {
+    (void)self;
+    gtk_progress_bar_pulse(progress_bar_live(token));
+}
+
+void cwhip_gtk_progress_bar_set_pulse_step(void *self, int64_t token, double step) {
+    (void)self;
+    if (!(step > 0.0) || !(step <= 1.0))
+        fatal("progress pulse step must be in (0.0, 1.0]");
+    gtk_progress_bar_set_pulse_step(progress_bar_live(token), step);
+}
+
+double cwhip_gtk_progress_bar_get_pulse_step(void *self, int64_t token) {
+    (void)self;
+    return gtk_progress_bar_get_pulse_step(progress_bar_live(token));
 }
 
 static void shortcut_free(ShortcutBinding *binding) {
