@@ -160,7 +160,7 @@ TEMPLATE = """<!DOCTYPE html>
     <a href="index.html">Home</a>
     <a href="docs.html">Documentation</a>
     <a href="about-site.html">About this site</a>
-    <a href="https://github.com/chucktilbury/cwhip">GitHub</a>
+    <a href="https://github.com/cwhip-lang/cwhip">GitHub</a>
   </nav>
 </header>
 <main>

@@ -223,6 +223,113 @@ void binding_resize(void *self, int64_t token, int64_t width, int64_t height) {
     gtk_window_set_default_size(GTK_WINDOW(widget_live(token)), (int)width, (int)height);
 }
 
+static Connection *connection_for_controller_type(GtkWidget *widget, GType type) {
+    GListModel *controllers = gtk_widget_observe_controllers(widget);
+    Connection *match = NULL;
+    guint n = g_list_model_get_n_items(controllers);
+    for (guint i = 0; !match && i < n; ++i) {
+        GtkEventController *controller = g_list_model_get_item(controllers, i);
+        if (G_TYPE_CHECK_INSTANCE_TYPE(controller, type)) {
+            for (Connection *connection = connections; connection; connection = connection->next) {
+                if (connection->object == G_OBJECT(controller) && !connection->closed) {
+                    match = connection;
+                    break;
+                }
+            }
+        }
+        g_object_unref(controller);
+    }
+    g_object_unref(controllers);
+    assert(match);
+    return match;
+}
+
+/* Invoke DrawingArea pointer callbacks through their registered adapters.
+ * Avoids full GDK event delivery under Xvfb while still exercising the
+ * Cwhip SignalConnection wiring and coordinate signatures. */
+void binding_drawing_click(void *self, int64_t token, int64_t button, double x, double y) {
+    (void)self;
+    GtkWidget *widget = widget_live(token);
+    assert(GTK_IS_DRAWING_AREA(widget));
+    Connection *connection = connection_for_controller_type(widget, GTK_TYPE_GESTURE_CLICK);
+    WidgetRecord *record = record_for_widget(widget);
+    if (record) {
+        record->pointer_x = x;
+        record->pointer_y = y;
+        record->pointer_inside = true;
+    }
+    int acquired = signal_enter(connection);
+    typedef void (*Adapter)(CwhipCallbackContext *, int64_t, double, double);
+    ((Adapter)cwhip_callback_adapter(connection->context))(connection->context, button, x, y);
+    signal_leave(connection, acquired);
+}
+
+void binding_drawing_drag(void *self, int64_t token, int64_t phase, double start_x,
+                          double start_y, double offset_x, double offset_y) {
+    (void)self;
+    GtkWidget *widget = widget_live(token);
+    assert(GTK_IS_DRAWING_AREA(widget));
+    Connection *connection = connection_for_controller_type(widget, GTK_TYPE_GESTURE_DRAG);
+    WidgetRecord *record = record_for_widget(widget);
+    if (record) {
+        record->pointer_x = start_x + offset_x;
+        record->pointer_y = start_y + offset_y;
+        record->pointer_inside = true;
+    }
+    int acquired = signal_enter(connection);
+    typedef void (*Adapter)(CwhipCallbackContext *, int64_t, double, double, double, double);
+    ((Adapter)cwhip_callback_adapter(connection->context))(
+        connection->context, phase, start_x, start_y, offset_x, offset_y);
+    signal_leave(connection, acquired);
+}
+
+void binding_drawing_scroll(void *self, int64_t token, double x, double y, double dx,
+                            double dy) {
+    (void)self;
+    GtkWidget *widget = widget_live(token);
+    assert(GTK_IS_DRAWING_AREA(widget));
+    Connection *connection =
+        connection_for_controller_type(widget, GTK_TYPE_EVENT_CONTROLLER_SCROLL);
+    WidgetRecord *record = record_for_widget(widget);
+    if (record) {
+        record->pointer_x = x;
+        record->pointer_y = y;
+        record->pointer_inside = true;
+    }
+    int acquired = signal_enter(connection);
+    typedef void (*Adapter)(CwhipCallbackContext *, double, double, double, double);
+    ((Adapter)cwhip_callback_adapter(connection->context))(connection->context, x, y, dx, dy);
+    signal_leave(connection, acquired);
+}
+
+/* Drive ContextMenu.onPopup the same way a secondary-button press does, without
+ * requiring a real GDK event under Xvfb. */
+void binding_context_popup(void *self, int64_t token, double x, double y) {
+    (void)self;
+    GtkWidget *widget = widget_live(token);
+    assert(GTK_IS_POPOVER_MENU(widget));
+    Connection *popup = g_object_get_data(G_OBJECT(widget), "cwhip-popup");
+    assert(popup && !popup->closed);
+    int acquired = signal_enter(popup);
+    typedef void (*Adapter)(CwhipCallbackContext *, double, double);
+    ((Adapter)cwhip_callback_adapter(popup->context))(popup->context, x, y);
+    signal_leave(popup, acquired);
+}
+
+void binding_scrollbar_set(void *self, int64_t token, double value) {
+    (void)self;
+    GtkWidget *widget = widget_live(token);
+    assert(GTK_IS_SCROLLBAR(widget));
+    gtk_adjustment_set_value(gtk_scrollbar_get_adjustment(GTK_SCROLLBAR(widget)), value);
+}
+
+void binding_scale_set(void *self, int64_t token, double value) {
+    (void)self;
+    GtkWidget *widget = widget_live(token);
+    assert(GTK_IS_SCALE(widget));
+    gtk_range_set_value(GTK_RANGE(widget), value);
+}
+
 #ifdef CWHIP_GTK_SOURCEVIEW
 void binding_view_properties(void *self, int64_t token, int64_t tabs, bool enabled) {
     (void)self;

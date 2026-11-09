@@ -1,0 +1,2 @@
+# GitHub's Linguist labels .cw files as RedCode, which is wrong for Cwhip.
+*.cw linguist-detectable=false

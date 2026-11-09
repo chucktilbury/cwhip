@@ -52,6 +52,12 @@ typedef struct WidgetRecord {
     GSimpleActionGroup *actions;
     MenuItem *items;
     bool native_destroying;
+    /* Borrowed Cairo context valid only while a DrawingArea draw callback runs. */
+    cairo_t *draw_cr;
+    /* Last pointer position inside a DrawingArea (widget coordinates). */
+    double pointer_x;
+    double pointer_y;
+    bool pointer_inside;
 } WidgetRecord;
 
 /* A shortcut callback may dispose its own view (closing a tab or the window).
@@ -93,6 +99,10 @@ typedef struct Connection {
     unsigned active;
     bool closed;
     bool detached;
+    /* DrawingArea draw-func / ContextMenu popup-prepare connections are not
+     * GObject signals; disconnect clears them explicitly. */
+    bool draw_func;
+    bool popup_func;
 } Connection;
 
 typedef struct Post {
@@ -128,6 +138,11 @@ static void window_removed(GtkApplication *app, GtkWindow *window, gpointer data
 static void dialog_finish(FileDialog *dialog, bool invoke);
 static void dialog_cancel(FileDialog *dialog);
 static void config_finish_shutdown(void);
+static void drawing_area_pointer_enter(GtkEventControllerMotion *controller, double x,
+                                       double y, gpointer data);
+static void drawing_area_pointer_leave(GtkEventControllerMotion *controller, gpointer data);
+static void drawing_area_pointer_motion(GtkEventControllerMotion *controller, double x,
+                                        double y, gpointer data);
 
 static _Noreturn void fatal(const char *message) {
     fprintf(stderr, "Cwhip GTK error: %s\n", message);
@@ -394,6 +409,20 @@ bool cwhip_gtk_disconnect(int64_t token) {
          * count also covers synchronous/nested callbacks explicitly. */
         connection->closed = true;
         GObject *object = connection->object;
+        if (connection->draw_func) {
+            /* Clearing the draw func invokes its destroy notify, which
+             * releases the Connection the same way a GClosure notify does. */
+            gtk_drawing_area_set_draw_func(GTK_DRAWING_AREA(object), NULL, NULL, NULL);
+            return true;
+        }
+        if (connection->popup_func) {
+            /* Drop the prepare callback stored on the popover; no GClosure. */
+            if (object) g_object_set_data(object, "cwhip-popup", NULL);
+            connection->object = NULL;
+            connection->detached = true;
+            connection_collect(connection);
+            return true;
+        }
         gulong ids[4] = { connection->signal };
         unsigned count = connection->additional_count + 1;
         memcpy(ids + 1, connection->additional, connection->additional_count * sizeof(gulong));
@@ -767,6 +796,10 @@ static void detach(WidgetRecord *r) {
     else if (GTK_IS_WINDOW(parent)) gtk_window_set_child(GTK_WINDOW(parent), NULL);
     else if (GTK_IS_SCROLLED_WINDOW(parent))
         gtk_scrolled_window_set_child(GTK_SCROLLED_WINDOW(parent), NULL);
+    else if (GTK_IS_FRAME(parent))
+        gtk_frame_set_child(GTK_FRAME(parent), NULL);
+    else if (GTK_IS_EXPANDER(parent))
+        gtk_expander_set_child(GTK_EXPANDER(parent), NULL);
     else if (GTK_IS_PANED(parent)) {
         if (gtk_paned_get_start_child(GTK_PANED(parent)) == r->widget)
             gtk_paned_set_start_child(GTK_PANED(parent), NULL);
@@ -803,6 +836,11 @@ static void widget_dispose(WidgetRecord *r) {
         g_clear_pointer(&r->submenus, g_ptr_array_unref);
         g_clear_object(&r->menu);
     }
+    /* Scrollbar/Scale value-changed connections live on the GtkAdjustment. */
+    if (GTK_IS_SCROLLBAR(widget))
+        disconnect_object(G_OBJECT(gtk_scrollbar_get_adjustment(GTK_SCROLLBAR(widget))));
+    if (GTK_IS_SCALE(widget))
+        disconnect_object(G_OBJECT(gtk_range_get_adjustment(GTK_RANGE(widget))));
     disconnect_object(G_OBJECT(widget));
     GListModel *controllers = gtk_widget_observe_controllers(widget);
     for (guint i = 0; i < g_list_model_get_n_items(controllers); ++i) {
@@ -1060,6 +1098,37 @@ int64_t cwhip_gtk_widget_create(void *self, int64_t kind, void *text,
         g_object_unref(menu);
         break;
     }
+    case 16: widget = gtk_drawing_area_new(); break;
+    case 17: widget = gtk_scrollbar_new((GtkOrientation)orientation, NULL); break;
+    case 18:
+        /* Default 0..1 step 0.1 until Scale.configure(); matches
+         * gtk_scale_new_with_range page = step*10 convention. */
+        widget = gtk_scale_new_with_range((GtkOrientation)orientation, 0.0, 1.0, 0.1);
+        break;
+    case 19:
+        /* ProgressBar defaults: fraction 0, no overlay text, pulse step 0.1. */
+        widget = gtk_progress_bar_new();
+        gtk_orientable_set_orientation(GTK_ORIENTABLE(widget), (GtkOrientation)orientation);
+        break;
+    case 20:
+        /* SpinButton default 0..100 step 1 until SpinButton.configure(). */
+        widget = gtk_spin_button_new_with_range(0.0, 100.0, 1.0);
+        break;
+    case 21: {
+        /* Empty DropDown backed by a mutable GtkStringList model. */
+        GtkStringList *strings = gtk_string_list_new(NULL);
+        widget = gtk_drop_down_new(G_LIST_MODEL(strings), NULL);
+        break;
+    }
+    case 22: widget = gtk_frame_new(label[0] ? label : NULL); break;
+    case 23: widget = gtk_expander_new(label[0] ? label : NULL); break;
+    case 24: widget = gtk_separator_new((GtkOrientation)orientation); break;
+    case 25:
+        widget = gtk_text_view_new();
+        gtk_text_view_set_wrap_mode(GTK_TEXT_VIEW(widget), GTK_WRAP_WORD_CHAR);
+        gtk_text_view_set_editable(GTK_TEXT_VIEW(widget), TRUE);
+        gtk_text_view_set_cursor_visible(GTK_TEXT_VIEW(widget), TRUE);
+        break;
     case 9: widget = gtk_notebook_new(); break;
     case 10: {
         GMenu *menu = g_menu_new();
@@ -1099,6 +1168,14 @@ int64_t cwhip_gtk_widget_create(void *self, int64_t kind, void *text,
     }
     r->next = widgets;
     widgets = r;
+    if (kind == 16) {
+        /* Track pointer position so scroll callbacks can report zoom focus. */
+        GtkEventController *motion = gtk_event_controller_motion_new();
+        g_signal_connect(motion, "enter", G_CALLBACK(drawing_area_pointer_enter), r);
+        g_signal_connect(motion, "leave", G_CALLBACK(drawing_area_pointer_leave), r);
+        g_signal_connect(motion, "motion", G_CALLBACK(drawing_area_pointer_motion), r);
+        gtk_widget_add_controller(widget, motion);
+    }
     g_signal_connect(widget, "destroy", G_CALLBACK(widget_destroyed), r);
     return r->token;
 }
@@ -1713,6 +1790,12 @@ void cwhip_gtk_widget_attach(void *self, int64_t parent, int64_t child) {
         if (gtk_scrolled_window_get_child(GTK_SCROLLED_WINDOW(p)))
             fatal("container already has a child");
         gtk_scrolled_window_set_child(GTK_SCROLLED_WINDOW(p), c);
+    } else if (GTK_IS_FRAME(p)) {
+        if (gtk_frame_get_child(GTK_FRAME(p))) fatal("container already has a child");
+        gtk_frame_set_child(GTK_FRAME(p), c);
+    } else if (GTK_IS_EXPANDER(p)) {
+        if (gtk_expander_get_child(GTK_EXPANDER(p))) fatal("container already has a child");
+        gtk_expander_set_child(GTK_EXPANDER(p), c);
     } else if (GTK_IS_NOTEBOOK(p)) {
         fatal("use Notebook.appendPage to attach a notebook page");
     } else if (GTK_IS_PANED(p)) {
@@ -1988,6 +2071,18 @@ static void context_pressed(GtkGestureClick *gesture, int count, double x, doubl
     (void)count;
     GtkPopover *popover = data;
     GtkWidget *owner_widget = gtk_event_controller_get_widget(GTK_EVENT_CONTROLLER(gesture));
+    Connection *popup = g_object_get_data(G_OBJECT(popover), "cwhip-popup");
+    if (popup && !popup->closed) {
+        /* Deliver owner-local coords before opening so the app can rebuild. */
+        int acquired = signal_enter(popup);
+        typedef void (*Adapter)(CwhipCallbackContext *, double, double);
+        ((Adapter)cwhip_callback_adapter(popup->context))(popup->context, x, y);
+        signal_leave(popup, acquired);
+        if (popup->closed || !GTK_IS_POPOVER(popover)) {
+            gtk_gesture_set_state(GTK_GESTURE(gesture), GTK_EVENT_SEQUENCE_CLAIMED);
+            return;
+        }
+    }
     if (GTK_IS_TEXT_VIEW(owner_widget) && !click_in_selection(owner_widget, x, y))
         text_click_line(owner_widget, x, y);
     GdkRectangle point = { (int)x, (int)y, 1, 1 };
@@ -2193,6 +2288,458 @@ void cwhip_gtk_context_menu_bind(void *self, int64_t token, int64_t owner_token)
     gtk_gesture_single_set_button(GTK_GESTURE_SINGLE(gesture), GDK_BUTTON_SECONDARY);
     g_signal_connect_object(gesture, "pressed", G_CALLBACK(context_pressed), menu, 0);
     gtk_widget_add_controller(owner_widget, GTK_EVENT_CONTROLLER(gesture));
+}
+
+void cwhip_gtk_context_menu_popup_at(void *self, int64_t token, double x, double y) {
+    (void)self;
+    GtkWidget *menu = widget_live(token);
+    if (!GTK_IS_POPOVER(menu)) fatal("operation requires ContextMenu");
+    GdkRectangle point = { (int)x, (int)y, 1, 1 };
+    gtk_popover_set_pointing_to(GTK_POPOVER(menu), &point);
+    gtk_popover_popup(GTK_POPOVER(menu));
+}
+
+static GtkAdjustment *scrollbar_adjustment(int64_t token) {
+    GtkWidget *widget = widget_live(token);
+    if (!GTK_IS_SCROLLBAR(widget)) fatal("operation requires Scrollbar");
+    return gtk_scrollbar_get_adjustment(GTK_SCROLLBAR(widget));
+}
+
+void cwhip_gtk_scrollbar_configure(void *self, int64_t token, double value, double lower,
+                                   double upper, double step, double page, double page_size) {
+    (void)self;
+    if (!(upper > lower) || page_size < 0.0 || step < 0.0 || page < 0.0)
+        fatal("invalid scrollbar adjustment range");
+    gtk_adjustment_configure(scrollbar_adjustment(token), value, lower, upper, step, page,
+                             page_size);
+}
+
+void cwhip_gtk_scrollbar_set_value(void *self, int64_t token, double value) {
+    (void)self;
+    gtk_adjustment_set_value(scrollbar_adjustment(token), value);
+}
+
+double cwhip_gtk_scrollbar_get_value(void *self, int64_t token) {
+    (void)self;
+    return gtk_adjustment_get_value(scrollbar_adjustment(token));
+}
+
+double cwhip_gtk_scrollbar_get_lower(void *self, int64_t token) {
+    (void)self;
+    return gtk_adjustment_get_lower(scrollbar_adjustment(token));
+}
+
+double cwhip_gtk_scrollbar_get_upper(void *self, int64_t token) {
+    (void)self;
+    return gtk_adjustment_get_upper(scrollbar_adjustment(token));
+}
+
+double cwhip_gtk_scrollbar_get_page_size(void *self, int64_t token) {
+    (void)self;
+    return gtk_adjustment_get_page_size(scrollbar_adjustment(token));
+}
+
+static void scrollbar_value_changed(GtkAdjustment *adjustment, gpointer data) {
+    Connection *connection = data;
+    int acquired = signal_enter(connection);
+    typedef void (*Adapter)(CwhipCallbackContext *, double);
+    ((Adapter)cwhip_callback_adapter(connection->context))(
+        connection->context, gtk_adjustment_get_value(adjustment));
+    signal_leave(connection, acquired);
+}
+
+static GtkAdjustment *scale_adjustment(int64_t token) {
+    GtkWidget *widget = widget_live(token);
+    if (!GTK_IS_SCALE(widget)) fatal("operation requires Scale");
+    return gtk_range_get_adjustment(GTK_RANGE(widget));
+}
+
+void cwhip_gtk_scale_configure(void *self, int64_t token, double value, double lower,
+                               double upper, double step) {
+    (void)self;
+    if (!(upper > lower) || !(step > 0.0))
+        fatal("invalid scale range or step");
+    GtkWidget *widget = widget_live(token);
+    if (!GTK_IS_SCALE(widget)) fatal("operation requires Scale");
+    gtk_adjustment_configure(gtk_range_get_adjustment(GTK_RANGE(widget)), value, lower, upper,
+                             step, step * 10.0, 0.0);
+    /* Match gtk_scale_new_with_range digit heuristic for common step sizes. */
+    int digits = 0;
+    double probe = step;
+    while (digits < 6 && probe < 1.0) {
+        probe *= 10.0;
+        ++digits;
+    }
+    gtk_scale_set_digits(GTK_SCALE(widget), digits);
+}
+
+void cwhip_gtk_scale_set_value(void *self, int64_t token, double value) {
+    (void)self;
+    GtkWidget *widget = widget_live(token);
+    if (!GTK_IS_SCALE(widget)) fatal("operation requires Scale");
+    gtk_range_set_value(GTK_RANGE(widget), value);
+}
+
+double cwhip_gtk_scale_get_value(void *self, int64_t token) {
+    (void)self;
+    GtkWidget *widget = widget_live(token);
+    if (!GTK_IS_SCALE(widget)) fatal("operation requires Scale");
+    return gtk_range_get_value(GTK_RANGE(widget));
+}
+
+double cwhip_gtk_scale_get_lower(void *self, int64_t token) {
+    (void)self;
+    return gtk_adjustment_get_lower(scale_adjustment(token));
+}
+
+double cwhip_gtk_scale_get_upper(void *self, int64_t token) {
+    (void)self;
+    return gtk_adjustment_get_upper(scale_adjustment(token));
+}
+
+double cwhip_gtk_scale_get_step(void *self, int64_t token) {
+    (void)self;
+    return gtk_adjustment_get_step_increment(scale_adjustment(token));
+}
+
+static void scale_value_changed(GtkAdjustment *adjustment, gpointer data) {
+    Connection *connection = data;
+    int acquired = signal_enter(connection);
+    typedef void (*Adapter)(CwhipCallbackContext *, double);
+    ((Adapter)cwhip_callback_adapter(connection->context))(
+        connection->context, gtk_adjustment_get_value(adjustment));
+    signal_leave(connection, acquired);
+}
+
+static GtkProgressBar *progress_bar_live(int64_t token) {
+    GtkWidget *widget = widget_live(token);
+    if (!GTK_IS_PROGRESS_BAR(widget)) fatal("operation requires ProgressBar");
+    return GTK_PROGRESS_BAR(widget);
+}
+
+void cwhip_gtk_progress_bar_set_fraction(void *self, int64_t token, double fraction) {
+    (void)self;
+    if (!(fraction >= 0.0) || !(fraction <= 1.0))
+        fatal("progress fraction must be between 0.0 and 1.0");
+    gtk_progress_bar_set_fraction(progress_bar_live(token), fraction);
+}
+
+double cwhip_gtk_progress_bar_get_fraction(void *self, int64_t token) {
+    (void)self;
+    return gtk_progress_bar_get_fraction(progress_bar_live(token));
+}
+
+void cwhip_gtk_progress_bar_set_text(void *self, int64_t token, void *text) {
+    (void)self;
+    char *label = text_copy(text);
+    /* Empty string clears custom text so GTK may show a percentage. */
+    gtk_progress_bar_set_text(progress_bar_live(token), label[0] ? label : NULL);
+    g_free(label);
+}
+
+void *cwhip_gtk_progress_bar_get_text(void *self, int64_t token) {
+    (void)self;
+    const char *text = gtk_progress_bar_get_text(progress_bar_live(token));
+    if (!text) text = "";
+    return cwhip_string_new(&cwhip_string_class_meta, text, strlen(text));
+}
+
+void cwhip_gtk_progress_bar_set_show_text(void *self, int64_t token, bool show) {
+    (void)self;
+    gtk_progress_bar_set_show_text(progress_bar_live(token), show);
+}
+
+bool cwhip_gtk_progress_bar_get_show_text(void *self, int64_t token) {
+    (void)self;
+    return gtk_progress_bar_get_show_text(progress_bar_live(token));
+}
+
+void cwhip_gtk_progress_bar_pulse(void *self, int64_t token) {
+    (void)self;
+    gtk_progress_bar_pulse(progress_bar_live(token));
+}
+
+void cwhip_gtk_progress_bar_set_pulse_step(void *self, int64_t token, double step) {
+    (void)self;
+    if (!(step > 0.0) || !(step <= 1.0))
+        fatal("progress pulse step must be in (0.0, 1.0]");
+    gtk_progress_bar_set_pulse_step(progress_bar_live(token), step);
+}
+
+double cwhip_gtk_progress_bar_get_pulse_step(void *self, int64_t token) {
+    (void)self;
+    return gtk_progress_bar_get_pulse_step(progress_bar_live(token));
+}
+
+static GtkAdjustment *spin_button_adjustment(int64_t token) {
+    GtkWidget *widget = widget_live(token);
+    if (!GTK_IS_SPIN_BUTTON(widget)) fatal("operation requires SpinButton");
+    return gtk_spin_button_get_adjustment(GTK_SPIN_BUTTON(widget));
+}
+
+static int spin_button_digits_for_step(double step) {
+    int digits = 0;
+    double probe = step;
+    while (digits < 6 && probe < 1.0) {
+        probe *= 10.0;
+        ++digits;
+    }
+    return digits;
+}
+
+void cwhip_gtk_spin_button_configure(void *self, int64_t token, double value, double lower,
+                                     double upper, double step) {
+    (void)self;
+    if (!(upper > lower) || !(step > 0.0))
+        fatal("invalid spin button range or step");
+    GtkWidget *widget = widget_live(token);
+    if (!GTK_IS_SPIN_BUTTON(widget)) fatal("operation requires SpinButton");
+    gtk_adjustment_configure(gtk_spin_button_get_adjustment(GTK_SPIN_BUTTON(widget)), value,
+                             lower, upper, step, step * 10.0, 0.0);
+    gtk_spin_button_set_digits(GTK_SPIN_BUTTON(widget), spin_button_digits_for_step(step));
+}
+
+void cwhip_gtk_spin_button_set_value(void *self, int64_t token, double value) {
+    (void)self;
+    GtkWidget *widget = widget_live(token);
+    if (!GTK_IS_SPIN_BUTTON(widget)) fatal("operation requires SpinButton");
+    gtk_spin_button_set_value(GTK_SPIN_BUTTON(widget), value);
+}
+
+double cwhip_gtk_spin_button_get_value(void *self, int64_t token) {
+    (void)self;
+    GtkWidget *widget = widget_live(token);
+    if (!GTK_IS_SPIN_BUTTON(widget)) fatal("operation requires SpinButton");
+    return gtk_spin_button_get_value(GTK_SPIN_BUTTON(widget));
+}
+
+double cwhip_gtk_spin_button_get_lower(void *self, int64_t token) {
+    (void)self;
+    return gtk_adjustment_get_lower(spin_button_adjustment(token));
+}
+
+double cwhip_gtk_spin_button_get_upper(void *self, int64_t token) {
+    (void)self;
+    return gtk_adjustment_get_upper(spin_button_adjustment(token));
+}
+
+double cwhip_gtk_spin_button_get_step(void *self, int64_t token) {
+    (void)self;
+    return gtk_adjustment_get_step_increment(spin_button_adjustment(token));
+}
+
+static void spin_button_value_changed(GtkSpinButton *spin, gpointer data) {
+    Connection *connection = data;
+    int acquired = signal_enter(connection);
+    typedef void (*Adapter)(CwhipCallbackContext *, double);
+    ((Adapter)cwhip_callback_adapter(connection->context))(
+        connection->context, gtk_spin_button_get_value(spin));
+    signal_leave(connection, acquired);
+}
+
+static GtkStringList *drop_down_strings(int64_t token) {
+    GtkWidget *widget = widget_live(token);
+    if (!GTK_IS_DROP_DOWN(widget)) fatal("operation requires DropDown");
+    GListModel *model = gtk_drop_down_get_model(GTK_DROP_DOWN(widget));
+    if (!GTK_IS_STRING_LIST(model)) fatal("DropDown model is not a string list");
+    return GTK_STRING_LIST(model);
+}
+
+void cwhip_gtk_drop_down_clear(void *self, int64_t token) {
+    (void)self;
+    GtkStringList *strings = drop_down_strings(token);
+    guint n = g_list_model_get_n_items(G_LIST_MODEL(strings));
+    if (n > 0) gtk_string_list_splice(strings, 0, n, NULL);
+    gtk_drop_down_set_selected(GTK_DROP_DOWN(widget_live(token)), GTK_INVALID_LIST_POSITION);
+}
+
+void cwhip_gtk_drop_down_append(void *self, int64_t token, void *label_text) {
+    (void)self;
+    char *label = text_copy(label_text);
+    gtk_string_list_append(drop_down_strings(token), label);
+    g_free(label);
+}
+
+void cwhip_gtk_drop_down_set_selected(void *self, int64_t token, int64_t index) {
+    (void)self;
+    GtkWidget *widget = widget_live(token);
+    if (!GTK_IS_DROP_DOWN(widget)) fatal("operation requires DropDown");
+    if (index < -1) fatal("invalid DropDown selection");
+    if (index < 0) {
+        gtk_drop_down_set_selected(GTK_DROP_DOWN(widget), GTK_INVALID_LIST_POSITION);
+        return;
+    }
+    guint n = g_list_model_get_n_items(G_LIST_MODEL(drop_down_strings(token)));
+    if ((guint)index >= n) fatal("DropDown selection out of range");
+    gtk_drop_down_set_selected(GTK_DROP_DOWN(widget), (guint)index);
+}
+
+int64_t cwhip_gtk_drop_down_get_selected(void *self, int64_t token) {
+    (void)self;
+    GtkWidget *widget = widget_live(token);
+    if (!GTK_IS_DROP_DOWN(widget)) fatal("operation requires DropDown");
+    guint selected = gtk_drop_down_get_selected(GTK_DROP_DOWN(widget));
+    if (selected == GTK_INVALID_LIST_POSITION) return -1;
+    return (int64_t)selected;
+}
+
+int64_t cwhip_gtk_drop_down_get_size(void *self, int64_t token) {
+    (void)self;
+    return (int64_t)g_list_model_get_n_items(G_LIST_MODEL(drop_down_strings(token)));
+}
+
+void *cwhip_gtk_drop_down_get_item(void *self, int64_t token, int64_t index) {
+    (void)self;
+    if (index < 0) fatal("DropDown item index out of range");
+    GtkStringList *strings = drop_down_strings(token);
+    guint n = g_list_model_get_n_items(G_LIST_MODEL(strings));
+    if ((guint)index >= n) fatal("DropDown item index out of range");
+    const char *text = gtk_string_list_get_string(strings, (guint)index);
+    if (!text) text = "";
+    return cwhip_string_new(&cwhip_string_class_meta, text, strlen(text));
+}
+
+void *cwhip_gtk_drop_down_get_selected_text(void *self, int64_t token) {
+    (void)self;
+    int64_t index = cwhip_gtk_drop_down_get_selected(self, token);
+    if (index < 0) return cwhip_string_new(&cwhip_string_class_meta, "", 0);
+    return cwhip_gtk_drop_down_get_item(self, token, index);
+}
+
+static void drop_down_selected(GObject *object, GParamSpec *property, gpointer data) {
+    (void)property;
+    Connection *connection = data;
+    int acquired = signal_enter(connection);
+    guint selected = gtk_drop_down_get_selected(GTK_DROP_DOWN(object));
+    int64_t index = selected == GTK_INVALID_LIST_POSITION ? -1 : (int64_t)selected;
+    typedef void (*Adapter)(CwhipCallbackContext *, int64_t);
+    ((Adapter)cwhip_callback_adapter(connection->context))(connection->context, index);
+    signal_leave(connection, acquired);
+}
+
+void cwhip_gtk_frame_set_label(void *self, int64_t token, void *label_text) {
+    (void)self;
+    GtkWidget *widget = widget_live(token);
+    if (!GTK_IS_FRAME(widget)) fatal("operation requires Frame");
+    char *label = text_copy(label_text);
+    gtk_frame_set_label(GTK_FRAME(widget), label[0] ? label : NULL);
+    g_free(label);
+}
+
+void *cwhip_gtk_frame_get_label(void *self, int64_t token) {
+    (void)self;
+    GtkWidget *widget = widget_live(token);
+    if (!GTK_IS_FRAME(widget)) fatal("operation requires Frame");
+    const char *text = gtk_frame_get_label(GTK_FRAME(widget));
+    if (!text) text = "";
+    return cwhip_string_new(&cwhip_string_class_meta, text, strlen(text));
+}
+
+void cwhip_gtk_expander_set_label(void *self, int64_t token, void *label_text) {
+    (void)self;
+    GtkWidget *widget = widget_live(token);
+    if (!GTK_IS_EXPANDER(widget)) fatal("operation requires Expander");
+    char *label = text_copy(label_text);
+    gtk_expander_set_label(GTK_EXPANDER(widget), label);
+    g_free(label);
+}
+
+void *cwhip_gtk_expander_get_label(void *self, int64_t token) {
+    (void)self;
+    GtkWidget *widget = widget_live(token);
+    if (!GTK_IS_EXPANDER(widget)) fatal("operation requires Expander");
+    const char *text = gtk_expander_get_label(GTK_EXPANDER(widget));
+    if (!text) text = "";
+    return cwhip_string_new(&cwhip_string_class_meta, text, strlen(text));
+}
+
+void cwhip_gtk_expander_set_expanded(void *self, int64_t token, bool expanded) {
+    (void)self;
+    GtkWidget *widget = widget_live(token);
+    if (!GTK_IS_EXPANDER(widget)) fatal("operation requires Expander");
+    gtk_expander_set_expanded(GTK_EXPANDER(widget), expanded);
+}
+
+bool cwhip_gtk_expander_get_expanded(void *self, int64_t token) {
+    (void)self;
+    GtkWidget *widget = widget_live(token);
+    if (!GTK_IS_EXPANDER(widget)) fatal("operation requires Expander");
+    return gtk_expander_get_expanded(GTK_EXPANDER(widget)) != FALSE;
+}
+
+static GtkTextBuffer *text_view_buffer(int64_t token) {
+    GtkWidget *widget = widget_live(token);
+    if (!GTK_IS_TEXT_VIEW(widget)) fatal("operation requires TextView");
+#ifdef CWHIP_GTK_SOURCEVIEW
+    /* SourceView has its own buffer APIs; reject accidental cross-use. */
+    if (GTK_SOURCE_IS_VIEW(widget)) fatal("operation requires TextView");
+#endif
+    return gtk_text_view_get_buffer(GTK_TEXT_VIEW(widget));
+}
+
+void cwhip_gtk_text_view_set_text(void *self, int64_t token, void *text) {
+    (void)self;
+    char *bytes = text_copy(text);
+    gtk_text_buffer_set_text(text_view_buffer(token), bytes, -1);
+    g_free(bytes);
+}
+
+void *cwhip_gtk_text_view_get_text(void *self, int64_t token) {
+    (void)self;
+    GtkTextBuffer *buffer = text_view_buffer(token);
+    GtkTextIter start, end;
+    gtk_text_buffer_get_bounds(buffer, &start, &end);
+    char *bytes = gtk_text_buffer_get_text(buffer, &start, &end, FALSE);
+    void *result = cwhip_string_new(&cwhip_string_class_meta, bytes, strlen(bytes));
+    g_free(bytes);
+    return result;
+}
+
+void cwhip_gtk_text_view_set_editable(void *self, int64_t token, bool editable) {
+    (void)self;
+    GtkWidget *widget = widget_live(token);
+    if (!GTK_IS_TEXT_VIEW(widget)) fatal("operation requires TextView");
+    gtk_text_view_set_editable(GTK_TEXT_VIEW(widget), editable);
+    gtk_text_view_set_cursor_visible(GTK_TEXT_VIEW(widget), editable);
+}
+
+bool cwhip_gtk_text_view_get_editable(void *self, int64_t token) {
+    (void)self;
+    GtkWidget *widget = widget_live(token);
+    if (!GTK_IS_TEXT_VIEW(widget)) fatal("operation requires TextView");
+    return gtk_text_view_get_editable(GTK_TEXT_VIEW(widget)) != FALSE;
+}
+
+void cwhip_gtk_text_view_set_wrap(void *self, int64_t token, bool wrap) {
+    (void)self;
+    GtkWidget *widget = widget_live(token);
+    if (!GTK_IS_TEXT_VIEW(widget)) fatal("operation requires TextView");
+    gtk_text_view_set_wrap_mode(GTK_TEXT_VIEW(widget),
+                                wrap ? GTK_WRAP_WORD_CHAR : GTK_WRAP_NONE);
+}
+
+bool cwhip_gtk_text_view_get_wrap(void *self, int64_t token) {
+    (void)self;
+    GtkWidget *widget = widget_live(token);
+    if (!GTK_IS_TEXT_VIEW(widget)) fatal("operation requires TextView");
+    return gtk_text_view_get_wrap_mode(GTK_TEXT_VIEW(widget)) != GTK_WRAP_NONE;
+}
+
+static void text_view_changed(GtkTextBuffer *buffer, gpointer data) {
+    Connection *connection = data;
+    int acquired = signal_enter(connection);
+    GtkTextIter start, end;
+    gtk_text_buffer_get_bounds(buffer, &start, &end);
+    char *bytes = gtk_text_buffer_get_text(buffer, &start, &end, FALSE);
+    void *text = cwhip_string_new(&cwhip_string_class_meta, bytes, strlen(bytes));
+    g_free(bytes);
+    void *slots[] = { &text };
+    CwhipRootFrame frame = {0};
+    cwhip_gc_push_or_abort(&frame, slots, 1);
+    typedef void (*Adapter)(CwhipCallbackContext *, void *);
+    ((Adapter)cwhip_callback_adapter(connection->context))(connection->context, text);
+    cwhip_gc_pop_or_abort(&frame);
+    signal_leave(connection, acquired);
 }
 
 static void shortcut_free(ShortcutBinding *binding) {
@@ -3467,6 +4014,247 @@ bool cwhip_gtk_source_view_has_context(void *self, int64_t token, void *context_
 }
 #endif
 
+static WidgetRecord *record_for_widget(GtkWidget *widget) {
+    for (WidgetRecord *r = widgets; r; r = r->next)
+        if (r->widget == widget) return r;
+    return NULL;
+}
+
+static void draw_connection_destroy(gpointer data) {
+    cwhip_gtk_require_owner();
+    int acquired = cwhip_runtime_managed_enter();
+    Connection *connection = data;
+    connection->object = NULL;
+    connection->closed = true;
+    connection->detached = true;
+    connection_collect(connection);
+    cwhip_runtime_managed_leave(acquired);
+}
+
+static void drawing_area_draw(GtkDrawingArea *area, cairo_t *cr, int width, int height,
+                              gpointer data) {
+    Connection *connection = data;
+    WidgetRecord *record = record_for_widget(GTK_WIDGET(area));
+    int acquired = signal_enter(connection);
+    if (record) record->draw_cr = cr;
+    typedef void (*Adapter)(CwhipCallbackContext *, int64_t, int64_t);
+    ((Adapter)cwhip_callback_adapter(connection->context))(
+        connection->context, (int64_t)width, (int64_t)height);
+    if (record) record->draw_cr = NULL;
+    signal_leave(connection, acquired);
+}
+
+static void drawing_area_pointer_enter(GtkEventControllerMotion *controller, double x,
+                                       double y, gpointer data) {
+    (void)controller;
+    WidgetRecord *record = data;
+    record->pointer_x = x;
+    record->pointer_y = y;
+    record->pointer_inside = true;
+}
+
+static void drawing_area_pointer_leave(GtkEventControllerMotion *controller, gpointer data) {
+    (void)controller;
+    WidgetRecord *record = data;
+    record->pointer_inside = false;
+}
+
+static void drawing_area_pointer_motion(GtkEventControllerMotion *controller, double x,
+                                        double y, gpointer data) {
+    (void)controller;
+    WidgetRecord *record = data;
+    record->pointer_x = x;
+    record->pointer_y = y;
+    record->pointer_inside = true;
+}
+
+static void drawing_area_click_released(GtkGestureClick *gesture, gint n_press, gdouble x,
+                                        gdouble y, gpointer data) {
+    if (n_press != 1) return;
+    Connection *connection = data;
+    guint button = gtk_gesture_single_get_current_button(GTK_GESTURE_SINGLE(gesture));
+    WidgetRecord *record =
+        record_for_widget(gtk_event_controller_get_widget(GTK_EVENT_CONTROLLER(gesture)));
+    if (record) {
+        record->pointer_x = x;
+        record->pointer_y = y;
+        record->pointer_inside = true;
+    }
+    int acquired = signal_enter(connection);
+    typedef void (*Adapter)(CwhipCallbackContext *, int64_t, double, double);
+    ((Adapter)cwhip_callback_adapter(connection->context))(
+        connection->context, (int64_t)button, x, y);
+    signal_leave(connection, acquired);
+}
+
+static void drawing_area_drag_begin(GtkGestureDrag *gesture, gdouble x, gdouble y,
+                                    gpointer data) {
+    Connection *connection = data;
+    WidgetRecord *record =
+        record_for_widget(gtk_event_controller_get_widget(GTK_EVENT_CONTROLLER(gesture)));
+    if (record) {
+        record->pointer_x = x;
+        record->pointer_y = y;
+        record->pointer_inside = true;
+    }
+    int acquired = signal_enter(connection);
+    typedef void (*Adapter)(CwhipCallbackContext *, int64_t, double, double, double, double);
+    ((Adapter)cwhip_callback_adapter(connection->context))(
+        connection->context, 0, x, y, 0.0, 0.0);
+    signal_leave(connection, acquired);
+}
+
+static void drawing_area_drag_update(GtkGestureDrag *gesture, gdouble offset_x,
+                                     gdouble offset_y, gpointer data) {
+    Connection *connection = data;
+    double start_x = 0.0;
+    double start_y = 0.0;
+    gtk_gesture_drag_get_start_point(gesture, &start_x, &start_y);
+    WidgetRecord *record =
+        record_for_widget(gtk_event_controller_get_widget(GTK_EVENT_CONTROLLER(gesture)));
+    if (record) {
+        record->pointer_x = start_x + offset_x;
+        record->pointer_y = start_y + offset_y;
+        record->pointer_inside = true;
+    }
+    int acquired = signal_enter(connection);
+    typedef void (*Adapter)(CwhipCallbackContext *, int64_t, double, double, double, double);
+    ((Adapter)cwhip_callback_adapter(connection->context))(
+        connection->context, 1, start_x, start_y, offset_x, offset_y);
+    signal_leave(connection, acquired);
+}
+
+static void drawing_area_drag_end(GtkGestureDrag *gesture, gdouble offset_x, gdouble offset_y,
+                                  gpointer data) {
+    Connection *connection = data;
+    double start_x = 0.0;
+    double start_y = 0.0;
+    gtk_gesture_drag_get_start_point(gesture, &start_x, &start_y);
+    WidgetRecord *record =
+        record_for_widget(gtk_event_controller_get_widget(GTK_EVENT_CONTROLLER(gesture)));
+    if (record) {
+        record->pointer_x = start_x + offset_x;
+        record->pointer_y = start_y + offset_y;
+        record->pointer_inside = true;
+    }
+    int acquired = signal_enter(connection);
+    typedef void (*Adapter)(CwhipCallbackContext *, int64_t, double, double, double, double);
+    ((Adapter)cwhip_callback_adapter(connection->context))(
+        connection->context, 2, start_x, start_y, offset_x, offset_y);
+    signal_leave(connection, acquired);
+}
+
+static gboolean drawing_area_scroll(GtkEventControllerScroll *controller, gdouble dx,
+                                    gdouble dy, gpointer data) {
+    Connection *connection = data;
+    WidgetRecord *record =
+        record_for_widget(gtk_event_controller_get_widget(GTK_EVENT_CONTROLLER(controller)));
+    double x = record ? record->pointer_x : 0.0;
+    double y = record ? record->pointer_y : 0.0;
+    GdkEvent *event = gtk_event_controller_get_current_event(GTK_EVENT_CONTROLLER(controller));
+    if (event) {
+        double event_x = 0.0;
+        double event_y = 0.0;
+        if (gdk_event_get_position(event, &event_x, &event_y)) {
+            x = event_x;
+            y = event_y;
+            if (record) {
+                record->pointer_x = x;
+                record->pointer_y = y;
+                record->pointer_inside = true;
+            }
+        }
+    }
+    int acquired = signal_enter(connection);
+    typedef void (*Adapter)(CwhipCallbackContext *, double, double, double, double);
+    ((Adapter)cwhip_callback_adapter(connection->context))(connection->context, x, y, dx, dy);
+    signal_leave(connection, acquired);
+    return TRUE;
+}
+
+static cairo_t *drawing_cr(int64_t token) {
+    WidgetRecord *record = record_find(token);
+    GtkWidget *widget = record->widget;
+    if (!widget || !GTK_IS_DRAWING_AREA(widget))
+        fatal("operation requires DrawingArea");
+    if (!record->draw_cr)
+        fatal("DrawingArea paint methods require an active onDraw callback");
+    return record->draw_cr;
+}
+
+void cwhip_gtk_drawing_area_queue_draw(void *self, int64_t token) {
+    (void)self;
+    GtkWidget *widget = widget_live(token);
+    if (!GTK_IS_DRAWING_AREA(widget)) fatal("operation requires DrawingArea");
+    gtk_widget_queue_draw(widget);
+}
+
+void cwhip_gtk_drawing_area_set_content_size(void *self, int64_t token, int64_t width,
+                                             int64_t height) {
+    (void)self;
+    GtkWidget *widget = widget_live(token);
+    if (!GTK_IS_DRAWING_AREA(widget) || width < 0 || height < 0 ||
+        width > G_MAXINT || height > G_MAXINT)
+        fatal("invalid DrawingArea content size");
+    gtk_drawing_area_set_content_width(GTK_DRAWING_AREA(widget), (int)width);
+    gtk_drawing_area_set_content_height(GTK_DRAWING_AREA(widget), (int)height);
+}
+
+void cwhip_gtk_drawing_area_set_color(void *self, int64_t token, double r, double g,
+                                      double b, double a) {
+    (void)self;
+    cairo_set_source_rgba(drawing_cr(token), r, g, b, a);
+}
+
+void cwhip_gtk_drawing_area_set_line_width(void *self, int64_t token, double width) {
+    (void)self;
+    if (!(width > 0.0)) fatal("line width must be positive");
+    cairo_set_line_width(drawing_cr(token), width);
+}
+
+void cwhip_gtk_drawing_area_fill_rect(void *self, int64_t token, double x, double y,
+                                      double width, double height) {
+    (void)self;
+    cairo_t *cr = drawing_cr(token);
+    cairo_rectangle(cr, x, y, width, height);
+    cairo_fill(cr);
+}
+
+void cwhip_gtk_drawing_area_stroke_rect(void *self, int64_t token, double x, double y,
+                                        double width, double height) {
+    (void)self;
+    cairo_t *cr = drawing_cr(token);
+    cairo_rectangle(cr, x, y, width, height);
+    cairo_stroke(cr);
+}
+
+void cwhip_gtk_drawing_area_fill_circle(void *self, int64_t token, double cx, double cy,
+                                        double radius) {
+    (void)self;
+    if (!(radius >= 0.0)) fatal("circle radius must be nonnegative");
+    cairo_t *cr = drawing_cr(token);
+    cairo_arc(cr, cx, cy, radius, 0.0, G_PI * 2.0);
+    cairo_fill(cr);
+}
+
+void cwhip_gtk_drawing_area_stroke_circle(void *self, int64_t token, double cx, double cy,
+                                          double radius) {
+    (void)self;
+    if (!(radius >= 0.0)) fatal("circle radius must be nonnegative");
+    cairo_t *cr = drawing_cr(token);
+    cairo_arc(cr, cx, cy, radius, 0.0, G_PI * 2.0);
+    cairo_stroke(cr);
+}
+
+void cwhip_gtk_drawing_area_stroke_line(void *self, int64_t token, double x1, double y1,
+                                        double x2, double y2) {
+    (void)self;
+    cairo_t *cr = drawing_cr(token);
+    cairo_move_to(cr, x1, y1);
+    cairo_line_to(cr, x2, y2);
+    cairo_stroke(cr);
+}
+
 int64_t cwhip_gtk_widget_signal(void *self, int64_t token, int64_t kind, void *callback) {
     (void)self;
     GtkWidget *w = widget_live(token);
@@ -3497,6 +4285,144 @@ static int64_t source_token(void *source) {
     for (WidgetRecord *r = widgets; r; r = r->next)
         if (r->receiver == receiver && r->widget) return r->token;
     fatal("widget has been disposed or is not initialized");
+}
+
+int64_t cwhip_gtk_drawing_area_signal(void *self, void *source, void *callback) {
+    (void)self;
+    int64_t token = source_token(source);
+    GtkWidget *widget = widget_live(token);
+    if (!GTK_IS_DRAWING_AREA(widget)) fatal("draw requires DrawingArea");
+    Connection *connection = calloc(1, sizeof(*connection));
+    if (!connection) fatal("allocation failed");
+    connection->token = token_new();
+    connection->object = G_OBJECT(widget);
+    connection->context = cwhip_callback_acquire(callback, "callback<void(int64,int64)>");
+    connection->closures = 1;
+    connection->draw_func = true;
+    connection->next = connections;
+    connections = connection;
+    gtk_drawing_area_set_draw_func(GTK_DRAWING_AREA(widget), drawing_area_draw, connection,
+                                   draw_connection_destroy);
+    return connection->token;
+}
+
+int64_t cwhip_gtk_drawing_area_click_signal(void *self, void *source, void *callback) {
+    (void)self;
+    GtkWidget *widget = widget_live(source_token(source));
+    if (!GTK_IS_DRAWING_AREA(widget)) fatal("click requires DrawingArea");
+    GtkGesture *gesture = gtk_gesture_click_new();
+    /* Button 0 = any mouse button; the callback reports which one fired. */
+    gtk_gesture_single_set_button(GTK_GESTURE_SINGLE(gesture), 0);
+    gtk_event_controller_set_propagation_phase(GTK_EVENT_CONTROLLER(gesture),
+                                               GTK_PHASE_BUBBLE);
+    int64_t token = connect_signal(G_OBJECT(gesture), "released",
+        G_CALLBACK(drawing_area_click_released), callback,
+        "callback<void(int64,fp64,fp64)>");
+    gtk_widget_add_controller(widget, GTK_EVENT_CONTROLLER(gesture));
+    return token;
+}
+
+int64_t cwhip_gtk_drawing_area_drag_signal(void *self, void *source, void *callback) {
+    (void)self;
+    GtkWidget *widget = widget_live(source_token(source));
+    if (!GTK_IS_DRAWING_AREA(widget)) fatal("drag requires DrawingArea");
+    GtkGesture *gesture = gtk_gesture_drag_new();
+    gtk_gesture_single_set_button(GTK_GESTURE_SINGLE(gesture), GDK_BUTTON_PRIMARY);
+    gtk_event_controller_set_propagation_phase(GTK_EVENT_CONTROLLER(gesture),
+                                               GTK_PHASE_BUBBLE);
+    int64_t token = connect_signal(G_OBJECT(gesture), "drag-begin",
+        G_CALLBACK(drawing_area_drag_begin), callback,
+        "callback<void(int64,fp64,fp64,fp64,fp64)>");
+    /* Group begin/update/end on one Connection so disconnect() drops all three. */
+    Connection *connection = connections;
+    while (connection && connection->token != token) connection = connection->next;
+    if (!connection || connection->additional_count + 2 > G_N_ELEMENTS(connection->additional))
+        fatal("invalid grouped signal connection");
+    ++connection->closures;
+    connection->additional[connection->additional_count++] = g_signal_connect_data(
+        connection->object, "drag-update", G_CALLBACK(drawing_area_drag_update), connection,
+        connection_destroy, 0);
+    ++connection->closures;
+    connection->additional[connection->additional_count++] = g_signal_connect_data(
+        connection->object, "drag-end", G_CALLBACK(drawing_area_drag_end), connection,
+        connection_destroy, 0);
+    if (!connection->additional[0] || !connection->additional[1])
+        fatal("signal connection failed");
+    gtk_widget_add_controller(widget, GTK_EVENT_CONTROLLER(gesture));
+    return token;
+}
+
+int64_t cwhip_gtk_drawing_area_scroll_signal(void *self, void *source, void *callback) {
+    (void)self;
+    GtkWidget *widget = widget_live(source_token(source));
+    if (!GTK_IS_DRAWING_AREA(widget)) fatal("scroll requires DrawingArea");
+    GtkEventController *controller =
+        gtk_event_controller_scroll_new(GTK_EVENT_CONTROLLER_SCROLL_BOTH_AXES);
+    gtk_event_controller_set_propagation_phase(controller, GTK_PHASE_BUBBLE);
+    int64_t token = connect_signal(G_OBJECT(controller), "scroll",
+        G_CALLBACK(drawing_area_scroll), callback, "callback<void(fp64,fp64,fp64,fp64)>");
+    gtk_widget_add_controller(widget, controller);
+    return token;
+}
+
+int64_t cwhip_gtk_context_menu_popup_signal(void *self, void *source, void *callback) {
+    (void)self;
+    GtkWidget *widget = widget_live(source_token(source));
+    if (!GTK_IS_POPOVER_MENU(widget)) fatal("popup requires ContextMenu");
+    Connection *previous = g_object_get_data(G_OBJECT(widget), "cwhip-popup");
+    if (previous && !previous->closed) cwhip_gtk_disconnect(previous->token);
+    Connection *connection = calloc(1, sizeof(*connection));
+    if (!connection) fatal("allocation failed");
+    connection->token = token_new();
+    connection->object = G_OBJECT(widget);
+    connection->context = cwhip_callback_acquire(callback, "callback<void(fp64,fp64)>");
+    connection->closures = 1;
+    connection->popup_func = true;
+    connection->next = connections;
+    connections = connection;
+    g_object_set_data(G_OBJECT(widget), "cwhip-popup", connection);
+    return connection->token;
+}
+
+int64_t cwhip_gtk_scrollbar_signal(void *self, void *source, void *callback) {
+    (void)self;
+    GtkAdjustment *adjustment = scrollbar_adjustment(source_token(source));
+    return connect_signal(G_OBJECT(adjustment), "value-changed",
+                          G_CALLBACK(scrollbar_value_changed), callback,
+                          "callback<void(fp64)>");
+}
+
+int64_t cwhip_gtk_scale_signal(void *self, void *source, void *callback) {
+    (void)self;
+    GtkAdjustment *adjustment = scale_adjustment(source_token(source));
+    return connect_signal(G_OBJECT(adjustment), "value-changed",
+                          G_CALLBACK(scale_value_changed), callback,
+                          "callback<void(fp64)>");
+}
+
+int64_t cwhip_gtk_spin_button_signal(void *self, void *source, void *callback) {
+    (void)self;
+    GtkWidget *widget = widget_live(source_token(source));
+    if (!GTK_IS_SPIN_BUTTON(widget)) fatal("value change requires SpinButton");
+    return connect_signal(G_OBJECT(widget), "value-changed",
+                          G_CALLBACK(spin_button_value_changed), callback,
+                          "callback<void(fp64)>");
+}
+
+int64_t cwhip_gtk_drop_down_signal(void *self, void *source, void *callback) {
+    (void)self;
+    GtkWidget *widget = widget_live(source_token(source));
+    if (!GTK_IS_DROP_DOWN(widget)) fatal("selection change requires DropDown");
+    return connect_signal(G_OBJECT(widget), "notify::selected",
+                          G_CALLBACK(drop_down_selected), callback,
+                          "callback<void(int64)>");
+}
+
+int64_t cwhip_gtk_text_view_signal(void *self, void *source, void *callback) {
+    (void)self;
+    GtkTextBuffer *buffer = text_view_buffer(source_token(source));
+    return connect_signal(G_OBJECT(buffer), "changed", G_CALLBACK(text_view_changed),
+                          callback, "callback<void(String)>");
 }
 
 int64_t cwhip_gtk_button_signal(void *self, void *source, void *callback) {

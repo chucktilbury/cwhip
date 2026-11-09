@@ -3,8 +3,11 @@
 The optional `gtk` package (`0.1.0`, `import gtk`, namespace `Gtk`) provides a
 compact GTK-aligned interface: `Application`, `Widget`, `Window`, `Box`, `Label`,
 `Button`, `Entry`, `CheckButton`, `ScrolledWindow`, `Notebook`, `MenuBar`,
-`FileDialog`, `Paned`, `Tree`, `DirectoryScan`, and `SignalConnection`, plus the optional `sourceview` package.
-It is not a complete GTK binding or a generic GUI framework.
+`ContextMenu`, `Scrollbar`, `Scale`, `ProgressBar`, `SpinButton`, `DropDown`,
+`Frame`, `Expander`, `Separator`, `TextView`, `FileDialog`, `Paned`,
+`DrawingArea`, `Tree`, `DirectoryScan`, and `SignalConnection`, plus the optional
+`sourceview` package. It is not a complete GTK binding or a generic GUI
+framework.
 
 ## Build and package linkage
 
@@ -18,8 +21,9 @@ standard modules. With it on, `lib/libcwhip_gtk.a` resides inside
 `share/cwhip/modules/gtk/0.1.0/`, beside the source and manifest.
 
 Package `[link]` metadata links importing applications with `cwhip_gtk`, `gtk-4`,
-`gio-2.0`, `gobject-2.0`, `glib-2.0`, `pango-1.0`, and `pangocairo-1.0`. The compiler and non-import applications
-remain unlinked to GTK. Compile-only objects retain package link sidecars.
+`gio-2.0`, `gobject-2.0`, `glib-2.0`, `pango-1.0`, `pangocairo-1.0`, and `cairo`.
+The compiler and non-import applications remain unlinked to GTK. Compile-only
+objects retain package link sidecars.
 Installed consumers use the normal `cwhip-pkg init` / `cwhip-pkg install` lock flow.
 GTK runtime libraries and a usable display are external requirements; they
 are not bundled. The native platform remains POSIX.
@@ -104,10 +108,20 @@ The first-release additions are:
 | `Widget` | `setVisible(bool)`, `bool visible()`, `setSensitive(bool)`, `setHExpand(bool)`, `setVExpand(bool)`, `setWidthRequest(int64)`, `addCssClass(String)`, `removeCssClass(String)`, `setTooltip(String)`, `setFocusOnClick(bool)`, `setCanFocus(bool)`, `dispose()`, `bool disposed()` |
 | `Window` | `Window(String title)`, `setTitle(String)`, `String title()`, `setDefaultSize(int64 width, int64 height)`, `int64 defaultWidth()`, `int64 defaultHeight()`, `setTransientFor(Window parent)`, `setChild(Widget)`, `remove(Widget)`, `present()`, `close()`, `onCloseRequest(bool<>)`, `onFocusChanged(void<bool>)`, `bindShortcut(String trigger, void<>)`, `bool hasShortcut(String trigger)`, `clearShortcuts()`, `setMenubarAccel(bool)`, `bool menubarAccel()` |
 | `Paned` | `Paned()` (horizontal), `Paned(int64 orientation)` with `Paned.HORIZONTAL` / `Paned.VERTICAL`, `append(Widget)`, `setPosition(int64)`, `int64 position()` |
+| `DrawingArea` | `DrawingArea()`, `queueDraw()`, `setContentSize(int64 width, int64 height)`, `onDraw(void<int64, int64>)`, `onClick(void<int64, fp64, fp64>)`, `onDrag(void<int64, fp64, fp64, fp64, fp64>)`, `onScroll(void<fp64, fp64, fp64, fp64>)`, paint helpers `setColor` / `setLineWidth` / `fillRect` / `strokeRect` / `fillCircle` / `strokeCircle` / `strokeLine` (valid only inside `onDraw`) |
 | `TransientWindow` | `TransientWindow(String title)`, `setTitle(String)`, `String title()`, `setDefaultSize(int64 width, int64 height)`, `int64 defaultWidth()`, `int64 defaultHeight()`, `setTransientFor(Window parent)`, `setChild(Widget)`, `remove(Widget)`, `present()`, `close()`, `onCloseRequest(bool<>)` |
 | `Box` | `Box(int64 orientation, int64 spacing)`, `setLayout(int64 orientation, int64 spacing)`, `append(Widget)`, `remove(Widget)` |
 | `Grid` | `Grid(int64 spacing)`, `attach(Widget, int64 column, int64 row, int64 width, int64 height)` |
-| `ContextMenu` | `ContextMenu(Widget owner)`, `addItem`, `addCheckItem`, `setChild(Widget)` |
+| `ContextMenu` | `ContextMenu(Widget owner)`, `addItem` / `addCheckItem` (root or submenu), `addSeparator`, `addSubmenu`, `clear` / `clearMenu`, `onPopup(void<fp64, fp64>)`, `popupAt(fp64, fp64)`, `setChild(Widget)` |
+| `Scrollbar` | `Scrollbar(int64 orientation)` with `HORIZONTAL` / `VERTICAL`, `configure(value, lower, upper, step, page, pageSize)`, `setValue` / `value` / `lower` / `upper` / `pageSize`, `onValueChanged(void<fp64>)` |
+| `Scale` | `Scale(int64 orientation)` with `HORIZONTAL` / `VERTICAL`, `configure(value, lower, upper, step)`, `setValue` / `value` / `lower` / `upper` / `step`, `onValueChanged(void<fp64>)` |
+| `ProgressBar` | `ProgressBar(int64 orientation)` with `HORIZONTAL` / `VERTICAL`, `setFraction` / `fraction` (0..1), `setText` / `text`, `setShowText` / `showText`, `pulse`, `setPulseStep` / `pulseStep` |
+| `SpinButton` | `SpinButton()`, `configure(value, lower, upper, step)`, `setValue` / `value` / `lower` / `upper` / `step`, `onValueChanged(void<fp64>)` |
+| `DropDown` | `DropDown()`, `clear`, `append(String)`, `setChoices(list)`, `setSelected` / `selected` / `selectedText` / `size` / `item`, `onSelected(void<int64>)` |
+| `Frame` | `Frame(String label)`, `setLabel` / `label`, `setChild` / `remove` |
+| `Expander` | `Expander(String label)`, `setLabel` / `label`, `setExpanded` / `expanded`, `setChild` / `remove` |
+| `Separator` | `Separator(int64 orientation)` with `HORIZONTAL` / `VERTICAL` |
+| `TextView` | `TextView()`, `setText` / `text`, `setEditable` / `editable`, `setWrap` / `wrap`, `onChanged(void<String>)` |
 | `Label` | `Label(String text)`, `setText(String)`, `String text()` |
 | `Button` | `Button(String label)`, `setLabel(String)`, `String label()`, `setIconName(String)`, `onClicked(void<>)` (focus-on-click off; non-focusable buttons activate on press) |
 | `Entry` | `Entry(String text)`, `setText(String)`, `String text()`, `focus()`, `setEditable(bool)`, `onChanged(void<String>)` |
@@ -129,14 +143,18 @@ The window manager may apply this request asynchronously.
 `onFocusChanged` reports GTK's window-active state (`false` on loss).
 `Grid` uses zero-based, nonnegative row/column positions and positive spans.
 `Entry.setEditable(false)` keeps selection/copy and programmatic updates available.
-`ContextMenu` attaches a secondary-button `PopoverMenu` to its owner.
-`addItem` / `addCheckItem` append native menu rows (with `setItemEnabled` and
-`setItemChecked`); `setChild` remains for a custom content widget when needed.
-Owner disposal tears the menu down. Its capture-phase gesture suppresses the
-owner's default popup. For text views that still use `ContextMenu`, it
-positions the cursor at the clicked line before opening; views with line
-selection enabled select that whole line instead. A right click inside an
-existing text selection keeps the selection. Prefer
+`ContextMenu` attaches a secondary-button `PopoverMenu` to its owner (any
+`Widget`, including `DrawingArea`). `onPopup(void<fp64,fp64>)` fires with
+owner-local click coordinates immediately before the menu opens so the app can
+`clear()` and rebuild items (status rows, jump targets, and so on).
+`addItem` / `addCheckItem` append native menu rows (root or submenu index from
+`addSubmenu`); `addSeparator` starts a native divider section; `popupAt(x, y)`
+opens the menu programmatically. `setChild` remains for a custom content widget
+when needed. Owner disposal tears the menu down. Its capture-phase gesture
+suppresses the owner's default popup. For text views that still use
+`ContextMenu`, it positions the cursor at the clicked line before opening;
+views with line selection enabled select that whole line instead. A right click
+inside an existing text selection keeps the selection. Prefer
 `GtkSource.View.addContextAction` when the built-in Cut/Copy/Paste menu should
 stay and only extra rows are needed.
 `appendClosablePage` adds a bordered title/close-icon tab, invoking
@@ -166,6 +184,314 @@ windows cannot be children. Self-parenting, cycles, already-parented children,
 occupied single-child containers, and removing from the wrong parent are errors.
 GTK may internally insert a viewport in a scrolled window; the Cwhip ownership
 relationship still refers to the child supplied by the caller.
+
+## DrawingArea
+
+`DrawingArea` is a normal child widget (`GtkDrawingArea`) for custom 2D paint.
+Embed it with the same parenting rules as any other widget: `Box.append`,
+`Paned.append`, `Notebook.appendPage`, `Grid.attach`, `ScrolledWindow.setChild`,
+or `Window.setChild`. Expand it with `setHExpand` / `setVExpand` when it should
+fill a panel; call `setContentSize(width, height)` when the canvas should report
+a fixed natural size (for example as a `ScrolledWindow` child).
+
+```text
+DrawingArea()
+void queueDraw()
+void setContentSize(int64 width, int64 height)
+SignalConnection onDraw(void<int64, int64> action)
+SignalConnection onClick(void<int64, fp64, fp64> action)
+SignalConnection onDrag(void<int64, fp64, fp64, fp64, fp64> action)
+SignalConnection onScroll(void<fp64, fp64, fp64, fp64> action)
+enum BUTTON_PRIMARY = 1, BUTTON_MIDDLE = 2, BUTTON_SECONDARY = 3
+enum DRAG_BEGIN = 0, DRAG_UPDATE = 1, DRAG_END = 2
+void setColor(fp64 r, fp64 g, fp64 b, fp64 a)
+void setLineWidth(fp64 width)
+void fillRect(fp64 x, fp64 y, fp64 width, fp64 height)
+void strokeRect(fp64 x, fp64 y, fp64 width, fp64 height)
+void fillCircle(fp64 cx, fp64 cy, fp64 radius)
+void strokeCircle(fp64 cx, fp64 cy, fp64 radius)
+void strokeLine(fp64 x1, fp64 y1, fp64 x2, fp64 y2)
+```
+
+`onDraw` receives the current allocation width and height in pixels. Paint
+helpers may run only during that callback; calling them afterward aborts with a
+GTK diagnostic. Prefer `f64` float literals for colors and geometry. A later
+`onDraw` replaces the previous draw function. `queueDraw` marks the area dirty
+so GTK schedules another paint (for example after application state changes).
+
+Pointer callbacks use widget-local coordinates:
+
+- `onClick(button, x, y)` fires on mouse-button release. `button` matches GDK
+  (`BUTTON_PRIMARY` / `MIDDLE` / `SECONDARY`). A primary-button drag that moves
+  past GTK's drag threshold typically suppresses the click, so pick and pan can
+  share the left button.
+- `onDrag(phase, start_x, start_y, offset_x, offset_y)` tracks a primary-button
+  drag (`DRAG_BEGIN` / `UPDATE` / `END`). Offsets are relative to the press point;
+  apps usually keep a pan origin at begin and apply `origin + offset` on update.
+- `onScroll(x, y, dx, dy)` reports scroll-wheel / trackpad deltas. `x`/`y` are
+  the pointer focus when known (last motion or the scroll event position).
+
+Minimal demo (panel child + clear + circle + click mark):
+
+```cwhip
+import gtk
+
+class Demo {
+    Gtk.DrawingArea area
+    fp64 markX
+    fp64 markY
+    void<> quitAction
+    void<int64, int64> paintAction
+    void<int64, fp64, fp64> clickAction
+
+    void paint(int64 width, int64 height) {
+        area.setColor(0.12f64, 0.14f64, 0.20f64, 1.0f64)
+        area.fillRect(0.0f64, 0.0f64, width, height)
+        area.setColor(0.25f64, 0.75f64, 0.40f64, 1.0f64)
+        area.fillCircle(width / 2, height / 2, 48.0f64)
+        area.setColor(0.95f64, 0.55f64, 0.20f64, 1.0f64)
+        area.fillCircle(markX, markY, 6.0f64)
+    }
+
+    void clicked(int64 button, fp64 x, fp64 y) {
+        if (button == Gtk.DrawingArea.BUTTON_PRIMARY) {
+            markX = x
+            markY = y
+            area.queueDraw()
+        }
+    }
+
+    void quit() { Gtk.Application().quit() }
+
+    void activate() {
+        Gtk.Window window = Gtk.Window("DrawingArea demo")
+        window.setDefaultSize(480, 320)
+        Gtk.Box layout = Gtk.Box(Gtk.Box.VERTICAL, 0)
+        area = Gtk.DrawingArea()
+        area.setHExpand(true)
+        area.setVExpand(true)
+        area.onDraw(paintAction)
+        area.onClick(clickAction)
+        layout.append(area)
+        window.setChild(layout)
+        window.present()
+        area.queueDraw()
+        Gtk.Application().schedule(1500, quitAction)
+    }
+}
+
+start {
+    Gtk.Application app = Gtk.Application("org.cwhip.DrawingDemo")
+    Demo demo = Demo()
+    demo.paintAction = demo.paint
+    demo.clickAction = demo.clicked
+    demo.quitAction = demo.quit
+    app.onActivate(demo.activate)
+    app.run()
+}
+```
+
+See `examples/drawing.cw` for click + drag pan + scroll zoom, custom
+`Scrollbar` extents, and `ContextMenu` `onPopup` rebuild together.
+
+### View scroll bars (two supported approaches)
+
+**Path 1 — `ScrolledWindow` + content size.** When the canvas has a natural
+size larger than the viewport, wrap the area and let GTK show stock bars:
+
+```cwhip
+Gtk.ScrolledWindow scroll = Gtk.ScrolledWindow()
+scroll.setPolicy(Gtk.ScrolledWindow.POLICY_AUTOMATIC,
+                 Gtk.ScrolledWindow.POLICY_AUTOMATIC)
+Gtk.DrawingArea area = Gtk.DrawingArea()
+area.setContentSize(2000, 1500)
+area.onDraw(paintAction)
+scroll.setChild(area)
+```
+
+**Path 2 — `Scrollbar` tied to pan/zoom extents.** When zoom is a client-side
+transform (content size stays fixed; `onDraw` applies scale/offset), stock
+`ScrolledWindow` alone is not enough. Create horizontal/vertical `Scrollbar`
+widgets, `configure(value, lower, upper, step, page, pageSize)` from the
+current extents, and update the view from `onValueChanged(void<fp64>)`.
+
+```text
+Scrollbar(int64 orientation)   // HORIZONTAL = 0, VERTICAL = 1
+void configure(fp64 value, fp64 lower, fp64 upper, fp64 step, fp64 page, fp64 pageSize)
+void setValue(fp64 value)
+fp64 value() / lower() / upper() / pageSize()
+SignalConnection onValueChanged(void<fp64> action)
+```
+
+Either path (or both) is valid; apps should not assume mouse-only pan.
+
+### DrawingArea ContextMenu hooks
+
+```cwhip
+Gtk.ContextMenu menu = Gtk.ContextMenu(area)
+menu.onPopup(prepareMenu)   // (x, y) in area coordinates
+// inside prepareMenu:
+menu.clear()
+menu.addItem("Status…", statusAction)
+menu.addSeparator()
+int64 places = menu.addSubmenu("Known places")
+menu.addItem(places, "Planet A", jumpAction)
+```
+
+`popupAt(x, y)` opens the same menu without a right-click when the app already
+has coordinates (for example from `onClick` with `BUTTON_SECONDARY`).
+
+### Scale (sliders)
+
+`Scale` is a `GtkScale` for continuous or stepped numeric settings (policy
+knobs, budgets, discrete 1–10 bands). Orientation matches `Box` / `Paned` /
+`Scrollbar` (`HORIZONTAL` = 0, `VERTICAL` = 1). Default range is `0..1` with
+step `0.1` until `configure` runs. Page increment follows GTK's
+`gtk_scale_new_with_range` convention (`step * 10`). Display digits track the
+step size. Prefer `Scale` for settings; use `Scrollbar` for pan/zoom extents.
+
+```text
+Scale(int64 orientation)   // HORIZONTAL = 0, VERTICAL = 1
+void configure(fp64 value, fp64 lower, fp64 upper, fp64 step)
+void setValue(fp64 value)
+fp64 value() / lower() / upper() / step()
+SignalConnection onValueChanged(void<fp64> action)
+```
+
+```cwhip
+Gtk.Scale expansion = Gtk.Scale(Gtk.Scale.HORIZONTAL)
+expansion.configure(50.0f64, 0.0f64, 100.0f64, 1.0f64)
+expansion.onValueChanged(policyChanged)
+Gtk.Scale livability = Gtk.Scale(Gtk.Scale.VERTICAL)
+livability.configure(5.0f64, 1.0f64, 10.0f64, 1.0f64)
+```
+
+See `examples/scale.cw`.
+
+### ProgressBar
+
+`ProgressBar` is a `GtkProgressBar` for determinate fraction (0..1) or
+indeterminate `pulse` feedback (build/download/ETA chrome, long jobs).
+Orientation matches `Box` / `Paned` / `Scale` (`HORIZONTAL` = 0,
+`VERTICAL` = 1). Defaults are fraction `0`, `showText` false, empty text, and
+pulse step `0.1`. With `showText` true and empty text, GTK may display a
+percentage; `setText` supplies a custom overlay label. `pulse` advances the
+block by `pulseStep` (must be in `(0.0, 1.0]`). Out-of-range fractions abort.
+
+```text
+ProgressBar(int64 orientation)   // HORIZONTAL = 0, VERTICAL = 1
+void setFraction(fp64 fraction) / fp64 fraction()
+void setText(String text) / String text()
+void setShowText(bool show) / bool showText()
+void pulse()
+void setPulseStep(fp64 step) / fp64 pulseStep()
+```
+
+```cwhip
+Gtk.ProgressBar develop = Gtk.ProgressBar(Gtk.ProgressBar.HORIZONTAL)
+develop.setHExpand(true)
+develop.setShowText(true)
+develop.setText("developing…")
+develop.setFraction(0.35f64)
+Gtk.ProgressBar unknown = Gtk.ProgressBar(Gtk.ProgressBar.HORIZONTAL)
+unknown.setPulseStep(0.15f64)
+unknown.pulse()
+```
+
+See `examples/progress.cw`.
+
+### SpinButton
+
+`SpinButton` is a `GtkSpinButton` for bounded integer or stepped numeric entry
+(counts, 0–100 percents, discrete ranges). Prefer it over free-text `Entry` when
+the value has hard bounds; prefer `Scale` when a continuous slider is the better
+control. Default range is `0..100` with step `1` until `configure` runs. Page
+increment is `step * 10`. Display digits track the step size (same heuristic as
+`Scale`).
+
+```text
+SpinButton()
+void configure(fp64 value, fp64 lower, fp64 upper, fp64 step)
+void setValue(fp64 value)
+fp64 value() / lower() / upper() / step()
+SignalConnection onValueChanged(void<fp64> action)
+```
+
+```cwhip
+Gtk.SpinButton hulls = Gtk.SpinButton()
+hulls.configure(1.0f64, 1.0f64, 12.0f64, 1.0f64)
+hulls.onValueChanged(hullsChanged)
+```
+
+See `examples/spin.cw`.
+
+### DropDown
+
+`DropDown` is a `GtkDropDown` over a `GtkStringList` for enum and id pickers.
+Build the model with `clear`/`append` or `setChoices(list)` (a list of
+`String`). `selected()` is the 0-based index, or `-1` when nothing is selected;
+`selectedText()` returns the choice string (or `""`). `setSelected(-1)` clears
+the selection. `onSelected` reports the new index (including `-1`).
+
+```text
+DropDown()
+void clear() / append(String) / setChoices(list)
+void setSelected(int64 index) / int64 selected()
+String selectedText() / int64 size() / String item(int64 index)
+SignalConnection onSelected(void<int64> action)
+```
+
+```cwhip
+Gtk.DropDown role = Gtk.DropDown()
+role.setChoices(["neutral", "conqueror", "pirate", "trader", "hermit"])
+role.setSelected(0)
+role.onSelected(rolePicked)
+```
+
+See `examples/dropdown.cw`.
+
+### Frame, Expander, Separator
+
+Layout helpers for denser dialogs:
+
+- `Frame(String label)` — decorative titled border around one child (`setChild`).
+- `Expander(String label)` — collapsible section (`setExpanded` / `expanded`,
+  `setChild`). Starts collapsed.
+- `Separator(int64 orientation)` — horizontal or vertical divider
+  (`HORIZONTAL` = 0, `VERTICAL` = 1).
+
+```cwhip
+Gtk.Frame group = Gtk.Frame("Budget")
+group.setChild(budgetBox)
+Gtk.Expander more = Gtk.Expander("Advanced")
+more.setExpanded(false)
+more.setChild(advancedBox)
+root.append(Gtk.Separator(Gtk.Separator.HORIZONTAL))
+```
+
+### TextView
+
+`TextView` is a plain multiline `GtkTextView` for compose/digest panes (not
+syntax-aware; use the `sourceview` package for editors). Defaults: editable,
+word wrap on. `onChanged` delivers the full buffer text.
+
+```text
+TextView()
+void setText(String) / String text()
+void setEditable(bool) / bool editable()
+void setWrap(bool) / bool wrap()
+SignalConnection onChanged(void<String> action)
+```
+
+```cwhip
+Gtk.TextView body = Gtk.TextView()
+body.setText("Hello\nworld")
+body.onChanged(bodyChanged)
+```
+
+See `examples/textview.cw`.
+
+**Deferred (not in this release):** dashed strokes and draw-text helpers.
 
 Expansion uses GTK's actual `hexpand`/`vexpand` layout properties. For an editor,
 expand the notebook, scrolled window and source widget vertically and horizontally
@@ -733,6 +1059,12 @@ consumers, GC/reentry/misuse cases, optional documentation/examples, and ASan/UB
 overwrite acceptance/decline, callback GC and cancellation/teardown, menu actions,
 and actual multiline source-widget allocations before and after window resize.
 Its private fixture is not shipped in the package.
-See [TESTING.md](TESTING.md). Styling, broad dialog/model coverage, drawing, input events,
+See [TESTING.md](TESTING.md). Styling, broad dialog/model coverage, input events,
 arbitrary native-widget adoption, file-open/command-line activation, and broad GTK
-property coverage are not implemented in this release.
+property coverage are not implemented in this release. `DrawingArea` provides a
+custom-paint surface with click/drag/scroll coordinates, `Scrollbar` /
+`ScrolledWindow` view chrome, and DrawingArea `ContextMenu` hooks; `Scale`
+covers numeric sliders; `ProgressBar` covers determinate fraction and pulse
+feedback; `SpinButton` / `DropDown` cover bounded numeric entry and string
+pickers; `Frame` / `Expander` / `Separator` / `TextView` cover denser dialog
+layout and plain multiline text. Richer path/text paint APIs remain open.

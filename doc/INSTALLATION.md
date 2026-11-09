@@ -2,8 +2,8 @@
 
 For source-independent external CMake projects and whole-prefix relocation,
 see [the installed SDK contract](CMAKE-SDK.md).
-The [cedit editor](https://github.com/chucktilbury/cedit) and
-[cdbg debugger](https://github.com/chucktilbury/cdbg) are standalone SDK consumers;
+The [cedit editor](https://github.com/cwhip-lang/cedit) and
+[cdbg debugger](https://github.com/cwhip-lang/cdbg) are standalone SDK consumers;
 this repository does not build or install either application.
 
 For that SDK-first, standalone-editor workflow from an empty source directory,
@@ -117,7 +117,7 @@ Until the first `build`, `cwhip` on `PATH` may be an installed compiler, so buil
 before using it. The Git shortcuts `status`, `add [PATH...]`, `commit`, `push`,
 and `all` (add all, commit, push) run at the checkout root only when typed.
 `dbg SOURCE.cw|EXECUTABLE [-- ARGS...]` passes arguments directly to standalone
-[cdbg](https://github.com/chucktilbury/cdbg) on `PATH`; it has no KDbg fallback.
+[cdbg](https://github.com/cwhip-lang/cdbg) on `PATH`; it has no KDbg fallback.
 Neither debugger is needed to run setup.
 
 To use the checkout's tools on a separate project, start the shell and change
@@ -440,7 +440,7 @@ exit
 ```
 
 `new NAME [DIRECTORY]` downloads a tar archive of
-[`chucktilbury/cwhip-template`](https://github.com/chucktilbury/cwhip-template),
+[`cwhip-lang/app-template`](https://github.com/cwhip-lang/app-template),
 not a Git clone. `--ref BRANCH_OR_TAG_OR_COMMIT` selects a ref (default `main`;
 the template currently has no release tags). Invoking `new` explicitly requests
 this download; it does not require the package installer's `--yes`. The template
