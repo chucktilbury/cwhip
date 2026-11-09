@@ -676,6 +676,10 @@ class UI {
         drop.setChoices(["x", "y"])
         require(drop.size() == 2 && drop.selected() == 0, "setChoices")
         require(drop.selectedText().equals("x"), "setChoices text")
+        drop.setSelected(1)
+        drop.setChoices(["x", "y", "z"])
+        require(drop.selected() == 1 && drop.selectedText().equals("y"),
+            "setChoices keeps prior")
         print("PASS dropdown")
         Gtk.Application().quit()
     }

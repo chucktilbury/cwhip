@@ -533,17 +533,31 @@ namespace Gtk {
         // Appends one visible choice string at the end of the model.
         void append(String label) { _append(_widgetToken(), label) }
         // Replaces all choices with the given list of String labels (may be empty).
-        // Selection resets to index 0 when the list is nonempty, else -1.
+        // Keeps the prior selectedText when it still appears in the new list;
+        // otherwise selects index 0 when nonempty, or -1 when empty.
         void setChoices(list labels) {
+            String prior = selectedText()
             clear()
             int64 i = 0
             while (i < labels.length) {
                 append(labels[i])
                 i = i + 1
             }
-            if (labels.length > 0) {
-                setSelected(0)
+            if (labels.length < 1) {
+                return()
             }
+            if (prior.length > 0) {
+                int64 found = 0
+                while (found < labels.length) {
+                    String item = labels[found]
+                    if (item.equals(prior)) {
+                        setSelected(found)
+                        return()
+                    }
+                    found = found + 1
+                }
+            }
+            setSelected(0)
         }
         // Selects choice at index (0-based). Pass -1 to clear the selection.
         // Out-of-range nonnegative indices abort.
